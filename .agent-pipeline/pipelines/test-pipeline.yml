@@ -1,0 +1,17 @@
+name: test-pipeline
+trigger: manual
+
+settings:
+  autoCommit: true
+  commitPrefix: "[pipeline:{{stage}}]"
+  failureStrategy: continue
+  preserveWorkingTree: false
+
+agents:
+  - name: hello-world
+    agent: .claude/agents/hello-world.md
+    timeout: 60
+
+  - name: file-creator
+    agent: .claude/agents/file-creator.md
+    commitMessage: "Add test file from pipeline"

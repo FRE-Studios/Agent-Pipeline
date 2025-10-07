@@ -1,0 +1,41 @@
+{
+  "name": "agent-pipeline",
+  "version": "0.1.0",
+  "description": "Sequential agent execution pipeline with state management and git integration",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "agent-pipeline": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "agent",
+    "pipeline",
+    "claude",
+    "ai",
+    "automation",
+    "git"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "simple-git": "^3.25.0",
+    "uuid": "^10.0.0",
+    "yaml": "^2.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

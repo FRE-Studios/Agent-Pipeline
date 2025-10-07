@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# State and runtime data
+.agent-pipeline/state/
+
+# Test outputs
+*.log
+hello.md
+pipeline-test.txt
+REVIEW_FINDINGS.md
+SECURITY_AUDIT.md
+CLAUDE.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

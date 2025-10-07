@@ -1,0 +1,34 @@
+name: commit-review
+trigger: post-commit
+
+settings:
+  autoCommit: true
+  commitPrefix: "[pipeline:{{stage}}]"
+  failureStrategy: continue
+  preserveWorkingTree: false
+
+agents:
+  - name: code-review
+    agent: .claude/agents/code-reviewer.md
+    timeout: 120
+    outputs:
+      - issues_found
+      - severity_level
+
+  - name: security-audit
+    agent: .claude/agents/security-auditor.md
+    onFail: warn
+    inputs:
+      focus_areas: "SQL injection, XSS, authentication"
+
+  - name: quality-check
+    agent: .claude/agents/quality-checker.md
+    commitMessage: "Improve code quality based on metrics"
+
+  - name: doc-updater
+    agent: .claude/agents/doc-manager.md
+    enabled: true
+
+  - name: memory-manager
+    agent: .claude/agents/memory-updater.md
+    commitMessage: "Update project memory with learnings"
