@@ -10,11 +10,13 @@ export class PipelineRunner {
   private gitManager: GitManager;
   private stageExecutor: StageExecutor;
   private stateManager: StateManager;
+  private dryRun: boolean;
 
-  constructor(repoPath: string) {
+  constructor(repoPath: string, dryRun: boolean = false) {
     this.gitManager = new GitManager(repoPath);
-    this.stageExecutor = new StageExecutor(this.gitManager);
+    this.stageExecutor = new StageExecutor(this.gitManager, dryRun);
     this.stateManager = new StateManager(repoPath);
+    this.dryRun = dryRun;
   }
 
   async runPipeline(config: PipelineConfig): Promise<PipelineState> {
@@ -37,6 +39,10 @@ export class PipelineRunner {
         totalDuration: 0
       }
     };
+
+    if (this.dryRun) {
+      console.log(`\n🧪 DRY RUN MODE - No commits will be created\n`);
+    }
 
     console.log(`\n🚀 Starting pipeline: ${config.name}`);
     console.log(`📦 Run ID: ${state.runId}`);

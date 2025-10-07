@@ -71,5 +71,8 @@ export interface StageExecution {
   error?: {
     message: string;
     stack?: string;
+    agentPath?: string;
+    timestamp?: string;
+    suggestion?: string;
   };
 }

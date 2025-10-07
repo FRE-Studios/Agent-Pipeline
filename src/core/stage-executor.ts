@@ -7,7 +7,8 @@ import { AgentStageConfig, StageExecution, PipelineState } from '../config/schem
 
 export class StageExecutor {
   constructor(
-    private gitManager: GitManager
+    private gitManager: GitManager,
+    private dryRun: boolean = false
   ) {}
 
   async executeStage(
@@ -39,7 +40,7 @@ export class StageExecutor {
       execution.extractedData = this.extractOutputs(result, stageConfig.outputs);
 
       // Auto-commit if enabled
-      const shouldCommit = stageConfig.autoCommit ?? true;
+      const shouldCommit = (stageConfig.autoCommit ?? true) && !this.dryRun;
       if (shouldCommit) {
         const commitSha = await this.gitManager.createPipelineCommit(
           stageConfig.name,
@@ -54,6 +55,8 @@ export class StageExecutor {
         } else {
           console.log(`ℹ️  No changes to commit`);
         }
+      } else if (this.dryRun && await this.gitManager.hasUncommittedChanges()) {
+        console.log(`💡 Would commit changes (dry-run mode)`);
       }
 
       execution.status = 'success';
@@ -66,13 +69,19 @@ export class StageExecutor {
       execution.status = 'failed';
       execution.endTime = new Date().toISOString();
       execution.duration = this.calculateDuration(execution);
-      execution.error = {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      };
 
+      const errorDetails = this.captureErrorDetails(error, stageConfig);
+      execution.error = errorDetails;
+
+      // Pretty print error
       console.error(`❌ Stage failed: ${stageConfig.name}`);
-      console.error(execution.error.message);
+      console.error(`   Error: ${errorDetails.message}`);
+      if (errorDetails.agentPath) {
+        console.error(`   Agent: ${errorDetails.agentPath}`);
+      }
+      if (errorDetails.suggestion) {
+        console.error(`   💡 ${errorDetails.suggestion}`);
+      }
 
       return execution;
     }
@@ -182,5 +191,31 @@ When done, describe what you changed and why.
     const start = new Date(execution.startTime).getTime();
     const end = new Date(execution.endTime).getTime();
     return (end - start) / 1000; // seconds
+  }
+
+  private captureErrorDetails(error: unknown, stageConfig: AgentStageConfig) {
+    const baseError = {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      agentPath: stageConfig.agent,
+      timestamp: new Date().toISOString()
+    };
+
+    // Add helpful suggestions based on error type
+    let suggestion: string | undefined;
+
+    if (baseError.message.includes('ENOENT')) {
+      suggestion = `Agent file not found. Check path: ${stageConfig.agent}`;
+    } else if (baseError.message.includes('timeout') || baseError.message.includes('Agent timeout')) {
+      suggestion = `Agent exceeded timeout (${stageConfig.timeout || 300}s). Consider increasing timeout in pipeline config.`;
+    } else if (baseError.message.includes('API') || baseError.message.includes('401') || baseError.message.includes('403')) {
+      suggestion = 'Check ANTHROPIC_API_KEY environment variable is set correctly.';
+    } else if (baseError.message.includes('YAML') || baseError.message.includes('parse')) {
+      suggestion = 'Check YAML syntax in pipeline configuration file.';
+    } else if (baseError.message.includes('permission')) {
+      suggestion = 'Check file permissions for agent definition and working directory.';
+    }
+
+    return { ...baseError, suggestion };
   }
 }

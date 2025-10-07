@@ -6,12 +6,22 @@ An agent CI/CD pipeline for intelligent, multi-stage workflows with full visibil
 
 ## Features
 
+**Core Functionality:**
 - **Sequential Execution** - Run multiple Claude agents in a defined order
 - **State Management** - Each agent's output is persisted and passed to the next stage
 - **Git Integration** - Each agent stage creates an atomic commit for easy rollback
 - **YAML Configuration** - Define pipelines in simple, readable YAML files
 - **Error Handling** - Configurable failure strategies (stop/warn/continue)
 - **Pipeline History** - All runs are saved with full state tracking
+
+**Phase 2 Enhancements:**
+- **Git Hook Management** - Auto-install/uninstall post-commit hooks
+- **Rollback System** - Revert entire pipelines or specific stages with confirmation
+- **Dry-Run Mode** - Test pipelines without creating commits
+- **Smart Error Reporting** - Context-aware error messages with suggestions
+- **Pipeline Validation** - Pre-flight checks before running
+- **Enhanced Status** - Detailed pipeline run information with commit history
+- **Project Scaffolding** - Initialize new projects with examples
 
 ## Installation
 
@@ -21,6 +31,18 @@ npm run build
 ```
 
 ## Quick Start
+
+### Option 1: Initialize New Project (Recommended)
+
+```bash
+# Initialize with example pipeline and agents
+node dist/index.js init
+
+# Run the example pipeline
+node dist/index.js run example-pipeline
+```
+
+### Option 2: Manual Setup
 
 ### 1. Create a Pipeline Configuration
 
@@ -67,15 +89,46 @@ node dist/index.js run my-pipeline
 
 ## CLI Commands
 
+### Basic Commands
+
 ```bash
+# Initialize a new project
+node dist/index.js init
+
 # List available pipelines
 node dist/index.js list
 
 # Run a specific pipeline
 node dist/index.js run <pipeline-name>
 
+# Run in dry-run mode (no commits)
+node dist/index.js run <pipeline-name> --dry-run
+
 # Check status of last run
 node dist/index.js status
+```
+
+### Git Hook Management
+
+```bash
+# Install post-commit hook
+node dist/index.js install <pipeline-name>
+
+# Remove post-commit hook
+node dist/index.js uninstall
+```
+
+### Rollback
+
+```bash
+# Rollback entire pipeline
+node dist/index.js rollback
+
+# Rollback specific number of stages
+node dist/index.js rollback --stages 2
+
+# Rollback specific run by ID
+node dist/index.js rollback --run-id <uuid>
 ```
 
 ## Pipeline Configuration
@@ -250,19 +303,33 @@ npm run dev
 npm test
 ```
 
-## Phase 1 Status
+## Development Status
 
-*** Completed:**
-- YAML pipeline configuration
-- Sequential agent execution with Claude Agent SDK
-- Git hook integration capability
-- State management between stages
-- Terminal UI with real-time updates
-- Error handling (block/warn/continue)
-- Example pipelines and agents
+### Phase 1: Core Pipeline Runner ✅ COMPLETE
 
-*** Future Phases:**
-- Git hook auto-installation
+- ✅ YAML pipeline configuration
+- ✅ Sequential agent execution with Claude Agent SDK
+- ✅ Git integration with atomic commits
+- ✅ State management between stages
+- ✅ Terminal UI with real-time updates
+- ✅ Error handling (block/warn/continue)
+- ✅ Example pipelines and agents
+
+### Phase 2: Hardening ✅ COMPLETE
+
+**Priority 1 - Critical Features:**
+- ✅ Git hook installer/uninstaller
+- ✅ Rollback command with confirmation
+- ✅ Dry-run mode
+- ✅ Enhanced error reporting with suggestions
+
+**Priority 2 - Developer Experience:**
+- ✅ Pipeline validation before running
+- ✅ Improved status command with detailed output
+- ✅ Init command to scaffold new projects
+
+### Future Phases
+
 - Parallel agent execution
 - Pipeline templates library
 - Web dashboard for history
@@ -272,7 +339,7 @@ npm test
 
 ## Contributing
 
-This is a Phase 1 MVP implementation. Contributions are welcome!
+This is a Phase 2 implementation with core functionality and hardening complete. Contributions are welcome, especially for future phase features!
 
 ## License
 

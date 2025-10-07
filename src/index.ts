@@ -6,6 +6,10 @@ import { PipelineRunner } from './core/pipeline-runner.js';
 import { PipelineLoader } from './config/pipeline-loader.js';
 import { StateManager } from './core/state-manager.js';
 import { Logger } from './utils/logger.js';
+import { HookInstaller } from './cli/hooks.js';
+import { rollbackCommand } from './cli/commands/rollback.js';
+import { PipelineValidator } from './validators/pipeline-validator.js';
+import { initCommand } from './cli/commands/init.js';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -18,14 +22,23 @@ async function main() {
     switch (command) {
       case 'run': {
         if (!subCommand) {
-          console.error('Usage: agent-pipeline run <pipeline-name>');
+          console.error('Usage: agent-pipeline run <pipeline-name> [--dry-run]');
           process.exit(1);
         }
+
+        // Check for --dry-run flag
+        const dryRun = args.includes('--dry-run');
 
         const loader = new PipelineLoader(repoPath);
         const config = await loader.loadPipeline(subCommand);
 
-        const runner = new PipelineRunner(repoPath);
+        // Validate pipeline configuration
+        const isValid = await PipelineValidator.validateAndReport(config, repoPath);
+        if (!isValid) {
+          process.exit(1);
+        }
+
+        const runner = new PipelineRunner(repoPath, dryRun);
         const result = await runner.runPipeline(config);
 
         process.exit(result.status === 'completed' ? 0 : 1);
@@ -52,29 +65,93 @@ async function main() {
         if (!latestRun) {
           console.log('No pipeline runs found');
         } else {
-          console.log(`\nLatest Pipeline Run:`);
-          console.log(`  Name: ${latestRun.pipelineConfig.name}`);
-          console.log(`  Run ID: ${latestRun.runId}`);
-          console.log(`  Status: ${latestRun.status}`);
-          console.log(`  Duration: ${latestRun.artifacts.totalDuration.toFixed(2)}s`);
-          console.log(`  Timestamp: ${latestRun.trigger.timestamp}\n`);
+          console.log(`\n${'='.repeat(60)}`);
+          console.log(`Latest Pipeline Run: ${latestRun.pipelineConfig.name}`);
+          console.log(`${'='.repeat(60)}\n`);
 
-          console.log('Stages:');
+          console.log(`Run ID:       ${latestRun.runId}`);
+          console.log(`Status:       ${latestRun.status.toUpperCase()}`);
+          console.log(`Duration:     ${latestRun.artifacts.totalDuration.toFixed(2)}s`);
+          console.log(`Timestamp:    ${latestRun.trigger.timestamp}`);
+          console.log(`Trigger:      ${latestRun.trigger.type}`);
+          console.log(`Initial Commit: ${latestRun.artifacts.initialCommit?.substring(0, 7) || 'N/A'}`);
+          console.log(`Final Commit:   ${latestRun.artifacts.finalCommit?.substring(0, 7) || 'N/A'}`);
+
+          console.log(`\n${'─'.repeat(60)}`);
+          console.log('Stages:\n');
+
           latestRun.stages.forEach(stage => {
             const statusIcon = stage.status === 'success' ? '✅' :
                              stage.status === 'failed' ? '❌' :
                              stage.status === 'skipped' ? '⏭️' : '⏳';
-            console.log(`  ${statusIcon} ${stage.stageName} (${stage.status})`);
+            const duration = stage.duration ? `${stage.duration.toFixed(1)}s` : 'N/A';
+
+            console.log(`${statusIcon} ${stage.stageName}`);
+            console.log(`   Status: ${stage.status}`);
+            console.log(`   Duration: ${duration}`);
+
+            if (stage.commitSha) {
+              console.log(`   Commit: ${stage.commitSha.substring(0, 7)}`);
+            }
+
+            if (stage.extractedData && Object.keys(stage.extractedData).length > 0) {
+              console.log(`   Extracted Data:`);
+              for (const [key, value] of Object.entries(stage.extractedData)) {
+                console.log(`     - ${key}: ${value}`);
+              }
+            }
+
+            if (stage.error) {
+              console.log(`   Error: ${stage.error.message}`);
+              if (stage.error.suggestion) {
+                console.log(`   💡 ${stage.error.suggestion}`);
+              }
+            }
+
+            console.log('');
           });
+
+          console.log(`${'='.repeat(60)}\n`);
         }
         break;
       }
 
+      case 'install': {
+        if (!subCommand) {
+          console.error('Usage: agent-pipeline install <pipeline-name>');
+          process.exit(1);
+        }
+
+        const installer = new HookInstaller(repoPath);
+        await installer.install(subCommand);
+        break;
+      }
+
+      case 'uninstall': {
+        const installer = new HookInstaller(repoPath);
+        await installer.uninstall();
+        break;
+      }
+
+      case 'rollback': {
+        // Parse options
+        const options: { runId?: string; stages?: number } = {};
+
+        // Simple argument parsing
+        for (let i = 1; i < args.length; i++) {
+          if (args[i] === '--run-id' || args[i] === '-r') {
+            options.runId = args[++i];
+          } else if (args[i] === '--stages' || args[i] === '-s') {
+            options.stages = parseInt(args[++i], 10);
+          }
+        }
+
+        await rollbackCommand(repoPath, options);
+        break;
+      }
+
       case 'init': {
-        // TODO: Implement init command
-        console.log('Initializing agent-pipeline...');
-        Logger.info('Creating .agent-pipeline directory structure');
-        // This would create the directory structure and example files
+        await initCommand(repoPath);
         break;
       }
 
@@ -83,15 +160,28 @@ async function main() {
 Agent Pipeline - Sequential agent execution with state management
 
 Usage:
-  agent-pipeline run <pipeline-name>    Run a pipeline
-  agent-pipeline list                   List available pipelines
-  agent-pipeline status                 Show last pipeline run status
-  agent-pipeline init                   Initialize agent-pipeline (coming soon)
+  agent-pipeline run <pipeline-name> [--dry-run]  Run a pipeline
+  agent-pipeline list                              List available pipelines
+  agent-pipeline status                            Show last pipeline run status
+  agent-pipeline install <pipeline-name>           Install post-commit git hook
+  agent-pipeline uninstall                         Remove post-commit git hook
+  agent-pipeline rollback [options]                Rollback pipeline commits
+  agent-pipeline init                              Initialize agent-pipeline project
+
+Rollback Options:
+  -r, --run-id <id>     Rollback specific run ID
+  -s, --stages <n>      Rollback last N stages
 
 Examples:
   agent-pipeline run commit-review
+  agent-pipeline run commit-review --dry-run
   agent-pipeline list
   agent-pipeline status
+  agent-pipeline install commit-review
+  agent-pipeline uninstall
+  agent-pipeline rollback
+  agent-pipeline rollback --stages 2
+  agent-pipeline rollback --run-id <uuid>
         `);
       }
     }
