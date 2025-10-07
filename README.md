@@ -1,8 +1,8 @@
 # Agent Pipeline
 
-> Intelligent agent orchestration with parallel execution, conditional logic, and state management for Claude Code
+> Intelligent agent orchestration with parallel execution, conditional logic, git workflow automation, and multi-channel notifications for Claude Code
 
-An agent CI/CD pipeline for intelligent, multi-stage workflows with full visibility. Execute Claude agents in parallel with DAG dependencies, conditional logic, and retry mechanisms, all orchestrated via git hooks and a beautiful terminal interface.
+An agent CI/CD pipeline for intelligent, multi-stage workflows with full visibility. Execute Claude agents in parallel with DAG dependencies, conditional logic, and retry mechanisms. Features automated PR creation, branch isolation, desktop and Slack notifications, all orchestrated via git hooks and a beautiful terminal interface.
 
 ## Features
 
@@ -38,6 +38,29 @@ An agent CI/CD pipeline for intelligent, multi-stage workflows with full visibil
 - **Retry Logic** - Automatic retry with configurable backoff strategies
 - **Execution Modes** - Switch between parallel and sequential execution
 
+**Phase 4 - Git Workflow Hardening:**
+- **Branch Isolation** - All pipeline commits happen on dedicated branches
+- **Automated PR Creation** - Auto-create PRs with rich summaries using GitHub CLI
+- **Configurable Strategies** - Reusable or unique-per-run branch naming
+- **Branch Cleanup** - Remove old pipeline branches with ease
+- **PR Metadata** - Reviewers, labels, draft mode, assignees, milestones
+
+**Phase 5 - Notification System:**
+- **Desktop Notifications** - Local notifications on macOS/Windows/Linux
+- **Slack Integration** - Rich formatted messages with webhook support
+- **6 Event Types** - Notify on start, completion, failure, stage events, PR creation
+- **Smart Behavior** - Never crashes pipeline, parallel sending, configurable filtering
+- **@Mentions** - Alert teams on failures with Slack mentions
+
+## Prerequisites
+
+- **Node.js** (v18 or higher)
+- **Git** (configured with user name and email)
+- **Claude API Key** (set in environment or Claude Code settings)
+- **GitHub CLI** (`gh`) - Optional, required for automated PR creation
+  - Install: `brew install gh` (macOS) or [see docs](https://cli.github.com/)
+  - Authenticate: `gh auth login`
+
 ## Installation
 
 ```bash
@@ -47,19 +70,59 @@ npm run build
 
 ## Quick Start
 
-### Option 1: Initialize New Project (Recommended)
+### 1. Initialize New Project
 
 ```bash
-# Initialize with example pipeline and agents
+# Initialize with example pipelines and agents
 node dist/index.js init
+```
 
-# Run the example pipeline
+This creates:
+- Example pipeline configurations (basic, parallel, conditional, git workflow)
+- Sample agent definitions
+- Directory structure (`.agent-pipeline/`, `.claude/agents/`)
+
+### 2. Run Your First Pipeline
+
+```bash
+# Run with interactive live UI (default)
 node dist/index.js run example-pipeline
 ```
 
-### Option 2: Manual Setup
+**What you'll see:**
+- live terminal UI with spinners and status badges
+- Real-time agent output streaming as stages execute
+- Automatic git commits per stage with metadata tags
+- Pipeline summary with timing and results
 
-### 1. Create a Pipeline Configuration
+### 3. Explore Your Pipeline History
+
+```bash
+# Browse past runs interactively (use arrow keys, Enter to view details)
+node dist/index.js history
+
+# View performance metrics and analytics
+node dist/index.js analytics
+```
+
+### 4. Try Advanced Features
+
+```bash
+# Parallel execution with DAG dependencies
+node dist/index.js run parallel-example
+
+# Conditional logic based on previous stage outputs
+node dist/index.js run conditional-example
+
+# Git workflow with branch isolation and PR creation
+node dist/index.js run git-workflow-example
+```
+
+---
+
+### Manual Setup (Alternative)
+
+#### 1. Create a Pipeline Configuration
 
 Create a YAML file in `.agent-pipeline/pipelines/`:
 
@@ -82,7 +145,7 @@ agents:
     agent: .claude/agents/doc-manager.md
 ```
 
-### 2. Create Agent Definitions
+#### 2. Create Agent Definitions
 
 Create agent prompts in `.claude/agents/`:
 
@@ -96,7 +159,7 @@ You are a code review agent in an automated pipeline.
 Review the code changes and provide feedback...
 ```
 
-### 3. Run the Pipeline
+#### 3. Run the Pipeline
 
 ```bash
 node dist/index.js run my-pipeline
@@ -156,6 +219,40 @@ node dist/index.js rollback --stages 2
 node dist/index.js rollback --run-id <uuid>
 ```
 
+### Git Workflow & PR Management
+
+```bash
+# Run with PR creation (if configured in pipeline)
+node dist/index.js run <pipeline-name>
+
+# Skip PR creation even if configured
+node dist/index.js run <pipeline-name> --no-pr
+
+# Override base branch for PR
+node dist/index.js run <pipeline-name> --base-branch develop
+
+# Create PR as draft
+node dist/index.js run <pipeline-name> --pr-draft
+
+# Open PR in browser for editing
+node dist/index.js run <pipeline-name> --pr-web
+
+# Clean up old pipeline branches
+node dist/index.js cleanup
+node dist/index.js cleanup --pipeline <name>
+node dist/index.js cleanup --force
+```
+
+### Notifications
+
+```bash
+# Run without notifications (even if configured)
+node dist/index.js run <pipeline-name> --no-notifications
+
+# Test notification configuration
+node dist/index.js test <pipeline-name> --notifications
+```
+
 ## Pipeline Configuration
 
 ### Full Configuration Example
@@ -170,6 +267,45 @@ settings:
   failureStrategy: continue  # stop, continue, or warn
   preserveWorkingTree: false
   executionMode: parallel  # parallel (default) or sequential
+
+git:
+  baseBranch: main                # Branch to PR into (default: 'main')
+  branchStrategy: reusable        # 'reusable' or 'unique-per-run'
+  branchPrefix: pipeline          # Custom prefix (default: 'pipeline')
+  pullRequest:
+    autoCreate: true              # Auto-create PR when pipeline completes
+    title: "🤖 Pipeline: {{pipelineName}}"
+    body: "Automated changes from pipeline"
+    reviewers:
+      - username1
+      - username2
+    labels:
+      - automated
+      - code-review
+    draft: false
+    assignees: []
+    milestone: ""
+
+notifications:
+  enabled: true
+  events:
+    - pipeline.started
+    - pipeline.completed
+    - pipeline.failed
+    - stage.failed
+    - pr.created
+  channels:
+    local:
+      enabled: true
+      sound: true
+      openUrl: true               # Click notification to open PR
+    slack:
+      enabled: true
+      webhookUrl: ${SLACK_WEBHOOK_URL}  # Environment variable
+      channel: "#ci-notifications"
+      mentionOnFailure:
+        - channel                 # @channel on failures
+        - user-id                 # Or specific user ID
 
 agents:
   - name: code-review
@@ -264,6 +400,81 @@ condition: "{{ stages.review.outputs.issues > 0 && stages.scan.outputs.vulnerabi
 # Available operators: ==, !=, >, <, >=, <=, &&, ||
 ```
 
+#### Git Workflow Configuration
+
+Control branch isolation and automated PR creation:
+
+```yaml
+git:
+  baseBranch: main                    # Branch to create PR into (default: 'main')
+  branchStrategy: reusable            # 'reusable' or 'unique-per-run'
+  branchPrefix: pipeline              # Branch naming prefix (default: 'pipeline')
+  pullRequest:
+    autoCreate: true                  # Auto-create PR on successful completion
+    title: "🤖 {{pipelineName}}"     # PR title (supports templates)
+    body: "Pipeline summary..."       # PR body (auto-generated if not specified)
+    reviewers: [user1, user2]         # GitHub usernames
+    labels: [automated, review]       # PR labels
+    draft: false                      # Create as draft PR
+    assignees: [user1]                # Assign PR to users
+    milestone: "v1.0"                 # Add to milestone
+```
+
+**Branch Strategies:**
+- `reusable`: Uses same branch name for all runs (`pipeline/{name}`)
+- `unique-per-run`: Creates unique branch per run (`pipeline/{name}-{runId}`)
+
+**Requirements:**
+- GitHub CLI (`gh`) must be installed and authenticated
+- Repository must be a GitHub repository
+
+#### Notification Configuration
+
+Set up multi-channel notifications for pipeline events:
+
+```yaml
+notifications:
+  enabled: true                       # Master toggle
+  events:                             # Which events to notify on
+    - pipeline.started
+    - pipeline.completed
+    - pipeline.failed
+    - stage.completed
+    - stage.failed
+    - pr.created
+  channels:
+    local:                            # Desktop notifications
+      enabled: true
+      sound: true                     # Play notification sound
+      openUrl: true                   # Click to open PR URL
+    slack:                            # Slack webhook integration
+      enabled: true
+      webhookUrl: ${SLACK_WEBHOOK_URL}  # Use environment variable
+      channel: "#notifications"       # Override webhook's default channel
+      mentionOnFailure:               # Alert users on failures
+        - channel                     # @channel
+        - U123456                     # Specific user ID
+```
+
+**Supported Events:**
+1. `pipeline.started` - Pipeline begins execution
+2. `pipeline.completed` - Pipeline finishes successfully
+3. `pipeline.failed` - Pipeline fails
+4. `stage.completed` - Individual stage succeeds
+5. `stage.failed` - Individual stage fails
+6. `pr.created` - Pull request is created
+
+**Local Notifications:**
+- Cross-platform (macOS, Windows, Linux)
+- Native system notifications
+- Clickable URLs (opens PR in browser)
+
+**Slack Integration:**
+- Rich formatted Block messages with colors
+- Pipeline summaries with duration and commit info
+- PR links included in completion messages
+- Supports @mentions for failure alerts
+
 ## Architecture
 
 ### Project Structure
@@ -276,6 +487,8 @@ agent-pipeline/
 │   │   ├── stage-executor.ts       # Individual stage runner with retry
 │   │   ├── state-manager.ts        # Pipeline state persistence
 │   │   ├── git-manager.ts          # Git operations wrapper
+│   │   ├── branch-manager.ts       # Branch workflow management
+│   │   ├── pr-creator.ts           # GitHub PR creation
 │   │   ├── dag-planner.ts          # DAG analysis and execution planning
 │   │   ├── parallel-executor.ts    # Parallel stage execution
 │   │   ├── condition-evaluator.ts  # Template expression evaluation
@@ -294,6 +507,16 @@ agent-pipeline/
 │   ├── analytics/
 │   │   ├── pipeline-analytics.ts   # Metrics calculation
 │   │   └── types.ts                # Analytics types
+│   ├── notifications/
+│   │   ├── notification-manager.ts # Multi-channel orchestrator
+│   │   ├── types.ts                # Notification interfaces
+│   │   └── notifiers/
+│   │       ├── base-notifier.ts    # Abstract base class
+│   │       ├── local-notifier.ts   # Desktop notifications
+│   │       └── slack-notifier.ts   # Slack webhook integration
+│   ├── cli/
+│   │   └── commands/
+│   │       └── cleanup.ts          # Branch cleanup command
 │   ├── utils/
 │   │   ├── logger.ts               # Logging utilities
 │   │   └── errors.ts               # Custom error types
@@ -302,7 +525,8 @@ agent-pipeline/
 │   ├── pipelines/                  # Pipeline YAML configs
 │   │   ├── test-pipeline.yml
 │   │   ├── parallel-example.yml
-│   │   └── conditional-example.yml
+│   │   ├── conditional-example.yml
+│   │   └── git-workflow-example.yml
 │   └── state/runs/                 # Pipeline execution history
 └── .claude/agents/                 # Agent definitions
 ```
@@ -473,6 +697,73 @@ agents:
     agent: .claude/agents/memory-updater.md
 ```
 
+### Git Workflow Pipeline with PR Creation
+
+Automated code review with branch isolation and PR creation:
+
+```yaml
+name: git-workflow-example
+trigger: manual
+
+settings:
+  autoCommit: true
+  executionMode: parallel
+
+git:
+  baseBranch: main
+  branchStrategy: reusable
+  pullRequest:
+    autoCreate: true
+    title: "🤖 Automated Code Review - {{pipelineName}}"
+    reviewers:
+      - senior-dev
+    labels:
+      - automated
+      - code-review
+    draft: false
+
+notifications:
+  enabled: true
+  events:
+    - pipeline.completed
+    - pipeline.failed
+    - pr.created
+  channels:
+    local:
+      enabled: true
+      sound: true
+      openUrl: true
+    slack:
+      enabled: true
+      webhookUrl: ${SLACK_WEBHOOK_URL}
+      mentionOnFailure:
+        - channel
+
+agents:
+  # Run these in parallel
+  - name: code-review
+    agent: .claude/agents/code-reviewer.md
+    outputs: [issues_found]
+
+  - name: security-scan
+    agent: .claude/agents/security-auditor.md
+
+  # Runs after both complete
+  - name: summary
+    agent: .claude/agents/summary.md
+    dependsOn:
+      - code-review
+      - security-scan
+```
+
+**What this does:**
+1. Creates a dedicated branch (`pipeline/git-workflow-example`)
+2. Runs code review and security scan in parallel
+3. Generates summary after both complete
+4. Auto-commits all changes to the branch
+5. Creates a GitHub PR with reviewers and labels
+6. Sends desktop + Slack notifications with PR link
+
 ## Development
 
 ```bash
@@ -514,7 +805,7 @@ npm test
 - ✅ Improved status command with detailed output
 - ✅ Init command to scaffold new projects
 
-### Phase 3: Advanced Features (In Progress)
+### Phase 3: Advanced Features ✅ COMPLETE
 
 **Priority 1: Observability ✅ COMPLETE**
 - ✅ Live terminal UI with Ink (interactive mode by default)
@@ -532,15 +823,48 @@ npm test
 - ✅ Execution plan visualization in console output
 - ✅ Support for both parallel and sequential modes
 
-**Priority 3: Integrations (Planned)**
-- Slack/Discord notifications
+### Phase 4: Git Workflow Hardening ✅ COMPLETE
+
+- ✅ Branch isolation (all commits on dedicated branches)
+- ✅ Automated PR creation with GitHub CLI
+- ✅ Rich PR summaries with pipeline details
+- ✅ Configurable branch strategies (reusable/unique-per-run)
+- ✅ Reviewers, labels, draft mode, assignees, milestones
+- ✅ Branch cleanup command
+- ✅ CLI flags: `--no-pr`, `--base-branch`, `--pr-draft`, `--pr-web`
+
+### Phase 5: Notification System ✅ COMPLETE
+
+- ✅ Multi-channel notification orchestrator
+- ✅ Desktop notifications (macOS/Windows/Linux)
+- ✅ Slack webhook integration with rich formatted messages
+- ✅ 6 event types (start, complete, fail, stage events, PR created)
+- ✅ Configurable event filtering
+- ✅ @Mentions on failures (Slack)
+- ✅ Never crashes pipeline (all notifications wrapped in try/catch)
+- ✅ CLI flags: `--no-notifications`
+- ✅ Test command for notification validation
+
+### Future Enhancements (Planned)
+
 - HTML report generation
 - GitHub Actions integration
+- Discord notifications
+- Email notifications
 - Webhook support
+- Custom notification channels
 
 ## Contributing
 
-Phase 3 Priority 2 (Advanced Execution) is now complete! The pipeline now supports parallel execution, DAG dependencies, conditional logic, and retry mechanisms. Contributions are welcome, especially for Priority 3 (Integrations) features.
+**Phases 1-5 are complete!** 🎉
+
+Agent Pipeline now features:
+- Parallel execution with DAG dependencies
+- Conditional logic and retry mechanisms
+- Branch isolation with automated PR creation
+- Multi-channel notifications (desktop + Slack)
+
+Contributions are welcome, especially for future enhancements like HTML reports, additional notification channels, and GitHub Actions integration.
 
 ## License
 
@@ -548,7 +872,18 @@ MIT
 
 ## Built With
 
+**Core:**
 - [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) - Agent execution
 - [simple-git](https://www.npmjs.com/package/simple-git) - Git operations
 - [yaml](https://www.npmjs.com/package/yaml) - YAML parsing
-- TypeScript 
+- TypeScript - Type-safe development
+
+**UI & Visualization:**
+- [Ink](https://www.npmjs.com/package/ink) - Interactive terminal UI
+- [React](https://www.npmjs.com/package/react) - UI components
+
+**Notifications:**
+- [node-notifier](https://www.npmjs.com/package/node-notifier) - Desktop notifications
+
+**Git Integration:**
+- GitHub CLI (`gh`) - Automated PR creation 
