@@ -1,5 +1,7 @@
 // src/config/schema.ts
 
+import { NotificationConfig } from '../notifications/types.js';
+
 export interface GitConfig {
   baseBranch?: string;                    // Branch to PR into (default: 'main')
   branchStrategy?: 'reusable' | 'unique-per-run'; // Branch naming strategy (default: 'reusable')
@@ -25,6 +27,9 @@ export interface PipelineConfig {
 
   // Git workflow settings (optional)
   git?: GitConfig;
+
+  // Notification settings (optional)
+  notifications?: NotificationConfig;
 
   // Global settings
   settings?: {

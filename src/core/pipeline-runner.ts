@@ -10,6 +10,8 @@ import { DAGPlanner } from './dag-planner.js';
 import { ParallelExecutor } from './parallel-executor.js';
 import { ConditionEvaluator } from './condition-evaluator.js';
 import { PipelineConfig, PipelineState, AgentStageConfig } from '../config/schema.js';
+import { NotificationManager } from '../notifications/notification-manager.js';
+import { NotificationContext } from '../notifications/types.js';
 
 export class PipelineRunner {
   private gitManager: GitManager;
@@ -20,6 +22,7 @@ export class PipelineRunner {
   private dagPlanner: DAGPlanner;
   private parallelExecutor: ParallelExecutor;
   private conditionEvaluator: ConditionEvaluator;
+  private notificationManager?: NotificationManager;
   private dryRun: boolean;
   private stateUpdateCallbacks: Array<(state: PipelineState) => void> = [];
   private originalBranch: string = '';
@@ -43,6 +46,9 @@ export class PipelineRunner {
     config: PipelineConfig,
     options: { interactive?: boolean } = {}
   ): Promise<PipelineState> {
+    // Initialize notification manager
+    this.notificationManager = new NotificationManager(config.notifications);
+
     // Save original branch to return to later
     this.originalBranch = await this.branchManager.getCurrentBranch();
 
@@ -95,6 +101,12 @@ export class PipelineRunner {
 
     // Notify initial state
     this.notifyStateChange(state);
+
+    // Notify pipeline started
+    await this.notify({
+      event: 'pipeline.started',
+      pipelineState: state
+    });
 
     const startTime = Date.now();
 
@@ -193,6 +205,23 @@ export class PipelineRunner {
           // Add all executions to state
           state.stages.push(...groupResult.executions);
 
+          // Notify for each completed/failed stage
+          for (const execution of groupResult.executions) {
+            if (execution.status === 'success') {
+              await this.notify({
+                event: 'stage.completed',
+                pipelineState: state,
+                stage: execution
+              });
+            } else if (execution.status === 'failed') {
+              await this.notify({
+                event: 'stage.failed',
+                pipelineState: state,
+                stage: execution
+              });
+            }
+          }
+
         } else {
           // Sequential execution (fallback or explicit mode)
           groupResult = await this.parallelExecutor.executeSequentialGroup(
@@ -265,6 +294,14 @@ export class PipelineRunner {
 
     await this.stateManager.saveState(state);
     this.notifyStateChange(state);
+
+    // Notify pipeline completion/failure
+    const event = state.status === 'completed' ? 'pipeline.completed' : 'pipeline.failed';
+    await this.notify({
+      event,
+      pipelineState: state,
+      prUrl: state.artifacts.pullRequest?.url
+    });
 
     // Only print summary if not in interactive mode
     if (!options.interactive) {
@@ -368,6 +405,13 @@ export class PipelineRunner {
 
       await this.stateManager.saveState(state);
 
+      // Notify PR created
+      await this.notify({
+        event: 'pr.created',
+        pipelineState: state,
+        prUrl: result.url
+      });
+
     } catch (error) {
       if (!interactive) {
         console.error(`\n❌ Failed to create PR: ${error instanceof Error ? error.message : String(error)}`);
@@ -380,6 +424,26 @@ export class PipelineRunner {
   private notifyStateChange(state: PipelineState): void {
     for (const callback of this.stateUpdateCallbacks) {
       callback(state);
+    }
+  }
+
+  private async notify(context: NotificationContext): Promise<void> {
+    if (!this.notificationManager) {
+      return;
+    }
+
+    try {
+      const results = await this.notificationManager.notify(context);
+
+      // Log failed notifications (but don't fail the pipeline)
+      const failures = results.filter(r => !r.success);
+      if (failures.length > 0) {
+        console.warn('⚠️  Some notifications failed:');
+        failures.forEach(f => console.warn(`   ${f.channel}: ${f.error}`));
+      }
+    } catch (error) {
+      // Never let notifications crash the pipeline
+      console.warn('⚠️  Notification error:', error);
     }
   }
 

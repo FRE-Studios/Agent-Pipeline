@@ -16,6 +16,7 @@ import { PipelineUI } from './ui/pipeline-ui.js';
 import { HistoryBrowser } from './cli/commands/history.js';
 import { analyticsCommand } from './cli/commands/analytics.js';
 import { cleanupCommand } from './cli/commands/cleanup.js';
+import { NotificationManager } from './notifications/notification-manager.js';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -28,7 +29,7 @@ async function main() {
     switch (command) {
       case 'run': {
         if (!subCommand) {
-          console.error('Usage: agent-pipeline run <pipeline-name> [--dry-run] [--no-interactive] [--no-pr] [--base-branch <branch>] [--pr-draft] [--pr-web]');
+          console.error('Usage: agent-pipeline run <pipeline-name> [--dry-run] [--no-interactive] [--no-pr] [--base-branch <branch>] [--pr-draft] [--pr-web] [--no-notifications]');
           process.exit(1);
         }
 
@@ -39,6 +40,7 @@ async function main() {
         const noPr = args.includes('--no-pr');
         const prDraft = args.includes('--pr-draft');
         const prWeb = args.includes('--pr-web');
+        const noNotifications = args.includes('--no-notifications');
 
         // Parse base-branch option
         let baseBranch: string | undefined;
@@ -51,6 +53,10 @@ async function main() {
         const config = await loader.loadPipeline(subCommand);
 
         // Apply CLI flag overrides
+        if (noNotifications) {
+          config.notifications = { enabled: false };
+        }
+
         if (noPr && config.git?.pullRequest) {
           config.git.pullRequest.autoCreate = false;
         }
@@ -257,6 +263,31 @@ async function main() {
         break;
       }
 
+      case 'test': {
+        if (!subCommand) {
+          console.error('Usage: agent-pipeline test <pipeline-name> --notifications');
+          process.exit(1);
+        }
+
+        const testNotifications = args.includes('--notifications');
+
+        if (testNotifications) {
+          const loader = new PipelineLoader(repoPath);
+          const config = await loader.loadPipeline(subCommand);
+
+          if (!config.notifications) {
+            console.log('❌ No notification configuration found in pipeline');
+            process.exit(1);
+          }
+
+          const manager = new NotificationManager(config.notifications);
+          await manager.test();
+        } else {
+          console.log('Usage: agent-pipeline test <pipeline-name> --notifications');
+        }
+        break;
+      }
+
       default: {
         console.log(`
 Agent Pipeline - Sequential agent execution with state management
@@ -267,6 +298,7 @@ Usage:
   agent-pipeline status                            Show last pipeline run status
   agent-pipeline history                           Browse pipeline history (interactive)
   agent-pipeline analytics [options]               Show pipeline analytics
+  agent-pipeline test <pipeline-name> [options]    Test pipeline configuration
   agent-pipeline install <pipeline-name>           Install post-commit git hook
   agent-pipeline uninstall                         Remove post-commit git hook
   agent-pipeline rollback [options]                Rollback pipeline commits
@@ -276,10 +308,14 @@ Usage:
 Run Options:
   --dry-run                  Test without creating commits
   --no-interactive           Disable live UI (use simple console output)
+  --no-notifications         Disable all notifications
   --no-pr                    Skip PR creation even if configured
   --base-branch <branch>     Override base branch for PR
   --pr-draft                 Create PR as draft
   --pr-web                   Open PR in browser for editing
+
+Test Options:
+  --notifications            Test notification channels
 
 Analytics Options:
   -p, --pipeline <name>      Filter by pipeline name
@@ -297,8 +333,10 @@ Examples:
   agent-pipeline run commit-review
   agent-pipeline run commit-review --dry-run
   agent-pipeline run commit-review --no-interactive
+  agent-pipeline run commit-review --no-notifications
   agent-pipeline run commit-review --no-pr
   agent-pipeline run commit-review --pr-draft --pr-web
+  agent-pipeline test commit-review --notifications
   agent-pipeline list
   agent-pipeline status
   agent-pipeline history

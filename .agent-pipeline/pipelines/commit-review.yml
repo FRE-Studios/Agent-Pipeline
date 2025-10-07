@@ -15,6 +15,24 @@ git:
       - code-review
     draft: false
 
+# Notification configuration (Phase 5)
+notifications:
+  enabled: true
+  events:
+    - pipeline.completed
+    - pipeline.failed
+    - pr.created
+  channels:
+    local:
+      enabled: true
+      sound: true
+      openUrl: true
+    # slack:
+    #   enabled: false
+    #   webhookUrl: ${SLACK_WEBHOOK_URL}  # Or set directly here
+    #   mentionOnFailure:
+    #     - channel
+
 settings:
   autoCommit: true
   commitPrefix: "[pipeline:{{stage}}]"
