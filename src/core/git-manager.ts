@@ -3,7 +3,7 @@
 import { simpleGit, SimpleGit } from 'simple-git';
 
 export class GitManager {
-  private git: SimpleGit;
+  protected git: SimpleGit;
 
   constructor(repoPath: string) {
     this.git = simpleGit(repoPath);

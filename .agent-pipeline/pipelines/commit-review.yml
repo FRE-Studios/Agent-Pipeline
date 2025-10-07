@@ -1,6 +1,20 @@
 name: commit-review
 trigger: post-commit
 
+# Git workflow configuration (Phase 4)
+git:
+  baseBranch: main
+  branchStrategy: reusable
+  branchPrefix: pipeline
+  pullRequest:
+    autoCreate: true
+    title: "🤖 Automated Code Review & Quality Improvements"
+    reviewers: []
+    labels:
+      - automated
+      - code-review
+    draft: false
+
 settings:
   autoCommit: true
   commitPrefix: "[pipeline:{{stage}}]"

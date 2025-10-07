@@ -15,6 +15,7 @@ import { initCommand } from './cli/commands/init.js';
 import { PipelineUI } from './ui/pipeline-ui.js';
 import { HistoryBrowser } from './cli/commands/history.js';
 import { analyticsCommand } from './cli/commands/analytics.js';
+import { cleanupCommand } from './cli/commands/cleanup.js';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -27,7 +28,7 @@ async function main() {
     switch (command) {
       case 'run': {
         if (!subCommand) {
-          console.error('Usage: agent-pipeline run <pipeline-name> [--dry-run] [--no-interactive]');
+          console.error('Usage: agent-pipeline run <pipeline-name> [--dry-run] [--no-interactive] [--no-pr] [--base-branch <branch>] [--pr-draft] [--pr-web]');
           process.exit(1);
         }
 
@@ -35,9 +36,36 @@ async function main() {
         const dryRun = args.includes('--dry-run');
         const noInteractive = args.includes('--no-interactive');
         const interactive = !noInteractive;
+        const noPr = args.includes('--no-pr');
+        const prDraft = args.includes('--pr-draft');
+        const prWeb = args.includes('--pr-web');
+
+        // Parse base-branch option
+        let baseBranch: string | undefined;
+        const baseBranchIndex = args.indexOf('--base-branch');
+        if (baseBranchIndex !== -1 && args[baseBranchIndex + 1]) {
+          baseBranch = args[baseBranchIndex + 1];
+        }
 
         const loader = new PipelineLoader(repoPath);
         const config = await loader.loadPipeline(subCommand);
+
+        // Apply CLI flag overrides
+        if (noPr && config.git?.pullRequest) {
+          config.git.pullRequest.autoCreate = false;
+        }
+
+        if (baseBranch && config.git) {
+          config.git.baseBranch = baseBranch;
+        }
+
+        if (prDraft && config.git?.pullRequest) {
+          config.git.pullRequest.draft = true;
+        }
+
+        if (prWeb && config.git?.pullRequest) {
+          config.git.pullRequest.web = true;
+        }
 
         // Validate pipeline configuration
         const isValid = await PipelineValidator.validateAndReport(config, repoPath);
@@ -108,6 +136,11 @@ async function main() {
           console.log(`Trigger:      ${latestRun.trigger.type}`);
           console.log(`Initial Commit: ${latestRun.artifacts.initialCommit?.substring(0, 7) || 'N/A'}`);
           console.log(`Final Commit:   ${latestRun.artifacts.finalCommit?.substring(0, 7) || 'N/A'}`);
+
+          if (latestRun.artifacts.pullRequest) {
+            console.log(`Pull Request:   ${latestRun.artifacts.pullRequest.url}`);
+            console.log(`PR Branch:      ${latestRun.artifacts.pullRequest.branch}`);
+          }
 
           console.log(`\n${'─'.repeat(60)}`);
           console.log('Stages:\n');
@@ -208,6 +241,22 @@ async function main() {
         break;
       }
 
+      case 'cleanup': {
+        // Parse options
+        const options: { pipeline?: string; force?: boolean } = {};
+
+        for (let i = 1; i < args.length; i++) {
+          if (args[i] === '--pipeline' || args[i] === '-p') {
+            options.pipeline = args[++i];
+          } else if (args[i] === '--force' || args[i] === '-f') {
+            options.force = true;
+          }
+        }
+
+        await cleanupCommand(repoPath, options);
+        break;
+      }
+
       default: {
         console.log(`
 Agent Pipeline - Sequential agent execution with state management
@@ -221,28 +270,40 @@ Usage:
   agent-pipeline install <pipeline-name>           Install post-commit git hook
   agent-pipeline uninstall                         Remove post-commit git hook
   agent-pipeline rollback [options]                Rollback pipeline commits
+  agent-pipeline cleanup [options]                 Clean up pipeline branches
   agent-pipeline init                              Initialize agent-pipeline project
 
 Run Options:
-  --dry-run              Test without creating commits
-  --no-interactive       Disable live UI (use simple console output)
+  --dry-run                  Test without creating commits
+  --no-interactive           Disable live UI (use simple console output)
+  --no-pr                    Skip PR creation even if configured
+  --base-branch <branch>     Override base branch for PR
+  --pr-draft                 Create PR as draft
+  --pr-web                   Open PR in browser for editing
 
 Analytics Options:
-  -p, --pipeline <name>  Filter by pipeline name
-  -d, --days <n>         Filter by last N days
+  -p, --pipeline <name>      Filter by pipeline name
+  -d, --days <n>             Filter by last N days
 
 Rollback Options:
-  -r, --run-id <id>      Rollback specific run ID
-  -s, --stages <n>       Rollback last N stages
+  -r, --run-id <id>          Rollback specific run ID
+  -s, --stages <n>           Rollback last N stages
+
+Cleanup Options:
+  -p, --pipeline <name>      Clean up specific pipeline branches
+  -f, --force                Delete without confirmation
 
 Examples:
   agent-pipeline run commit-review
   agent-pipeline run commit-review --dry-run
   agent-pipeline run commit-review --no-interactive
+  agent-pipeline run commit-review --no-pr
+  agent-pipeline run commit-review --pr-draft --pr-web
   agent-pipeline list
   agent-pipeline status
   agent-pipeline history
   agent-pipeline analytics --pipeline commit-review --days 30
+  agent-pipeline cleanup --pipeline commit-review --force
   agent-pipeline install commit-review
   agent-pipeline uninstall
   agent-pipeline rollback

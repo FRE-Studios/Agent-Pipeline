@@ -1,8 +1,30 @@
 // src/config/schema.ts
 
+export interface GitConfig {
+  baseBranch?: string;                    // Branch to PR into (default: 'main')
+  branchStrategy?: 'reusable' | 'unique-per-run'; // Branch naming strategy (default: 'reusable')
+  branchPrefix?: string;                  // Custom branch prefix (default: 'pipeline')
+  pullRequest?: PRConfig;                 // Pull request configuration
+}
+
+export interface PRConfig {
+  autoCreate?: boolean;                   // Auto-create PR when pipeline completes
+  title?: string;                         // Custom PR title (has smart default)
+  body?: string;                          // Custom PR body (has smart default with stage summary)
+  reviewers?: string[];                   // GitHub usernames to request review from
+  labels?: string[];                      // Labels to apply to PR
+  draft?: boolean;                        // Create as draft PR
+  assignees?: string[];                   // Assign to specific users
+  milestone?: string;                     // Add to milestone
+  web?: boolean;                          // Open in browser for interactive editing
+}
+
 export interface PipelineConfig {
   name: string;
   trigger: 'post-commit' | 'manual';
+
+  // Git workflow settings (optional)
+  git?: GitConfig;
 
   // Global settings
   settings?: {
@@ -66,6 +88,11 @@ export interface PipelineState {
     finalCommit?: string;
     changedFiles: string[];
     totalDuration: number;
+    pullRequest?: {                       // Pull request info (if created)
+      url: string;
+      number: number;
+      branch: string;
+    };
   };
 }
 

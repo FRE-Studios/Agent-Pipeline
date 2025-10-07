@@ -1,0 +1,40 @@
+name: git-workflow-example
+trigger: manual
+
+# Example of git workflow with PR creation
+git:
+  baseBranch: main                    # Branch to create PR into
+  branchStrategy: reusable             # 'reusable' or 'unique-per-run'
+  branchPrefix: pipeline               # Custom branch prefix
+  pullRequest:
+    autoCreate: true                   # Auto-create PR when complete
+    title: "🚀 Pipeline: git-workflow-example"
+    body: |
+      This PR demonstrates the git workflow feature.
+
+      All pipeline changes are committed to a dedicated branch,
+      then a PR is automatically created for review.
+    reviewers:
+      # - username1
+      # - username2
+    labels:
+      - automated
+      - pipeline
+    draft: false                       # Set to true for draft PRs
+    assignees: []
+    web: false                         # Set to true to open in browser
+
+settings:
+  autoCommit: true
+  commitPrefix: "[pipeline:{{stage}}]"
+  failureStrategy: stop
+  preserveWorkingTree: false
+
+agents:
+  - name: code-review
+    agent: .claude/agents/code-reviewer.md
+    timeout: 120
+
+  - name: quality-check
+    agent: .claude/agents/quality-checker.md
+    timeout: 90

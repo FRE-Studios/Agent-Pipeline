@@ -2,6 +2,8 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { GitManager } from './git-manager.js';
+import { BranchManager } from './branch-manager.js';
+import { PRCreator } from './pr-creator.js';
 import { StageExecutor } from './stage-executor.js';
 import { StateManager } from './state-manager.js';
 import { DAGPlanner } from './dag-planner.js';
@@ -11,6 +13,8 @@ import { PipelineConfig, PipelineState, AgentStageConfig } from '../config/schem
 
 export class PipelineRunner {
   private gitManager: GitManager;
+  private branchManager: BranchManager;
+  private prCreator: PRCreator;
   private stageExecutor: StageExecutor;
   private stateManager: StateManager;
   private dagPlanner: DAGPlanner;
@@ -18,9 +22,12 @@ export class PipelineRunner {
   private conditionEvaluator: ConditionEvaluator;
   private dryRun: boolean;
   private stateUpdateCallbacks: Array<(state: PipelineState) => void> = [];
+  private originalBranch: string = '';
 
   constructor(repoPath: string, dryRun: boolean = false) {
     this.gitManager = new GitManager(repoPath);
+    this.branchManager = new BranchManager(repoPath);
+    this.prCreator = new PRCreator();
     this.stageExecutor = new StageExecutor(this.gitManager, dryRun);
     this.stateManager = new StateManager(repoPath);
     this.dagPlanner = new DAGPlanner();
@@ -36,6 +43,25 @@ export class PipelineRunner {
     config: PipelineConfig,
     options: { interactive?: boolean } = {}
   ): Promise<PipelineState> {
+    // Save original branch to return to later
+    this.originalBranch = await this.branchManager.getCurrentBranch();
+
+    // Setup pipeline branch if git config exists
+    let pipelineBranch: string | undefined;
+    if (config.git && !this.dryRun) {
+      pipelineBranch = await this.branchManager.setupPipelineBranch(
+        config.name,
+        uuidv4(), // We'll use this runId for branch naming
+        config.git.baseBranch || 'main',
+        config.git.branchStrategy || 'reusable',
+        config.git.branchPrefix || 'pipeline'
+      );
+
+      if (!options.interactive) {
+        console.log(`📍 Running on branch: ${pipelineBranch}\n`);
+      }
+    }
+
     const triggerCommit = await this.gitManager.getCurrentCommit();
     const changedFiles = await this.gitManager.getChangedFiles(triggerCommit);
 
@@ -232,12 +258,25 @@ export class PipelineRunner {
     state.artifacts.totalDuration = (endTime - startTime) / 1000;
     state.artifacts.finalCommit = await this.gitManager.getCurrentCommit();
 
+    // Push and create PR if configured
+    if (pipelineBranch && config.git?.pullRequest?.autoCreate) {
+      await this.handlePRCreation(config, pipelineBranch, state, options.interactive || false);
+    }
+
     await this.stateManager.saveState(state);
     this.notifyStateChange(state);
 
     // Only print summary if not in interactive mode
     if (!options.interactive) {
       this.printSummary(state);
+    }
+
+    // Return to original branch
+    if (pipelineBranch && this.originalBranch && !this.dryRun) {
+      if (!options.interactive) {
+        console.log(`\n↩️  Returning to branch: ${this.originalBranch}`);
+      }
+      await this.branchManager.checkoutBranch(this.originalBranch);
     }
 
     return state;
@@ -250,7 +289,13 @@ export class PipelineRunner {
 
     console.log(`Status: ${this.getStatusEmoji(state.status)} ${state.status.toUpperCase()}`);
     console.log(`Duration: ${state.artifacts.totalDuration.toFixed(2)}s`);
-    console.log(`Commits: ${state.trigger.commitSha.substring(0, 7)} → ${state.artifacts.finalCommit?.substring(0, 7)}\n`);
+    console.log(`Commits: ${state.trigger.commitSha.substring(0, 7)} → ${state.artifacts.finalCommit?.substring(0, 7)}`);
+
+    if (state.artifacts.pullRequest) {
+      console.log(`Pull Request: ${state.artifacts.pullRequest.url}`);
+    }
+
+    console.log('');
 
     console.log('Stages:');
     for (const stage of state.stages) {
@@ -279,6 +324,57 @@ export class PipelineRunner {
       'partial': '⚠️'
     };
     return emojiMap[status] || '❓';
+  }
+
+  private async handlePRCreation(
+    config: PipelineConfig,
+    branchName: string,
+    state: PipelineState,
+    interactive: boolean
+  ): Promise<void> {
+    try {
+      // Push branch to remote
+      await this.branchManager.pushBranch(branchName);
+
+      // Check if PR already exists
+      const exists = await this.prCreator.prExists(branchName);
+      if (exists) {
+        if (!interactive) {
+          console.log(`\n✅ Pull request already exists for ${branchName}`);
+          console.log(`   View it with: gh pr view ${branchName}`);
+        }
+        return;
+      }
+
+      // Create PR
+      const prConfig = config.git!.pullRequest!;
+      const result = await this.prCreator.createPR(
+        branchName,
+        config.git?.baseBranch || 'main',
+        prConfig,
+        state
+      );
+
+      if (!interactive) {
+        console.log(`\n✅ Pull Request created: ${result.url}`);
+      }
+
+      // Save PR info to state
+      state.artifacts.pullRequest = {
+        url: result.url,
+        number: result.number,
+        branch: branchName
+      };
+
+      await this.stateManager.saveState(state);
+
+    } catch (error) {
+      if (!interactive) {
+        console.error(`\n❌ Failed to create PR: ${error instanceof Error ? error.message : String(error)}`);
+        console.log(`   Branch ${branchName} has been pushed to remote.`);
+        console.log(`   You can create the PR manually with: gh pr create`);
+      }
+    }
   }
 
   private notifyStateChange(state: PipelineState): void {
