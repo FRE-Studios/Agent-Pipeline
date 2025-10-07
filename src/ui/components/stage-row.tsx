@@ -36,6 +36,12 @@ export const StageRow: React.FC<StageRowProps> = ({ stage, isLast }) => {
         {getIcon()}
         <Text bold> {stage.stageName}</Text>
         {stage.duration && <Text dimColor> ({stage.duration.toFixed(1)}s)</Text>}
+        {stage.retryAttempt !== undefined && stage.retryAttempt > 0 && (
+          <Text color="yellow"> [retry {stage.retryAttempt}/{stage.maxRetries}]</Text>
+        )}
+        {stage.conditionEvaluated && !stage.conditionResult && (
+          <Text dimColor> (condition not met)</Text>
+        )}
       </Box>
 
       {stage.commitSha && (

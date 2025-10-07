@@ -1,14 +1,16 @@
 # Agent Pipeline
 
-> Sequential agent execution with state management for Claude Code
+> Intelligent agent orchestration with parallel execution, conditional logic, and state management for Claude Code
 
-An agent CI/CD pipeline for intelligent, multi-stage workflows with full visibility. Execute Claude agents sequentially, with each agent's output becoming the next agent's input, all orchestrated via git hooks and a terminal interface.
+An agent CI/CD pipeline for intelligent, multi-stage workflows with full visibility. Execute Claude agents in parallel with DAG dependencies, conditional logic, and retry mechanisms, all orchestrated via git hooks and a beautiful terminal interface.
 
 ## Features
 
 **Core Functionality:**
-- **Sequential Execution** - Run multiple Claude agents in a defined order
-- **State Management** - Each agent's output is persisted and passed to the next stage
+- **Parallel Execution** - Run multiple Claude agents concurrently with DAG dependencies
+- **Conditional Logic** - Execute stages based on previous results with template expressions
+- **Retry Mechanisms** - Automatic retry with exponential/linear/fixed backoff
+- **State Management** - Each agent's output is persisted and passed to dependent stages
 - **Git Integration** - Each agent stage creates an atomic commit for easy rollback
 - **YAML Configuration** - Define pipelines in simple, readable YAML files
 - **Error Handling** - Configurable failure strategies (stop/warn/continue)
@@ -19,7 +21,7 @@ An agent CI/CD pipeline for intelligent, multi-stage workflows with full visibil
 - **Rollback System** - Revert entire pipelines or specific stages with confirmation
 - **Dry-Run Mode** - Test pipelines without creating commits
 - **Smart Error Reporting** - Context-aware error messages with suggestions
-- **Pipeline Validation** - Pre-flight checks before running
+- **Pipeline Validation** - Pre-flight checks before running (includes DAG cycle detection)
 - **Enhanced Status** - Detailed pipeline run information with commit history
 - **Project Scaffolding** - Initialize new projects with examples
 
@@ -28,6 +30,13 @@ An agent CI/CD pipeline for intelligent, multi-stage workflows with full visibil
 - **History Browser** - Interactive TUI to browse and analyze past runs
 - **Analytics & Metrics** - Pipeline performance analysis with success rates and trends
 - **Output Streaming** - Real-time agent output during execution
+
+**Phase 3 Priority 2 - Advanced Execution:**
+- **Parallel Execution** - Run independent stages concurrently for faster pipelines
+- **DAG Dependencies** - Define stage dependencies with automatic execution ordering
+- **Conditional Stages** - Skip stages based on previous outputs using expressions
+- **Retry Logic** - Automatic retry with configurable backoff strategies
+- **Execution Modes** - Switch between parallel and sequential execution
 
 ## Installation
 
@@ -160,6 +169,7 @@ settings:
   commitPrefix: "[pipeline:{{stage}}]"
   failureStrategy: continue  # stop, continue, or warn
   preserveWorkingTree: false
+  executionMode: parallel  # parallel (default) or sequential
 
 agents:
   - name: code-review
@@ -178,6 +188,18 @@ agents:
     outputs:
       - issues_found
       - severity_level
+
+  # This stage depends on code-review completing first
+  - name: auto-fix
+    agent: .claude/agents/fixer.md
+    dependsOn:
+      - code-review
+    condition: "{{ stages.code-review.outputs.issues_found > 0 }}"
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+      initialDelay: 1000
+      maxDelay: 30000
 ```
 
 ### Configuration Options
@@ -190,18 +212,57 @@ agents:
 - **settings.commitPrefix**: Commit message prefix template
 - **settings.failureStrategy**: How to handle failures (`stop`, `continue`, `warn`)
 - **settings.preserveWorkingTree**: Stash/restore uncommitted changes
+- **settings.executionMode**: Execution strategy (`parallel` or `sequential`, default: `parallel`)
 
 #### Agent Stage Options
 
+**Basic Configuration:**
 - **name**: Stage identifier
 - **agent**: Path to agent definition file
-- **enabled**: Skip stage if false
+- **enabled**: Skip stage if false (default: true)
 - **timeout**: Max execution time in seconds
-- **onFail**: Stage-specific failure strategy
+- **onFail**: Stage-specific failure strategy (`stop`, `continue`, `warn`)
 - **autoCommit**: Stage-specific auto-commit override
 - **commitMessage**: Custom commit message template
 - **inputs**: Key-value pairs passed to agent context
 - **outputs**: Keys to extract from agent response
+
+**Advanced Execution:**
+- **dependsOn**: Array of stage names this stage depends on (runs after all complete)
+- **condition**: Template expression to evaluate before running (e.g., `"{{ stages.review.outputs.issues > 0 }}"`)
+- **retry**: Retry configuration object (see below)
+
+#### Retry Configuration
+
+```yaml
+retry:
+  maxAttempts: 3        # Total attempts (including first try)
+  backoff: exponential  # exponential, linear, or fixed
+  initialDelay: 1000    # Initial delay in ms (default: 1000)
+  maxDelay: 30000       # Max delay cap in ms (default: 30000)
+```
+
+**Backoff Strategies:**
+- `exponential`: Delay doubles each retry (1s → 2s → 4s → 8s)
+- `linear`: Delay increases linearly (1s → 2s → 3s → 4s)
+- `fixed`: Same delay every time (1s → 1s → 1s)
+
+#### Conditional Expressions
+
+Conditions use template syntax with access to previous stage outputs:
+
+```yaml
+# Simple comparison
+condition: "{{ stages.review.outputs.issues > 0 }}"
+
+# Equality check
+condition: "{{ stages.review.outputs.severity == 'critical' }}"
+
+# Logical operators
+condition: "{{ stages.review.outputs.issues > 0 && stages.scan.outputs.vulnerabilities == 0 }}"
+
+# Available operators: ==, !=, >, <, >=, <=, &&, ||
+```
 
 ## Architecture
 
@@ -211,19 +272,37 @@ agents:
 agent-pipeline/
 ├── src/
 │   ├── core/
-│   │   ├── pipeline-runner.ts      # Main orchestrator
-│   │   ├── stage-executor.ts       # Individual stage runner
+│   │   ├── pipeline-runner.ts      # Main orchestrator with DAG execution
+│   │   ├── stage-executor.ts       # Individual stage runner with retry
 │   │   ├── state-manager.ts        # Pipeline state persistence
-│   │   └── git-manager.ts          # Git operations wrapper
+│   │   ├── git-manager.ts          # Git operations wrapper
+│   │   ├── dag-planner.ts          # DAG analysis and execution planning
+│   │   ├── parallel-executor.ts    # Parallel stage execution
+│   │   ├── condition-evaluator.ts  # Template expression evaluation
+│   │   ├── retry-handler.ts        # Retry logic with backoff
+│   │   └── types/
+│   │       └── execution-graph.ts  # DAG type definitions
 │   ├── config/
 │   │   ├── pipeline-loader.ts      # YAML parser
 │   │   └── schema.ts               # TypeScript interfaces
+│   ├── ui/
+│   │   ├── pipeline-ui.tsx         # Live terminal UI (Ink)
+│   │   ├── components/
+│   │   │   ├── stage-row.tsx       # Stage display component
+│   │   │   └── status-badge.tsx    # Status indicator
+│   │   └── history-browser.tsx     # Interactive history browser
+│   ├── analytics/
+│   │   ├── pipeline-analytics.ts   # Metrics calculation
+│   │   └── types.ts                # Analytics types
 │   ├── utils/
 │   │   ├── logger.ts               # Logging utilities
 │   │   └── errors.ts               # Custom error types
 │   └── index.ts                    # CLI entry point
 ├── .agent-pipeline/
 │   ├── pipelines/                  # Pipeline YAML configs
+│   │   ├── test-pipeline.yml
+│   │   ├── parallel-example.yml
+│   │   └── conditional-example.yml
 │   └── state/runs/                 # Pipeline execution history
 └── .claude/agents/                 # Agent definitions
 ```
@@ -231,14 +310,27 @@ agent-pipeline/
 ### How It Works
 
 1. **Pipeline Configuration** is loaded from YAML
-2. **Pipeline Runner** initializes state and git manager
-3. **For each agent stage:**
-   - Stage Executor loads agent definition
-   - Agent runs with pipeline context
+2. **DAG Planner** analyzes dependencies and creates execution plan
+   - Validates no circular dependencies
+   - Performs topological sort
+   - Groups stages by execution level
+3. **Pipeline Runner** initializes state and executes each group
+4. **For each execution group:**
+   - Evaluate conditions for all stages
+   - Execute stages in parallel (or sequentially if configured)
+   - Handle retries with backoff if configured
+   - Stage Executor loads agent definition and runs it
    - Changes are auto-committed (if enabled)
    - State is persisted to disk
-   - Outputs are extracted for next stage
-4. **Pipeline completes** with full history
+   - Outputs are extracted for dependent stages
+5. **Pipeline completes** with full history and analytics
+
+**Execution Flow Example:**
+```
+Group 0 (parallel):  [code-review] [security-scan] [performance-check]
+                            ↓            ↓                  ↓
+Group 1 (sequential): [summary-report] ← waits for all above
+```
 
 ### Git History Example
 
@@ -274,6 +366,84 @@ agents:
 
   - name: file-creator
     agent: .claude/agents/file-creator.md
+```
+
+### Parallel Execution Pipeline
+
+Run multiple review stages in parallel for faster execution:
+
+```yaml
+name: parallel-example
+trigger: manual
+
+settings:
+  executionMode: parallel
+
+agents:
+  # These three stages run in parallel
+  - name: code-review
+    agent: .claude/agents/code-reviewer.md
+    outputs: [issues_found, severity]
+
+  - name: security-scan
+    agent: .claude/agents/security-auditor.md
+    outputs: [vulnerabilities]
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+
+  - name: performance-check
+    agent: .claude/agents/quality-checker.md
+    outputs: [performance_score]
+
+  # This stage waits for all three to complete
+  - name: summary-report
+    agent: .claude/agents/summary.md
+    dependsOn:
+      - code-review
+      - security-scan
+      - performance-check
+```
+
+### Conditional Execution Pipeline
+
+Execute stages based on previous results:
+
+```yaml
+name: conditional-example
+trigger: manual
+
+agents:
+  - name: code-review
+    agent: .claude/agents/code-reviewer.md
+    outputs: [issues_found, severity]
+
+  # Run auto-fixer only if issues were found
+  - name: auto-fix
+    agent: .claude/agents/fixer.md
+    dependsOn: [code-review]
+    condition: "{{ stages.code-review.outputs.issues_found > 0 }}"
+    retry:
+      maxAttempts: 2
+      backoff: fixed
+
+  # Celebrate if no issues found
+  - name: celebrate
+    agent: .claude/agents/celebration.md
+    dependsOn: [code-review]
+    condition: "{{ stages.code-review.outputs.issues_found == 0 }}"
+
+  # Run security in parallel with above
+  - name: security-scan
+    agent: .claude/agents/security-auditor.md
+    outputs: [vulnerabilities]
+
+  # Only run if critical severity OR vulnerabilities found
+  - name: emergency-fix
+    agent: .claude/agents/emergency.md
+    dependsOn: [code-review, security-scan]
+    condition: "{{ stages.code-review.outputs.severity == 'critical' || stages.security-scan.outputs.vulnerabilities > 0 }}"
+    onFail: stop
 ```
 
 ### Commit Review Pipeline
@@ -353,10 +523,14 @@ npm test
 - ✅ Analytics & metrics (pipeline and stage-level)
 - ✅ Failure analysis and trend visualization
 
-**Priority 2: Advanced Execution (Planned)**
-- Parallel stage execution with DAG dependencies
-- Conditional stage execution based on outputs
-- Retry mechanisms with backoff strategies
+**Priority 2: Advanced Execution ✅ COMPLETE**
+- ✅ Parallel stage execution with Promise.allSettled
+- ✅ DAG dependency analysis with cycle detection
+- ✅ Topological sort for execution ordering
+- ✅ Conditional stage execution with template expressions
+- ✅ Retry mechanisms with exponential/linear/fixed backoff
+- ✅ Execution plan visualization in console output
+- ✅ Support for both parallel and sequential modes
 
 **Priority 3: Integrations (Planned)**
 - Slack/Discord notifications
@@ -366,7 +540,7 @@ npm test
 
 ## Contributing
 
-Phase 3 Priority 1 (Observability) is now complete! Contributions are welcome, especially for Priority 2 (Advanced Execution) and Priority 3 (Integrations) features.
+Phase 3 Priority 2 (Advanced Execution) is now complete! The pipeline now supports parallel execution, DAG dependencies, conditional logic, and retry mechanisms. Contributions are welcome, especially for Priority 3 (Integrations) features.
 
 ## License
 

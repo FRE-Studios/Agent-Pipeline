@@ -3,13 +3,18 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
+import { RetryHandler } from './retry-handler.js';
 import { AgentStageConfig, StageExecution, PipelineState } from '../config/schema.js';
 
 export class StageExecutor {
+  private retryHandler: RetryHandler;
+
   constructor(
     private gitManager: GitManager,
     private dryRun: boolean = false
-  ) {}
+  ) {
+    this.retryHandler = new RetryHandler();
+  }
 
   async executeStage(
     stageConfig: AgentStageConfig,
@@ -19,10 +24,13 @@ export class StageExecutor {
     const execution: StageExecution = {
       stageName: stageConfig.name,
       status: 'running',
-      startTime: new Date().toISOString()
+      startTime: new Date().toISOString(),
+      retryAttempt: 0,
+      maxRetries: stageConfig.retry?.maxAttempts || 0
     };
 
-    try {
+    // Define the core execution logic
+    const executeAttempt = async (): Promise<void> => {
       // Build context for agent
       const agentContext = this.buildAgentContext(stageConfig, pipelineState);
 
@@ -30,7 +38,11 @@ export class StageExecutor {
       const systemPrompt = await fs.readFile(stageConfig.agent, 'utf-8');
 
       // Run agent using SDK query
-      console.log(`🤖 Running stage: ${stageConfig.name}...`);
+      const retryInfo = execution.retryAttempt! > 0
+        ? ` (retry ${execution.retryAttempt}/${execution.maxRetries})`
+        : '';
+      console.log(`🤖 Running stage: ${stageConfig.name}${retryInfo}...`);
+
       const result = await this.runAgentWithTimeout(
         agentContext,
         systemPrompt,
@@ -60,6 +72,28 @@ export class StageExecutor {
       } else if (this.dryRun && await this.gitManager.hasUncommittedChanges()) {
         console.log(`💡 Would commit changes (dry-run mode)`);
       }
+    };
+
+    try {
+      // Execute with retry if configured
+      if (stageConfig.retry && stageConfig.retry.maxAttempts > 1) {
+        await this.retryHandler.executeWithRetry(
+          executeAttempt,
+          stageConfig.retry,
+          (context) => {
+            execution.retryAttempt = context.attemptNumber;
+            const delay = context.delays[context.delays.length - 1];
+            console.log(
+              `⚠️  Stage failed (attempt ${context.attemptNumber + 1}/${context.maxAttempts}). ` +
+              `Retrying in ${RetryHandler.formatDelay(delay)}...`
+            );
+            console.log(`   Error: ${context.lastError?.message}`);
+          }
+        );
+      } else {
+        // No retry configured, execute once
+        await executeAttempt();
+      }
 
       execution.status = 'success';
       execution.endTime = new Date().toISOString();
@@ -76,7 +110,10 @@ export class StageExecutor {
       execution.error = errorDetails;
 
       // Pretty print error
-      console.error(`❌ Stage failed: ${stageConfig.name}`);
+      const retryInfo = execution.retryAttempt! > 0
+        ? ` (after ${execution.retryAttempt} retries)`
+        : '';
+      console.error(`❌ Stage failed: ${stageConfig.name}${retryInfo}`);
       console.error(`   Error: ${errorDetails.message}`);
       if (errorDetails.agentPath) {
         console.error(`   Agent: ${errorDetails.agentPath}`);

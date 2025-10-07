@@ -1,0 +1,46 @@
+name: parallel-example
+trigger: manual
+
+settings:
+  autoCommit: true
+  commitPrefix: "[pipeline:{{stage}}]"
+  failureStrategy: stop
+  executionMode: parallel  # Enable parallel execution
+
+agents:
+  # These three stages run in parallel (no dependencies)
+  - name: code-review
+    agent: .claude/agents/code-reviewer.md
+    timeout: 120
+    outputs:
+      - issues_found
+      - severity
+      - recommendations
+
+  - name: security-scan
+    agent: .claude/agents/security-auditor.md
+    timeout: 120
+    outputs:
+      - vulnerabilities
+      - risk_level
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+      initialDelay: 1000
+
+  - name: performance-check
+    agent: .claude/agents/quality-checker.md
+    timeout: 120
+    outputs:
+      - performance_score
+      - bottlenecks
+
+  # This stage depends on all three above (runs after they complete)
+  - name: summary-report
+    agent: .claude/agents/hello-world.md
+    dependsOn:
+      - code-review
+      - security-scan
+      - performance-check
+    inputs:
+      task: "Generate a summary report from previous stage outputs"

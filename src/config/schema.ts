@@ -10,9 +10,17 @@ export interface PipelineConfig {
     commitPrefix: string;              // e.g., "[pipeline:stage-name]"
     failureStrategy: 'stop' | 'continue'; // Default failure handling
     preserveWorkingTree: boolean;      // Stash/restore uncommitted changes
+    executionMode?: 'sequential' | 'parallel'; // Execution strategy (default: parallel with DAG)
   };
 
   agents: AgentStageConfig[];
+}
+
+export interface RetryConfig {
+  maxAttempts: number;                 // Max retry attempts (default: 3)
+  backoff: 'exponential' | 'linear' | 'fixed'; // Backoff strategy
+  initialDelay?: number;               // Initial delay in ms (default: 1000)
+  maxDelay?: number;                   // Max delay in ms (default: 30000)
 }
 
 export interface AgentStageConfig {
@@ -23,6 +31,13 @@ export interface AgentStageConfig {
   enabled?: boolean;                   // Skip if false
   onFail?: 'stop' | 'continue' | 'warn';
   timeout?: number;                    // Max execution time (seconds)
+
+  // Dependencies and conditions
+  dependsOn?: string[];                // Stage names this stage depends on
+  condition?: string;                  // Template expression (e.g., "{{ stages.code-review.outputs.issues > 0 }}")
+
+  // Retry behavior
+  retry?: RetryConfig;                 // Retry configuration
 
   // Commit control
   autoCommit?: boolean;                // Override global setting
@@ -67,6 +82,14 @@ export interface StageExecution {
 
   agentOutput?: string;                // Raw agent response
   extractedData?: Record<string, any>; // Parsed outputs
+
+  // Retry tracking
+  retryAttempt?: number;               // Current retry attempt (0 = first try)
+  maxRetries?: number;                 // Max retry attempts configured
+
+  // Conditional execution
+  conditionEvaluated?: boolean;        // Was a condition evaluated?
+  conditionResult?: boolean;           // Result of condition evaluation
 
   error?: {
     message: string;

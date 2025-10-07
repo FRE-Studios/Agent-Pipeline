@@ -1,0 +1,67 @@
+name: conditional-example
+trigger: manual
+
+settings:
+  autoCommit: true
+  commitPrefix: "[pipeline:{{stage}}]"
+  failureStrategy: continue
+  executionMode: parallel
+
+agents:
+  # Initial code review
+  - name: code-review
+    agent: .claude/agents/code-reviewer.md
+    timeout: 120
+    outputs:
+      - issues_found
+      - severity
+      - needs_refactor
+
+  # Run auto-fixer only if issues were found
+  - name: auto-fix
+    agent: .claude/agents/hello-world.md
+    dependsOn:
+      - code-review
+    condition: "{{ stages.code-review.outputs.issues_found > 0 }}"
+    inputs:
+      task: "Fix issues identified in code review"
+    retry:
+      maxAttempts: 2
+      backoff: fixed
+      initialDelay: 2000
+
+  # Run celebration only if no issues found
+  - name: celebrate
+    agent: .claude/agents/hello-world.md
+    dependsOn:
+      - code-review
+    condition: "{{ stages.code-review.outputs.issues_found == 0 }}"
+    inputs:
+      task: "Celebrate clean code!"
+
+  # Run security scan in parallel with conditional stages above
+  - name: security-scan
+    agent: .claude/agents/security-auditor.md
+    timeout: 120
+    outputs:
+      - vulnerabilities
+
+  # Only run if critical severity or vulnerabilities found
+  - name: emergency-fix
+    agent: .claude/agents/hello-world.md
+    dependsOn:
+      - code-review
+      - security-scan
+    condition: "{{ stages.code-review.outputs.severity == 'critical' || stages.security-scan.outputs.vulnerabilities > 0 }}"
+    inputs:
+      task: "Emergency fixes for critical issues"
+    onFail: stop
+
+  # Always run final documentation update
+  - name: update-docs
+    agent: .claude/agents/documentation-manager.md
+    dependsOn:
+      - code-review
+      - security-scan
+    inputs:
+      task: "Update documentation based on all findings"
