@@ -2,6 +2,8 @@
 
 // src/index.ts
 
+import React from 'react';
+import { render } from 'ink';
 import { PipelineRunner } from './core/pipeline-runner.js';
 import { PipelineLoader } from './config/pipeline-loader.js';
 import { StateManager } from './core/state-manager.js';
@@ -10,6 +12,9 @@ import { HookInstaller } from './cli/hooks.js';
 import { rollbackCommand } from './cli/commands/rollback.js';
 import { PipelineValidator } from './validators/pipeline-validator.js';
 import { initCommand } from './cli/commands/init.js';
+import { PipelineUI } from './ui/pipeline-ui.js';
+import { HistoryBrowser } from './cli/commands/history.js';
+import { analyticsCommand } from './cli/commands/analytics.js';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -22,12 +27,14 @@ async function main() {
     switch (command) {
       case 'run': {
         if (!subCommand) {
-          console.error('Usage: agent-pipeline run <pipeline-name> [--dry-run]');
+          console.error('Usage: agent-pipeline run <pipeline-name> [--dry-run] [--no-interactive]');
           process.exit(1);
         }
 
-        // Check for --dry-run flag
+        // Check for flags
         const dryRun = args.includes('--dry-run');
+        const noInteractive = args.includes('--no-interactive');
+        const interactive = !noInteractive;
 
         const loader = new PipelineLoader(repoPath);
         const config = await loader.loadPipeline(subCommand);
@@ -39,9 +46,34 @@ async function main() {
         }
 
         const runner = new PipelineRunner(repoPath, dryRun);
-        const result = await runner.runPipeline(config);
 
-        process.exit(result.status === 'completed' ? 0 : 1);
+        // Render UI if interactive
+        let uiInstance;
+        if (interactive) {
+          uiInstance = render(
+            React.createElement(PipelineUI, {
+              pipelineName: config.name,
+              onStateChange: (callback) => {
+                runner.onStateChange(callback);
+              }
+            })
+          );
+        }
+
+        try {
+          const result = await runner.runPipeline(config, { interactive });
+
+          if (uiInstance) {
+            uiInstance.unmount();
+          }
+
+          process.exit(result.status === 'completed' ? 0 : 1);
+        } catch (error) {
+          if (uiInstance) {
+            uiInstance.unmount();
+          }
+          throw error;
+        }
         break;
       }
 
@@ -155,28 +187,62 @@ async function main() {
         break;
       }
 
+      case 'history': {
+        render(React.createElement(HistoryBrowser, { repoPath }));
+        break;
+      }
+
+      case 'analytics': {
+        // Parse options
+        const options: { pipeline?: string; days?: number } = {};
+
+        for (let i = 1; i < args.length; i++) {
+          if (args[i] === '--pipeline' || args[i] === '-p') {
+            options.pipeline = args[++i];
+          } else if (args[i] === '--days' || args[i] === '-d') {
+            options.days = parseInt(args[++i], 10);
+          }
+        }
+
+        await analyticsCommand(repoPath, options);
+        break;
+      }
+
       default: {
         console.log(`
 Agent Pipeline - Sequential agent execution with state management
 
 Usage:
-  agent-pipeline run <pipeline-name> [--dry-run]  Run a pipeline
+  agent-pipeline run <pipeline-name> [options]    Run a pipeline
   agent-pipeline list                              List available pipelines
   agent-pipeline status                            Show last pipeline run status
+  agent-pipeline history                           Browse pipeline history (interactive)
+  agent-pipeline analytics [options]               Show pipeline analytics
   agent-pipeline install <pipeline-name>           Install post-commit git hook
   agent-pipeline uninstall                         Remove post-commit git hook
   agent-pipeline rollback [options]                Rollback pipeline commits
   agent-pipeline init                              Initialize agent-pipeline project
 
+Run Options:
+  --dry-run              Test without creating commits
+  --no-interactive       Disable live UI (use simple console output)
+
+Analytics Options:
+  -p, --pipeline <name>  Filter by pipeline name
+  -d, --days <n>         Filter by last N days
+
 Rollback Options:
-  -r, --run-id <id>     Rollback specific run ID
-  -s, --stages <n>      Rollback last N stages
+  -r, --run-id <id>      Rollback specific run ID
+  -s, --stages <n>       Rollback last N stages
 
 Examples:
   agent-pipeline run commit-review
   agent-pipeline run commit-review --dry-run
+  agent-pipeline run commit-review --no-interactive
   agent-pipeline list
   agent-pipeline status
+  agent-pipeline history
+  agent-pipeline analytics --pipeline commit-review --days 30
   agent-pipeline install commit-review
   agent-pipeline uninstall
   agent-pipeline rollback

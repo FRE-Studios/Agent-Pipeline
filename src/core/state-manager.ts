@@ -55,4 +55,27 @@ export class StateManager {
       return null;
     }
   }
+
+  async getAllRuns(): Promise<PipelineState[]> {
+    try {
+      const files = await fs.readdir(this.stateDir);
+      const jsonFiles = files.filter((f) => f.endsWith('.json'));
+
+      const runs = await Promise.all(
+        jsonFiles.map((file) => this.loadState(path.parse(file).name))
+      );
+
+      // Filter out nulls and sort by timestamp, newest first
+      const validRuns = runs.filter((r) => r !== null) as PipelineState[];
+      validRuns.sort(
+        (a, b) =>
+          new Date(b.trigger.timestamp).getTime() -
+          new Date(a.trigger.timestamp).getTime()
+      );
+
+      return validRuns;
+    } catch {
+      return [];
+    }
+  }
 }

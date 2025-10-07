@@ -11,6 +11,7 @@ export class PipelineRunner {
   private stageExecutor: StageExecutor;
   private stateManager: StateManager;
   private dryRun: boolean;
+  private stateUpdateCallbacks: Array<(state: PipelineState) => void> = [];
 
   constructor(repoPath: string, dryRun: boolean = false) {
     this.gitManager = new GitManager(repoPath);
@@ -19,7 +20,10 @@ export class PipelineRunner {
     this.dryRun = dryRun;
   }
 
-  async runPipeline(config: PipelineConfig): Promise<PipelineState> {
+  async runPipeline(
+    config: PipelineConfig,
+    options: { interactive?: boolean } = {}
+  ): Promise<PipelineState> {
     const triggerCommit = await this.gitManager.getCurrentCommit();
     const changedFiles = await this.gitManager.getChangedFiles(triggerCommit);
 
@@ -44,46 +48,74 @@ export class PipelineRunner {
       console.log(`\n🧪 DRY RUN MODE - No commits will be created\n`);
     }
 
-    console.log(`\n🚀 Starting pipeline: ${config.name}`);
-    console.log(`📦 Run ID: ${state.runId}`);
-    console.log(`📝 Trigger commit: ${triggerCommit.substring(0, 7)}\n`);
+    // Show simple console output if not interactive
+    if (!options.interactive) {
+      console.log(`\n🚀 Starting pipeline: ${config.name}`);
+      console.log(`📦 Run ID: ${state.runId}`);
+      console.log(`📝 Trigger commit: ${triggerCommit.substring(0, 7)}\n`);
+    }
+
+    // Notify initial state
+    this.notifyStateChange(state);
 
     const startTime = Date.now();
 
     try {
       for (const agentConfig of config.agents) {
         if (agentConfig.enabled === false) {
-          console.log(`⏭️  Skipping disabled stage: ${agentConfig.name}\n`);
+          if (!options.interactive) {
+            console.log(`⏭️  Skipping disabled stage: ${agentConfig.name}\n`);
+          }
           state.stages.push({
             stageName: agentConfig.name,
             status: 'skipped',
             startTime: new Date().toISOString()
           });
+          this.notifyStateChange(state);
           continue;
+        }
+
+        if (!options.interactive) {
+          console.log(`🤖 Running stage: ${agentConfig.name}...`);
         }
 
         const stageResult = await this.stageExecutor.executeStage(
           agentConfig,
-          state
+          state,
+          (output) => {
+            // Stream output to UI in real-time
+            const currentStage = state.stages[state.stages.length - 1];
+            if (currentStage) {
+              currentStage.agentOutput = output;
+              this.notifyStateChange(state);
+            }
+          }
         );
 
         state.stages.push(stageResult);
         await this.stateManager.saveState(state);
+        this.notifyStateChange(state);
 
         // Handle stage failure
         if (stageResult.status === 'failed') {
           const failureStrategy = agentConfig.onFail || config.settings?.failureStrategy || 'stop';
 
           if (failureStrategy === 'stop') {
-            console.log(`\n🛑 Pipeline stopped due to stage failure\n`);
+            if (!options.interactive) {
+              console.log(`\n🛑 Pipeline stopped due to stage failure\n`);
+            }
             state.status = 'failed';
             break;
           } else if (failureStrategy === 'warn') {
-            console.log(`\n⚠️  Stage failed but continuing (warn mode)\n`);
+            if (!options.interactive) {
+              console.log(`\n⚠️  Stage failed but continuing (warn mode)\n`);
+            }
           }
         }
 
-        console.log(''); // Empty line between stages
+        if (!options.interactive) {
+          console.log(''); // Empty line between stages
+        }
       }
 
       if (state.status === 'running') {
@@ -92,7 +124,9 @@ export class PipelineRunner {
 
     } catch (error) {
       state.status = 'failed';
-      console.error(`\n❌ Pipeline failed: ${error}\n`);
+      if (!options.interactive) {
+        console.error(`\n❌ Pipeline failed: ${error}\n`);
+      }
     }
 
     const endTime = Date.now();
@@ -100,8 +134,12 @@ export class PipelineRunner {
     state.artifacts.finalCommit = await this.gitManager.getCurrentCommit();
 
     await this.stateManager.saveState(state);
+    this.notifyStateChange(state);
 
-    this.printSummary(state);
+    // Only print summary if not in interactive mode
+    if (!options.interactive) {
+      this.printSummary(state);
+    }
 
     return state;
   }
@@ -142,5 +180,15 @@ export class PipelineRunner {
       'partial': '⚠️'
     };
     return emojiMap[status] || '❓';
+  }
+
+  private notifyStateChange(state: PipelineState): void {
+    for (const callback of this.stateUpdateCallbacks) {
+      callback(state);
+    }
+  }
+
+  onStateChange(callback: (state: PipelineState) => void): void {
+    this.stateUpdateCallbacks.push(callback);
   }
 }

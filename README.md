@@ -23,6 +23,12 @@ An agent CI/CD pipeline for intelligent, multi-stage workflows with full visibil
 - **Enhanced Status** - Detailed pipeline run information with commit history
 - **Project Scaffolding** - Initialize new projects with examples
 
+**Phase 3 Priority 1 - Observability:**
+- **Live Terminal UI** - Beautiful interactive UI with real-time pipeline progress
+- **History Browser** - Interactive TUI to browse and analyze past runs
+- **Analytics & Metrics** - Pipeline performance analysis with success rates and trends
+- **Output Streaming** - Real-time agent output during execution
+
 ## Installation
 
 ```bash
@@ -98,14 +104,24 @@ node dist/index.js init
 # List available pipelines
 node dist/index.js list
 
-# Run a specific pipeline
+# Run a specific pipeline (interactive UI by default)
 node dist/index.js run <pipeline-name>
 
 # Run in dry-run mode (no commits)
 node dist/index.js run <pipeline-name> --dry-run
 
+# Run with console output only (disable live UI)
+node dist/index.js run <pipeline-name> --no-interactive
+
 # Check status of last run
 node dist/index.js status
+
+# Browse pipeline history (interactive)
+node dist/index.js history
+
+# View analytics
+node dist/index.js analytics
+node dist/index.js analytics --pipeline <name> --days 30
 ```
 
 ### Git Hook Management
@@ -328,18 +344,29 @@ npm test
 - ✅ Improved status command with detailed output
 - ✅ Init command to scaffold new projects
 
-### Future Phases
+### Phase 3: Advanced Features (In Progress)
 
-- Parallel agent execution
-- Pipeline templates library
-- Web dashboard for history
+**Priority 1: Observability ✅ COMPLETE**
+- ✅ Live terminal UI with Ink (interactive mode by default)
+- ✅ Real-time output streaming during execution
+- ✅ History browser with interactive navigation
+- ✅ Analytics & metrics (pipeline and stage-level)
+- ✅ Failure analysis and trend visualization
+
+**Priority 2: Advanced Execution (Planned)**
+- Parallel stage execution with DAG dependencies
+- Conditional stage execution based on outputs
+- Retry mechanisms with backoff strategies
+
+**Priority 3: Integrations (Planned)**
 - Slack/Discord notifications
-- Pipeline DAG visualization
-- Conditional branching
+- HTML report generation
+- GitHub Actions integration
+- Webhook support
 
 ## Contributing
 
-This is a Phase 2 implementation with core functionality and hardening complete. Contributions are welcome, especially for future phase features!
+Phase 3 Priority 1 (Observability) is now complete! Contributions are welcome, especially for Priority 2 (Advanced Execution) and Priority 3 (Integrations) features.
 
 ## License
 

@@ -13,7 +13,8 @@ export class StageExecutor {
 
   async executeStage(
     stageConfig: AgentStageConfig,
-    pipelineState: PipelineState
+    pipelineState: PipelineState,
+    onOutputUpdate?: (output: string) => void
   ): Promise<StageExecution> {
     const execution: StageExecution = {
       stageName: stageConfig.name,
@@ -33,7 +34,8 @@ export class StageExecutor {
       const result = await this.runAgentWithTimeout(
         agentContext,
         systemPrompt,
-        stageConfig.timeout
+        stageConfig.timeout,
+        onOutputUpdate
       );
 
       execution.agentOutput = result;
@@ -129,7 +131,8 @@ When done, describe what you changed and why.
   private async runAgentWithTimeout(
     userPrompt: string,
     systemPrompt: string,
-    timeoutSeconds?: number
+    timeoutSeconds?: number,
+    onOutputUpdate?: (output: string) => void
   ): Promise<string> {
     const timeout = (timeoutSeconds || 300) * 1000; // Default 5 minutes
 
@@ -150,6 +153,10 @@ When done, describe what you changed and why.
           for (const content of message.message.content) {
             if (content.type === 'text') {
               output += content.text;
+              // Stream output to callback if provided
+              if (onOutputUpdate) {
+                onOutputUpdate(output);
+              }
             }
           }
         }
