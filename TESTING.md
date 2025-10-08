@@ -51,7 +51,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (586 tests)
+### Completed Test Suites (681 tests)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -193,15 +193,50 @@ src/
 - Integration tests for complete initialization workflow
 - Tests idempotency (safe to run multiple times)
 
+**rollback.test.ts** - 28 tests
+- Coverage: **100%**
+- Tests state loading (by runId, latest run, error handling)
+- Validates target commit calculation (entire pipeline vs N stages)
+- Tests stage filtering (successful stages only)
+- Validates user interaction with readline (confirm/cancel)
+- Tests git integration (revertToCommit)
+- Validates console output and messaging
+- Tests error handling (no runs, insufficient stages)
+- Covers edge cases (empty stages, mixed success/failure, undefined commitSha)
+
+**analytics.test.ts** - 36 tests
+- Coverage: **100%**
+- Tests metrics generation with filters (pipeline name, days, both)
+- Validates time range calculation from days parameter
+- Tests console output formatting for all sections
+- Validates stage metrics display
+- Tests failure reasons (sorting, top 5 limit)
+- Validates trends visualization (last 7 days, success bar)
+- Tests no runs message display
+- Covers percentage and duration formatting
+
+**cleanup.test.ts** - 31 tests
+- Coverage: **100%**
+- Tests branch listing and filtering by pipeline name
+- Validates force flag behavior (dry run vs actual deletion)
+- Tests branch deletion (success, failure, partial)
+- Validates console output (branches list, instructions, progress)
+- Tests error handling and error message formatting
+- Covers empty result sets and filter combinations
+- Integration tests for complete cleanup workflow
+
 ### Test Results Summary
 
 ```
-Test Files:  13 passed (13)
-Tests:       586 passed (586)
-Duration:    ~948ms
+Test Files:  16 passed (16)
+Tests:       681 passed (681)
+Duration:    ~557ms
 
 Coverage Summary (Tested Modules):
 - init.ts:                100%   ✅
+- rollback.ts:            100%   ✅
+- analytics.ts:           100%   ✅
+- cleanup.ts:             100%   ✅
 - branch-manager.ts:      100%   ✅
 - git-manager.ts:         100%   ✅
 - pipeline-analytics.ts:  100%   ✅
@@ -374,16 +409,21 @@ mockTimers(): { advance, runAll, restore }
 
 ### Pending Test Coverage
 
-Modules not yet tested (planned):
-- ❌ `notification-manager.ts` - Notification orchestration
-- ❌ `utils/errors.ts` - Error utilities
+Core Modules (planned):
+- ❌ `pipeline-runner.ts` - Main pipeline orchestration and execution coordinator
+- ❌ `notification-manager.ts` - Notification orchestration and dispatch
+- ❌ `notifiers/base-notifier.ts` - Base notification class
+- ❌ `notifiers/slack-notifier.ts` - Slack integration
+- ❌ `notifiers/local-notifier.ts` - Local desktop notifications
+- ❌ `utils/errors.ts` - Error utilities and custom error classes
 - ❌ `utils/logger.ts` - Logging utilities
+- ❌ `cli/hooks.ts` - CLI hooks system
 
-CLI Commands (cli/commands/ folder):
-- ✅ `init.ts` - Project initialization (100% coverage, 41 tests)
-- ❌ `rollback.ts` - Pipeline rollback functionality
-- ❌ `analytics.ts` - Analytics display command
-- ❌ `cleanup.ts` - Branch cleanup command 
+### Type-Only Files (no tests needed): 
+- `config/schema.ts` - Type definitions for pipeline configuration
+- `analytics/types.ts` - Analytics type definitions
+- `notifications/types.ts` - Notification type definitions
+- `core/types/execution-graph.ts` - Execution graph type definitions 
 
 ### Integration Tests (Future)
 
