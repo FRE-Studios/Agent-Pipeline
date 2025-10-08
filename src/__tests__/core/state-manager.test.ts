@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { StateManager } from './state-manager.js';
+import { StateManager } from '../../core/state-manager.js';
 import {
   completedPipelineState,
   failedPipelineState,
   runningPipelineState,
-} from '../__tests__/fixtures/pipeline-states.js';
-import { createTempDir, cleanupTempDir } from '../__tests__/setup.js';
+} from '../fixtures/pipeline-states.js';
+import { createTempDir, cleanupTempDir } from '../setup.js';
 
 describe('StateManager', () => {
   let tempDir: string;

@@ -1,8 +1,8 @@
 // src/core/retry-handler.test.ts
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { RetryHandler, RetryContext } from './retry-handler.js';
-import { RetryConfig } from '../config/schema.js';
+import { RetryHandler, RetryContext } from '../../core/retry-handler.js';
+import { RetryConfig } from '../../config/schema.js';
 
 describe('RetryHandler', () => {
   let handler: RetryHandler;

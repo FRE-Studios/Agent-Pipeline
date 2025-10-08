@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { PipelineLoader } from './pipeline-loader.js';
-import { createTempDir, cleanupTempDir } from '../__tests__/setup.js';
+import { PipelineLoader } from '../../config/pipeline-loader.js';
+import { createTempDir, cleanupTempDir } from '../setup.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as YAML from 'yaml';
-import { simplePipelineConfig, parallelPipelineConfig } from '../__tests__/fixtures/pipeline-configs.js';
+import { simplePipelineConfig, parallelPipelineConfig } from '../fixtures/pipeline-configs.js';
 
 describe('PipelineLoader', () => {
   let tempDir: string;

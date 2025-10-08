@@ -24,11 +24,28 @@ src/
 │   │   ├── simple-git.ts              # Mock git operations
 │   │   ├── claude-sdk.ts              # Mock Claude Agent SDK
 │   │   └── node-notifier.ts           # Mock notifications
-│   └── integration/                    # Integration tests (future)
+│   ├── integration/                    # Integration tests (future)
+│   ├── core/                           # Tests for src/core/
+│   │   ├── dag-planner.test.ts
+│   │   ├── condition-evaluator.test.ts
+│   │   ├── state-manager.test.ts
+│   │   ├── stage-executor.test.ts
+│   │   ├── retry-handler.test.ts
+│   │   └── parallel-executor.test.ts
+│   ├── config/                         # Tests for src/config/
+│   │   └── pipeline-loader.test.ts
+│   └── validators/                     # Tests for src/validators/
+│       └── pipeline-validator.test.ts
 └── [module-name]/
-    ├── [module].ts
-    └── [module].test.ts                # Unit tests alongside source
+    └── [module].ts                     # Source files only (no .test.ts)
 ```
+
+**Test File Strategy:**
+- Test files are **NOT** co-located with source files
+- All test files live in `src/__tests__/` directory
+- Directory structure under `src/__tests__/` mirrors `src/` structure
+- Example: Tests for `src/core/dag-planner.ts` → `src/__tests__/core/dag-planner.test.ts`
+- This keeps source directories clean and makes test organization clearer
 
 ## Test Coverage
 
@@ -151,10 +168,10 @@ npm test -- --watch
 npm test -- --coverage
 
 # Run specific test file
-npm test -- src/core/dag-planner.test.ts --run
+npm test -- src/__tests__/core/dag-planner.test.ts --run
 
 # Run specific test file with coverage
-npm test -- src/core/parallel-executor.test.ts --run --coverage
+npm test -- src/__tests__/core/parallel-executor.test.ts --run --coverage
 
 # Run tests matching pattern
 npm test -- --grep "DAGPlanner"
@@ -289,10 +306,10 @@ it('should throw after retries exhausted', async () => {
 
 ### Naming Conventions
 
-- Test files: `[module-name].test.ts`
-- Fixtures: `[entity-name]-[type].ts`
-- Mocks: `[library-name].ts`
-- Utilities: `[purpose].ts` (e.g., `setup.ts`)
+- Test files: `src/__tests__/[module-path]/[module-name].test.ts` (mirrors src structure)
+- Fixtures: `[entity-name]-[type].ts` (in `src/__tests__/fixtures/`)
+- Mocks: `[library-name].ts` (in `src/__tests__/mocks/`)
+- Utilities: `[purpose].ts` (e.g., `setup.ts` in `src/__tests__/`)
 
 ### Coverage Goals
 

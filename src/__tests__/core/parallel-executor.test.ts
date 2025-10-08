@@ -1,11 +1,11 @@
 // src/core/parallel-executor.test.ts
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ParallelExecutor, ParallelExecutionResult } from './parallel-executor.js';
-import { StageExecutor } from './stage-executor.js';
-import { AgentStageConfig, StageExecution, PipelineState } from '../config/schema.js';
-import { runningPipelineState, successfulStageExecution, failedStageExecution } from '../__tests__/fixtures/pipeline-states.js';
-import { parallelPipelineConfig, simplePipelineConfig } from '../__tests__/fixtures/pipeline-configs.js';
+import { ParallelExecutor, ParallelExecutionResult } from '../../core/parallel-executor.js';
+import { StageExecutor } from '../../core/stage-executor.js';
+import { AgentStageConfig, StageExecution, PipelineState } from '../../config/schema.js';
+import { runningPipelineState, successfulStageExecution, failedStageExecution } from '../fixtures/pipeline-states.js';
+import { parallelPipelineConfig, simplePipelineConfig } from '../fixtures/pipeline-configs.js';
 
 describe('ParallelExecutor', () => {
   let mockStageExecutor: StageExecutor;

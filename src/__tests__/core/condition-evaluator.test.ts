@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { ConditionEvaluator } from './condition-evaluator.js';
-import { PipelineState } from '../config/schema.js';
-import { parallelPipelineState } from '../__tests__/fixtures/pipeline-states.js';
-import { simplePipelineConfig } from '../__tests__/fixtures/pipeline-configs.js';
+import { ConditionEvaluator } from '../../core/condition-evaluator.js';
+import { PipelineState } from '../../config/schema.js';
+import { parallelPipelineState } from '../fixtures/pipeline-states.js';
+import { simplePipelineConfig } from '../fixtures/pipeline-configs.js';
 
 describe('ConditionEvaluator', () => {
   const evaluator = new ConditionEvaluator();

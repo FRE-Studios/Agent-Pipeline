@@ -1,9 +1,9 @@
 // src/core/stage-executor.test.ts
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { StageExecutor } from './stage-executor.js';
-import { createMockGitManager } from '../__tests__/mocks/git-manager.js';
-import { runningPipelineState, completedPipelineState } from '../__tests__/fixtures/pipeline-states.js';
+import { StageExecutor } from '../../core/stage-executor.js';
+import { createMockGitManager } from '../mocks/git-manager.js';
+import { runningPipelineState, completedPipelineState } from '../fixtures/pipeline-states.js';
 import {
   basicStageConfig,
   stageWithOutputs,
@@ -12,8 +12,8 @@ import {
   stageWithAutoCommitDisabled,
   stageWithInputs,
   stageWithLongTimeout,
-} from '../__tests__/fixtures/stage-configs.js';
-import type { PipelineState } from '../config/schema.js';
+} from '../fixtures/stage-configs.js';
+import type { PipelineState } from '../../config/schema.js';
 
 // Mock the Claude SDK query function
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({

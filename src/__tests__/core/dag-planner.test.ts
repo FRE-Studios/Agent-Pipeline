@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DAGPlanner } from './dag-planner.js';
+import { DAGPlanner } from '../../core/dag-planner.js';
 import {
   simplePipelineConfig,
   parallelPipelineConfig,
@@ -7,7 +7,7 @@ import {
   cyclicDependencyConfig,
   duplicateNamesConfig,
   missingDependencyConfig,
-} from '../__tests__/fixtures/pipeline-configs.js';
+} from '../fixtures/pipeline-configs.js';
 
 describe('DAGPlanner', () => {
   const planner = new DAGPlanner();

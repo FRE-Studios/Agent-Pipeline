@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { PipelineValidator } from './pipeline-validator.js';
+import { PipelineValidator } from '../../validators/pipeline-validator.js';
 import {
   simplePipelineConfig,
   parallelPipelineConfig,
   invalidPipelineConfig,
-} from '../__tests__/fixtures/pipeline-configs.js';
-import { PipelineConfig } from '../config/schema.js';
-import { createTempDir, cleanupTempDir } from '../__tests__/setup.js';
+} from '../fixtures/pipeline-configs.js';
+import { PipelineConfig } from '../../config/schema.js';
+import { createTempDir, cleanupTempDir } from '../setup.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
