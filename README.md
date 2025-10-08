@@ -141,8 +141,8 @@ agents:
     agent: .claude/agents/code-reviewer.md
     timeout: 120
 
-  - name: doc-updater
-    agent: .claude/agents/doc-manager.md
+  - name: code-reducer
+    agent: .claude/agents/code-reducer.md
 ```
 
 #### 2. Create Agent Definitions
@@ -690,8 +690,8 @@ agents:
   - name: quality-check
     agent: .claude/agents/quality-checker.md
 
-  - name: doc-updater
-    agent: .claude/agents/doc-manager.md
+  - name: code-reducer
+    agent: .claude/agents/code-reducer.md
 
   - name: memory-manager
     agent: .claude/agents/memory-updater.md

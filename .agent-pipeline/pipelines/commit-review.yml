@@ -57,8 +57,8 @@ agents:
     agent: .claude/agents/quality-checker.md
     commitMessage: "Improve code quality based on metrics"
 
-  - name: doc-updater
-    agent: .claude/agents/doc-manager.md
+  - name: code-reducer
+    agent: .claude/agents/code-reducer.md
     enabled: true
 
   - name: memory-manager
