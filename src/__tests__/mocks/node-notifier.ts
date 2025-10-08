@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 
 export function createMockNotifier() {
   return {
-    notify: vi.fn((options, callback) => {
+    notify: vi.fn((_options, callback) => {
       if (callback) {
         callback(null, 'activated');
       }

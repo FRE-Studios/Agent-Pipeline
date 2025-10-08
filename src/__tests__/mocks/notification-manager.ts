@@ -14,7 +14,7 @@ export function createMockNotificationManager(config: MockNotificationManagerCon
   } = config;
 
   return {
-    notify: vi.fn().mockImplementation(async (context: NotificationContext) => {
+    notify: vi.fn().mockImplementation(async (_context: NotificationContext) => {
       if (shouldFail) {
         throw new Error('Notification failed');
       }

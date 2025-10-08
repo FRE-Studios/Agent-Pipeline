@@ -44,8 +44,8 @@ export const stageWithInputs: AgentStageConfig = {
   agent: '.claude/agents/processor.md',
   inputs: {
     targetFile: 'src/main.ts',
-    maxIssues: 10,
-    strictMode: true,
+    maxIssues: '10',
+    strictMode: 'true',
   },
   timeout: 120,
 };

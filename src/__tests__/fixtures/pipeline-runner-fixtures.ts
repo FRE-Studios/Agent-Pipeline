@@ -1,4 +1,4 @@
-import { PipelineConfig, PipelineState, StageExecution } from '../../config/schema.js';
+import { PipelineConfig, PipelineState } from '../../config/schema.js';
 import { ExecutionGraph } from '../../core/types/execution-graph.js';
 
 // Pipeline configs for pipeline-runner tests
@@ -10,6 +10,7 @@ export const gitWorkflowPipelineConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
+    preserveWorkingTree: false,
     executionMode: 'parallel',
   },
   git: {
@@ -51,7 +52,9 @@ export const notificationPipelineConfig: PipelineConfig = {
   trigger: 'manual',
   settings: {
     autoCommit: true,
+    commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
+    preserveWorkingTree: false,
   },
   notifications: {
     enabled: true,
@@ -76,7 +79,9 @@ export const disabledStagesPipelineConfig: PipelineConfig = {
   trigger: 'manual',
   settings: {
     autoCommit: true,
+    commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
+    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -99,7 +104,9 @@ export const failureStrategyWarnConfig: PipelineConfig = {
   trigger: 'manual',
   settings: {
     autoCommit: true,
-    failureStrategy: 'warn',
+    commitPrefix: '[pipeline:{{stage}}]',
+    failureStrategy: 'continue',
+    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -120,7 +127,9 @@ export const stageFailureOverrideConfig: PipelineConfig = {
   trigger: 'manual',
   settings: {
     autoCommit: true,
-    failureStrategy: 'warn',
+    commitPrefix: '[pipeline:{{stage}}]',
+    failureStrategy: 'continue',
+    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -143,8 +152,10 @@ export const sequentialExecutionConfig: PipelineConfig = {
   trigger: 'manual',
   settings: {
     autoCommit: true,
+    commitPrefix: '[pipeline:{{stage}}]',
     executionMode: 'sequential',
     failureStrategy: 'stop',
+    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -521,7 +532,6 @@ export const failedPipelineState: PipelineState = {
       duration: 60,
       error: {
         message: 'Stage 2 failed',
-        code: 'STAGE_ERROR',
         suggestion: 'Check stage configuration',
       },
     },
@@ -552,7 +562,6 @@ export const partialSuccessPipelineState: PipelineState = {
       duration: 60,
       error: {
         message: 'Stage 1 failed but continuing',
-        code: 'STAGE_ERROR',
       },
     },
     {

@@ -16,7 +16,7 @@ export function createMockConditionEvaluator(config: MockConditionEvaluatorConfi
   } = config;
 
   return {
-    evaluate: vi.fn().mockImplementation((condition: string, state: PipelineState) => {
+    evaluate: vi.fn().mockImplementation((_condition: string, _state: PipelineState) => {
       if (shouldThrow) {
         throw new Error(errorMessage);
       }

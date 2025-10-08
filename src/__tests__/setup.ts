@@ -1,5 +1,5 @@
 // Global test setup for Vitest
-import { vi, beforeEach, afterEach } from 'vitest';
+import { vi, afterEach } from 'vitest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 

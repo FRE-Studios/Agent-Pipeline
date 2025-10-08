@@ -70,7 +70,6 @@ export const prPipelineStatePartial: PipelineState = {
       duration: 30,
       error: {
         message: 'Build failed: compilation error',
-        code: 'BUILD_ERROR',
       },
     },
     {

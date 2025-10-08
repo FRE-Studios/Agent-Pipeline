@@ -22,7 +22,6 @@ export const failedStageExecution: StageExecution = {
   duration: 60,
   error: {
     message: 'Test error',
-    code: 'TEST_ERROR',
     suggestion: 'Fix the test',
   },
 };
@@ -127,7 +126,6 @@ export const failedPipelineState: PipelineState = {
       duration: 60,
       error: {
         message: 'Agent execution failed',
-        code: 'AGENT_ERROR',
         suggestion: 'Check agent configuration',
       },
     },
@@ -302,7 +300,6 @@ export const analyticsFailedRun1: PipelineState = {
       duration: 60000,
       error: {
         message: 'Connection timeout\nRetry failed after 3 attempts',
-        code: 'TIMEOUT_ERROR',
         suggestion: 'Check network connection',
       },
     },
@@ -333,7 +330,6 @@ export const analyticsFailedRun2: PipelineState = {
       duration: 30000,
       error: {
         message: 'Invalid configuration',
-        code: 'CONFIG_ERROR',
         suggestion: 'Verify agent configuration',
       },
     },
@@ -390,7 +386,6 @@ export const analyticsSameErrorRun: PipelineState = {
       duration: 30000,
       error: {
         message: 'Connection timeout\nNetwork issue',
-        code: 'TIMEOUT_ERROR',
         suggestion: 'Check network',
       },
     },
@@ -428,7 +423,6 @@ export const analyticsMultiStageRun: PipelineState = {
       duration: 60000,
       error: {
         message: 'Security vulnerability detected',
-        code: 'SECURITY_ERROR',
         suggestion: 'Fix vulnerabilities',
       },
     },

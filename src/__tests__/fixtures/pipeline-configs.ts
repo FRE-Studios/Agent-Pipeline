@@ -7,6 +7,7 @@ export const simplePipelineConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
+    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -27,8 +28,10 @@ export const parallelPipelineConfig: PipelineConfig = {
   trigger: 'manual',
   settings: {
     autoCommit: true,
+    commitPrefix: '[pipeline:{{stage}}]',
     executionMode: 'parallel',
     failureStrategy: 'stop',
+    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -59,7 +62,10 @@ export const conditionalPipelineConfig: PipelineConfig = {
   trigger: 'manual',
   settings: {
     autoCommit: true,
+    commitPrefix: '[pipeline:{{stage}}]',
     executionMode: 'parallel',
+    failureStrategy: 'stop',
+    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -87,6 +93,9 @@ export const retryPipelineConfig: PipelineConfig = {
   trigger: 'manual',
   settings: {
     autoCommit: true,
+    commitPrefix: '[pipeline:{{stage}}]',
+    failureStrategy: 'stop',
+    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -162,7 +171,10 @@ export const gitWorkflowConfig: PipelineConfig = {
   trigger: 'manual',
   settings: {
     autoCommit: true,
+    commitPrefix: '[pipeline:{{stage}}]',
     executionMode: 'parallel',
+    failureStrategy: 'stop',
+    preserveWorkingTree: false,
   },
   git: {
     baseBranch: 'main',
@@ -195,6 +207,9 @@ export const notificationConfig: PipelineConfig = {
   trigger: 'manual',
   settings: {
     autoCommit: true,
+    commitPrefix: '[pipeline:{{stage}}]',
+    failureStrategy: 'stop',
+    preserveWorkingTree: false,
   },
   notifications: {
     enabled: true,
