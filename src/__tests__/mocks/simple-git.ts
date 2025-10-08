@@ -42,6 +42,11 @@ export function createMockGit(response: MockGitResponse = {}) {
       all: response.all || ['main'],
       branches: {},
     }),
+    branchLocal: vi.fn().mockResolvedValue({
+      current: response.current || 'main',
+      all: response.all || ['main'],
+      branches: {},
+    }),
     log: vi.fn().mockResolvedValue({
       latest: response.latest || {
         hash: 'abc123def456',
@@ -83,6 +88,12 @@ export function createMockGit(response: MockGitResponse = {}) {
     revert: vi.fn().mockResolvedValue(undefined),
     stash: vi.fn().mockResolvedValue(undefined),
     raw: vi.fn().mockResolvedValue(''),
+    merge: vi.fn().mockResolvedValue({
+      result: 'success',
+      merges: [],
+      summary: { changes: 0, insertions: 0, deletions: 0 },
+    }),
+    deleteLocalBranch: vi.fn().mockResolvedValue(undefined),
   };
 }
 

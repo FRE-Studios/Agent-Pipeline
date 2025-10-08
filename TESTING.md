@@ -51,7 +51,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (402 tests)
+### Completed Test Suites (545 tests)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -151,20 +151,48 @@ src/
 - Tests error handling for all git operations
 - Covers edge cases: empty repos, no changes, files with spaces, multi-line messages
 
+**branch-manager.test.ts** - 74 tests
+- Coverage: **100% statements, 97.05% branches**
+- Tests branch manager initialization (extends GitManager)
+- Validates setupPipelineBranch workflow (fetch, create/checkout, merge)
+- Tests branch naming strategies (reusable vs unique-per-run)
+- Validates error handling (fetch failures, merge conflicts, fallback to local)
+- Tests branch existence checking (branchExists)
+- Validates branch operations (checkout, create with startPoint)
+- Tests remote operations (fetch, push, pushBranch)
+- Validates branch management (deleteLocalBranch, getCurrentBranch)
+- Tests pipeline branch filtering (listPipelineBranches)
+- Covers edge cases: custom prefixes, special characters, detached HEAD, console logging
+
+**pr-creator.test.ts** - 69 tests
+- Coverage: **99.06% statements, 96.55% branches**
+- Tests GitHub CLI installation and authentication checks (checkGHCLI)
+- Validates PR creation with full workflow (createPR)
+- Tests prerequisite validation (gh CLI installed/authenticated)
+- Validates PR title/body building (custom vs default with pipeline summary)
+- Tests command building (base, head, draft, reviewers, labels, assignees, milestone, web)
+- Validates shell argument escaping (security: command injection prevention)
+- Tests output parsing (URL and PR number extraction)
+- Validates error handling (already exists, generic failures, helpful error messages)
+- Tests PR viewing and existence checking (viewPR, prExists)
+- Covers edge cases: empty strings, unicode, special characters, multi-line messages
+
 ### Test Results Summary
 
 ```
-Test Files:  10 passed (10)
-Tests:       402 passed (402)
-Duration:    ~510ms
+Test Files:  12 passed (12)
+Tests:       545 passed (545)
+Duration:    ~554ms
 
 Coverage Summary (Tested Modules):
+- branch-manager.ts:      100%   ✅
 - git-manager.ts:         100%   ✅
 - pipeline-analytics.ts:  100%   ✅
 - parallel-executor.ts:   100%   ✅
 - stage-executor.ts:      100%   ✅
 - condition-evaluator.ts: 100%   ✅
 - state-manager.ts:       100%   ✅
+- pr-creator.ts:          99.06% ✅
 - retry-handler.ts:       98.27% ✅
 - pipeline-validator.ts:  97.57% ✅
 - dag-planner.ts:         97.07% ✅
@@ -254,6 +282,37 @@ npm test -- --run --coverage
 - `multiLineCommitMessage` - Multi-line commit message
 - `emptyCommitMessage` - Commit with empty message
 
+**Branch States:**
+- `mainBranchState` - Repository on main branch, clean
+- `pipelineBranchExists` - Pipeline branch already exists locally
+- `multiplePipelineBranches` - Multiple pipeline/* branches exist
+- `noPipelineBranches` - No pipeline branches (only main, develop, feature)
+- `customPrefixBranches` - Branches with custom prefix
+- `detachedHeadState` - Repository in detached HEAD state
+- `uniquePerRunBranches` - Unique-per-run pipeline branches
+- `emptyBranchList` - Empty branch list
+- `dirtyPipelineBranch` - Pipeline branch with uncommitted changes
+
+**PR States:**
+- `prPipelineStateCompleted` - Completed pipeline with all stages successful
+- `prPipelineStatePartial` - Pipeline with mixed success/failed/skipped stages
+- `prPipelineStateWithRetries` - Pipeline stages with retry attempts
+- `prPipelineStateSingleStage` - Single-stage pipeline
+- `prPipelineStateNoCommits` - Pipeline with stages but no commits
+
+**GitHub CLI Outputs:**
+- `ghVersionOutput` - Output of gh --version command
+- `ghAuthStatusOutput` - Successful authentication status
+- `ghAuthStatusNotAuthenticated` - Authentication failure
+- `ghVersionNotInstalled` - gh CLI not installed error
+- `ghPrCreateSuccess` - Successful PR creation with URL and number
+- `ghPrAlreadyExistsError` - PR already exists error
+- `ghPrCreateGenericError` - Generic PR creation error
+- `ghPrViewOutput` - PR view command output
+- `ghPrViewNotFound` - PR not found error
+- `ghPrCreateNoUrl` - PR created but URL not found in output
+- `ghPrCreateNoNumber` - PR created but number not found in output
+
 ### Test Utilities
 
 ```typescript
@@ -268,9 +327,11 @@ mockTimers(): { advance, runAll, restore }
 
 ### Mock Implementations
 
-- **simple-git**: Full mock of git operations
+- **simple-git**: Full mock of git operations (status, branch, commit, merge, etc.)
 - **claude-sdk**: Configurable agent responses
 - **node-notifier**: Mock desktop notifications
+- **child-process**: Mock exec/execAsync for GitHub CLI and shell command testing
+- **git-manager**: Mock for GitManager class with configurable behavior
 
 ## Known Issues & Future Work
 
@@ -297,8 +358,6 @@ mockTimers(): { advance, runAll, restore }
 ### Pending Test Coverage
 
 Modules not yet tested (planned):
-- ❌ `branch-manager.ts` - Branch management
-- ❌ `pr-creator.ts` - PR creation
 - ❌ `notification-manager.ts` - Notification orchestration
 - ❌ `utils/errors.ts` - Error utilities
 - ❌ `utils/logger.ts` - Logging utilities
