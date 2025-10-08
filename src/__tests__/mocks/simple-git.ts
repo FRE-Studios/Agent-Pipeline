@@ -9,9 +9,19 @@ export interface MockGitResponse {
     author_name: string;
     author_email: string;
   };
+  isClean?: boolean;
+  files?: string[];
+  staged?: string[];
+  modified?: string[];
+  diffOutput?: string;
 }
 
 export function createMockGit(response: MockGitResponse = {}) {
+  const isClean = response.isClean !== undefined ? response.isClean : true;
+  const files = response.files || [];
+  const staged = response.staged || [];
+  const modified = response.modified || [];
+
   return {
     checkIsRepo: vi.fn().mockResolvedValue(true),
     status: vi.fn().mockResolvedValue({
@@ -19,12 +29,13 @@ export function createMockGit(response: MockGitResponse = {}) {
       tracking: null,
       ahead: 0,
       behind: 0,
-      files: [],
-      staged: [],
-      modified: [],
+      files: files,
+      staged: staged,
+      modified: modified,
       not_added: [],
       deleted: [],
       renamed: [],
+      isClean: () => isClean,
     }),
     branch: vi.fn().mockResolvedValue({
       current: response.current || 'main',
@@ -48,7 +59,7 @@ export function createMockGit(response: MockGitResponse = {}) {
       ],
     }),
     revparse: vi.fn().mockResolvedValue('abc123def456'),
-    diff: vi.fn().mockResolvedValue(''),
+    diff: vi.fn().mockResolvedValue(response.diffOutput || ''),
     diffSummary: vi.fn().mockResolvedValue({
       changed: 2,
       insertions: 10,

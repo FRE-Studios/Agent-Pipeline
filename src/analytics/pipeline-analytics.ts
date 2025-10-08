@@ -81,6 +81,9 @@ export class PipelineAnalytics {
             stageMetric.totalRuns;
         } else if (stage.status === 'failed') {
           stageMetric.failureCount++;
+          stageMetric.successRate =
+            (stageMetric.successRate * (stageMetric.totalRuns - 1) + 0) /
+            stageMetric.totalRuns;
         }
 
         if (stage.duration) {

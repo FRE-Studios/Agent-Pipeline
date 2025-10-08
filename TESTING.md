@@ -34,8 +34,10 @@ src/
 │   │   └── parallel-executor.test.ts
 │   ├── config/                         # Tests for src/config/
 │   │   └── pipeline-loader.test.ts
-│   └── validators/                     # Tests for src/validators/
-│       └── pipeline-validator.test.ts
+│   ├── validators/                     # Tests for src/validators/
+│   │   └── pipeline-validator.test.ts
+│   └── analytics/                      # Tests for src/analytics/
+│       └── pipeline-analytics.test.ts
 └── [module-name]/
     └── [module].ts                     # Source files only (no .test.ts)
 ```
@@ -49,7 +51,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (289 tests)
+### Completed Test Suites (402 tests)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -125,14 +127,40 @@ src/
 - Tests result aggregation and formatting
 - Integration tests with StageExecutor mocks
 
+**pipeline-analytics.test.ts** - 51 tests
+- Coverage: **100%**
+- Tests generateMetrics() with filtering by pipeline name and time range
+- Validates metric calculations (success rate, average duration, total runs)
+- Tests calculateStageMetrics() for stage-level analytics
+- Tests analyzeFailures() for error pattern analysis and grouping
+- Tests calculateTrends() for time series data generation
+- Validates incremental success rate calculations
+- Tests edge cases (empty runs, missing fields, boundary dates)
+- Bug fix: Corrected success rate calculation for failed stages
+
+**git-manager.test.ts** - 62 tests
+- Coverage: **100%**
+- Tests git repository initialization and configuration
+- Validates commit retrieval (getCurrentCommit, getCommitMessage)
+- Tests file change detection (getChangedFiles) with various scenarios
+- Validates working directory state checks (hasUncommittedChanges)
+- Tests staging operations (stageAllChanges)
+- Validates commit creation with metadata trailers (commitWithMetadata)
+- Tests pipeline-specific commit creation (createPipelineCommit)
+- Validates hard reset operations (revertToCommit)
+- Tests error handling for all git operations
+- Covers edge cases: empty repos, no changes, files with spaces, multi-line messages
+
 ### Test Results Summary
 
 ```
-Test Files:  8 passed (8)
-Tests:       289 passed (289)
-Duration:    ~620ms
+Test Files:  10 passed (10)
+Tests:       402 passed (402)
+Duration:    ~510ms
 
 Coverage Summary (Tested Modules):
+- git-manager.ts:         100%   ✅
+- pipeline-analytics.ts:  100%   ✅
 - parallel-executor.ts:   100%   ✅
 - stage-executor.ts:      100%   ✅
 - condition-evaluator.ts: 100%   ✅
@@ -146,8 +174,8 @@ Coverage Summary (Tested Modules):
 ### Overall Project Coverage
 
 ```
-All files:     23.52% (will improve as more modules are tested)
-Tested files:  96%+ average
+All files:     44.45% (will improve as more modules are tested)
+Tested files:  98%+ average
 ```
 
 ## Running Tests
@@ -206,6 +234,25 @@ npm test -- --run --coverage
 - `failedPipelineState` - Failed pipeline
 - `parallelPipelineState` - Parallel execution
 - `pipelineStateWithPR` - With PR metadata
+- `analyticsSuccessRun1/2` - Multiple successful runs for analytics
+- `analyticsFailedRun1/2` - Multiple failed runs for analytics
+- `analyticsMultiDayRun1` - Runs across different dates
+- `analyticsSameErrorRun` - Runs with duplicate error messages
+- `analyticsMultiStageRun` - Multi-stage run with partial status
+- `analyticsSkippedStageRun` - Run with skipped stages
+
+**Git States:**
+- `cleanRepositoryState` - Clean working directory
+- `dirtyRepositoryState` - Uncommitted changes
+- `stagedChangesState` - Staged but not committed
+- `unstagedChangesState` - Modified but not staged
+- `freshRepositoryState` - New repository with no commits
+- `multipleFilesChangedState` - Multiple changed files
+- `singleFileChangedState` - Single file change
+- `filesWithSpacesState` - Files with spaces in names
+- `commitWithMetadata` - Commit with pipeline trailers
+- `multiLineCommitMessage` - Multi-line commit message
+- `emptyCommitMessage` - Commit with empty message
 
 ### Test Utilities
 
@@ -241,16 +288,22 @@ mockTimers(): { advance, runAll, restore }
    - Affected Tests: Lines 98, 145, 258 (all in retry-handler.test.ts)
    - Note: This is a known Vitest behavior when testing async error scenarios with fake timers
 
+3. **✅ Incorrect Success Rate for Failed Stages** (pipeline-analytics.ts:82-87) - FIXED
+   - Issue: Success rate was not being recalculated when stages failed, causing incorrect metrics
+   - Root Cause: The `calculateStageMetrics()` method only updated success rate on success, but skipped updating it on failure, leading to inflated success rates
+   - Fix: Added running average calculation for failures as well: `successRate = (successRate * (totalRuns - 1) + 0) / totalRuns`
+   - Impact: Stage-level success rates now accurately reflect mixed success/failure scenarios
+
 ### Pending Test Coverage
 
 Modules not yet tested (planned):
-- ❌ `pipeline-analytics.ts` - Analytics calculations
-- ❌ `git-manager.ts` - Git operations (needs mocking)
 - ❌ `branch-manager.ts` - Branch management
 - ❌ `pr-creator.ts` - PR creation
 - ❌ `notification-manager.ts` - Notification orchestration
 - ❌ `utils/errors.ts` - Error utilities
 - ❌ `utils/logger.ts` - Logging utilities
+
+Next Phase: cli/commands/ folder 
 
 ### Integration Tests (Future)
 
