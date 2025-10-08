@@ -32,7 +32,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (239 tests)
+### Completed Test Suites (289 tests)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -97,14 +97,26 @@ src/
 - Tests duration calculation and state transitions
 - Integration tests with GitManager, RetryHandler, and file system
 
+**parallel-executor.test.ts** - 50 tests
+- Coverage: **100%**
+- Tests parallel stage execution with Promise.allSettled
+- Tests sequential stage execution with state updates
+- Validates execution order and timing
+- Tests error handling and mixed success/failure scenarios
+- Tests state change callbacks and pipeline state mutations
+- Validates output streaming callbacks
+- Tests result aggregation and formatting
+- Integration tests with StageExecutor mocks
+
 ### Test Results Summary
 
 ```
-Test Files:  7 passed (7)
-Tests:       239 passed (239)
-Duration:    ~350ms
+Test Files:  8 passed (8)
+Tests:       289 passed (289)
+Duration:    ~620ms
 
 Coverage Summary (Tested Modules):
+- parallel-executor.ts:   100%   ✅
 - stage-executor.ts:      100%   ✅
 - condition-evaluator.ts: 100%   ✅
 - state-manager.ts:       100%   ✅
@@ -129,6 +141,9 @@ Tested files:  96%+ average
 # Run all tests
 npm test
 
+# Run all tests (non-watch mode)
+npm test -- --run
+
 # Run tests in watch mode
 npm test -- --watch
 
@@ -136,7 +151,10 @@ npm test -- --watch
 npm test -- --coverage
 
 # Run specific test file
-npm test -- src/core/dag-planner.test.ts
+npm test -- src/core/dag-planner.test.ts --run
+
+# Run specific test file with coverage
+npm test -- src/core/parallel-executor.test.ts --run --coverage
 
 # Run tests matching pattern
 npm test -- --grep "DAGPlanner"
@@ -199,10 +217,16 @@ mockTimers(): { advance, runAll, restore }
    - Fix: Skip max depth calculation when validation errors exist
    - All cycle detection tests now passing
 
+2. **✅ Unhandled Promise Rejections in Tests** (retry-handler.test.ts) - FIXED
+   - Issue: Vitest reported 3 unhandled promise rejections during test execution
+   - Root Cause: When testing error scenarios with fake timers, promises reject internally during timer advancement but aren't immediately caught, causing Vitest to report them as unhandled
+   - Fix: Added `promise.catch(() => {})` immediately after creating promises that will ultimately reject. This suppresses the warning while still allowing `expect(promise).rejects.toThrow()` to work correctly
+   - Affected Tests: Lines 98, 145, 258 (all in retry-handler.test.ts)
+   - Note: This is a known Vitest behavior when testing async error scenarios with fake timers
+
 ### Pending Test Coverage
 
 Modules not yet tested (planned):
-- ❌ `parallel-executor.ts` - Parallel execution logic
 - ❌ `pipeline-analytics.ts` - Analytics calculations
 - ❌ `git-manager.ts` - Git operations (needs mocking)
 - ❌ `branch-manager.ts` - Branch management
@@ -240,6 +264,26 @@ describe('Module', () => {
     it('should handle edge case', () => { /* ... */ });
     it('should throw on invalid input', () => { /* ... */ });
   });
+});
+```
+
+### Testing Async Errors with Fake Timers
+
+When testing functions that will ultimately reject with fake timers, attach a catch handler immediately to avoid unhandled rejection warnings:
+
+```typescript
+it('should throw after retries exhausted', async () => {
+  const mockFn = vi.fn().mockRejectedValue(new Error('fail'));
+  const promise = someAsyncFunction(mockFn);
+
+  // Suppress unhandled rejection warnings
+  promise.catch(() => {});
+
+  // Advance timers
+  await vi.advanceTimersByTimeAsync(100);
+
+  // Test still works correctly
+  await expect(promise).rejects.toThrow('fail');
 });
 ```
 

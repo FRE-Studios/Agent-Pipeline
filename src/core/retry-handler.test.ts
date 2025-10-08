@@ -95,6 +95,7 @@ describe('RetryHandler', () => {
         const config: RetryConfig = { maxAttempts: 3, backoff: 'fixed', initialDelay: 100 };
 
         const promise = handler.executeWithRetry(mockFn, config);
+        promise.catch(() => {}); // Suppress unhandled rejection warning
 
         // Fast-forward through all retries
         await vi.advanceTimersByTimeAsync(100);
@@ -141,6 +142,7 @@ describe('RetryHandler', () => {
         const config: RetryConfig = { maxAttempts: 2, backoff: 'fixed', initialDelay: 50 };
 
         const promise = handler.executeWithRetry(mockFn, config);
+        promise.catch(() => {}); // Suppress unhandled rejection warning
         await vi.advanceTimersByTimeAsync(50);
 
         await expect(promise).rejects.toThrow('string error');
@@ -253,6 +255,7 @@ describe('RetryHandler', () => {
         const config: RetryConfig = { backoff: 'fixed', initialDelay: 50 };
 
         const promise = handler.executeWithRetry(mockFn, config);
+        promise.catch(() => {}); // Suppress unhandled rejection warning
         await vi.advanceTimersByTimeAsync(50);
         await vi.advanceTimersByTimeAsync(50);
 
