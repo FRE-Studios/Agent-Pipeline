@@ -9,11 +9,6 @@ dist/
 
 # Test outputs
 *.log
-hello.md
-pipeline-test.txt
-REVIEW_FINDINGS.md
-SECURITY_AUDIT.md
-CLAUDE.md
 
 # Test coverage reports
 coverage/

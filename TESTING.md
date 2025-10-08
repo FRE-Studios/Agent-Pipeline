@@ -51,7 +51,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (545 tests)
+### Completed Test Suites (586 tests)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -177,14 +177,31 @@ src/
 - Tests PR viewing and existence checking (viewPR, prExists)
 - Covers edge cases: empty strings, unicode, special characters, multi-line messages
 
+#### ✅ CLI Commands
+
+**init.test.ts** - 41 tests
+- Coverage: **100%**
+- Tests directory creation (.agent-pipeline/pipelines, .claude/agents)
+- Validates example pipeline file creation and YAML structure
+- Tests example agent file creation (code-reviewer.md, doc-updater.md)
+- Validates agent markdown content and structure
+- Tests .gitignore creation and updating
+- Validates preservation of existing .gitignore content
+- Tests duplicate entry prevention in .gitignore
+- Validates console output and logging
+- Tests error handling (invalid paths, read-only directories, missing parents)
+- Integration tests for complete initialization workflow
+- Tests idempotency (safe to run multiple times)
+
 ### Test Results Summary
 
 ```
-Test Files:  12 passed (12)
-Tests:       545 passed (545)
-Duration:    ~554ms
+Test Files:  13 passed (13)
+Tests:       586 passed (586)
+Duration:    ~948ms
 
 Coverage Summary (Tested Modules):
+- init.ts:                100%   ✅
 - branch-manager.ts:      100%   ✅
 - git-manager.ts:         100%   ✅
 - pipeline-analytics.ts:  100%   ✅
@@ -362,7 +379,11 @@ Modules not yet tested (planned):
 - ❌ `utils/errors.ts` - Error utilities
 - ❌ `utils/logger.ts` - Logging utilities
 
-Next Phase: cli/commands/ folder 
+CLI Commands (cli/commands/ folder):
+- ✅ `init.ts` - Project initialization (100% coverage, 41 tests)
+- ❌ `rollback.ts` - Pipeline rollback functionality
+- ❌ `analytics.ts` - Analytics display command
+- ❌ `cleanup.ts` - Branch cleanup command 
 
 ### Integration Tests (Future)
 
