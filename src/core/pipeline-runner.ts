@@ -46,8 +46,10 @@ export class PipelineRunner {
     config: PipelineConfig,
     options: { interactive?: boolean } = {}
   ): Promise<PipelineState> {
-    // Initialize notification manager
-    this.notificationManager = new NotificationManager(config.notifications);
+    // Initialize notification manager if configured
+    if (config.notifications) {
+      this.notificationManager = new NotificationManager(config.notifications);
+    }
 
     // Save original branch to return to later
     this.originalBranch = await this.branchManager.getCurrentBranch();
@@ -235,6 +237,26 @@ export class PipelineRunner {
               }
             }
           );
+
+          // Add all executions to state
+          state.stages.push(...groupResult.executions);
+
+          // Notify for each completed/failed stage
+          for (const execution of groupResult.executions) {
+            if (execution.status === 'success') {
+              await this.notify({
+                event: 'stage.completed',
+                pipelineState: state,
+                stage: execution
+              });
+            } else if (execution.status === 'failed') {
+              await this.notify({
+                event: 'stage.failed',
+                pipelineState: state,
+                stage: execution
+              });
+            }
+          }
         }
 
         // Save state after each group

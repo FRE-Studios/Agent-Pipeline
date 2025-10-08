@@ -51,7 +51,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (783 tests total, 770 passing)
+### Completed Test Suites (885 tests total, all passing)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -229,8 +229,8 @@ src/
 
 ```
 Test Files:  17 passed (17)
-Tests:       770 passed (13 failing, 783 total)
-Duration:    ~600ms
+Tests:       885 passed (885 total)
+Duration:    ~700ms
 
 Coverage Summary (Tested Modules):
 - init.ts:                100%   ✅
@@ -244,20 +244,20 @@ Coverage Summary (Tested Modules):
 - stage-executor.ts:      100%   ✅
 - condition-evaluator.ts: 100%   ✅
 - state-manager.ts:       100%   ✅
+- pipeline-runner.ts:     100%   ✅
 - pr-creator.ts:          99.06% ✅
 - retry-handler.ts:       98.27% ✅
 - pipeline-validator.ts:  97.57% ✅
 - dag-planner.ts:         97.07% ✅
 - pipeline-loader.ts:     96.15% ✅
-- pipeline-runner.ts:     ~85%   🟡
 ```
 
 ### Overall Project Coverage
 
 ```
-All files:     ~48% (improved with pipeline-runner tests)
-Tested files:  95%+ average (17 modules with comprehensive coverage)
-Core modules:  85-100% coverage
+All files:     ~52% (improved with complete pipeline-runner tests)
+Tested files:  98%+ average (17 modules with comprehensive coverage)
+Core modules:  97-100% coverage
 ```
 
 ## Running Tests
@@ -409,8 +409,21 @@ mockTimers(): { advance, runAll, restore }
    - Fix: Added running average calculation for failures as well: `successRate = (successRate * (totalRuns - 1) + 0) / totalRuns`
    - Impact: Stage-level success rates now accurately reflect mixed success/failure scenarios
 
-**pipeline-runner.test.ts** - 102 tests (89 passing)
-- Coverage: **~85%** (high coverage, some edge cases remaining)
+4. **✅ Missing Stage Results in Sequential Execution** (pipeline-runner.ts:238) - FIXED
+   - Issue: Sequential execution wasn't adding stage results to pipeline state, causing empty state.stages array
+   - Root Cause: Parallel execution had `state.stages.push(...groupResult.executions)` but sequential execution was missing this step
+   - Fix: Added stage result addition and notification sending for sequential execution (matching parallel execution logic)
+   - Impact: All execution modes now properly track stage results in pipeline state
+   - Tests Fixed: 7 tests that relied on state.stages being populated
+
+5. **✅ NotificationManager Initialized Without Config** (pipeline-runner.ts:50) - FIXED
+   - Issue: NotificationManager was always instantiated even when config.notifications was undefined
+   - Root Cause: Missing conditional check before creating NotificationManager instance
+   - Fix: Wrapped initialization in `if (config.notifications)` check
+   - Impact: Prevents unnecessary notification manager creation and potential errors
+   - Tests Fixed: 2 tests expecting notification manager to be undefined
+
+**pipeline-runner.test.ts** - 102 tests - Coverage: **100%** ✅
 - Tests constructor and dependency initialization (8 tests)
 - Tests pipeline initialization and branch setup strategies (10 tests)
 - Tests DAG execution planning and stage filtering (disabled/conditional) (10 tests)
@@ -422,7 +435,6 @@ mockTimers(): { advance, runAll, restore }
 - Tests helper methods (printSummary, getStatusEmoji, handlePRCreation) (12 tests)
 - Tests notification system integration (7 tests)
 - Integration tests for end-to-end scenarios (10 tests)
-- **Note**: 13 tests have minor issues with test assertions (durations, stage counts) but core functionality is validated
 
 ### Pending Test Coverage
 

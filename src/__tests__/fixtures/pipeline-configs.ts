@@ -28,7 +28,7 @@ export const parallelPipelineConfig: PipelineConfig = {
   settings: {
     autoCommit: true,
     executionMode: 'parallel',
-    failureStrategy: 'continue',
+    failureStrategy: 'stop',
   },
   agents: [
     {

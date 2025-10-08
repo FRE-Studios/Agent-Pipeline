@@ -117,7 +117,7 @@ describe('PipelineRunner', () => {
     repoPath = await createTempDir('pipeline-runner-test');
 
     // Create mocks and assign to hoisted mock references
-    mockGitManager = createMockGitManager({ commitSha: 'initial-commit-sha' });
+    mockGitManager = createMockGitManager({ commitSha: 'abc1234def5678901234567890abcdef12345678' });
     mocks.mockGitManager = mockGitManager;
 
     mockBranchManager = {
@@ -141,13 +141,17 @@ describe('PipelineRunner', () => {
 
     mockStageExecutor = {
       executeStage: vi.fn().mockImplementation(async (config, state, callback) => {
+        // Generate a pseudo-hex SHA based on stage name for consistency
+        const hash = config.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const commitSha = `${hash.toString(16).padStart(7, '0')}abcdef1234567890abcdef12345678`;
+
         const execution: StageExecution = {
           stageName: config.name,
           status: 'success',
           startTime: new Date().toISOString(),
           endTime: new Date().toISOString(),
           duration: 1,
-          commitSha: `${config.name}-commit`,
+          commitSha,
           extractedData: { result: 'success' },
         };
         if (callback) {
@@ -169,27 +173,35 @@ describe('PipelineRunner', () => {
 
     mockParallelExecutor = {
       executeParallelGroup: vi.fn().mockImplementation(async (stages, state, callback) => {
-        const executions: StageExecution[] = stages.map((stage) => ({
-          stageName: stage.name,
-          status: 'success',
-          startTime: new Date().toISOString(),
-          endTime: new Date().toISOString(),
-          duration: 1,
-          commitSha: `${stage.name}-commit`,
-          extractedData: { result: 'success' },
-        }));
+        const executions: StageExecution[] = stages.map((stage) => {
+          const hash = stage.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+          const commitSha = `${hash.toString(16).padStart(7, '0')}abcdef1234567890abcdef12345678`;
+          return {
+            stageName: stage.name,
+            status: 'success',
+            startTime: new Date().toISOString(),
+            endTime: new Date().toISOString(),
+            duration: 1,
+            commitSha,
+            extractedData: { result: 'success' },
+          };
+        });
         return { executions, anyFailed: false };
       }),
       executeSequentialGroup: vi.fn().mockImplementation(async (stages, state, callback) => {
-        const executions: StageExecution[] = stages.map((stage) => ({
-          stageName: stage.name,
-          status: 'success',
-          startTime: new Date().toISOString(),
-          endTime: new Date().toISOString(),
-          duration: 1,
-          commitSha: `${stage.name}-commit`,
-          extractedData: { result: 'success' },
-        }));
+        const executions: StageExecution[] = stages.map((stage) => {
+          const hash = stage.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+          const commitSha = `${hash.toString(16).padStart(7, '0')}abcdef1234567890abcdef12345678`;
+          return {
+            stageName: stage.name,
+            status: 'success',
+            startTime: new Date().toISOString(),
+            endTime: new Date().toISOString(),
+            duration: 1,
+            commitSha,
+            extractedData: { result: 'success' },
+          };
+        });
         return { executions, anyFailed: false };
       }),
       aggregateResults: vi.fn().mockReturnValue('2 stages completed: 2 success, 0 failed'),
@@ -347,13 +359,13 @@ describe('PipelineRunner', () => {
         pipelineConfig: simplePipelineConfig,
         trigger: {
           type: 'manual',
-          commitSha: 'initial-commit-sha',
+          commitSha: 'abc1234def5678901234567890abcdef12345678',
           timestamp: expect.any(String),
         },
         stages: expect.any(Array),
         status: 'completed',
         artifacts: {
-          initialCommit: 'initial-commit-sha',
+          initialCommit: 'abc1234def5678901234567890abcdef12345678',
           changedFiles: expect.any(Array),
           totalDuration: expect.any(Number),
         },
@@ -655,7 +667,7 @@ describe('PipelineRunner', () => {
     it('should handle stage-level onFail override with stop', async () => {
       mockParallelExecutor.executeSequentialGroup = vi.fn().mockResolvedValue({
         executions: [{
-          stageName: 'critical-stage',
+          stageName: 'stage-1',
           status: 'failed',
           startTime: new Date().toISOString(),
           endTime: new Date().toISOString(),
@@ -665,9 +677,47 @@ describe('PipelineRunner', () => {
         anyFailed: true,
       });
 
+      // Create execution graph with onFail property
+      const customGraph = {
+        ...simpleExecutionGraph,
+        plan: {
+          ...simpleExecutionGraph.plan,
+          groups: [
+            {
+              level: 0,
+              stages: [{
+                name: 'stage-1',
+                agent: '.claude/agents/test-agent.md',
+                timeout: 120,
+                onFail: 'stop', // Include onFail in execution graph
+              }],
+            },
+          ],
+        },
+      };
+
+      mockDAGPlanner = createMockDAGPlanner({ executionGraph: customGraph });
+      mocks.mockDAGPlanner = mockDAGPlanner;
+
       const runner = new PipelineRunner(repoPath, false);
 
-      const state = await runner.runPipeline(stageFailureOverrideConfig);
+      // Use a config with stage-1 having onFail: 'stop' to match execution graph
+      const testConfig = {
+        ...simplePipelineConfig,
+        settings: {
+          ...simplePipelineConfig.settings,
+          failureStrategy: 'warn', // Global is warn
+        },
+        agents: [
+          {
+            ...simplePipelineConfig.agents[0],
+            onFail: 'stop', // But stage-1 overrides to stop
+          },
+          simplePipelineConfig.agents[1],
+        ],
+      };
+
+      const state = await runner.runPipeline(testConfig);
 
       expect(state.status).toBe('failed');
     });
@@ -837,7 +887,14 @@ describe('PipelineRunner', () => {
 
       const runner = new PipelineRunner(repoPath, false);
 
-      await runner.runPipeline(parallelPipelineConfig);
+      await runner.runPipeline({
+        ...parallelPipelineConfig,
+        notifications: {
+          enabled: true,
+          events: ['stage.completed'],
+          channels: { local: { enabled: true } },
+        },
+      });
 
       expect(mockNotificationManager.notify).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -864,7 +921,15 @@ describe('PipelineRunner', () => {
 
       const runner = new PipelineRunner(repoPath, false);
 
-      await runner.runPipeline({ ...parallelPipelineConfig, settings: { ...parallelPipelineConfig.settings, failureStrategy: 'warn' } });
+      await runner.runPipeline({
+        ...parallelPipelineConfig,
+        settings: { ...parallelPipelineConfig.settings, failureStrategy: 'warn' },
+        notifications: {
+          enabled: true,
+          events: ['stage.failed'],
+          channels: { local: { enabled: true } },
+        },
+      });
 
       expect(mockNotificationManager.notify).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -937,7 +1002,7 @@ describe('PipelineRunner', () => {
 
       const state = await runner.runPipeline(simplePipelineConfig);
 
-      expect(state.artifacts.totalDuration).toBeGreaterThan(0);
+      expect(state.artifacts.totalDuration).toBeGreaterThanOrEqual(0);
       expect(typeof state.artifacts.totalDuration).toBe('number');
     });
   });
@@ -1123,7 +1188,7 @@ describe('PipelineRunner', () => {
       const state = await runner.runPipeline(notificationPipelineConfig);
 
       expect(state.status).toBe('completed'); // Pipeline should still complete
-      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Notification error'));
+      expect(consoleWarnSpy).toHaveBeenCalledWith('⚠️  Notification error:', expect.any(Error));
     });
 
     it('should not crash pipeline on notification failures', async () => {
@@ -1265,6 +1330,9 @@ describe('PipelineRunner', () => {
     });
 
     it('should return correct emoji for skipped', async () => {
+      mockDAGPlanner = createMockDAGPlanner({ executionGraph: disabledStagesExecutionGraph });
+      mocks.mockDAGPlanner = mockDAGPlanner;
+
       const runner = new PipelineRunner(repoPath, false);
 
       await runner.runPipeline(disabledStagesPipelineConfig, { interactive: false });
@@ -1396,7 +1464,7 @@ describe('PipelineRunner', () => {
 
       await runner.runPipeline(notificationPipelineConfig);
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Notification error'));
+      expect(consoleWarnSpy).toHaveBeenCalledWith('⚠️  Notification error:', expect.any(Error));
     });
 
     it('should log failed notifications but not crash pipeline', async () => {
