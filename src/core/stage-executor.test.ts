@@ -1,0 +1,1155 @@
+// src/core/stage-executor.test.ts
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { StageExecutor } from './stage-executor.js';
+import { createMockGitManager } from '../__tests__/mocks/git-manager.js';
+import { runningPipelineState, completedPipelineState } from '../__tests__/fixtures/pipeline-states.js';
+import {
+  basicStageConfig,
+  stageWithOutputs,
+  stageWithRetry,
+  stageWithCustomCommit,
+  stageWithAutoCommitDisabled,
+  stageWithInputs,
+  stageWithLongTimeout,
+} from '../__tests__/fixtures/stage-configs.js';
+import type { PipelineState } from '../config/schema.js';
+
+// Mock the Claude SDK query function
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
+  query: vi.fn().mockImplementation(async function* () {
+    yield {
+      type: 'assistant',
+      message: {
+        content: [{ type: 'text', text: 'Mock agent response' }],
+      },
+    };
+  }),
+}));
+
+// Mock fs/promises for reading agent files
+vi.mock('fs/promises', () => ({
+  readFile: vi.fn().mockResolvedValue('Mock agent system prompt'),
+}));
+
+describe('StageExecutor', () => {
+  let executor: StageExecutor;
+  let mockGitManager: ReturnType<typeof createMockGitManager>;
+  let mockQuery: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+
+    // Get the mocked query function
+    const sdk = await import('@anthropic-ai/claude-agent-sdk');
+    mockQuery = vi.mocked(sdk.query);
+
+    // Reset to default mock
+    mockQuery.mockImplementation(async function* () {
+      yield {
+        type: 'assistant',
+        message: {
+          content: [{ type: 'text', text: 'Mock agent response' }],
+        },
+      };
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  describe('executeStage - Success Scenarios', () => {
+    it('should execute stage successfully with agent output', async () => {
+      vi.useRealTimers(); // Use real timers for duration calculation
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.stageName).toBe('test-stage');
+      expect(result.agentOutput).toBe('Mock agent response');
+      expect(result.startTime).toBeDefined();
+      expect(result.endTime).toBeDefined();
+      expect(result.duration).toBeGreaterThanOrEqual(0);
+      vi.useFakeTimers(); // Switch back to fake timers
+    });
+
+    it('should execute stage with extracted data outputs', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'text', text: 'Analysis complete. issues_found: 3\nseverity: high\nscore: 85' },
+            ],
+          },
+        };
+      });
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(stageWithOutputs, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.extractedData).toBeDefined();
+      expect(result.extractedData?.issues_found).toBe('3');
+      expect(result.extractedData?.severity).toBe('high');
+      expect(result.extractedData?.score).toBe('85');
+    });
+
+    it('should execute stage with auto-commit when changes are present', async () => {
+      mockGitManager = createMockGitManager({
+        hasChanges: true,
+        commitSha: 'new-commit-123',
+        commitMessage: '[pipeline:test-stage] Test commit',
+      });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.commitSha).toBe('new-commit-123');
+      expect(result.commitMessage).toBe('[pipeline:test-stage] Test commit');
+      expect(mockGitManager.createPipelineCommit).toHaveBeenCalledWith(
+        'test-stage',
+        'test-run-123',
+        undefined
+      );
+    });
+
+    it('should execute stage with custom commit message', async () => {
+      mockGitManager = createMockGitManager({
+        hasChanges: true,
+        commitSha: 'custom-commit-456',
+      });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(stageWithCustomCommit, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(mockGitManager.createPipelineCommit).toHaveBeenCalledWith(
+        'custom-commit-stage',
+        'test-run-123',
+        'Custom commit message'
+      );
+    });
+
+    it('should not commit when auto-commit is disabled', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: true });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(
+        stageWithAutoCommitDisabled,
+        runningPipelineState
+      );
+
+      expect(result.status).toBe('success');
+      expect(result.commitSha).toBeUndefined();
+      expect(mockGitManager.createPipelineCommit).not.toHaveBeenCalled();
+    });
+
+    it('should not commit when no changes are present', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.commitSha).toBeUndefined();
+      // createPipelineCommit is called but returns empty string when no changes
+      expect(mockGitManager.createPipelineCommit).toHaveBeenCalled();
+    });
+
+    it('should execute in dry-run mode with changes', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: true });
+      executor = new StageExecutor(mockGitManager, true); // dry-run mode
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.commitSha).toBeUndefined();
+      expect(mockGitManager.createPipelineCommit).not.toHaveBeenCalled();
+      expect(mockGitManager.hasUncommittedChanges).toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('dry-run'));
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should execute in dry-run mode without changes', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, true);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      // In dry-run mode, hasUncommittedChanges may still be called to check status
+      expect(result.commitSha).toBeUndefined();
+    });
+
+    it('should invoke output callback with streaming updates', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const outputCallback = vi.fn();
+      const result = await executor.executeStage(
+        basicStageConfig,
+        runningPipelineState,
+        outputCallback
+      );
+
+      expect(result.status).toBe('success');
+      expect(outputCallback).toHaveBeenCalled();
+      expect(outputCallback).toHaveBeenCalledWith(expect.stringContaining('Mock agent'));
+    });
+
+    it('should execute successfully with retry configured (no retries needed)', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(stageWithRetry, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.retryAttempt).toBe(0);
+      expect(result.maxRetries).toBe(3);
+    });
+
+    it('should execute successfully after retries', async () => {
+      let callCount = 0;
+      mockQuery.mockImplementation(async function* () {
+        callCount++;
+        if (callCount === 1) {
+          throw new Error('First attempt failed');
+        }
+        yield {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'Success after retry' }] },
+        };
+      });
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const promise = executor.executeStage(stageWithRetry, runningPipelineState);
+
+      // Advance timer for retry delay
+      await vi.advanceTimersByTimeAsync(1000);
+
+      const result = await promise;
+
+      expect(result.status).toBe('success');
+      expect(callCount).toBe(2); // Verify the retry happened (2 calls total)
+    });
+
+    it('should respect custom timeout value', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(stageWithLongTimeout, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      // Timeout of 600s should be respected
+    });
+
+    it('should include stage inputs in agent context', async () => {
+      const fs = await import('fs/promises');
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      await executor.executeStage(stageWithInputs, runningPipelineState);
+
+      // The query function should be called with context containing inputs
+      expect(mockQuery).toHaveBeenCalled();
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('targetFile');
+      expect(callArgs.prompt).toContain('src/main.ts');
+    });
+
+    it('should include previous stages in context', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      await executor.executeStage(basicStageConfig, completedPipelineState);
+
+      expect(mockQuery).toHaveBeenCalled();
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('stage-1');
+      expect(callArgs.prompt).toContain('stage-2');
+    });
+  });
+
+  describe('executeStage - Failure Scenarios', () => {
+    it('should handle agent execution failure without retry', async () => {
+      mockQuery.mockImplementation(async function* () {
+        throw new Error('Agent execution failed');
+      });
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('failed');
+      expect(result.error).toBeDefined();
+      expect(result.error?.message).toBe('Agent execution failed');
+      expect(result.duration).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should handle agent execution failure after max retries', async () => {
+      mockQuery.mockImplementation(async function* () {
+        throw new Error('Persistent failure');
+      });
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const promise = executor.executeStage(stageWithRetry, runningPipelineState);
+
+      // Fast-forward through retry delays
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(2000);
+
+      const result = await promise;
+
+      expect(result.status).toBe('failed');
+      expect(result.retryAttempt).toBeGreaterThan(0);
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Retrying'));
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle agent timeout error', async () => {
+      mockQuery.mockImplementation(async function* () {
+        // Simulate a query that takes too long
+        await new Promise((resolve) => setTimeout(resolve, 200000)); // 200 seconds
+        yield {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'Too late' }] },
+        };
+      });
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const promise = executor.executeStage(basicStageConfig, runningPipelineState);
+
+      // Advance past the timeout (120s)
+      await vi.advanceTimersByTimeAsync(120000);
+
+      const result = await promise;
+
+      expect(result.status).toBe('failed');
+      expect(result.error?.message).toContain('timeout');
+    });
+
+    it('should handle file not found error (ENOENT)', async () => {
+      const fs = await import('fs/promises');
+      vi.mocked(fs.readFile).mockRejectedValue(
+        Object.assign(new Error('ENOENT: no such file or directory'), { code: 'ENOENT' })
+      );
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('failed');
+      expect(result.error?.message).toContain('ENOENT');
+      expect(result.error?.suggestion).toContain('Agent file not found');
+      expect(result.error?.agentPath).toBe('.claude/agents/test-agent.md');
+    });
+
+    it('should handle API authentication error', async () => {
+      mockQuery.mockImplementation(async function* () {
+        throw new Error('API error: 401 Unauthorized');
+      });
+      
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('failed');
+      expect(result.error?.suggestion).toContain('ANTHROPIC_API_KEY');
+    });
+
+    it('should handle YAML parsing error', async () => {
+      mockQuery.mockImplementation(async function* () {
+        throw new Error('YAML parse error: invalid syntax');
+      });
+      
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('failed');
+      expect(result.error?.suggestion).toContain('YAML syntax');
+    });
+
+    it('should handle permission error', async () => {
+      const fs = await import('fs/promises');
+      vi.mocked(fs.readFile).mockRejectedValue(new Error('permission denied'));
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('failed');
+      expect(result.error?.suggestion).toContain('permission');
+    });
+
+    it('should handle generic errors', async () => {
+      mockQuery.mockImplementation(async function* () {
+        throw new Error('Unknown error occurred');
+      });
+      
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('failed');
+      expect(result.error?.message).toBe('Unknown error occurred');
+      expect(result.error?.timestamp).toBeDefined();
+    });
+
+    it('should include retry info in error message', async () => {
+      mockQuery.mockImplementation(async function* () {
+        throw new Error('Failed after retries');
+      });
+      
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const promise = executor.executeStage(stageWithRetry, runningPipelineState);
+
+      // Fast-forward through retry delays
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(2000);
+
+      await promise;
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('retries'));
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should calculate duration even on failure', async () => {
+      mockQuery.mockImplementation(async function* () {
+        throw new Error('Failed');
+      });
+      
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('failed');
+      expect(result.duration).toBeDefined();
+      expect(result.duration).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should handle git commit failure', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: true, shouldFailCommit: true });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('failed');
+      expect(result.error?.message).toContain('Git commit failed');
+    });
+  });
+
+  describe('buildAgentContext', () => {
+    beforeEach(() => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+    });
+
+    it('should build context with no previous stages', async () => {
+      const emptyState: PipelineState = {
+        ...runningPipelineState,
+        stages: [],
+      };
+
+      await executor.executeStage(basicStageConfig, emptyState);
+
+      // mockQuery is available from beforeEach
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('Pipeline Run ID');
+      expect(callArgs.prompt).toContain('test-run-123');
+      expect(callArgs.prompt).not.toContain('stage-1');
+    });
+
+    it('should build context with single successful previous stage', async () => {
+      await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      // mockQuery is available from beforeEach
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('stage-1');
+      expect(callArgs.prompt).toContain('stage-1-commit');
+    });
+
+    it('should build context with multiple successful previous stages', async () => {
+      await executor.executeStage(basicStageConfig, completedPipelineState);
+
+      // mockQuery is available from beforeEach
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('stage-1');
+      expect(callArgs.prompt).toContain('stage-2');
+    });
+
+    it('should filter out non-successful stages from context', async () => {
+      const stateWithFailure: PipelineState = {
+        ...runningPipelineState,
+        stages: [
+          {
+            stageName: 'stage-1',
+            status: 'success',
+            startTime: '2024-01-01T00:00:00.000Z',
+            endTime: '2024-01-01T00:01:00.000Z',
+            duration: 60,
+            commitSha: 'success-commit',
+          },
+          {
+            stageName: 'stage-2',
+            status: 'failed',
+            startTime: '2024-01-01T00:01:00.000Z',
+            endTime: '2024-01-01T00:02:00.000Z',
+            duration: 60,
+            error: { message: 'Failed' },
+          },
+        ],
+      };
+
+      await executor.executeStage(basicStageConfig, stateWithFailure);
+
+      // mockQuery is available from beforeEach
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('stage-1');
+      expect(callArgs.prompt).not.toContain('stage-2');
+    });
+
+    it('should include extracted data in context', async () => {
+      await executor.executeStage(basicStageConfig, completedPipelineState);
+
+      // mockQuery is available from beforeEach
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('result');
+      expect(callArgs.prompt).toContain('success');
+    });
+
+    it('should include commit SHAs in context', async () => {
+      await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      // mockQuery is available from beforeEach
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('Commit:');
+      expect(callArgs.prompt).toContain('stage-1-commit');
+    });
+
+    it('should include changed files in context', async () => {
+      await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      // mockQuery is available from beforeEach
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('file1.ts');
+      expect(callArgs.prompt).toContain('file2.ts');
+    });
+
+    it('should include stage inputs in context', async () => {
+      await executor.executeStage(stageWithInputs, runningPipelineState);
+
+      // mockQuery is available from beforeEach
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('Your Task');
+      expect(callArgs.prompt).toContain('targetFile');
+      expect(callArgs.prompt).toContain('maxIssues');
+      expect(callArgs.prompt).toContain('strictMode');
+    });
+  });
+
+  describe('runAgentWithTimeout', () => {
+    beforeEach(() => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+    });
+
+    it('should execute agent query successfully', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Agent completed successfully' }],
+          },
+        };
+      });
+      
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.agentOutput).toBe('Agent completed successfully');
+    });
+
+    it('should timeout after configured seconds', async () => {
+      mockQuery.mockImplementation(async function* () {
+        await new Promise((resolve) => setTimeout(resolve, 150000)); // 150s
+        yield {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'Done' }] },
+        };
+      });
+
+      const promise = executor.executeStage(basicStageConfig, runningPipelineState);
+
+      // Advance past timeout (120s)
+      await vi.advanceTimersByTimeAsync(120000);
+
+      const result = await promise;
+
+      expect(result.status).toBe('failed');
+      expect(result.error?.message).toContain('timeout');
+    });
+
+    it('should use default timeout when not specified', async () => {
+      const stageWithoutTimeout = { ...basicStageConfig, timeout: undefined };
+
+      mockQuery.mockImplementation(async function* () {
+        await new Promise((resolve) => setTimeout(resolve, 400000)); // 400s
+        yield {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'Done' }] },
+        };
+      });
+
+      const promise = executor.executeStage(stageWithoutTimeout, runningPipelineState);
+
+      // Advance past default timeout (300s)
+      await vi.advanceTimersByTimeAsync(300000);
+
+      const result = await promise;
+
+      expect(result.status).toBe('failed');
+      expect(result.error?.message).toContain('timeout');
+    });
+
+    it('should stream output to callback', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Streaming output' }],
+          },
+        };
+      });
+      
+
+      const callback = vi.fn();
+      const result = await executor.executeStage(
+        basicStageConfig,
+        runningPipelineState,
+        callback
+      );
+
+      expect(callback).toHaveBeenCalledWith(expect.stringContaining('Streaming'));
+    });
+
+    it('should handle multiple assistant messages', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'First message. ' }] },
+        };
+        yield {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'Second message.' }] },
+        };
+      });
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.agentOutput).toBe('First message. Second message.');
+    });
+
+    it('should extract text content from messages', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'text', text: 'Text content' },
+              { type: 'tool_use', id: '123', name: 'tool' },
+            ],
+          },
+        };
+      });
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.agentOutput).toBe('Text content');
+    });
+
+    it('should handle empty agent response', async () => {
+      mockQuery.mockImplementation(async function* () {
+        // Yields nothing
+      });
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.agentOutput).toBe('');
+    });
+
+    it('should handle non-text content gracefully', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'tool_use', id: '123', name: 'tool' }],
+          },
+        };
+      });
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.agentOutput).toBe('');
+    });
+
+    it('should provide incremental updates to callback', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'Part 1. ' }] },
+        };
+        yield {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'Part 2.' }] },
+        };
+      });
+
+      const callback = vi.fn();
+      await executor.executeStage(basicStageConfig, runningPipelineState, callback);
+
+      expect(callback).toHaveBeenCalledTimes(2);
+      expect(callback).toHaveBeenNthCalledWith(1, 'Part 1. ');
+      expect(callback).toHaveBeenNthCalledWith(2, 'Part 1. Part 2.');
+    });
+  });
+
+  describe('extractOutputs', () => {
+    beforeEach(() => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+    });
+
+    it('should extract single output key', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Result: issues_found: 5' }],
+          },
+        };
+      });
+      
+
+      const config = { ...basicStageConfig, outputs: ['issues_found'] };
+      const result = await executor.executeStage(config, runningPipelineState);
+
+      expect(result.extractedData).toBeDefined();
+      expect(result.extractedData?.issues_found).toBe('5');
+    });
+
+    it('should extract multiple output keys', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'issues_found: 3\nseverity: high\nscore: 85' }],
+          },
+        };
+      });
+
+      const result = await executor.executeStage(stageWithOutputs, runningPipelineState);
+
+      expect(result.extractedData?.issues_found).toBe('3');
+      expect(result.extractedData?.severity).toBe('high');
+      expect(result.extractedData?.score).toBe('85');
+    });
+
+    it('should return undefined when no output keys configured', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Some output' }],
+          },
+        };
+      });
+      
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.extractedData).toBeUndefined();
+    });
+
+    it('should return undefined when output keys array is empty', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Some output' }],
+          },
+        };
+      });
+      
+
+      const config = { ...basicStageConfig, outputs: [] };
+      const result = await executor.executeStage(config, runningPipelineState);
+
+      expect(result.extractedData).toBeUndefined();
+    });
+
+    it('should find output key in agent response', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Analysis complete.\nstatus: passed' }],
+          },
+        };
+      });
+      
+
+      const config = { ...basicStageConfig, outputs: ['status'] };
+      const result = await executor.executeStage(config, runningPipelineState);
+
+      expect(result.extractedData?.status).toBe('passed');
+    });
+
+    it('should return undefined when output key not found', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'No matching keys here' }],
+          },
+        };
+      });
+      
+
+      const config = { ...basicStageConfig, outputs: ['missing_key'] };
+      const result = await executor.executeStage(config, runningPipelineState);
+
+      expect(result.extractedData).toBeUndefined();
+    });
+
+    it('should perform case-insensitive matching', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'ISSUES_FOUND: 10' }],
+          },
+        };
+      });
+      
+
+      const config = { ...basicStageConfig, outputs: ['issues_found'] };
+      const result = await executor.executeStage(config, runningPipelineState);
+
+      expect(result.extractedData?.issues_found).toBe('10');
+    });
+
+    it('should trim whitespace from extracted values', async () => {
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'result:   value with spaces   ' }],
+          },
+        };
+      });
+      
+
+      const config = { ...basicStageConfig, outputs: ['result'] };
+      const result = await executor.executeStage(config, runningPipelineState);
+
+      expect(result.extractedData?.result).toBe('value with spaces');
+    });
+  });
+
+  describe('calculateDuration', () => {
+    beforeEach(() => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+    });
+
+    it('should calculate duration with valid start and end times', async () => {
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.duration).toBeDefined();
+      expect(result.duration).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should return 0 when end time is missing', async () => {
+      // This shouldn't happen in normal flow, but test the edge case
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Test' }],
+          },
+        };
+      });
+      
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      // End time should always be set in normal execution
+      expect(result.endTime).toBeDefined();
+      expect(result.duration).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should calculate duration in seconds accurately', async () => {
+      const beforeTime = Date.now();
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      const afterTime = Date.now();
+      const expectedDuration = (afterTime - beforeTime) / 1000;
+
+      expect(result.duration).toBeCloseTo(expectedDuration, 1);
+    });
+  });
+
+  describe('captureErrorDetails', () => {
+    beforeEach(() => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+    });
+
+    it('should capture ENOENT error with file path suggestion', async () => {
+      const fs = await import('fs/promises');
+      vi.mocked(fs.readFile).mockRejectedValue(
+        Object.assign(new Error('ENOENT: file not found'), { code: 'ENOENT' })
+      );
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.error?.suggestion).toContain('Agent file not found');
+      expect(result.error?.agentPath).toBe('.claude/agents/test-agent.md');
+    });
+
+    it('should capture timeout error with timeout increase suggestion', async () => {
+      mockQuery.mockImplementation(async function* () {
+        await new Promise((resolve) => setTimeout(resolve, 150000));
+        yield { type: 'assistant', message: { content: [] } };
+      });
+
+      const promise = executor.executeStage(basicStageConfig, runningPipelineState);
+      await vi.advanceTimersByTimeAsync(120000);
+
+      const result = await promise;
+
+      expect(result.error).toBeDefined();
+      expect(result.error?.suggestion).toContain('timeout');
+      expect(result.error?.suggestion).toContain('120');
+    });
+
+    it('should capture API error with API key suggestion', async () => {
+      mockQuery.mockImplementation(async function* () {
+        throw new Error('API 401: Unauthorized');
+      });
+      
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.error?.suggestion).toContain('ANTHROPIC_API_KEY');
+    });
+
+    it('should capture YAML parse error with syntax suggestion', async () => {
+      mockQuery.mockImplementation(async function* () {
+        throw new Error('YAML parse error');
+      });
+      
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.error?.suggestion).toContain('YAML syntax');
+    });
+
+    it('should capture permission error with permission suggestion', async () => {
+      const fs = await import('fs/promises');
+      vi.mocked(fs.readFile).mockRejectedValue(new Error('permission denied'));
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.error?.suggestion).toContain('permission');
+    });
+
+    it('should handle Error objects', async () => {
+      mockQuery.mockImplementation(async function* () {
+        throw new Error('Standard error');
+      });
+      
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.error?.message).toBe('Standard error');
+      expect(result.error?.stack).toBeDefined();
+      expect(result.error?.timestamp).toBeDefined();
+    });
+
+    it('should handle non-Error objects (strings)', async () => {
+      mockQuery.mockImplementation(async function* () {
+        throw 'String error';
+      });
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.error?.message).toBe('String error');
+      expect(result.error?.stack).toBeUndefined();
+    });
+
+    it('should preserve stack trace', async () => {
+      const errorWithStack = new Error('Error with stack');
+      mockQuery.mockImplementation(async function* () {
+        throw errorWithStack;
+      });
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.error?.stack).toBe(errorWithStack.stack);
+    });
+  });
+
+  describe('Integration & Edge Cases', () => {
+    it('should integrate with RetryHandler callbacks', async () => {
+      let callCount = 0;
+      mockQuery.mockImplementation(async function* () {
+        callCount++;
+        if (callCount <= 2) {
+          throw new Error('Retry test');
+        }
+        yield {
+          type: 'assistant',
+          message: { content: [{ type: 'text', text: 'Success on retry' }] },
+        };
+      });
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const promise = executor.executeStage(stageWithRetry, runningPipelineState);
+
+      // Advance through retry delays
+      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(2000);
+
+      const result = await promise;
+
+      expect(result.status).toBe('success');
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Retrying'));
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should integrate with GitManager for commits', async () => {
+      mockGitManager = createMockGitManager({
+        hasChanges: true,
+        commitSha: 'integration-commit',
+        commitMessage: '[pipeline:test-stage] Integration test',
+      });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      // The GitManager methods are called during execution
+      expect(mockGitManager.createPipelineCommit).toHaveBeenCalled();
+      expect(mockGitManager.getCommitMessage).toHaveBeenCalledWith('integration-commit');
+      expect(result.commitSha).toBe('integration-commit');
+    });
+
+    it('should integrate with file system for agent loading', async () => {
+      const fs = await import('fs/promises');
+      vi.mocked(fs.readFile).mockResolvedValue('Custom agent prompt');
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(fs.readFile).toHaveBeenCalledWith('.claude/agents/test-agent.md', 'utf-8');
+    });
+
+    it('should handle concurrent stage executions', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const promise1 = executor.executeStage(basicStageConfig, runningPipelineState);
+      const promise2 = executor.executeStage(
+        { ...basicStageConfig, name: 'stage-2' },
+        runningPipelineState
+      );
+
+      const [result1, result2] = await Promise.all([promise1, promise2]);
+
+      expect(result1.status).toBe('success');
+      expect(result2.status).toBe('success');
+      expect(result1.stageName).toBe('test-stage');
+      expect(result2.stageName).toBe('stage-2');
+    });
+
+    it('should handle large agent output', async () => {
+      const largeOutput = 'A'.repeat(100000); // 100KB output
+      mockQuery.mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: largeOutput }],
+          },
+        };
+      });
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.agentOutput).toBe(largeOutput);
+    });
+
+    it('should track stage execution state transitions correctly', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.startTime).toBeDefined();
+      expect(result.endTime).toBeDefined();
+      expect(new Date(result.endTime!).getTime()).toBeGreaterThanOrEqual(
+        new Date(result.startTime).getTime()
+      );
+    });
+  });
+});

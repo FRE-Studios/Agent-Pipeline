@@ -32,7 +32,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (172 tests)
+### Completed Test Suites (239 tests)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -85,14 +85,27 @@ src/
 - Tests default configuration values
 - Validates formatDelay utility function
 
+**stage-executor.test.ts** - 67 tests
+- Coverage: **100% statements, 98.68% branches**
+- Tests stage execution with agent integration
+- Validates retry logic integration
+- Tests auto-commit functionality (with/without changes, dry-run)
+- Tests timeout handling and callbacks
+- Validates context building for agents
+- Tests output extraction from agent responses
+- Validates error handling with helpful suggestions
+- Tests duration calculation and state transitions
+- Integration tests with GitManager, RetryHandler, and file system
+
 ### Test Results Summary
 
 ```
-Test Files:  6 passed (6)
-Tests:       172 passed (172)
-Duration:    ~250ms
+Test Files:  7 passed (7)
+Tests:       239 passed (239)
+Duration:    ~350ms
 
 Coverage Summary (Tested Modules):
+- stage-executor.ts:      100%   ✅
 - condition-evaluator.ts: 100%   ✅
 - state-manager.ts:       100%   ✅
 - retry-handler.ts:       98.27% ✅
@@ -189,7 +202,6 @@ mockTimers(): { advance, runAll, restore }
 ### Pending Test Coverage
 
 Modules not yet tested (planned):
-- ❌ `stage-executor.ts` - Individual stage execution
 - ❌ `parallel-executor.ts` - Parallel execution logic
 - ❌ `pipeline-analytics.ts` - Analytics calculations
 - ❌ `git-manager.ts` - Git operations (needs mocking)

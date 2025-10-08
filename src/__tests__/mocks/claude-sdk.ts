@@ -6,6 +6,13 @@ export interface MockAgentResponse {
   error?: Error;
 }
 
+export interface MockQueryMessage {
+  type: 'assistant' | 'user' | 'system';
+  message: {
+    content: Array<{ type: 'text'; text: string } | { type: 'tool_use' }>;
+  };
+}
+
 export function createMockClaudeAgent(response: MockAgentResponse = {}) {
   return {
     run: vi.fn().mockImplementation(async () => {
@@ -29,6 +36,23 @@ export function createMockClaudeAgent(response: MockAgentResponse = {}) {
       };
     }),
   };
+}
+
+export function createMockQuery(response: MockAgentResponse = {}) {
+  return vi.fn().mockImplementation(async function* () {
+    if (response.error) {
+      throw response.error;
+    }
+
+    // Yield assistant message with text content
+    const output = response.output || 'Mock agent output';
+    yield {
+      type: 'assistant',
+      message: {
+        content: [{ type: 'text', text: output }],
+      },
+    } as MockQueryMessage;
+  });
 }
 
 export function mockClaudeAgentSdk(response: MockAgentResponse = {}) {
