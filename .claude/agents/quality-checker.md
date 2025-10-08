@@ -9,7 +9,7 @@ Analyze the code changes and check for:
 - Long functions or complex logic
 - Missing error handling
 - Poor variable naming
-- Lack of comments where needed
+- Lack of comments where needed (no comments is good code if the function is clear and tight)
 
 ## Actions
 
