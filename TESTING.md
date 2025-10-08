@@ -32,7 +32,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (122 tests)
+### Completed Test Suites (172 tests)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -75,19 +75,30 @@ src/
 - Handles missing/invalid files
 - Tests complex configurations (git, notifications, retry, conditional)
 
+**retry-handler.test.ts** - 50 tests
+- Coverage: **98.27%**
+- Tests retry execution with configurable attempts
+- Validates all backoff strategies (exponential, linear, fixed)
+- Tests delay calculation and maxDelay capping
+- Tests error classification (retryable vs non-retryable)
+- Tests retry callbacks with correct context
+- Tests default configuration values
+- Validates formatDelay utility function
+
 ### Test Results Summary
 
 ```
-Test Files:  5 passed (5)
-Tests:       122 passed (122)
-Duration:    ~270ms
+Test Files:  6 passed (6)
+Tests:       172 passed (172)
+Duration:    ~250ms
 
 Coverage Summary (Tested Modules):
-- pipeline-loader.ts:     96.15% ✅
 - condition-evaluator.ts: 100%   ✅
-- dag-planner.ts:         97.07% ✅
 - state-manager.ts:       100%   ✅
+- retry-handler.ts:       98.27% ✅
 - pipeline-validator.ts:  97.57% ✅
+- dag-planner.ts:         97.07% ✅
+- pipeline-loader.ts:     96.15% ✅
 ```
 
 ### Overall Project Coverage
@@ -178,14 +189,13 @@ mockTimers(): { advance, runAll, restore }
 ### Pending Test Coverage
 
 Modules not yet tested (planned):
-- ❌ `parallel-executor.ts` - Parallel execution logic
-- ❌ `retry-handler.ts` - Retry mechanisms
 - ❌ `stage-executor.ts` - Individual stage execution
+- ❌ `parallel-executor.ts` - Parallel execution logic
+- ❌ `pipeline-analytics.ts` - Analytics calculations
 - ❌ `git-manager.ts` - Git operations (needs mocking)
 - ❌ `branch-manager.ts` - Branch management
 - ❌ `pr-creator.ts` - PR creation
 - ❌ `notification-manager.ts` - Notification orchestration
-- ❌ `pipeline-analytics.ts` - Analytics calculations
 - ❌ `utils/errors.ts` - Error utilities
 - ❌ `utils/logger.ts` - Logging utilities
 
