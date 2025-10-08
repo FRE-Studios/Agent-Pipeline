@@ -84,9 +84,7 @@ describe('DAGPlanner', () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it.skip('should detect cyclic dependencies', () => {
-      // FIXME: This test reveals a bug - cyclic dependencies cause stack overflow
-      // The validateDAG method needs to be fixed to properly detect cycles
+    it('should detect cyclic dependencies', () => {
       const result = planner.validateDAG(cyclicDependencyConfig);
 
       expect(result.valid).toBe(false);
@@ -107,8 +105,7 @@ describe('DAGPlanner', () => {
       expect(result.errors.some(e => e.includes('unknown stage'))).toBe(true);
     });
 
-    it.skip('should detect self-dependencies', () => {
-      // FIXME: This also causes stack overflow - needs fixing in DAG planner
+    it('should detect self-dependencies', () => {
       const selfDepConfig = {
         name: 'self-dep-test',
         trigger: 'manual' as const,

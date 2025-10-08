@@ -32,16 +32,16 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (120 tests, 2 skipped)
+### Completed Test Suites (122 tests)
 
 #### ✅ Core Business Logic (High Priority)
 
-**dag-planner.test.ts** - 19 tests (2 skipped)
+**dag-planner.test.ts** - 19 tests
 - Coverage: **97.07%**
 - Tests DAG construction, topological sorting, cycle detection
 - Validates execution plan generation
 - Tests parallel vs sequential pipeline identification
-- **Note:** 2 tests skipped due to bugs in cycle detection (stack overflow)
+- All cycle detection tests now passing (stack overflow bug fixed)
 
 **condition-evaluator.test.ts** - 28 tests
 - Coverage: **100%**
@@ -79,7 +79,7 @@ src/
 
 ```
 Test Files:  5 passed (5)
-Tests:       120 passed | 2 skipped (122)
+Tests:       122 passed (122)
 Duration:    ~270ms
 
 Coverage Summary (Tested Modules):
@@ -168,12 +168,12 @@ mockTimers(): { advance, runAll, restore }
 
 ## Known Issues & Future Work
 
-### Bugs Discovered by Tests
+### Bugs Discovered & Fixed
 
-1. **Cyclic Dependency Detection** (dag-planner.ts:295)
-   - Stack overflow when validating cycles
-   - Tests skipped until fixed
-   - Affects both direct cycles and self-dependencies
+1. **✅ Cyclic Dependency Detection** (dag-planner.ts:295) - FIXED
+   - Issue: Stack overflow in `calculateMaxDepth` when cycles present
+   - Fix: Skip max depth calculation when validation errors exist
+   - All cycle detection tests now passing
 
 ### Pending Test Coverage
 

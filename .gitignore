@@ -15,6 +15,11 @@ REVIEW_FINDINGS.md
 SECURITY_AUDIT.md
 CLAUDE.md
 
+# Test coverage reports
+coverage/
+.vitest-cache/
+*.lcov
+
 # OS files
 .DS_Store
 Thumbs.db

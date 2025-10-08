@@ -107,9 +107,12 @@ export class DAGPlanner {
     }
 
     // Warnings for potentially long dependency chains
-    const maxDepth = this.calculateMaxDepth(config);
-    if (maxDepth > 5) {
-      warnings.push(`Deep dependency chain detected (${maxDepth} levels). Consider optimizing.`);
+    // Only calculate max depth if no errors found (prevents stack overflow on cycles)
+    if (errors.length === 0) {
+      const maxDepth = this.calculateMaxDepth(config);
+      if (maxDepth > 5) {
+        warnings.push(`Deep dependency chain detected (${maxDepth} levels). Consider optimizing.`);
+      }
     }
 
     return {
