@@ -76,24 +76,22 @@ export class StageExecutor {
 
     try {
       // Execute with retry if configured
-      if (stageConfig.retry && stageConfig.retry.maxAttempts > 1) {
-        await this.retryHandler.executeWithRetry(
-          executeAttempt,
-          stageConfig.retry,
-          (context) => {
-            execution.retryAttempt = context.attemptNumber;
-            const delay = context.delays[context.delays.length - 1];
-            console.log(
-              `⚠️  Stage failed (attempt ${context.attemptNumber + 1}/${context.maxAttempts}). ` +
+      await this.retryHandler.executeWithRetry(
+        executeAttempt,
+        stageConfig.retry,
+        (context) => {
+          execution.retryAttempt = context.attemptNumber + 1; // +1 because we're about to do this retry
+          const delay = context.delays[context.delays.length - 1];
+          const errorMsg = context.lastError instanceof Error
+            ? context.lastError.message
+            : String(context.lastError);
+          console.log(
+            `⚠️  Stage failed (attempt ${context.attemptNumber + 1}/${context.maxAttempts}). ` +
               `Retrying in ${RetryHandler.formatDelay(delay)}...`
-            );
-            console.log(`   Error: ${context.lastError?.message}`);
-          }
-        );
-      } else {
-        // No retry configured, execute once
-        await executeAttempt();
-      }
+          );
+          console.log(`   Error: ${errorMsg}`);
+        }
+      );
 
       execution.status = 'success';
       execution.endTime = new Date().toISOString();

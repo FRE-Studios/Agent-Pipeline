@@ -395,7 +395,7 @@ describe('ParallelExecutor', () => {
         );
 
         expect(result.executions).toHaveLength(2);
-        expect(result.duration).toBeGreaterThanOrEqual(0.1); // At least 100ms
+        expect(result.duration).toBeGreaterThanOrEqual(0.09); // At least 90ms (allowing for timer precision)
       });
 
       it('should pass pipelineState to each stage executor', async () => {
