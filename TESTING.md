@@ -7,7 +7,7 @@ Comprehensive unit testing has been integrated into the agent-pipeline CLI tool 
 ## Test Infrastructure
 
 ### Configuration
-- **Testing Framework:** Vitest v1.6.0
+- **Testing Framework:** Vitest v3.2.4
 - **Coverage Provider:** @vitest/coverage-v8
 - **Test Environment:** Node.js
 - **Configuration File:** `vitest.config.ts`
@@ -63,7 +63,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (985 tests total, all passing)
+### Completed Test Suites (1,019 tests total, all passing)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -246,6 +246,15 @@ src/
 - Covers empty result sets and filter combinations
 - Integration tests for complete cleanup workflow
 
+**hooks.test.ts** - 34 tests
+- Coverage: **96.55%**
+- Tests git hook installation for all trigger types (pre-commit, post-commit, pre-push, post-merge)
+- Validates hook file creation and permissions (executable)
+- Tests hook content generation with pipeline name
+- Validates error handling (manual trigger, missing directories)
+- Tests hook uninstallation and cleanup
+- Covers edge cases and multiple hook scenarios
+
 #### ✅ Utilities
 
 **error-factory.test.ts** - 26 tests
@@ -288,9 +297,9 @@ src/
 ### Test Results Summary
 
 ```
-Test Files:  24 passed (24)
-Tests:       985 passed (985 total)
-Duration:    ~750ms
+Test Files:  25 passed (25)
+Tests:       1,019 passed (1,019 total)
+Duration:    ~867ms
 
 Coverage Summary (Tested Modules):
 - notification-manager.ts: 100%   ✅
@@ -312,21 +321,22 @@ Coverage Summary (Tested Modules):
 - state-manager.ts:       100%   ✅
 - pipeline-runner.ts:     100%   ✅
 - output-tool-builder.ts: 100%   ✅
-- pr-creator.ts:          99.06% ✅
-- retry-handler.ts:       98.27% ✅
-- pipeline-validator.ts:  97.57% ✅
-- dag-planner.ts:         97.07% ✅
-- pipeline-loader.ts:     96.15% ✅
+- retry-handler.ts:       98.96% ✅
+- hooks.ts:               96.55% ✅
+- dag-planner.ts:         96.59% ✅
+- pipeline-loader.ts:     95.12% ✅
+- pr-creator.ts:          90.71% ✅
 ```
 
 ### Overall Project Coverage
 
 ```
-All files:     ~58% (improved with notifier and formatter tests)
-Tested files:  98%+ average (24 modules with comprehensive coverage)
-Core modules:  97-100% coverage
+All files:     90.29% statements, 95.91% branches (significantly improved with Vitest 3.x)
+Tested files:  98%+ average (25 modules with comprehensive coverage)
+Core modules:  90-100% coverage
 Notification:  100% coverage (notification-manager, base-notifier, local-notifier)
 Utils modules: 100% coverage (error-factory, logger, pipeline-formatter)
+CLI modules:   96-100% coverage (init, rollback, analytics, cleanup, hooks)
 ```
 
 ## Running Tests
@@ -581,7 +591,9 @@ mockTimers(): { advance, runAll, restore }
 
 Core Modules (planned):
 - ❌ `notifiers/slack-notifier.ts` - Slack webhook integration (221 lines)
-- ❌ `cli/hooks.ts` - Git hook installer (96 lines)
+
+CLI Utilities (completed):
+- ✅ `cli/hooks.ts` - Git hook installer/uninstaller (96.55% coverage, 34 tests)
 
 Utilities (completed):
 - ✅ `utils/error-factory.ts` - Error factory with smart suggestions (100% coverage, 26 tests)
