@@ -29,7 +29,7 @@ function createMockQuery({ output, error }: { output?: string; error?: Error }) 
   });
 }
 
-// Mock the Claude SDK query function
+// Mock the Claude SDK query function and MCP tools
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: vi.fn().mockImplementation(async function* () {
     yield {
@@ -39,6 +39,17 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
       },
     };
   }),
+  tool: vi.fn((name, description, schema, handler) => ({
+    name,
+    description,
+    inputSchema: schema,
+    handler
+  })),
+  createSdkMcpServer: vi.fn((options) => ({
+    type: 'sdk',
+    name: options.name,
+    instance: { tools: options.tools }
+  }))
 }));
 
 // Mock fs/promises for reading agent files
@@ -811,6 +822,153 @@ describe('StageExecutor', () => {
       expect(callback).toHaveBeenCalledTimes(2);
       expect(callback).toHaveBeenNthCalledWith(1, 'Part 1. ');
       expect(callback).toHaveBeenNthCalledWith(2, 'Part 1. Part 2.');
+    });
+  });
+
+  describe('Tool-based output extraction', () => {
+    beforeEach(() => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false);
+    });
+
+    it('should extract data from report_outputs tool call', async () => {
+      const toolUseQuery = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'text', text: 'Analysis complete.' },
+              {
+                type: 'tool_use',
+                id: 'tool123',
+                name: 'report_outputs',
+                input: {
+                  outputs: {
+                    issues_found: 5,
+                    severity: 'high',
+                    details: { critical: 2, warning: 3 }
+                  }
+                }
+              }
+            ]
+          }
+        };
+      });
+
+      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
+
+      const config = { ...basicStageConfig, outputs: ['issues_found', 'severity'] };
+      const result = await executor.executeStage(config, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.extractedData).toBeDefined();
+      expect(result.extractedData?.issues_found).toBe(5);
+      expect(result.extractedData?.severity).toBe('high');
+      expect(result.extractedData?.details).toEqual({ critical: 2, warning: 3 });
+    });
+
+    it('should handle complex data types in tool call', async () => {
+      const toolUseQuery = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [
+              {
+                type: 'tool_use',
+                name: 'report_outputs',
+                input: {
+                  outputs: {
+                    arr: [1, 2, 3],
+                    obj: { nested: { value: true } },
+                    num: 42,
+                    str: 'text',
+                    bool: false
+                  }
+                }
+              }
+            ]
+          }
+        };
+      });
+
+      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
+
+      const config = { ...basicStageConfig, outputs: ['arr', 'obj'] };
+      const result = await executor.executeStage(config, runningPipelineState);
+
+      expect(result.extractedData?.arr).toEqual([1, 2, 3]);
+      expect(result.extractedData?.obj).toEqual({ nested: { value: true } });
+      expect(result.extractedData?.num).toBe(42);
+    });
+
+    it('should fall back to regex extraction when tool not called', async () => {
+      const noToolQuery = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'issues_found: 3\nseverity: medium' }]
+          }
+        };
+      });
+
+      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = noToolQuery;
+
+      const config = { ...basicStageConfig, outputs: ['issues_found', 'severity'] };
+      const result = await executor.executeStage(config, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.extractedData?.issues_found).toBe('3');
+      expect(result.extractedData?.severity).toBe('medium');
+    });
+
+    it('should combine text and tool outputs', async () => {
+      const combinedQuery = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'text', text: 'Found several issues in the code.' },
+              {
+                type: 'tool_use',
+                name: 'report_outputs',
+                input: {
+                  outputs: { issues_found: 7 }
+                }
+              }
+            ]
+          }
+        };
+      });
+
+      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = combinedQuery;
+
+      const config = { ...basicStageConfig, outputs: ['issues_found'] };
+      const result = await executor.executeStage(config, runningPipelineState);
+
+      expect(result.agentOutput).toContain('Found several issues');
+      expect(result.extractedData?.issues_found).toBe(7);
+    });
+
+    it('should ignore non-report_outputs tool calls', async () => {
+      const otherToolQuery = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'other_tool', input: { data: 'ignore' } },
+              { type: 'text', text: 'count: 5' }
+            ]
+          }
+        };
+      });
+
+      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = otherToolQuery;
+
+      const config = { ...basicStageConfig, outputs: ['count'] };
+      const result = await executor.executeStage(config, runningPipelineState);
+
+      // Should fall back to regex extraction
+      expect(result.extractedData?.count).toBe('5');
     });
   });
 

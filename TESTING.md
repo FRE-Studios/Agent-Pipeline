@@ -51,7 +51,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (770 tests total, all passing)
+### Completed Test Suites (784 tests total, all passing)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -104,17 +104,26 @@ src/
 - Tests default configuration values
 - Validates formatDelay utility function
 
-**stage-executor.test.ts** - 67 tests
+**stage-executor.test.ts** - 76 tests
 - Coverage: **100% statements, 98.68% branches**
 - Tests stage execution with agent integration
 - Validates retry logic integration
 - Tests auto-commit functionality (with/without changes, dry-run)
 - Tests timeout handling and callbacks
 - Validates context building for agents
-- Tests output extraction from agent responses
+- Tests tool-based output extraction with MCP report_outputs tool
+- Tests fallback to regex extraction when tool not used
+- Tests complex data types (objects, arrays, nested structures)
 - Validates error handling with helpful suggestions
 - Tests duration calculation and state transitions
 - Integration tests with GitManager, RetryHandler, and file system
+
+**output-tool-builder.test.ts** - 8 tests
+- Coverage: **100%**
+- Tests singleton MCP server creation
+- Validates output instruction generation
+- Tests dynamic instruction formatting based on output keys
+- Validates example usage in instructions
 
 **parallel-executor.test.ts** - 50 tests
 - Coverage: **100%**
@@ -242,9 +251,9 @@ src/
 ### Test Results Summary
 
 ```
-Test Files:  18 passed (18)
-Tests:       770 passed (770 total)
-Duration:    ~650ms
+Test Files:  19 passed (19)
+Tests:       784 passed (784 total)
+Duration:    ~680ms
 
 Coverage Summary (Tested Modules):
 - init.ts:                100%   ✅

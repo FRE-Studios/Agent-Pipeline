@@ -4,6 +4,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk';
 import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
 import { RetryHandler } from './retry-handler.js';
+import { OutputToolBuilder } from './output-tool-builder.js';
 import { AgentStageConfig, StageExecution, PipelineState } from '../config/schema.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { ErrorFactory } from '../utils/error-factory.js';
@@ -47,11 +48,12 @@ export class StageExecutor {
         agentContext,
         systemPrompt,
         stageConfig.timeout,
+        stageConfig.outputs,
         onOutputUpdate
       );
 
-      execution.agentOutput = result;
-      execution.extractedData = this.extractOutputs(result, stageConfig.outputs);
+      execution.agentOutput = result.textOutput;
+      execution.extractedData = result.extractedData;
 
       // Auto-commit if enabled
       const shouldCommit = (stageConfig.autoCommit ?? true) && !this.dryRun;
@@ -136,6 +138,8 @@ export class StageExecutor {
         commit: s.commitSha
       }));
 
+    const outputInstructions = OutputToolBuilder.buildOutputInstructions(stageConfig.outputs);
+
     return `
 # Pipeline Context
 
@@ -156,6 +160,8 @@ ${pipelineState.artifacts.changedFiles.join('\n')}
 ## Your Task
 ${JSON.stringify(stageConfig.inputs || {}, null, 2)}
 
+${outputInstructions ? `\n${outputInstructions}\n` : ''}
+
 ---
 
 Please analyze the current repository state and make any necessary changes.
@@ -167,41 +173,63 @@ When done, describe what you changed and why.
     userPrompt: string,
     systemPrompt: string,
     timeoutSeconds?: number,
+    outputKeys?: string[],
     onOutputUpdate?: (output: string) => void
-  ): Promise<string> {
+  ): Promise<{ textOutput: string; extractedData?: Record<string, unknown> }> {
     const timeout = (timeoutSeconds || 300) * 1000; // Default 5 minutes
 
     const runQuery = async () => {
+      // Get MCP server with report_outputs tool
+      const mcpServer = OutputToolBuilder.getMcpServer();
+
       const q = query({
         prompt: userPrompt,
         options: {
           systemPrompt,
-          settingSources: ['project']
+          settingSources: ['project'],
+          mcpServers: {
+            'pipeline-outputs': mcpServer
+          }
         }
       });
 
-      // Collect all assistant messages from the query
-      let output = '';
+      // Collect assistant messages and tool calls
+      let textOutput = '';
+      let toolExtractedData: Record<string, unknown> | undefined;
+
       for await (const message of q) {
         if (message.type === 'assistant') {
-          // Extract text from assistant message content
+          // Extract both text and tool calls from assistant message content
           for (const content of message.message.content) {
             if (content.type === 'text') {
-              output += content.text;
+              textOutput += content.text;
               // Stream output to callback if provided
               if (onOutputUpdate) {
-                onOutputUpdate(output);
+                onOutputUpdate(textOutput);
+              }
+            } else if (content.type === 'tool_use' && content.name === 'report_outputs') {
+              // Capture tool call arguments as extracted data
+              const toolInput = content.input as { outputs?: Record<string, unknown> };
+              if (toolInput.outputs) {
+                toolExtractedData = toolInput.outputs;
               }
             }
           }
         }
       }
-      return output;
+
+      // If no tool call was made, fall back to regex extraction
+      let extractedData = toolExtractedData;
+      if (!extractedData && outputKeys && outputKeys.length > 0) {
+        extractedData = this.extractOutputs(textOutput, outputKeys);
+      }
+
+      return { textOutput, extractedData };
     };
 
     return Promise.race([
       runQuery(),
-      new Promise<string>((_, reject) =>
+      new Promise<{ textOutput: string; extractedData?: Record<string, unknown> }>((_, reject) =>
         setTimeout(() => reject(new Error('Agent timeout')), timeout)
       )
     ]);

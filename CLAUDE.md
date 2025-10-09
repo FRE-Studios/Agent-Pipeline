@@ -25,9 +25,10 @@ The pipeline executes in this order:
    - Delegates to Parallel/Sequential Executor based on config
 5. **Parallel Executor** (`src/core/parallel-executor.ts`) - Runs independent stages concurrently
 6. **Stage Executor** (`src/core/stage-executor.ts`) - Executes individual agent stages with retry logic
-7. **State Manager** (`src/core/state-manager.ts`) - Persists execution state to `.agent-pipeline/state/runs/`
-8. **PR Creator** (`src/core/pr-creator.ts`) - Creates GitHub PRs via `gh` CLI
-9. **Notification Manager** (`src/notifications/notification-manager.ts`) - Sends desktop/Slack notifications
+7. **Output Tool Builder** (`src/core/output-tool-builder.ts`) - Provides MCP `report_outputs` tool for structured data extraction
+8. **State Manager** (`src/core/state-manager.ts`) - Persists execution state to `.agent-pipeline/state/runs/`
+9. **PR Creator** (`src/core/pr-creator.ts`) - Creates GitHub PRs via `gh` CLI
+10. **Notification Manager** (`src/notifications/notification-manager.ts`) - Sends desktop/Slack notifications
 
 ### Key Architectural Patterns
 
@@ -36,6 +37,8 @@ The pipeline executes in this order:
 **State Management**: Each pipeline run gets a unique `runId`. State is saved after each stage group completes. This enables rollback, analytics, and history browsing.
 
 **Git Workflow**: Pipelines run on isolated branches (`pipeline/{name}` or `pipeline/{name}-{runId}`). Each stage creates an atomic commit. Original branch is restored after completion.
+
+**Output Extraction**: Agents report structured data via MCP `report_outputs` tool or text format. Tool-based extraction preserves types (objects, arrays, numbers). Text-based falls back to regex. Single reusable MCP server created via `OutputToolBuilder` with generic `z.record(z.string(), z.unknown())` schema.
 
 **Conditional Execution**: Condition Evaluator (`src/core/condition-evaluator.ts`) parses template expressions like `{{ stages.review.outputs.issues > 0 }}` and evaluates against pipeline state.
 
@@ -47,6 +50,8 @@ The pipeline executes in this order:
 
 - `src/config/schema.ts` - TypeScript interfaces for all configuration and state types
 - `src/core/pipeline-runner.ts` - Main orchestrator (450+ lines, handles entire execution lifecycle)
+- `src/core/stage-executor.ts` - Stage execution with MCP tool integration and output extraction
+- `src/core/output-tool-builder.ts` - Singleton MCP server for `report_outputs` tool
 - `src/core/types/execution-graph.ts` - DAG type definitions
 - `src/index.ts` - CLI entry point with command routing
 

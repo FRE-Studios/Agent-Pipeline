@@ -338,6 +338,37 @@ agents:
       maxDelay: 30000
 ```
 
+#### Reporting Outputs from Agents
+
+Agents can report structured outputs using the `report_outputs` tool (recommended) or simple text format (legacy):
+
+**Tool-based (recommended):**
+```markdown
+<!-- .claude/agents/code-reviewer.md -->
+After completing your review, call the `report_outputs` tool with your findings.
+
+The tool accepts complex data types: numbers, strings, objects, arrays.
+```
+
+Agent calls:
+```javascript
+report_outputs({
+  outputs: {
+    issues_found: 5,
+    severity: "high",
+    details: { critical: 2, warning: 3 }
+  }
+})
+```
+
+**Text-based (legacy):**
+```
+issues_found: 5
+severity: high
+```
+
+Both methods work. Tool-based preserves data types and handles complex structures. Text-based falls back to regex extraction.
+
 ### Configuration Options
 
 #### Pipeline Settings
