@@ -5,6 +5,8 @@ import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
 import { RetryHandler } from './retry-handler.js';
 import { AgentStageConfig, StageExecution, PipelineState } from '../config/schema.js';
+import { PipelineFormatter } from '../utils/pipeline-formatter.js';
+import { ErrorFactory } from '../utils/error-factory.js';
 
 export class StageExecutor {
   private retryHandler: RetryHandler;
@@ -38,9 +40,7 @@ export class StageExecutor {
       const systemPrompt = await fs.readFile(stageConfig.agent, 'utf-8');
 
       // Run agent using SDK query
-      const retryInfo = execution.retryAttempt! > 0
-        ? ` (retry ${execution.retryAttempt}/${execution.maxRetries})`
-        : '';
+      const retryInfo = PipelineFormatter.formatRetryInfo(execution.retryAttempt, execution.maxRetries);
       console.log(`🤖 Running stage: ${stageConfig.name}${retryInfo}...`);
 
       const result = await this.runAgentWithTimeout(
@@ -104,11 +104,11 @@ export class StageExecutor {
       execution.endTime = new Date().toISOString();
       execution.duration = this.calculateDuration(execution);
 
-      const errorDetails = this.captureErrorDetails(error, stageConfig);
+      const errorDetails = ErrorFactory.createStageError(error, stageConfig.agent);
       execution.error = errorDetails;
 
       // Pretty print error
-      const retryInfo = execution.retryAttempt! > 0
+      const retryInfo = execution.retryAttempt && execution.retryAttempt > 0
         ? ` (after ${execution.retryAttempt} retries)`
         : '';
       console.error(`❌ Stage failed: ${stageConfig.name}${retryInfo}`);
@@ -214,10 +214,10 @@ When done, describe what you changed and why.
   private extractOutputs(
     agentOutput: string,
     outputKeys?: string[]
-  ): Record<string, any> | undefined {
+  ): Record<string, unknown> | undefined {
     if (!outputKeys || outputKeys.length === 0) return undefined;
 
-    const extracted: Record<string, any> = {};
+    const extracted: Record<string, unknown> = {};
 
     for (const key of outputKeys) {
       const escapedKey = this.escapeRegex(key);
@@ -236,31 +236,5 @@ When done, describe what you changed and why.
     const start = new Date(execution.startTime).getTime();
     const end = new Date(execution.endTime).getTime();
     return (end - start) / 1000; // seconds
-  }
-
-  private captureErrorDetails(error: unknown, stageConfig: AgentStageConfig) {
-    const baseError = {
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      agentPath: stageConfig.agent,
-      timestamp: new Date().toISOString()
-    };
-
-    // Add helpful suggestions based on error type
-    let suggestion: string | undefined;
-
-    if (baseError.message.includes('ENOENT')) {
-      suggestion = `Agent file not found. Check path: ${stageConfig.agent}`;
-    } else if (baseError.message.includes('timeout') || baseError.message.includes('Agent timeout')) {
-      suggestion = `Agent exceeded timeout (${stageConfig.timeout || 300}s). Consider increasing timeout in pipeline config.`;
-    } else if (baseError.message.includes('API') || baseError.message.includes('401') || baseError.message.includes('403')) {
-      suggestion = 'Check ANTHROPIC_API_KEY environment variable is set correctly.';
-    } else if (baseError.message.includes('YAML') || baseError.message.includes('parse')) {
-      suggestion = 'Check YAML syntax in pipeline configuration file.';
-    } else if (baseError.message.includes('permission')) {
-      suggestion = 'Check file permissions for agent definition and working directory.';
-    }
-
-    return { ...baseError, suggestion };
   }
 }

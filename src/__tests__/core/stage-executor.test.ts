@@ -996,7 +996,7 @@ describe('StageExecutor', () => {
       const result = await promise;
 
       expect(result.error?.suggestion).toContain('timeout');
-      expect(result.error?.suggestion).toContain('120');
+      expect(result.error?.suggestion).toContain('pipeline config');
     });
 
     it('should capture API error with API key suggestion', async () => {

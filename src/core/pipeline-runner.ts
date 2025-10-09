@@ -12,6 +12,7 @@ import { ConditionEvaluator } from './condition-evaluator.js';
 import { PipelineConfig, PipelineState, AgentStageConfig } from '../config/schema.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
+import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 
 export class PipelineRunner {
   private gitManager: GitManager;
@@ -42,6 +43,43 @@ export class PipelineRunner {
     this.dryRun = dryRun;
   }
 
+  private shouldLog(interactive: boolean): boolean {
+    return !interactive;
+  }
+
+  private logSkippedStage(
+    stageName: string,
+    reason: 'disabled' | 'condition',
+    conditionText?: string
+  ): void {
+    if (reason === 'disabled') {
+      console.log(`⏭️  Skipping disabled stage: ${stageName}\n`);
+    } else {
+      console.log(`⏭️  Skipping stage "${stageName}" (condition not met): ${conditionText}\n`);
+    }
+  }
+
+  private async notifyStageResults(
+    executions: import('../config/schema.js').StageExecution[],
+    state: PipelineState
+  ): Promise<void> {
+    for (const execution of executions) {
+      if (execution.status === 'success') {
+        await this.notify({
+          event: 'stage.completed',
+          pipelineState: state,
+          stage: execution
+        });
+      } else if (execution.status === 'failed') {
+        await this.notify({
+          event: 'stage.failed',
+          pipelineState: state,
+          stage: execution
+        });
+      }
+    }
+  }
+
   async runPipeline(
     config: PipelineConfig,
     options: { interactive?: boolean } = {}
@@ -65,7 +103,7 @@ export class PipelineRunner {
         config.git.branchPrefix || 'pipeline'
       );
 
-      if (!options.interactive) {
+      if (this.shouldLog(options.interactive || false)) {
         console.log(`📍 Running on branch: ${pipelineBranch}\n`);
       }
     }
@@ -95,7 +133,7 @@ export class PipelineRunner {
     }
 
     // Show simple console output if not interactive
-    if (!options.interactive) {
+    if (this.shouldLog(options.interactive || false)) {
       console.log(`\n🚀 Starting pipeline: ${config.name}`);
       console.log(`📦 Run ID: ${state.runId}`);
       console.log(`📝 Trigger commit: ${triggerCommit.substring(0, 7)}\n`);
@@ -117,7 +155,7 @@ export class PipelineRunner {
       const executionGraph = this.dagPlanner.buildExecutionPlan(config);
       const executionMode = config.settings?.executionMode || 'parallel';
 
-      if (!options.interactive && executionGraph.plan.groups.length > 0) {
+      if (this.shouldLog(options.interactive || false) && executionGraph.plan.groups.length > 0) {
         console.log(`📊 Execution plan: ${executionGraph.plan.groups.length} groups, max parallelism: ${executionGraph.plan.maxParallelism}`);
         if (executionGraph.validation.warnings.length > 0) {
           console.log(`⚠️  Warnings:\n${executionGraph.validation.warnings.map(w => `   - ${w}`).join('\n')}`);
@@ -133,8 +171,8 @@ export class PipelineRunner {
 
         // Add disabled stages to state
         for (const disabledStage of disabledStages) {
-          if (!options.interactive) {
-            console.log(`⏭️  Skipping disabled stage: ${disabledStage.name}\n`);
+          if (this.shouldLog(options.interactive || false)) {
+            this.logSkippedStage(disabledStage.name, 'disabled');
           }
           state.stages.push({
             stageName: disabledStage.name,
@@ -153,8 +191,8 @@ export class PipelineRunner {
             const conditionMet = this.conditionEvaluator.evaluate(stage.condition, state);
 
             if (!conditionMet) {
-              if (!options.interactive) {
-                console.log(`⏭️  Skipping stage "${stage.name}" (condition not met): ${stage.condition}\n`);
+              if (this.shouldLog(options.interactive || false)) {
+                this.logSkippedStage(stage.name, 'condition', stage.condition);
               }
               state.stages.push({
                 stageName: stage.name,
@@ -167,7 +205,7 @@ export class PipelineRunner {
               skippedByCondition.push(stage);
               continue;
             } else {
-              if (!options.interactive) {
+              if (this.shouldLog(options.interactive || false)) {
                 console.log(`✅ Condition met for stage "${stage.name}": ${stage.condition}`);
               }
             }
@@ -181,7 +219,7 @@ export class PipelineRunner {
         if (enabledStages.length === 0) continue;
 
         // Log group info
-        if (!options.interactive && enabledStages.length > 1) {
+        if (this.shouldLog(options.interactive || false) && enabledStages.length > 1) {
           console.log(`🔀 Running ${enabledStages.length} stages in parallel (group ${group.level})...`);
         }
 
@@ -208,21 +246,7 @@ export class PipelineRunner {
           state.stages.push(...groupResult.executions);
 
           // Notify for each completed/failed stage
-          for (const execution of groupResult.executions) {
-            if (execution.status === 'success') {
-              await this.notify({
-                event: 'stage.completed',
-                pipelineState: state,
-                stage: execution
-              });
-            } else if (execution.status === 'failed') {
-              await this.notify({
-                event: 'stage.failed',
-                pipelineState: state,
-                stage: execution
-              });
-            }
-          }
+          await this.notifyStageResults(groupResult.executions, state);
 
         } else {
           // Sequential execution (fallback or explicit mode)
@@ -242,21 +266,7 @@ export class PipelineRunner {
           state.stages.push(...groupResult.executions);
 
           // Notify for each completed/failed stage
-          for (const execution of groupResult.executions) {
-            if (execution.status === 'success') {
-              await this.notify({
-                event: 'stage.completed',
-                pipelineState: state,
-                stage: execution
-              });
-            } else if (execution.status === 'failed') {
-              await this.notify({
-                event: 'stage.failed',
-                pipelineState: state,
-                stage: execution
-              });
-            }
-          }
+          await this.notifyStageResults(groupResult.executions, state);
         }
 
         // Save state after each group
@@ -264,7 +274,7 @@ export class PipelineRunner {
         this.notifyStateChange(state);
 
         // Log group result
-        if (!options.interactive && shouldRunParallel) {
+        if (this.shouldLog(options.interactive || false) && shouldRunParallel) {
           console.log(`📊 ${this.parallelExecutor.aggregateResults(groupResult)}\n`);
         }
 
@@ -277,13 +287,13 @@ export class PipelineRunner {
             const failureStrategy = stageConfig?.onFail || config.settings?.failureStrategy || 'stop';
 
             if (failureStrategy === 'stop') {
-              if (!options.interactive) {
+              if (this.shouldLog(options.interactive || false)) {
                 console.log(`🛑 Pipeline stopped due to stage failure: ${failedStage.stageName}\n`);
               }
               state.status = 'failed';
               break;
             } else if (failureStrategy === 'continue') {
-              if (!options.interactive) {
+              if (this.shouldLog(options.interactive || false)) {
                 console.log(`⚠️  Stage ${failedStage.stageName} failed but continuing (continue mode)\n`);
               }
             }
@@ -300,7 +310,7 @@ export class PipelineRunner {
 
     } catch (error) {
       state.status = 'failed';
-      if (!options.interactive) {
+      if (this.shouldLog(options.interactive || false)) {
         console.error(`\n❌ Pipeline failed: ${error}\n`);
       }
     }
@@ -326,13 +336,13 @@ export class PipelineRunner {
     });
 
     // Only print summary if not in interactive mode
-    if (!options.interactive) {
+    if (this.shouldLog(options.interactive || false)) {
       this.printSummary(state);
     }
 
     // Return to original branch
     if (pipelineBranch && this.originalBranch && !this.dryRun) {
-      if (!options.interactive) {
+      if (this.shouldLog(options.interactive || false)) {
         console.log(`\n↩️  Returning to branch: ${this.originalBranch}`);
       }
       await this.branchManager.checkoutBranch(this.originalBranch);
@@ -342,47 +352,7 @@ export class PipelineRunner {
   }
 
   private printSummary(state: PipelineState): void {
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`Pipeline Summary: ${state.pipelineConfig.name}`);
-    console.log(`${'='.repeat(60)}\n`);
-
-    console.log(`Status: ${this.getStatusEmoji(state.status)} ${state.status.toUpperCase()}`);
-    console.log(`Duration: ${state.artifacts.totalDuration.toFixed(2)}s`);
-    console.log(`Commits: ${state.trigger.commitSha.substring(0, 7)} → ${state.artifacts.finalCommit?.substring(0, 7)}`);
-
-    if (state.artifacts.pullRequest) {
-      console.log(`Pull Request: ${state.artifacts.pullRequest.url}`);
-    }
-
-    console.log('');
-
-    console.log('Stages:');
-    for (const stage of state.stages) {
-      const emoji = this.getStatusEmoji(stage.status);
-      const duration = stage.duration ? `(${stage.duration.toFixed(1)}s)` : '';
-      console.log(`  ${emoji} ${stage.stageName} ${duration}`);
-      if (stage.commitSha) {
-        console.log(`     └─ Commit: ${stage.commitSha.substring(0, 7)}`);
-      }
-      if (stage.error) {
-        console.log(`     └─ Error: ${stage.error.message}`);
-      }
-    }
-
-    console.log(`\n${'='.repeat(60)}\n`);
-  }
-
-  private getStatusEmoji(status: string): string {
-    const emojiMap: Record<string, string> = {
-      'running': '⏳',
-      'success': '✅',
-      'completed': '✅',
-      'failed': '❌',
-      'skipped': '⏭️',
-      'pending': '⏸️',
-      'partial': '⚠️'
-    };
-    return emojiMap[status] || '❓';
+    console.log(PipelineFormatter.formatSummary(state));
   }
 
   private async handlePRCreation(
@@ -398,7 +368,7 @@ export class PipelineRunner {
       // Check if PR already exists
       const exists = await this.prCreator.prExists(branchName);
       if (exists) {
-        if (!interactive) {
+        if (this.shouldLog(interactive)) {
           console.log(`\n✅ Pull request already exists for ${branchName}`);
           console.log(`   View it with: gh pr view ${branchName}`);
         }
@@ -414,7 +384,7 @@ export class PipelineRunner {
         state
       );
 
-      if (!interactive) {
+      if (this.shouldLog(interactive)) {
         console.log(`\n✅ Pull Request created: ${result.url}`);
       }
 
@@ -435,7 +405,7 @@ export class PipelineRunner {
       });
 
     } catch (error) {
-      if (!interactive) {
+      if (this.shouldLog(interactive)) {
         console.error(`\n❌ Failed to create PR: ${error instanceof Error ? error.message : String(error)}`);
         console.log(`   Branch ${branchName} has been pushed to remote.`);
         console.log(`   You can create the PR manually with: gh pr create`);

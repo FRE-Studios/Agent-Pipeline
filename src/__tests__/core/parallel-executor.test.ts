@@ -238,7 +238,7 @@ describe('ParallelExecutor', () => {
           runningPipelineState
         );
 
-        expect(result.executions[0].error?.message).toBe('Unknown error');
+        expect(result.executions[0].error?.message).toBe('string error');
       });
 
       it('should handle errors without stack traces', async () => {

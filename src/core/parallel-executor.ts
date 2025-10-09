@@ -2,6 +2,7 @@
 
 import { AgentStageConfig, StageExecution, PipelineState } from '../config/schema.js';
 import { StageExecutor } from './stage-executor.js';
+import { ErrorFactory } from '../utils/error-factory.js';
 
 export interface ParallelExecutionResult {
   executions: StageExecution[];
@@ -15,6 +16,32 @@ export class ParallelExecutor {
     private stageExecutor: StageExecutor,
     private onStateChange?: (state: PipelineState) => void
   ) {}
+
+  private createStageCallback(
+    stageName: string,
+    onOutputUpdate?: (stageName: string, output: string) => void
+  ): ((output: string) => void) | undefined {
+    return onOutputUpdate
+      ? (output: string) => onOutputUpdate(stageName, output)
+      : undefined;
+  }
+
+  private buildExecutionResult(
+    executions: StageExecution[],
+    startTime: number
+  ): ParallelExecutionResult {
+    const endTime = Date.now();
+    const duration = (endTime - startTime) / 1000;
+    const allSucceeded = executions.every(e => e.status === 'success');
+    const anyFailed = executions.some(e => e.status === 'failed');
+
+    return {
+      executions,
+      allSucceeded,
+      anyFailed,
+      duration
+    };
+  }
 
   /**
    * Execute multiple stages in parallel
@@ -32,10 +59,7 @@ export class ParallelExecutor {
 
     // Create promises for all stages
     const promises = stages.map(async (stageConfig) => {
-      // Create stage-specific output callback
-      const stageOutputCallback = onOutputUpdate
-        ? (output: string) => onOutputUpdate(stageConfig.name, output)
-        : undefined;
+      const stageOutputCallback = this.createStageCallback(stageConfig.name, onOutputUpdate);
 
       return this.stageExecutor.executeStage(
         stageConfig,
@@ -61,28 +85,12 @@ export class ParallelExecutor {
           startTime: new Date().toISOString(),
           endTime: new Date().toISOString(),
           duration: 0,
-          error: {
-            message: result.reason?.message || 'Unknown error',
-            stack: result.reason?.stack,
-            agentPath: stageConfig.agent,
-            timestamp: new Date().toISOString()
-          }
+          error: ErrorFactory.createStageError(result.reason, stageConfig.agent)
         };
       }
     });
 
-    const endTime = Date.now();
-    const duration = (endTime - startTime) / 1000;
-
-    const allSucceeded = executions.every(e => e.status === 'success');
-    const anyFailed = executions.some(e => e.status === 'failed');
-
-    return {
-      executions,
-      allSucceeded,
-      anyFailed,
-      duration
-    };
+    return this.buildExecutionResult(executions, startTime);
   }
 
   /**
@@ -101,9 +109,7 @@ export class ParallelExecutor {
     const executions: StageExecution[] = [];
 
     for (const stageConfig of stages) {
-      const stageOutputCallback = onOutputUpdate
-        ? (output: string) => onOutputUpdate(stageConfig.name, output)
-        : undefined;
+      const stageOutputCallback = this.createStageCallback(stageConfig.name, onOutputUpdate);
 
       const execution = await this.stageExecutor.executeStage(
         stageConfig,
@@ -120,18 +126,7 @@ export class ParallelExecutor {
       }
     }
 
-    const endTime = Date.now();
-    const duration = (endTime - startTime) / 1000;
-
-    const allSucceeded = executions.every(e => e.status === 'success');
-    const anyFailed = executions.some(e => e.status === 'failed');
-
-    return {
-      executions,
-      allSucceeded,
-      anyFailed,
-      duration
-    };
+    return this.buildExecutionResult(executions, startTime);
   }
 
   /**
