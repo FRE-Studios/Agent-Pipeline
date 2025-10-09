@@ -47,7 +47,8 @@ src/
 │   │   ├── analytics.test.ts
 │   │   └── cleanup.test.ts
 │   └── utils/                          # Tests for src/utils/
-│       └── error-factory.test.ts
+│       ├── error-factory.test.ts
+│       └── logger.test.ts
 └── [module-name]/
     └── [module].ts                     # Source files only (no .test.ts)
 ```
@@ -61,7 +62,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (884 tests total, all passing)
+### Completed Test Suites (937 tests total, all passing)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -258,12 +259,25 @@ src/
 - Validates timestamp formatting in ISO format
 - Covers edge cases: unknown errors, missing operations, error without suggestions
 
+**logger.test.ts** - 53 tests
+- Coverage: **100%**
+- Tests LogLevel enum values and ordering (DEBUG=0, INFO=1, WARN=2, ERROR=3)
+- Tests setLevel() method for all log levels
+- Tests debug() method with level filtering and console.debug spy
+- Tests info() method with level filtering and console.log spy
+- Tests warn() method with level filtering and console.warn spy
+- Tests error() method (always logs regardless of level) with console.error spy
+- Tests success() method with level filtering (uses console.log)
+- Validates emoji prefixes (🔍, ℹ️, ⚠️, ❌, ✅)
+- Tests argument passing (objects, arrays, errors, undefined, null)
+- Covers edge cases: rapid level switching, multiple simultaneous calls, very long messages
+
 ### Test Results Summary
 
 ```
-Test Files:  22 passed (22)
-Tests:       884 passed (884 total)
-Duration:    ~700ms
+Test Files:  23 passed (23)
+Tests:       937 passed (937 total)
+Duration:    ~750ms
 
 Coverage Summary (Tested Modules):
 - notification-manager.ts: 100%   ✅
@@ -276,6 +290,7 @@ Coverage Summary (Tested Modules):
 - branch-manager.ts:      100%   ✅
 - git-manager.ts:         100%   ✅
 - error-factory.ts:       100%   ✅
+- logger.ts:              100%   ✅
 - pipeline-analytics.ts:  100%   ✅
 - parallel-executor.ts:   100%   ✅
 - stage-executor.ts:      100%   ✅
@@ -294,10 +309,10 @@ Coverage Summary (Tested Modules):
 
 ```
 All files:     ~58% (improved with notifier tests)
-Tested files:  98%+ average (22 modules with comprehensive coverage)
+Tested files:  98%+ average (23 modules with comprehensive coverage)
 Core modules:  97-100% coverage
 Notification:  100% coverage (notification-manager, base-notifier, local-notifier)
-Utils modules: 100% coverage
+Utils modules: 100% coverage (error-factory, logger)
 ```
 
 ## Running Tests
@@ -552,12 +567,12 @@ mockTimers(): { advance, runAll, restore }
 
 Core Modules (planned):
 - ❌ `notifiers/slack-notifier.ts` - Slack webhook integration (221 lines)
-- ❌ `utils/logger.ts` - Logging utilities (47 lines)
 - ❌ `cli/hooks.ts` - Git hook installer (96 lines)
 - ❌ `utils/pipeline-formatter.ts` - Output formatting utilities (72 lines)
 
 Utilities (completed):
 - ✅ `utils/error-factory.ts` - Error factory with smart suggestions (100% coverage, 26 tests)
+- ✅ `utils/logger.ts` - Logger with emoji formatting (100% coverage, 53 tests)
 - ✅ `utils/errors.ts` - Custom error classes (type-only, no tests needed)
 
 Notifications (completed):
