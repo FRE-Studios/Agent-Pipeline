@@ -23,7 +23,7 @@ export interface PRConfig {
 
 export interface PipelineConfig {
   name: string;
-  trigger: 'post-commit' | 'manual';
+  trigger: 'pre-commit' | 'post-commit' | 'pre-push' | 'post-merge' | 'manual';
 
   // Git workflow settings (optional)
   git?: GitConfig;
@@ -79,7 +79,7 @@ export interface PipelineState {
   runId: string;
   pipelineConfig: PipelineConfig;
   trigger: {
-    type: 'post-commit' | 'manual';
+    type: 'pre-commit' | 'post-commit' | 'pre-push' | 'post-merge' | 'manual';
     commitSha: string;                 // Commit that triggered pipeline
     timestamp: string;
   };

@@ -193,8 +193,20 @@ async function main() {
           process.exit(1);
         }
 
+        // Load pipeline config to get trigger type
+        const loader = new PipelineLoader(repoPath);
+        const config = await loader.loadPipeline(subCommand);
+
+        // Validate that the trigger is not 'manual'
+        if (config.trigger === 'manual') {
+          console.error('❌ Cannot install git hook for manual pipelines.');
+          console.error(`   Pipeline "${subCommand}" has trigger: manual`);
+          console.error(`   Use 'agent-pipeline run ${subCommand}' instead.`);
+          process.exit(1);
+        }
+
         const installer = new HookInstaller(repoPath);
-        await installer.install(subCommand);
+        await installer.install(subCommand, config.trigger);
         break;
       }
 
@@ -299,8 +311,8 @@ Usage:
   agent-pipeline history                           Browse pipeline history (interactive)
   agent-pipeline analytics [options]               Show pipeline analytics
   agent-pipeline test <pipeline-name> [options]    Test pipeline configuration
-  agent-pipeline install <pipeline-name>           Install post-commit git hook
-  agent-pipeline uninstall                         Remove post-commit git hook
+  agent-pipeline install <pipeline-name>           Install git hook (respects pipeline trigger)
+  agent-pipeline uninstall                         Remove all agent-pipeline git hooks
   agent-pipeline rollback [options]                Rollback pipeline commits
   agent-pipeline cleanup [options]                 Clean up pipeline branches
   agent-pipeline init                              Initialize agent-pipeline project

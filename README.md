@@ -199,10 +199,17 @@ node dist/index.js analytics --pipeline <name> --days 30
 ### Git Hook Management
 
 ```bash
-# Install post-commit hook
+# Install git hook (automatically detects trigger type from pipeline config)
 node dist/index.js install <pipeline-name>
 
-# Remove post-commit hook
+# Examples:
+# - Pipeline with trigger: post-commit → installs .git/hooks/post-commit
+# - Pipeline with trigger: pre-commit → installs .git/hooks/pre-commit
+# - Pipeline with trigger: pre-push → installs .git/hooks/pre-push
+# - Pipeline with trigger: post-merge → installs .git/hooks/post-merge
+# - Pipeline with trigger: manual → ERROR (cannot install hook for manual pipelines)
+
+# Remove all agent-pipeline git hooks
 node dist/index.js uninstall
 ```
 
@@ -259,7 +266,7 @@ node dist/index.js test <pipeline-name> --notifications
 
 ```yaml
 name: commit-review
-trigger: post-commit  # or 'manual'
+trigger: post-commit  # pre-commit, post-commit, pre-push, post-merge, or manual
 
 settings:
   autoCommit: true
@@ -374,7 +381,12 @@ Both methods work. Tool-based preserves data types and handles complex structure
 #### Pipeline Settings
 
 - **name**: Unique pipeline identifier
-- **trigger**: When to run (`manual` or `post-commit`)
+- **trigger**: When to run the pipeline:
+  - `pre-commit` - Run before commits (validation, linting, formatting)
+  - `post-commit` - Run after commits (code review, quality checks)
+  - `pre-push` - Run before pushing (integration tests, security scans)
+  - `post-merge` - Run after merging (cleanup, documentation updates, deployment prep)
+  - `manual` - Only run via CLI command (no git hook)
 - **settings.autoCommit**: Auto-commit agent changes (default: true)
 - **settings.commitPrefix**: Commit message prefix template
 - **settings.failureStrategy**: How to handle failures (`stop`, `continue`, `warn`)
@@ -794,6 +806,77 @@ agents:
 4. Auto-commits all changes to the branch
 5. Creates a GitHub PR with reviewers and labels
 6. Sends desktop + Slack notifications with PR link
+
+### Post-Merge Cleanup Pipeline
+
+Automated cleanup and maintenance after merging code:
+
+```yaml
+name: post-merge-cleanup
+trigger: post-merge
+
+git:
+  baseBranch: main
+  branchStrategy: reusable
+  pullRequest:
+    autoCreate: true
+    title: "🧹 Post-Merge Cleanup - {{pipelineName}}"
+    labels:
+      - automated
+      - cleanup
+
+notifications:
+  enabled: true
+  events:
+    - pipeline.completed
+    - pipeline.failed
+  channels:
+    local:
+      enabled: true
+
+settings:
+  autoCommit: true
+  commitPrefix: "[cleanup:{{stage}}]"
+  failureStrategy: continue
+  executionMode: parallel
+
+agents:
+  # Run cleanup tasks in parallel
+  - name: doc-sync
+    agent: .claude/agents/doc-updater.md
+    outputs: [files_updated, sections_added]
+
+  - name: dependency-audit
+    agent: .claude/agents/dependency-auditor.md
+    outputs: [outdated_count, security_issues]
+
+  - name: code-consolidation
+    agent: .claude/agents/code-reducer.md
+    outputs: [duplicates_found, files_merged]
+
+  # Generate summary report after all cleanup completes
+  - name: summary-report
+    agent: .claude/agents/cleanup-reporter.md
+    dependsOn:
+      - doc-sync
+      - dependency-audit
+      - code-consolidation
+```
+
+**Perfect for:**
+- 📝 Syncing documentation after feature merges
+- 🔒 Auditing dependencies for security issues
+- 🧹 Consolidating duplicate code
+- 📦 Updating lock files
+- 🚀 Deployment preparation
+- 🏷️ Tagging releases
+
+**Install the hook:**
+```bash
+node dist/index.js install post-merge-cleanup
+```
+
+Now every time you merge a branch, the cleanup pipeline runs automatically!
 
 ## Development
 

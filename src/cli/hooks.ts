@@ -6,8 +6,8 @@ import * as path from 'path';
 export class HookInstaller {
   constructor(private repoPath: string) {}
 
-  async install(pipelineName: string): Promise<void> {
-    const hookPath = path.join(this.repoPath, '.git', 'hooks', 'post-commit');
+  async install(pipelineName: string, hookType: string): Promise<void> {
+    const hookPath = path.join(this.repoPath, '.git', 'hooks', hookType);
 
     // Check if hook already exists
     let existingHook = '';
@@ -20,68 +20,102 @@ export class HookInstaller {
     // Generate hook script
     const hookScript = this.generateHookScript(pipelineName);
 
+    // Check if this specific pipeline is already installed in this hook
+    const hookMarker = `# Agent Pipeline (${hookType}): ${pipelineName}`;
+
     if (existingHook) {
       // Check if already installed
-      if (existingHook.includes('agent-pipeline')) {
-        console.log('⚠️  Agent Pipeline hook already installed');
+      if (existingHook.includes(hookMarker)) {
+        console.log(`⚠️  Agent Pipeline already installed for ${pipelineName} on ${hookType}`);
         return;
       }
 
       // Append to existing hook
-      const combinedHook = `${existingHook}\n\n# Agent Pipeline\n${hookScript}`;
+      const combinedHook = `${existingHook}\n\n${hookMarker}\n${hookScript}`;
       await fs.writeFile(hookPath, combinedHook, 'utf-8');
     } else {
       // Create new hook
-      await fs.writeFile(hookPath, `#!/bin/bash\n\n${hookScript}`, 'utf-8');
+      await fs.writeFile(hookPath, `#!/bin/bash\n\n${hookMarker}\n${hookScript}`, 'utf-8');
     }
 
     // Make executable
     await fs.chmod(hookPath, 0o755);
 
-    console.log('✅ Post-commit hook installed');
+    console.log(`✅ ${hookType} hook installed`);
     console.log(`   Pipeline: ${pipelineName}`);
-    console.log(`   Hook: .git/hooks/post-commit`);
+    console.log(`   Hook: .git/hooks/${hookType}`);
   }
 
-  async uninstall(): Promise<void> {
-    const hookPath = path.join(this.repoPath, '.git', 'hooks', 'post-commit');
+  async uninstall(hookType?: string): Promise<void> {
+    // If hookType specified, only uninstall from that hook
+    // Otherwise, check all common hook types
+    const hookTypes = hookType
+      ? [hookType]
+      : ['pre-commit', 'post-commit', 'pre-push', 'post-merge'];
 
-    try {
-      const content = await fs.readFile(hookPath, 'utf-8');
+    let uninstalledCount = 0;
 
-      // Remove agent-pipeline section
-      const lines = content.split('\n');
-      const filtered = [];
-      let inPipelineSection = false;
+    for (const type of hookTypes) {
+      const hookPath = path.join(this.repoPath, '.git', 'hooks', type);
 
-      for (const line of lines) {
-        if (line.includes('# Agent Pipeline')) {
-          inPipelineSection = true;
-          continue;
+      try {
+        const content = await fs.readFile(hookPath, 'utf-8');
+
+        // Remove agent-pipeline sections
+        const lines = content.split('\n');
+        const filtered = [];
+        let inPipelineSection = false;
+        let blankLineCount = 0;
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+
+          if (line.includes('# Agent Pipeline')) {
+            inPipelineSection = true;
+            blankLineCount = 0;
+            continue;
+          }
+
+          if (inPipelineSection) {
+            if (line.trim() === '') {
+              blankLineCount++;
+              // End section after 2 consecutive blank lines or if at end of file
+              if (blankLineCount >= 2 || i === lines.length - 1) {
+                inPipelineSection = false;
+                blankLineCount = 0;
+              }
+              continue;
+            } else {
+              // Non-blank line, reset blank counter and skip
+              blankLineCount = 0;
+              continue;
+            }
+          }
+
+          filtered.push(line);
         }
-        if (inPipelineSection && line.trim() === '') {
-          inPipelineSection = false;
-          continue;
+
+        const newContent = filtered.join('\n').trim();
+
+        if (newContent === '#!/bin/bash' || !newContent) {
+          // Hook only had agent-pipeline, remove it
+          await fs.unlink(hookPath);
+          console.log(`✅ ${type} hook removed (was only agent-pipeline)`);
+          uninstalledCount++;
+        } else {
+          // Other hooks exist, just remove our section
+          await fs.writeFile(hookPath, newContent, 'utf-8');
+          console.log(`✅ Agent Pipeline section removed from ${type} hook`);
+          uninstalledCount++;
         }
-        if (inPipelineSection) {
-          continue;
-        }
-        filtered.push(line);
+      } catch (error) {
+        // Hook doesn't exist or can't be read, skip silently
+        continue;
       }
+    }
 
-      const newContent = filtered.join('\n').trim();
-
-      if (newContent === '#!/bin/bash' || !newContent) {
-        // Hook only had agent-pipeline, remove it
-        await fs.unlink(hookPath);
-        console.log('✅ Hook removed (was only agent-pipeline)');
-      } else {
-        // Other hooks exist, just remove our section
-        await fs.writeFile(hookPath, newContent, 'utf-8');
-        console.log('✅ Agent Pipeline section removed from hook');
-      }
-    } catch (error) {
-      console.log('ℹ️  No hook found to uninstall');
+    if (uninstalledCount === 0) {
+      console.log('ℹ️  No Agent Pipeline hooks found to uninstall');
     }
   }
 
