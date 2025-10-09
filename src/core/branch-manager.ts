@@ -1,13 +1,18 @@
 // src/core/branch-manager.ts
 
 import { GitManager } from './git-manager.js';
+import { ErrorFactory } from '../utils/error-factory.js';
 
 export type BranchStrategy = 'reusable' | 'unique-per-run';
 
+/**
+ * Manages git branch workflows for pipeline isolation.
+ * Extends GitManager with branch-specific operations.
+ */
 export class BranchManager extends GitManager {
   /**
-   * Setup pipeline branch for execution
-   * Creates new branch or switches to existing one, pulls latest from base
+   * Setup pipeline branch for execution.
+   * Creates new branch or switches to existing one, pulls latest from base.
    */
   async setupPipelineBranch(
     pipelineName: string,
@@ -75,19 +80,34 @@ export class BranchManager extends GitManager {
   }
 
   /**
-   * Push branch to remote
+   * Push branch to remote with error handling.
    */
   async pushBranch(branchName: string): Promise<void> {
     console.log(`⬆️  Pushing ${branchName} to remote...`);
-    await this.push(['-u', 'origin', branchName]);
+    try {
+      await this.push(['-u', 'origin', branchName]);
+    } catch (error) {
+      const gitError = ErrorFactory.createGitError(error, 'push');
+      throw new Error(
+        `Failed to push branch ${branchName}: ${gitError.message}\n` +
+        (gitError.suggestion ? `Suggestion: ${gitError.suggestion}` : '')
+      );
+    }
   }
 
   /**
-   * Get current branch name
+   * Get current branch name.
+   * Throws if not on a branch (detached HEAD).
    */
   async getCurrentBranch(): Promise<string> {
     const status = await this.git.status();
-    return status.current || '';
+    if (!status.current) {
+      throw new Error(
+        'Not currently on a branch (detached HEAD state). ' +
+        'Checkout a branch before running pipeline.'
+      );
+    }
+    return status.current;
   }
 
   /**

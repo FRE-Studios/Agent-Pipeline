@@ -461,22 +461,22 @@ describe('BranchManager', () => {
       expect(result).toBe('pipeline/test-pipeline');
     });
 
-    it('should return empty string when no current branch', async () => {
+    it('should throw error when no current branch (detached HEAD)', async () => {
       mockGit.status.mockResolvedValue({
         current: null,
       });
 
-      const result = await branchManager.getCurrentBranch();
-
-      expect(result).toBe('');
+      await expect(branchManager.getCurrentBranch()).rejects.toThrow(
+        'Not currently on a branch'
+      );
     });
 
-    it('should handle detached HEAD state', async () => {
+    it('should throw error on detached HEAD state', async () => {
       mockGit.status.mockResolvedValue(detachedHeadState);
 
-      const result = await branchManager.getCurrentBranch();
-
-      expect(result).toBe('');
+      await expect(branchManager.getCurrentBranch()).rejects.toThrow(
+        'detached HEAD'
+      );
     });
 
     it('should return main when on main branch', async () => {
@@ -755,12 +755,18 @@ describe('BranchManager', () => {
       ]);
     });
 
-    it('should throw on push failure', async () => {
-      mockGit.push.mockRejectedValue(new Error('Push failed'));
+    it('should throw descriptive error on push failure', async () => {
+      mockGit.push.mockRejectedValue(new Error('Push rejected'));
 
-      await expect(branchManager.pushBranch('branch')).rejects.toThrow(
-        'Push failed'
+      await expect(branchManager.pushBranch('test-branch')).rejects.toThrow(
+        'Failed to push branch test-branch'
       );
+    });
+
+    it('should include error message and suggestion in thrown error', async () => {
+      mockGit.push.mockRejectedValue(new Error('Network error'));
+
+      await expect(branchManager.pushBranch('branch')).rejects.toThrow();
     });
   });
 

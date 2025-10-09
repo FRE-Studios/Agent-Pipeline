@@ -1,7 +1,12 @@
 // src/core/git-manager.ts
 
 import { simpleGit, SimpleGit } from 'simple-git';
+import { ErrorFactory } from '../utils/error-factory.js';
 
+/**
+ * Manages git operations for pipeline execution.
+ * Wraps simple-git with error handling and pipeline-specific workflows.
+ */
 export class GitManager {
   protected git: SimpleGit;
 
@@ -15,12 +20,24 @@ export class GitManager {
   }
 
   async getChangedFiles(commitSha: string): Promise<string[]> {
-    const diff = await this.git.diff([
-      '--name-only',
-      `${commitSha}^`,
-      commitSha
-    ]);
-    return diff.split('\n').filter(Boolean);
+    try {
+      const diff = await this.git.diff([
+        '--name-only',
+        `${commitSha}^`,
+        commitSha
+      ]);
+      return diff.split('\n').filter(Boolean);
+    } catch (error) {
+      const gitError = ErrorFactory.createGitError(error, 'diff');
+
+      if (gitError.message.includes('ambiguous argument') ||
+          gitError.message.includes('unknown revision')) {
+        const allFiles = await this.git.raw(['ls-tree', '--name-only', '-r', commitSha]);
+        return allFiles.split('\n').filter(Boolean);
+      }
+
+      throw new Error(gitError.suggestion || gitError.message);
+    }
   }
 
   async hasUncommittedChanges(): Promise<boolean> {
@@ -36,7 +53,11 @@ export class GitManager {
     message: string,
     metadata: Record<string, string>
   ): Promise<string> {
-    // Add metadata as git trailers
+    const status = await this.git.status();
+    if (status.staged.length === 0) {
+      throw new Error('No staged changes to commit. Stage changes with git.add() first.');
+    }
+
     const trailers = Object.entries(metadata)
       .map(([key, value]) => `${key}: ${value}`)
       .join('\n');
@@ -47,13 +68,17 @@ export class GitManager {
     return this.getCurrentCommit();
   }
 
+  /**
+   * Creates a pipeline commit with metadata trailers.
+   * Auto-stages all changes before committing.
+   */
   async createPipelineCommit(
     stageName: string,
     runId: string,
     customMessage?: string
   ): Promise<string> {
     if (!(await this.hasUncommittedChanges())) {
-      return ''; // No changes to commit
+      return '';
     }
 
     await this.stageAllChanges();

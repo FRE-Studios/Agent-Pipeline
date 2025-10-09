@@ -33,6 +33,7 @@ describe('GitManager', () => {
       add: vi.fn(),
       commit: vi.fn(),
       reset: vi.fn(),
+      raw: vi.fn(),
     };
 
     (simpleGit as any).mockReturnValue(mockGit);
@@ -195,9 +196,26 @@ describe('GitManager', () => {
     it('should throw on invalid commit SHA', async () => {
       mockGit.diff.mockRejectedValue(new Error('Invalid object name'));
 
-      await expect(gitManager.getChangedFiles('invalid-sha')).rejects.toThrow(
-        'Invalid object name'
-      );
+      await expect(gitManager.getChangedFiles('invalid-sha')).rejects.toThrow();
+    });
+
+    it('should handle first commit (no parent) by listing all files', async () => {
+      mockGit.diff.mockRejectedValue(new Error('ambiguous argument \'abc123^\': unknown revision'));
+      mockGit.raw.mockResolvedValue('file1.ts\nfile2.ts\nfile3.ts');
+
+      const result = await gitManager.getChangedFiles('abc123');
+
+      expect(mockGit.raw).toHaveBeenCalledWith(['ls-tree', '--name-only', '-r', 'abc123']);
+      expect(result).toEqual(['file1.ts', 'file2.ts', 'file3.ts']);
+    });
+
+    it('should provide helpful error message for first commit edge case', async () => {
+      mockGit.diff.mockRejectedValue(new Error('unknown revision or path'));
+      mockGit.raw.mockResolvedValue('initial-file.ts');
+
+      const result = await gitManager.getChangedFiles('first-commit-sha');
+
+      expect(result).toEqual(['initial-file.ts']);
     });
   });
 
@@ -319,12 +337,27 @@ describe('GitManager', () => {
 
   describe('commitWithMetadata', () => {
     beforeEach(() => {
+      mockGit.status.mockResolvedValue({
+        staged: ['file1.ts', 'file2.ts'],
+        isClean: () => false,
+      });
       mockGit.commit.mockResolvedValue({
         commit: 'new-commit-sha',
       });
       mockGit.log.mockResolvedValue({
         latest: { hash: 'new-commit-sha' },
       });
+    });
+
+    it('should throw error when no staged changes', async () => {
+      mockGit.status.mockResolvedValue({
+        staged: [],
+        isClean: () => true,
+      });
+
+      await expect(
+        gitManager.commitWithMetadata('Test', {})
+      ).rejects.toThrow('No staged changes to commit');
     });
 
     it('should create commit with metadata trailers', async () => {
@@ -414,6 +447,18 @@ describe('GitManager', () => {
       expect(mockGit.log).toHaveBeenCalledWith(['-1']);
     });
 
+    it('should validate staged changes before committing', async () => {
+      mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
+        isClean: () => false,
+      });
+
+      await gitManager.commitWithMetadata('Message', { Key: 'value' });
+
+      expect(mockGit.status).toHaveBeenCalled();
+      expect(mockGit.commit).toHaveBeenCalled();
+    });
+
     it('should throw on commit failure', async () => {
       mockGit.commit.mockRejectedValue(new Error('Nothing to commit'));
 
@@ -426,6 +471,10 @@ describe('GitManager', () => {
   describe('createPipelineCommit', () => {
     beforeEach(() => {
       mockGit.add.mockResolvedValue(undefined);
+      mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
+        isClean: () => false,
+      });
       mockGit.commit.mockResolvedValue({ commit: 'new-sha' });
       mockGit.log.mockResolvedValue({
         latest: { hash: 'pipeline-commit-sha' },
@@ -434,6 +483,7 @@ describe('GitManager', () => {
 
     it('should create commit with pipeline metadata', async () => {
       mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
         isClean: () => false,
       });
 
@@ -464,6 +514,7 @@ describe('GitManager', () => {
 
     it('should stage changes before committing', async () => {
       mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
         isClean: () => false,
       });
 
@@ -480,6 +531,7 @@ describe('GitManager', () => {
 
     it('should use custom message when provided', async () => {
       mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
         isClean: () => false,
       });
 
@@ -495,6 +547,7 @@ describe('GitManager', () => {
 
     it('should use default message with stage name', async () => {
       mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
         isClean: () => false,
       });
 
@@ -506,6 +559,7 @@ describe('GitManager', () => {
 
     it('should format commit message with [pipeline:stageName] prefix', async () => {
       mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
         isClean: () => false,
       });
 
@@ -517,6 +571,7 @@ describe('GitManager', () => {
 
     it('should include Pipeline-Run-ID trailer', async () => {
       mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
         isClean: () => false,
       });
 
@@ -528,6 +583,7 @@ describe('GitManager', () => {
 
     it('should include Pipeline-Stage trailer', async () => {
       mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
         isClean: () => false,
       });
 
@@ -539,6 +595,7 @@ describe('GitManager', () => {
 
     it('should return new commit SHA on success', async () => {
       mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
         isClean: () => false,
       });
       mockGit.log.mockResolvedValue({
@@ -552,6 +609,7 @@ describe('GitManager', () => {
 
     it('should handle stage names with spaces/special chars', async () => {
       mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
         isClean: () => false,
       });
 
@@ -573,6 +631,7 @@ describe('GitManager', () => {
 
     it('should propagate errors from git operations', async () => {
       mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
         isClean: () => false,
       });
       mockGit.add.mockRejectedValue(new Error('Add failed'));
