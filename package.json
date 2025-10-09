@@ -1,7 +1,7 @@
 {
   "name": "agent-pipeline",
-  "version": "0.1.0",
-  "description": "Sequential agent execution pipeline with state management and git integration",
+  "version": "1.0.0",
+  "description": "Intelligent agent orchestration with parallel execution, conditional logic, git workflow automation, and multi-channel notifications for Claude Code",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -11,18 +11,39 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "vitest",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "license",
+    "CLAUDE.md"
+  ],
   "keywords": [
     "agent",
     "pipeline",
     "claude",
     "ai",
     "automation",
-    "git"
+    "git",
+    "ci-cd",
+    "workflow",
+    "orchestration",
+    "parallel-execution",
+    "dag",
+    "notifications"
   ],
-  "author": "",
+  "author": "Fernando Rojas <fernando@fre-studios.com> (https://fre-studios.com/)",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FRE-Studios/agent-pipeline.git"
+  },
+  "homepage": "https://github.com/FRE-Studios/agent-pipeline#readme",
+  "bugs": {
+    "url": "https://github.com/FRE-Studios/agent-pipeline/issues"
+  },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",
     "@types/node-notifier": "^8.0.5",

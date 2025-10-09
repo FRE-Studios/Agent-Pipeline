@@ -64,8 +64,10 @@ npm run build
 # Watch mode for development
 npm run dev
 
-# Run CLI (after build)
+# Run CLI in development (after build)
 node dist/index.js <command>
+# OR after npm link:
+agent-pipeline <command>
 ```
 
 ## Test Commands

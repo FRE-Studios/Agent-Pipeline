@@ -63,9 +63,20 @@ An agent CI/CD pipeline for intelligent, multi-stage workflows with full visibil
 
 ## Installation
 
+### npm (Recommended)
+
 ```bash
+npm install -g agent-pipeline
+```
+
+### From Source
+
+```bash
+git clone https://github.com/FRE-Studios/agent-pipeline.git
+cd agent-pipeline
 npm install
 npm run build
+npm link
 ```
 
 ## Quick Start
@@ -74,7 +85,7 @@ npm run build
 
 ```bash
 # Initialize with example pipelines and agents
-node dist/index.js init
+agent-pipeline init
 ```
 
 This creates:
@@ -86,7 +97,7 @@ This creates:
 
 ```bash
 # Run with interactive live UI (default)
-node dist/index.js run example-pipeline
+agent-pipeline run example-pipeline
 ```
 
 **What you'll see:**
@@ -99,23 +110,23 @@ node dist/index.js run example-pipeline
 
 ```bash
 # Browse past runs interactively (use arrow keys, Enter to view details)
-node dist/index.js history
+agent-pipeline history
 
 # View performance metrics and analytics
-node dist/index.js analytics
+agent-pipeline analytics
 ```
 
 ### 4. Try Advanced Features
 
 ```bash
 # Parallel execution with DAG dependencies
-node dist/index.js run parallel-example
+agent-pipeline run parallel-example
 
 # Conditional logic based on previous stage outputs
-node dist/index.js run conditional-example
+agent-pipeline run conditional-example
 
 # Git workflow with branch isolation and PR creation
-node dist/index.js run git-workflow-example
+agent-pipeline run git-workflow-example
 ```
 
 ---
@@ -162,7 +173,7 @@ Review the code changes and provide feedback...
 #### 3. Run the Pipeline
 
 ```bash
-node dist/index.js run my-pipeline
+agent-pipeline run my-pipeline
 ```
 
 ## CLI Commands
@@ -171,36 +182,36 @@ node dist/index.js run my-pipeline
 
 ```bash
 # Initialize a new project
-node dist/index.js init
+agent-pipeline init
 
 # List available pipelines
-node dist/index.js list
+agent-pipeline list
 
 # Run a specific pipeline (interactive UI by default)
-node dist/index.js run <pipeline-name>
+agent-pipeline run <pipeline-name>
 
 # Run in dry-run mode (no commits)
-node dist/index.js run <pipeline-name> --dry-run
+agent-pipeline run <pipeline-name> --dry-run
 
 # Run with console output only (disable live UI)
-node dist/index.js run <pipeline-name> --no-interactive
+agent-pipeline run <pipeline-name> --no-interactive
 
 # Check status of last run
-node dist/index.js status
+agent-pipeline status
 
 # Browse pipeline history (interactive)
-node dist/index.js history
+agent-pipeline history
 
 # View analytics
-node dist/index.js analytics
-node dist/index.js analytics --pipeline <name> --days 30
+agent-pipeline analytics
+agent-pipeline analytics --pipeline <name> --days 30
 ```
 
 ### Git Hook Management
 
 ```bash
 # Install git hook (automatically detects trigger type from pipeline config)
-node dist/index.js install <pipeline-name>
+agent-pipeline install <pipeline-name>
 
 # Examples:
 # - Pipeline with trigger: post-commit → installs .git/hooks/post-commit
@@ -210,54 +221,54 @@ node dist/index.js install <pipeline-name>
 # - Pipeline with trigger: manual → ERROR (cannot install hook for manual pipelines)
 
 # Remove all agent-pipeline git hooks
-node dist/index.js uninstall
+agent-pipeline uninstall
 ```
 
 ### Rollback
 
 ```bash
 # Rollback entire pipeline
-node dist/index.js rollback
+agent-pipeline rollback
 
 # Rollback specific number of stages
-node dist/index.js rollback --stages 2
+agent-pipeline rollback --stages 2
 
 # Rollback specific run by ID
-node dist/index.js rollback --run-id <uuid>
+agent-pipeline rollback --run-id <uuid>
 ```
 
 ### Git Workflow & PR Management
 
 ```bash
 # Run with PR creation (if configured in pipeline)
-node dist/index.js run <pipeline-name>
+agent-pipeline run <pipeline-name>
 
 # Skip PR creation even if configured
-node dist/index.js run <pipeline-name> --no-pr
+agent-pipeline run <pipeline-name> --no-pr
 
 # Override base branch for PR
-node dist/index.js run <pipeline-name> --base-branch develop
+agent-pipeline run <pipeline-name> --base-branch develop
 
 # Create PR as draft
-node dist/index.js run <pipeline-name> --pr-draft
+agent-pipeline run <pipeline-name> --pr-draft
 
 # Open PR in browser for editing
-node dist/index.js run <pipeline-name> --pr-web
+agent-pipeline run <pipeline-name> --pr-web
 
 # Clean up old pipeline branches
-node dist/index.js cleanup
-node dist/index.js cleanup --pipeline <name>
-node dist/index.js cleanup --force
+agent-pipeline cleanup
+agent-pipeline cleanup --pipeline <name>
+agent-pipeline cleanup --force
 ```
 
 ### Notifications
 
 ```bash
 # Run without notifications (even if configured)
-node dist/index.js run <pipeline-name> --no-notifications
+agent-pipeline run <pipeline-name> --no-notifications
 
 # Test notification configuration
-node dist/index.js test <pipeline-name> --notifications
+agent-pipeline test <pipeline-name> --notifications
 ```
 
 ## Pipeline Configuration
@@ -873,7 +884,7 @@ agents:
 
 **Install the hook:**
 ```bash
-node dist/index.js install post-merge-cleanup
+agent-pipeline install post-merge-cleanup
 ```
 
 Now every time you merge a branch, the cleanup pipeline runs automatically!

@@ -1,0 +1,44 @@
+# Source files (we ship the built dist/ folder)
+src/
+
+# Tests and coverage
+__tests__/
+*.test.ts
+coverage/
+.vitest-cache/
+vitest.config.ts
+TESTING.md
+
+# Build config
+tsconfig.json
+
+# Development documentation
+overview.md
+agent-pipeline-plan.md
+
+# Example state and pipelines (users create their own)
+.agent-pipeline/
+.claude/
+.gemini/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+.tmp/
+*.log
+
+# Dependencies (npm handles this but be explicit)
+node_modules/
