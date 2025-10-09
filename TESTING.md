@@ -61,7 +61,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (824 tests total, all passing)
+### Completed Test Suites (884 tests total, all passing)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -261,12 +261,14 @@ src/
 ### Test Results Summary
 
 ```
-Test Files:  20 passed (20)
-Tests:       824 passed (824 total)
-Duration:    ~650ms
+Test Files:  22 passed (22)
+Tests:       884 passed (884 total)
+Duration:    ~700ms
 
 Coverage Summary (Tested Modules):
 - notification-manager.ts: 100%   ✅
+- base-notifier.ts:       100%   ✅
+- local-notifier.ts:      100%   ✅
 - init.ts:                100%   ✅
 - rollback.ts:            100%   ✅
 - analytics.ts:           100%   ✅
@@ -291,10 +293,10 @@ Coverage Summary (Tested Modules):
 ### Overall Project Coverage
 
 ```
-All files:     ~55% (improved with notification-manager tests)
-Tested files:  98%+ average (20 modules with comprehensive coverage)
+All files:     ~58% (improved with notifier tests)
+Tested files:  98%+ average (22 modules with comprehensive coverage)
 Core modules:  97-100% coverage
-Notification:  100% coverage (notification-manager)
+Notification:  100% coverage (notification-manager, base-notifier, local-notifier)
 Utils modules: 100% coverage
 ```
 
@@ -523,20 +525,45 @@ mockTimers(): { advance, runAll, restore }
 - Tests notification contexts (pipeline states, stages, PR URLs)
 - Handles edge cases (undefined config, empty events, no channels)
 
+**base-notifier.test.ts** - 20 tests
+- Coverage: **100%**
+- Tests formatDuration() method (seconds, minutes, large durations, edge cases)
+- Tests getStatusEmoji() for all status types (completed, success, failed, running, skipped, default)
+- Validates protected method functionality through concrete test implementation
+- Tests abstract class contract (channel property, send/isConfigured methods)
+
+**local-notifier.test.ts** - 40 tests
+- Coverage: **100%**
+- Tests constructor with various configuration options (sound, openUrl)
+- Tests isConfigured() always returns true
+- Tests all 6 event types with proper notification building:
+  - pipeline.started: Basic notification
+  - pipeline.completed: Duration formatting, PR URL with openUrl
+  - pipeline.failed: Failed stage information, unknown stage handling
+  - stage.completed: Duration formatting for stages
+  - stage.failed: Error message handling, unknown error fallback
+  - pr.created: PR URL with openUrl configuration
+- Tests notification properties (sound, wait, timeout, appName)
+- Tests error handling (node-notifier errors, Error objects, strings)
+- Tests integration with BaseNotifier (formatDuration usage)
+- Tests edge cases (zero duration, missing error messages, unknown events)
+
 ### Pending Test Coverage
 
 Core Modules (planned):
-- ❌ `notifiers/base-notifier.ts` - Base notification class (55% coverage via notification-manager tests)
-- ❌ `notifiers/slack-notifier.ts` - Slack webhook integration
-- ❌ `notifiers/local-notifier.ts` - Desktop notifications
-- ❌ `utils/logger.ts` - Logging utilities
-- ❌ `cli/hooks.ts` - Git hook installer
-- ❌ `utils/pipeline-formatter.ts` - Output formatting utilities
+- ❌ `notifiers/slack-notifier.ts` - Slack webhook integration (221 lines)
+- ❌ `utils/logger.ts` - Logging utilities (47 lines)
+- ❌ `cli/hooks.ts` - Git hook installer (96 lines)
+- ❌ `utils/pipeline-formatter.ts` - Output formatting utilities (72 lines)
 
 Utilities (completed):
 - ✅ `utils/error-factory.ts` - Error factory with smart suggestions (100% coverage, 26 tests)
 - ✅ `utils/errors.ts` - Custom error classes (type-only, no tests needed)
+
+Notifications (completed):
 - ✅ `notification-manager.ts` - Notification orchestration (100% coverage, 41 tests)
+- ✅ `notifiers/base-notifier.ts` - Abstract base class (100% coverage, 20 tests)
+- ✅ `notifiers/local-notifier.ts` - Desktop notifications (100% coverage, 40 tests)
 
 ### Type-Only Files (no tests needed): 
 - `config/schema.ts` - Type definitions for pipeline configuration
