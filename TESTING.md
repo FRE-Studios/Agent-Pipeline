@@ -48,7 +48,8 @@ src/
 │   │   └── cleanup.test.ts
 │   └── utils/                          # Tests for src/utils/
 │       ├── error-factory.test.ts
-│       └── logger.test.ts
+│       ├── logger.test.ts
+│       └── pipeline-formatter.test.ts
 └── [module-name]/
     └── [module].ts                     # Source files only (no .test.ts)
 ```
@@ -62,7 +63,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (937 tests total, all passing)
+### Completed Test Suites (985 tests total, all passing)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -272,11 +273,23 @@ src/
 - Tests argument passing (objects, arrays, errors, undefined, null)
 - Covers edge cases: rapid level switching, multiple simultaneous calls, very long messages
 
+**pipeline-formatter.test.ts** - 48 tests
+- Coverage: **100%**
+- Tests getStatusEmoji() method with all status types (running, success, completed, failed, skipped, pending, partial, unknown)
+- Tests formatSummary() for complete pipeline output (status, duration, commits, PR URL, stages list)
+- Validates output structure (separators, headers, uppercase status, decimal precision)
+- Tests formatStageInfo() for individual stage formatting (emoji, name, duration, commit, error)
+- Validates tree structure symbols (└─) and multi-line error messages
+- Tests formatRetryInfo() for retry attempt display (1/3, 2/3, etc.)
+- Validates optional fields handling (no duration, no commit, no error)
+- Tests edge cases (zero duration treated as falsy, negative retry attempts, very long names, empty arrays)
+- Covers all status variations (success, failed, skipped) with correct emoji display
+
 ### Test Results Summary
 
 ```
-Test Files:  23 passed (23)
-Tests:       937 passed (937 total)
+Test Files:  24 passed (24)
+Tests:       985 passed (985 total)
 Duration:    ~750ms
 
 Coverage Summary (Tested Modules):
@@ -291,6 +304,7 @@ Coverage Summary (Tested Modules):
 - git-manager.ts:         100%   ✅
 - error-factory.ts:       100%   ✅
 - logger.ts:              100%   ✅
+- pipeline-formatter.ts:  100%   ✅
 - pipeline-analytics.ts:  100%   ✅
 - parallel-executor.ts:   100%   ✅
 - stage-executor.ts:      100%   ✅
@@ -308,11 +322,11 @@ Coverage Summary (Tested Modules):
 ### Overall Project Coverage
 
 ```
-All files:     ~58% (improved with notifier tests)
-Tested files:  98%+ average (23 modules with comprehensive coverage)
+All files:     ~58% (improved with notifier and formatter tests)
+Tested files:  98%+ average (24 modules with comprehensive coverage)
 Core modules:  97-100% coverage
 Notification:  100% coverage (notification-manager, base-notifier, local-notifier)
-Utils modules: 100% coverage (error-factory, logger)
+Utils modules: 100% coverage (error-factory, logger, pipeline-formatter)
 ```
 
 ## Running Tests
@@ -568,11 +582,11 @@ mockTimers(): { advance, runAll, restore }
 Core Modules (planned):
 - ❌ `notifiers/slack-notifier.ts` - Slack webhook integration (221 lines)
 - ❌ `cli/hooks.ts` - Git hook installer (96 lines)
-- ❌ `utils/pipeline-formatter.ts` - Output formatting utilities (72 lines)
 
 Utilities (completed):
 - ✅ `utils/error-factory.ts` - Error factory with smart suggestions (100% coverage, 26 tests)
 - ✅ `utils/logger.ts` - Logger with emoji formatting (100% coverage, 53 tests)
+- ✅ `utils/pipeline-formatter.ts` - Output formatting utilities (100% coverage, 48 tests)
 - ✅ `utils/errors.ts` - Custom error classes (type-only, no tests needed)
 
 Notifications (completed):
