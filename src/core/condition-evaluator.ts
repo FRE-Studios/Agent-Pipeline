@@ -2,6 +2,15 @@
 
 import { PipelineState } from '../config/schema.js';
 
+interface EvaluationContext {
+  stages: Record<string, {
+    status: string;
+    outputs: Record<string, unknown>;
+    duration?: number;
+    commitSha?: string;
+  }>;
+}
+
 export class ConditionEvaluator {
   /**
    * Evaluate a condition expression against pipeline state
@@ -41,8 +50,8 @@ export class ConditionEvaluator {
   /**
    * Build context object with access to pipeline state
    */
-  private buildContext(state: PipelineState): Record<string, any> {
-    const context: Record<string, any> = {
+  private buildContext(state: PipelineState): EvaluationContext {
+    const context: EvaluationContext = {
       stages: {}
     };
 
@@ -65,19 +74,19 @@ export class ConditionEvaluator {
    * Evaluate expression using safe evaluation
    * Supports: comparison operators, logical operators, property access
    */
-  private evaluateExpression(expression: string, context: Record<string, any>): boolean {
+  private evaluateExpression(expression: string, context: EvaluationContext): boolean {
     // Replace property access with safe navigation
     let safeExpression = expression;
 
     // Find all property access patterns (e.g., stages.code-review.outputs.issues)
-    const propertyPattern = /stages\.[\w-]+(?:\.[\w-]+)*/g;
+    const propertyPattern = /stages\.[\w\-]+(?:\.[\w\-]+)*/g;
     const properties = expression.match(propertyPattern) || [];
 
     for (const prop of properties) {
       const value = this.resolveProperty(prop, context);
       // Replace property with its value (as JSON string to preserve type)
       safeExpression = safeExpression.replace(
-        new RegExp(prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+        new RegExp(this.escapeRegExp(prop), 'g'),
         JSON.stringify(value)
       );
     }
@@ -90,7 +99,7 @@ export class ConditionEvaluator {
   /**
    * Resolve property path like "stages.code-review.outputs.issues"
    */
-  private resolveProperty(path: string, context: Record<string, any>): any {
+  private resolveProperty(path: string, context: EvaluationContext): unknown {
     const parts = path.split('.');
     let current: any = context;
 
@@ -105,8 +114,16 @@ export class ConditionEvaluator {
   }
 
   /**
+   * Escape special regex characters in a string
+   */
+  private escapeRegExp(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
    * Parse and evaluate expression safely
    * Supports: ==, !=, >, <, >=, <=, &&, ||
+   * Note: Uses loose equality (==) to allow type coercion (e.g., "5" == 5)
    */
   private parseAndEvaluate(expression: string): boolean {
     // Handle logical OR (||)
@@ -159,7 +176,7 @@ export class ConditionEvaluator {
   /**
    * Parse value from string (handles numbers, strings, booleans, null/undefined)
    */
-  private parseValue(str: string): any {
+  private parseValue(str: string): unknown {
     str = str.trim();
 
     // JSON values (numbers, booleans, strings, null)

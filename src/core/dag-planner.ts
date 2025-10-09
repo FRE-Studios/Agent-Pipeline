@@ -50,20 +50,25 @@ export class DAGPlanner {
     const stageNames = new Set(config.agents.map(a => a.name));
 
     // Check for duplicate stage names
-    const duplicates = config.agents
-      .map(a => a.name)
-      .filter((name, index, arr) => arr.indexOf(name) !== index);
+    const seen = new Set<string>();
+    const duplicates = new Set<string>();
+    for (const agent of config.agents) {
+      if (seen.has(agent.name)) {
+        duplicates.add(agent.name);
+      }
+      seen.add(agent.name);
+    }
 
-    if (duplicates.length > 0) {
-      errors.push(`Duplicate stage names: ${duplicates.join(', ')}`);
+    if (duplicates.size > 0) {
+      errors.push(`Duplicate stage names: ${Array.from(duplicates).join(', ')}`);
     }
 
     // Check for missing dependencies
     for (const agent of config.agents) {
       if (agent.dependsOn) {
-        for (const dep of agent.dependsOn) {
-          if (!stageNames.has(dep)) {
-            errors.push(`Stage "${agent.name}" depends on unknown stage "${dep}"`);
+        for (const dependency of agent.dependsOn) {
+          if (!stageNames.has(dependency)) {
+            errors.push(`Stage "${agent.name}" depends on unknown stage "${dependency}"`);
           }
         }
       }
@@ -72,6 +77,7 @@ export class DAGPlanner {
     // Check for cycles using DFS
     const visited = new Set<string>();
     const recursionStack = new Set<string>();
+    const cycleReported = new Set<string>();
 
     const hasCycle = (stageName: string): boolean => {
       visited.add(stageName);
@@ -79,11 +85,15 @@ export class DAGPlanner {
 
       const stage = config.agents.find(a => a.name === stageName);
       if (stage?.dependsOn) {
-        for (const dep of stage.dependsOn) {
-          if (!visited.has(dep)) {
-            if (hasCycle(dep)) return true;
-          } else if (recursionStack.has(dep)) {
-            errors.push(`Circular dependency detected involving "${stageName}" -> "${dep}"`);
+        for (const dependency of stage.dependsOn) {
+          if (!visited.has(dependency)) {
+            if (hasCycle(dependency)) return true;
+          } else if (recursionStack.has(dependency)) {
+            const cycleKey = `${stageName}->${dependency}`;
+            if (!cycleReported.has(cycleKey)) {
+              errors.push(`Circular dependency detected involving "${stageName}" -> "${dependency}"`);
+              cycleReported.add(cycleKey);
+            }
             return true;
           }
         }
@@ -140,10 +150,10 @@ export class DAGPlanner {
 
     // Second pass: populate dependents
     for (const [name, node] of nodes) {
-      for (const dep of node.dependencies) {
-        const depNode = nodes.get(dep);
-        if (depNode) {
-          depNode.dependents.push(name);
+      for (const dependency of node.dependencies) {
+        const dependencyNode = nodes.get(dependency);
+        if (dependencyNode) {
+          dependencyNode.dependents.push(name);
         }
       }
     }
@@ -161,21 +171,25 @@ export class DAGPlanner {
     const visited = new Set<string>();
 
     const calculateLevel = (name: string): number => {
-      if (visited.has(name)) {
-        return nodes.get(name)!.level;
-      }
-
-      visited.add(name);
-      const node = nodes.get(name)!;
-
-      if (node.dependencies.length === 0) {
-        node.level = 0;
+      const existingNode = nodes.get(name);
+      if (!existingNode) {
         return 0;
       }
 
-      const depLevels = node.dependencies.map(dep => calculateLevel(dep));
-      node.level = Math.max(...depLevels) + 1;
-      return node.level;
+      if (visited.has(name)) {
+        return existingNode.level;
+      }
+
+      visited.add(name);
+
+      if (existingNode.dependencies.length === 0) {
+        existingNode.level = 0;
+        return 0;
+      }
+
+      const dependencyLevels = existingNode.dependencies.map(dependency => calculateLevel(dependency));
+      existingNode.level = Math.max(...dependencyLevels) + 1;
+      return existingNode.level;
     };
 
     for (const name of nodes.keys()) {
@@ -211,26 +225,31 @@ export class DAGPlanner {
       inDegree.set(name, 0);
     }
 
-    for (const deps of adjacencyList.values()) {
-      for (const dep of deps) {
-        inDegree.set(dep, (inDegree.get(dep) || 0) + 1);
+    for (const dependencies of adjacencyList.values()) {
+      for (const dependency of dependencies) {
+        inDegree.set(dependency, (inDegree.get(dependency) || 0) + 1);
       }
     }
 
-    // Find all nodes with in-degree 0
-    const queue: string[] = [];
+    // Find all nodes with no dependencies (in-degree 0)
+    const nodesWithNoDependencies: string[] = [];
     for (const [name, degree] of inDegree) {
       if (degree === 0) {
-        queue.push(name);
+        nodesWithNoDependencies.push(name);
       }
     }
 
-    // Process queue
+    // Process nodes in topological order
+    const queue = nodesWithNoDependencies;
     while (queue.length > 0) {
-      const current = queue.shift()!;
+      const current = queue.shift();
+      if (!current) continue;
+
       sorted.push(current);
 
-      const node = nodes.get(current)!;
+      const node = nodes.get(current);
+      if (!node) continue;
+
       for (const dependent of node.dependents) {
         const newDegree = (inDegree.get(dependent) || 0) - 1;
         inDegree.set(dependent, newDegree);
@@ -254,14 +273,19 @@ export class DAGPlanner {
     const levelMap = new Map<number, AgentStageConfig[]>();
 
     for (const stageName of sortedStages) {
-      const node = nodes.get(stageName)!;
+      const node = nodes.get(stageName);
+      if (!node) continue;
+
       const level = node.level;
 
       if (!levelMap.has(level)) {
         levelMap.set(level, []);
       }
 
-      levelMap.get(level)!.push(node.stage);
+      const levelStages = levelMap.get(level);
+      if (levelStages) {
+        levelStages.push(node.stage);
+      }
     }
 
     // Convert to array of execution groups
@@ -269,10 +293,13 @@ export class DAGPlanner {
     const sortedLevels = Array.from(levelMap.keys()).sort((a, b) => a - b);
 
     for (const level of sortedLevels) {
-      groups.push({
-        level,
-        stages: levelMap.get(level)!
-      });
+      const stages = levelMap.get(level);
+      if (stages && stages.length > 0) {
+        groups.push({
+          level,
+          stages
+        });
+      }
     }
 
     return groups;
@@ -285,8 +312,9 @@ export class DAGPlanner {
     const depthMap = new Map<string, number>();
 
     const getDepth = (stageName: string): number => {
-      if (depthMap.has(stageName)) {
-        return depthMap.get(stageName)!;
+      const cachedDepth = depthMap.get(stageName);
+      if (cachedDepth !== undefined) {
+        return cachedDepth;
       }
 
       const stage = config.agents.find(a => a.name === stageName);
@@ -295,8 +323,8 @@ export class DAGPlanner {
         return 0;
       }
 
-      const depDepths = stage.dependsOn.map(dep => getDepth(dep));
-      const depth = Math.max(...depDepths) + 1;
+      const dependencyDepths = stage.dependsOn.map(dependency => getDepth(dependency));
+      const depth = Math.max(...dependencyDepths) + 1;
       depthMap.set(stageName, depth);
       return depth;
     };

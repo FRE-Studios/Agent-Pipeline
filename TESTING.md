@@ -51,7 +51,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (885 tests total, all passing)
+### Completed Test Suites (770 tests total, all passing)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -138,44 +138,44 @@ src/
 - Tests edge cases (empty runs, missing fields, boundary dates)
 - Bug fix: Corrected success rate calculation for failed stages
 
-**git-manager.test.ts** - 62 tests
+**git-manager.test.ts** - 66 tests
 - Coverage: **100%**
 - Tests git repository initialization and configuration
 - Validates commit retrieval (getCurrentCommit, getCommitMessage)
-- Tests file change detection (getChangedFiles) with various scenarios
+- Tests file change detection (getChangedFiles) with various scenarios including first commit edge case
 - Validates working directory state checks (hasUncommittedChanges)
 - Tests staging operations (stageAllChanges)
-- Validates commit creation with metadata trailers (commitWithMetadata)
+- Validates commit creation with metadata trailers (commitWithMetadata, staged changes validation)
 - Tests pipeline-specific commit creation (createPipelineCommit)
 - Validates hard reset operations (revertToCommit)
-- Tests error handling for all git operations
-- Covers edge cases: empty repos, no changes, files with spaces, multi-line messages
+- Tests error handling for all git operations with ErrorFactory integration
+- Covers edge cases: empty repos, no changes, files with spaces, multi-line messages, first commit
 
-**branch-manager.test.ts** - 74 tests
+**branch-manager.test.ts** - 75 tests
 - Coverage: **100% statements, 97.05% branches**
 - Tests branch manager initialization (extends GitManager)
 - Validates setupPipelineBranch workflow (fetch, create/checkout, merge)
 - Tests branch naming strategies (reusable vs unique-per-run)
-- Validates error handling (fetch failures, merge conflicts, fallback to local)
+- Validates error handling (fetch failures, merge conflicts, fallback to local, push failures with context)
 - Tests branch existence checking (branchExists)
 - Validates branch operations (checkout, create with startPoint)
-- Tests remote operations (fetch, push, pushBranch)
-- Validates branch management (deleteLocalBranch, getCurrentBranch)
+- Tests remote operations (fetch, push, pushBranch with ErrorFactory integration)
+- Validates branch management (deleteLocalBranch, getCurrentBranch with detached HEAD error)
 - Tests pipeline branch filtering (listPipelineBranches)
-- Covers edge cases: custom prefixes, special characters, detached HEAD, console logging
+- Covers edge cases: custom prefixes, special characters, detached HEAD throws error, console logging
 
-**pr-creator.test.ts** - 69 tests
+**pr-creator.test.ts** - 21 tests
 - Coverage: **99.06% statements, 96.55% branches**
 - Tests GitHub CLI installation and authentication checks (checkGHCLI)
 - Validates PR creation with full workflow (createPR)
 - Tests prerequisite validation (gh CLI installed/authenticated)
-- Validates PR title/body building (custom vs default with pipeline summary)
+- Validates PR title/body building (custom vs default with pipeline summary, no hardcoded URLs)
 - Tests command building (base, head, draft, reviewers, labels, assignees, milestone, web)
-- Validates shell argument escaping (security: command injection prevention)
 - Tests output parsing (URL and PR number extraction)
 - Validates error handling (already exists, generic failures, helpful error messages)
 - Tests PR viewing and existence checking (viewPR, prExists)
-- Covers edge cases: empty strings, unicode, special characters, multi-line messages
+- Tests buildDefaultPRBody as static method with retry information display
+- Covers edge cases: missing URLs/numbers, retry counts in PR body
 
 #### ✅ CLI Commands
 
@@ -225,12 +225,26 @@ src/
 - Covers empty result sets and filter combinations
 - Integration tests for complete cleanup workflow
 
+#### ✅ Utilities
+
+**error-factory.test.ts** - 26 tests
+- Coverage: **100%**
+- Tests createStageError() with all error patterns (ENOENT, timeout, API, YAML, permission)
+- Tests createGitError() with git-specific error patterns
+- Validates error detail creation from Error objects and strings
+- Tests suggestion generation for common git errors (first commit, network, auth, push rejection)
+- Validates merge conflict detection and helpful suggestions
+- Tests repository state errors (not a git repo, no staged changes)
+- Tests operation-specific suggestions (push failures, commit errors)
+- Validates timestamp formatting in ISO format
+- Covers edge cases: unknown errors, missing operations, error without suggestions
+
 ### Test Results Summary
 
 ```
-Test Files:  17 passed (17)
-Tests:       885 passed (885 total)
-Duration:    ~700ms
+Test Files:  18 passed (18)
+Tests:       770 passed (770 total)
+Duration:    ~650ms
 
 Coverage Summary (Tested Modules):
 - init.ts:                100%   ✅
@@ -239,6 +253,7 @@ Coverage Summary (Tested Modules):
 - cleanup.ts:             100%   ✅
 - branch-manager.ts:      100%   ✅
 - git-manager.ts:         100%   ✅
+- error-factory.ts:       100%   ✅
 - pipeline-analytics.ts:  100%   ✅
 - parallel-executor.ts:   100%   ✅
 - stage-executor.ts:      100%   ✅
@@ -255,9 +270,10 @@ Coverage Summary (Tested Modules):
 ### Overall Project Coverage
 
 ```
-All files:     ~52% (improved with complete pipeline-runner tests)
-Tested files:  98%+ average (17 modules with comprehensive coverage)
+All files:     ~53% (improved with error-factory tests)
+Tested files:  98%+ average (18 modules with comprehensive coverage)
 Core modules:  97-100% coverage
+Utils modules: 100% coverage
 ```
 
 ## Running Tests
@@ -478,9 +494,12 @@ Core Modules (planned):
 - ❌ `notifiers/base-notifier.ts` - Base notification class
 - ❌ `notifiers/slack-notifier.ts` - Slack integration
 - ❌ `notifiers/local-notifier.ts` - Local desktop notifications
-- ❌ `utils/errors.ts` - Error utilities and custom error classes
 - ❌ `utils/logger.ts` - Logging utilities
 - ❌ `cli/hooks.ts` - CLI hooks system
+
+Utilities (completed):
+- ✅ `utils/error-factory.ts` - Error factory with smart suggestions (100% coverage, 26 tests)
+- ✅ `utils/errors.ts` - Custom error classes (type-only, no tests needed)
 
 ### Type-Only Files (no tests needed): 
 - `config/schema.ts` - Type definitions for pipeline configuration
