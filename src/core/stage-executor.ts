@@ -209,18 +209,21 @@ When done, describe what you changed and why.
     ]);
   }
 
+  private escapeRegex(string: string): string {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
+  }
+
   private extractOutputs(
     agentOutput: string,
     outputKeys?: string[]
   ): Record<string, any> | undefined {
     if (!outputKeys || outputKeys.length === 0) return undefined;
 
-    // Simple extraction - look for key-value patterns
-    // You can make this more sophisticated with structured output
     const extracted: Record<string, any> = {};
 
     for (const key of outputKeys) {
-      const regex = new RegExp(`${key}:\\s*(.+)`, 'i');
+      const escapedKey = this.escapeRegex(key);
+      const regex = new RegExp(`${escapedKey}:\\s*(.+)`, 'i');
       const match = agentOutput.match(regex);
       if (match) {
         extracted[key] = match[1].trim();

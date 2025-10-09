@@ -16,17 +16,27 @@ export function createMockGitManager(config: MockGitManagerConfig = {}): GitMana
     shouldFailCommit = false,
   } = config;
 
+  const mockCommit = vi.fn();
+  const mockHasUncommittedChanges = vi.fn().mockResolvedValue(hasChanges);
+
   return {
-    hasUncommittedChanges: vi.fn().mockResolvedValue(hasChanges),
+    hasUncommittedChanges: mockHasUncommittedChanges,
     createPipelineCommit: vi.fn().mockImplementation(async () => {
       if (shouldFailCommit) {
         throw new Error('Git commit failed');
       }
-      return hasChanges ? commitSha : '';
+      if (await mockHasUncommittedChanges()) {
+        mockCommit();
+        return commitSha;
+      }
+      return '';
     }),
     getCommitMessage: vi.fn().mockResolvedValue(commitMessage),
     getCurrentCommit: vi.fn().mockResolvedValue(commitSha),
     getChangedFiles: vi.fn().mockResolvedValue(['file1.ts', 'file2.ts']),
     stageAllChanges: vi.fn().mockResolvedValue(undefined),
+    git: {
+      commit: mockCommit,
+    },
   } as unknown as GitManager;
 }

@@ -1,10 +1,5 @@
-// src/core/pr-creator.ts
-
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
 import { PipelineState } from '../config/schema.js';
-
-const execAsync = promisify(exec);
 
 export interface PRConfig {
   autoCreate?: boolean;
@@ -20,16 +15,52 @@ export interface PRConfig {
 
 export class PRCreator {
   /**
+   * Executes a command using spawn and returns the output.
+   * @param command The command to execute (e.g., 'gh').
+   * @param args An array of string arguments.
+   * @returns A promise that resolves with the command's stdout.
+   */
+  private executeGhCommand(args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const process = spawn('gh', args);
+      let stdout = '';
+      let stderr = '';
+
+      process.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      process.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      process.on('close', (code) => {
+        if (code === 0) {
+          resolve(stdout);
+        } else {
+          // Use stderr for the error message if available
+          const errorMessage = stderr || stdout || 'Unknown error';
+          reject(new Error(`gh command failed with exit code ${code}: ${errorMessage}`));
+        }
+      });
+
+      process.on('error', (err) => {
+        reject(err);
+      });
+    });
+  }
+
+  /**
    * Check if GitHub CLI is installed and authenticated
    */
   async checkGHCLI(): Promise<{ installed: boolean; authenticated: boolean }> {
     try {
       // Check if gh is installed
-      await execAsync('gh --version');
+      await this.executeGhCommand(['--version']);
 
       // Check if authenticated
       try {
-        await execAsync('gh auth status');
+        await this.executeGhCommand(['auth', 'status']);
         return { installed: true, authenticated: true };
       } catch {
         return { installed: true, authenticated: false };
@@ -79,8 +110,8 @@ export class PRCreator {
       'pr', 'create',
       '--base', baseBranch,
       '--head', branchName,
-      '--title', this.escapeShellArg(title),
-      '--body', this.escapeShellArg(body)
+      '--title', title,
+      '--body', body
     ];
 
     // Add optional flags
@@ -101,7 +132,7 @@ export class PRCreator {
     }
 
     if (config.milestone) {
-      args.push('--milestone', this.escapeShellArg(config.milestone));
+      args.push('--milestone', config.milestone);
     }
 
     if (config.web) {
@@ -113,7 +144,7 @@ export class PRCreator {
     console.log(`\n🚀 Creating pull request...`);
 
     try {
-      const { stdout } = await execAsync(`gh ${args.join(' ')}`);
+      const stdout = await this.executeGhCommand(args);
 
       // Extract PR URL from output
       const urlMatch = stdout.match(/https:\/\/github\.com\/[^\s]+/);
@@ -189,7 +220,7 @@ ${state.stages
    * View an existing PR
    */
   async viewPR(branchName: string): Promise<void> {
-    await execAsync(`gh pr view ${branchName} --web`);
+    await this.executeGhCommand(['pr', 'view', branchName, '--web']);
   }
 
   /**
@@ -197,18 +228,10 @@ ${state.stages
    */
   async prExists(branchName: string): Promise<boolean> {
     try {
-      await execAsync(`gh pr view ${branchName}`);
+      await this.executeGhCommand(['pr', 'view', branchName]);
       return true;
     } catch {
       return false;
     }
-  }
-
-  /**
-   * Escape shell arguments to prevent command injection
-   */
-  private escapeShellArg(arg: string): string {
-    // Wrap in single quotes and escape any single quotes in the string
-    return `'${arg.replace(/'/g, "'\\''")}'`;
   }
 }
