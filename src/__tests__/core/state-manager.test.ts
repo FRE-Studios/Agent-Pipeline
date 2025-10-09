@@ -80,7 +80,7 @@ describe('StateManager', () => {
       expect(failedStage).toBeDefined();
       expect(failedStage?.error).toBeDefined();
       expect(failedStage?.error?.message).toBe('Agent execution failed');
-      expect(failedStage?.error?.code).toBe('AGENT_ERROR');
+      expect(failedStage?.error?.suggestion).toBe('Check agent configuration');
     });
   });
 

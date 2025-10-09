@@ -282,9 +282,9 @@ export class PipelineRunner {
               }
               state.status = 'failed';
               break;
-            } else if (failureStrategy === 'warn') {
+            } else if (failureStrategy === 'continue') {
               if (!options.interactive) {
-                console.log(`⚠️  Stage ${failedStage.stageName} failed but continuing (warn mode)\n`);
+                console.log(`⚠️  Stage ${failedStage.stageName} failed but continuing (continue mode)\n`);
               }
             }
           }
