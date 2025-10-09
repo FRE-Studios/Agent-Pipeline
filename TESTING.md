@@ -23,7 +23,8 @@ src/
 │   ├── mocks/
 │   │   ├── simple-git.ts              # Mock git operations
 │   │   ├── claude-sdk.ts              # Mock Claude Agent SDK
-│   │   └── node-notifier.ts           # Mock notifications
+│   │   ├── node-notifier.ts           # Mock notifications
+│   │   └── notification-manager.ts    # Mock NotificationManager
 │   ├── integration/                    # Integration tests (future)
 │   ├── core/                           # Tests for src/core/
 │   │   ├── dag-planner.test.ts
@@ -36,8 +37,17 @@ src/
 │   │   └── pipeline-loader.test.ts
 │   ├── validators/                     # Tests for src/validators/
 │   │   └── pipeline-validator.test.ts
-│   └── analytics/                      # Tests for src/analytics/
-│       └── pipeline-analytics.test.ts
+│   ├── analytics/                      # Tests for src/analytics/
+│   │   └── pipeline-analytics.test.ts
+│   ├── notifications/                  # Tests for src/notifications/
+│   │   └── notification-manager.test.ts
+│   ├── cli/commands/                   # Tests for src/cli/commands/
+│   │   ├── init.test.ts
+│   │   ├── rollback.test.ts
+│   │   ├── analytics.test.ts
+│   │   └── cleanup.test.ts
+│   └── utils/                          # Tests for src/utils/
+│       └── error-factory.test.ts
 └── [module-name]/
     └── [module].ts                     # Source files only (no .test.ts)
 ```
@@ -51,7 +61,7 @@ src/
 
 ## Test Coverage
 
-### Completed Test Suites (784 tests total, all passing)
+### Completed Test Suites (824 tests total, all passing)
 
 #### ✅ Core Business Logic (High Priority)
 
@@ -251,11 +261,12 @@ src/
 ### Test Results Summary
 
 ```
-Test Files:  19 passed (19)
-Tests:       784 passed (784 total)
-Duration:    ~680ms
+Test Files:  20 passed (20)
+Tests:       824 passed (824 total)
+Duration:    ~650ms
 
 Coverage Summary (Tested Modules):
+- notification-manager.ts: 100%   ✅
 - init.ts:                100%   ✅
 - rollback.ts:            100%   ✅
 - analytics.ts:           100%   ✅
@@ -269,6 +280,7 @@ Coverage Summary (Tested Modules):
 - condition-evaluator.ts: 100%   ✅
 - state-manager.ts:       100%   ✅
 - pipeline-runner.ts:     100%   ✅
+- output-tool-builder.ts: 100%   ✅
 - pr-creator.ts:          99.06% ✅
 - retry-handler.ts:       98.27% ✅
 - pipeline-validator.ts:  97.57% ✅
@@ -279,9 +291,10 @@ Coverage Summary (Tested Modules):
 ### Overall Project Coverage
 
 ```
-All files:     ~53% (improved with error-factory tests)
-Tested files:  98%+ average (18 modules with comprehensive coverage)
+All files:     ~55% (improved with notification-manager tests)
+Tested files:  98%+ average (20 modules with comprehensive coverage)
 Core modules:  97-100% coverage
+Notification:  100% coverage (notification-manager)
 Utils modules: 100% coverage
 ```
 
@@ -496,19 +509,34 @@ mockTimers(): { advance, runAll, restore }
 - Tests notification system integration (7 tests)
 - Integration tests for end-to-end scenarios (10 tests)
 
+#### ✅ Notification System
+
+**notification-manager.test.ts** - 41 tests
+- Coverage: **100%**
+- Tests constructor and notifier initialization (local, slack, both, disabled)
+- Validates event filtering for all 6 event types (started, completed, failed, stage events, PR created)
+- Tests notify() method with parallel channel sending
+- Tests error isolation (one notifier fails, others succeed)
+- Validates getConfiguredNotifiers() filtering
+- Tests test() command for channel validation
+- Validates error handling (throws vs returns error results)
+- Tests notification contexts (pipeline states, stages, PR URLs)
+- Handles edge cases (undefined config, empty events, no channels)
+
 ### Pending Test Coverage
 
 Core Modules (planned):
-- ❌ `notification-manager.ts` - Notification orchestration and dispatch
-- ❌ `notifiers/base-notifier.ts` - Base notification class
-- ❌ `notifiers/slack-notifier.ts` - Slack integration
-- ❌ `notifiers/local-notifier.ts` - Local desktop notifications
+- ❌ `notifiers/base-notifier.ts` - Base notification class (55% coverage via notification-manager tests)
+- ❌ `notifiers/slack-notifier.ts` - Slack webhook integration
+- ❌ `notifiers/local-notifier.ts` - Desktop notifications
 - ❌ `utils/logger.ts` - Logging utilities
-- ❌ `cli/hooks.ts` - CLI hooks system
+- ❌ `cli/hooks.ts` - Git hook installer
+- ❌ `utils/pipeline-formatter.ts` - Output formatting utilities
 
 Utilities (completed):
 - ✅ `utils/error-factory.ts` - Error factory with smart suggestions (100% coverage, 26 tests)
 - ✅ `utils/errors.ts` - Custom error classes (type-only, no tests needed)
+- ✅ `notification-manager.ts` - Notification orchestration (100% coverage, 41 tests)
 
 ### Type-Only Files (no tests needed): 
 - `config/schema.ts` - Type definitions for pipeline configuration
