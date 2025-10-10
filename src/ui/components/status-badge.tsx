@@ -12,11 +12,18 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
     running: 'yellow',
     completed: 'green',
     failed: 'red',
-    partial: 'yellow'
+    partial: 'yellow',
+    skipped: 'gray',
+    pending: 'gray',
+  };
+
+  const dimColor: Record<string, boolean> = {
+    skipped: true,
+    pending: true,
   };
 
   return (
-    <Text bold color={colors[status] || 'white'}>
+    <Text bold color={colors[status] || 'white'} dimColor={dimColor[status]}>
       {status.toUpperCase()}
     </Text>
   );

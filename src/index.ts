@@ -86,7 +86,6 @@ async function main() {
         if (interactive) {
           uiInstance = render(
             React.createElement(PipelineUI, {
-              pipelineName: config.name,
               onStateChange: (callback) => {
                 runner.onStateChange(callback);
               }

@@ -8,9 +8,14 @@ import { StageExecution } from '../../config/schema.js';
 interface StageRowProps {
   stage: StageExecution;
   isLast: boolean;
+  condition?: string;
 }
 
-export const StageRow: React.FC<StageRowProps> = ({ stage, isLast }) => {
+export const StageRow: React.FC<StageRowProps> = ({
+  stage,
+  isLast,
+  condition,
+}) => {
   const getIcon = () => {
     switch (stage.status) {
       case 'running':
@@ -30,19 +35,31 @@ export const StageRow: React.FC<StageRowProps> = ({ stage, isLast }) => {
     }
   };
 
+  const hasExtractedData =
+    stage.extractedData && Object.keys(stage.extractedData).length > 0;
+
   return (
     <Box flexDirection="column" marginLeft={2} marginBottom={isLast ? 0 : 1}>
       <Box>
         {getIcon()}
         <Text bold> {stage.stageName}</Text>
-        {stage.duration && <Text dimColor> ({stage.duration.toFixed(1)}s)</Text>}
-        {stage.retryAttempt !== undefined && stage.retryAttempt > 0 && (
-          <Text color="yellow"> [retry {stage.retryAttempt}/{stage.maxRetries}]</Text>
+        {stage.duration && (
+          <Text dimColor> ({stage.duration.toFixed(1)}s)</Text>
         )}
-        {stage.conditionEvaluated && !stage.conditionResult && (
-          <Text dimColor> (condition not met)</Text>
+        {stage.retryAttempt !== undefined && stage.retryAttempt > 0 && (
+          <Text color="yellow">
+            {' '}
+            [retry {stage.retryAttempt}/{stage.maxRetries}]
+          </Text>
         )}
       </Box>
+
+      {stage.conditionEvaluated && !stage.conditionResult && condition && (
+        <Box marginLeft={3}>
+          <Text dimColor>└─ Condition not met: </Text>
+          <Text color="gray">{condition}</Text>
+        </Box>
+      )}
 
       {stage.commitSha && (
         <Box marginLeft={3}>
@@ -51,14 +68,28 @@ export const StageRow: React.FC<StageRowProps> = ({ stage, isLast }) => {
         </Box>
       )}
 
-      {stage.status === 'running' && stage.agentOutput && (
+      {stage.status === 'success' && hasExtractedData && (
         <Box marginLeft={3} flexDirection="column">
-          <Text dimColor>└─ Output:</Text>
-          <Box marginLeft={3} flexDirection="column">
-            <Text>{stage.agentOutput.split('\n').slice(-3).join('\n')}</Text>
-          </Box>
+          <Text dimColor>└─ Outputs:</Text>
+          {Object.entries(stage.extractedData || {}).map(([key, value]) => (
+            <Box key={key} marginLeft={2}>
+              <Text>
+                - {key}: {JSON.stringify(value)}
+              </Text>
+            </Box>
+          ))}
         </Box>
       )}
+
+      {(stage.status === 'running' || stage.status === 'failed') &&
+        stage.agentOutput && (
+          <Box marginLeft={3} flexDirection="column">
+            <Text dimColor>└─ Output:</Text>
+            <Box marginLeft={3} flexDirection="column">
+              <Text>{stage.agentOutput.split('\n').slice(-3).join('\n')}</Text>
+            </Box>
+          </Box>
+        )}
 
       {stage.error && (
         <Box marginLeft={3} flexDirection="column">
