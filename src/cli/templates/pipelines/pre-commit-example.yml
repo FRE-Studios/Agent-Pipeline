@@ -1,0 +1,31 @@
+name: pre-commit-example
+trigger: pre-commit
+
+# Pre-commit pipelines should be fast and fail-fast
+settings:
+  autoCommit: false  # Don't auto-commit in pre-commit hooks
+  commitPrefix: "[pipeline:{{stage}}]"
+  failureStrategy: stop  # Stop on first failure
+  preserveWorkingTree: true  # Preserve working tree state
+  executionMode: parallel
+
+# Agent stages
+agents:
+  # Run validation checks in parallel for speed
+  - name: lint-check
+    agent: .claude/agents/quality-checker.md
+    timeout: 60
+    onFail: stop
+
+  - name: security-scan
+    agent: .claude/agents/security-auditor.md
+    timeout: 60
+    onFail: stop
+
+  # Generate summary only if all checks pass
+  - name: validation-summary
+    agent: .claude/agents/summary.md
+    dependsOn:
+      - lint-check
+      - security-scan
+    timeout: 30

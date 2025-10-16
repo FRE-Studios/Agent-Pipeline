@@ -1,187 +1,15 @@
-// src/cli/commands/init.ts - Enhanced with plugin agent import
+// src/cli/commands/init.ts - Refactored to use AgentImporter and templates
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import * as os from 'os';
+import { fileURLToPath } from 'url';
+import { AgentImporter } from '../utils/agent-importer.js';
 
-
-// @claude should we put the agent file import code in a different place 
-
-interface ImportedAgent {
-  originalPath: string;
-  marketplace: string;
-  plugin: string;
-  agentName: string;
-  targetName: string;
-}
-
-function getClaudePluginsBasePath(): string {
-  const platform = os.platform();
-  const homeDir = os.homedir();
-  
-  switch (platform) {
-    case 'darwin': // macOS
-      return path.join(homeDir, '.claude', 'plugins', 'marketplaces');
-    
-    case 'win32': // Windows
-      return path.join(homeDir, 'AppData', 'Roaming', 'Claude', 'plugins', 'marketplaces');
-    
-    case 'linux':
-    default:
-      return path.join(homeDir, '.claude', 'plugins', 'marketplaces');
-  }
-}
-
-async function discoverPluginAgents(): Promise<ImportedAgent[]> {
-  const basePath = getClaudePluginsBasePath();
-  const discoveredAgents: ImportedAgent[] = [];
-
-  try {
-    // Check if plugins directory exists
-    await fs.access(basePath);
-  } catch {
-    console.log(`ℹ️  No Claude Code plugins found at: ${basePath}`);
-    return [];
-  }
-
-  try {
-    // Iterate through marketplaces
-    const marketplaces = await fs.readdir(basePath);
-    
-    for (const marketplace of marketplaces) {
-      const marketplacePath = path.join(basePath, marketplace, 'plugins');
-      
-      try {
-        // Iterate through plugins in this marketplace
-        const plugins = await fs.readdir(marketplacePath);
-        
-        for (const plugin of plugins) {
-          const agentsPath = path.join(marketplacePath, plugin, 'agents');
-          
-          try {
-            // Check if agents directory exists
-            const agentFiles = await fs.readdir(agentsPath);
-            const mdFiles = agentFiles.filter(f => f.endsWith('.md'));
-            
-            for (const agentFile of mdFiles) {
-              const agentName = path.basename(agentFile, '.md');
-              discoveredAgents.push({
-                originalPath: path.join(agentsPath, agentFile),
-                marketplace,
-                plugin,
-                agentName,
-                // Create a unique name to avoid conflicts
-                targetName: `${plugin}-${agentName}.md`
-              });
-            }
-          } catch {
-            // No agents directory in this plugin
-          }
-        }
-      } catch {
-        // Could not read plugins directory for this marketplace
-      }
-    }
-  } catch (error) {
-    console.log(`⚠️  Error scanning for plugins: ${(error as Error).message}`);
-  }
-
-  return discoveredAgents;
-}
-
-async function importPluginAgents(targetAgentsDir: string): Promise<void> {
-  console.log('\n📦 Searching for Claude Code plugin agents...');
-  
-  const agents = await discoverPluginAgents();
-  
-  if (agents.length === 0) {
-    console.log('   No plugin agents found to import.\n');
-    return;
-  }
-
-  console.log(`   Found ${agents.length} agent(s) across installed plugins\n`);
-  
-  // Group agents by marketplace and plugin for better display
-  const grouped = agents.reduce((acc, agent) => {
-    const key = `${agent.marketplace}/${agent.plugin}`;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(agent);
-    return acc;
-  }, {} as Record<string, ImportedAgent[]>);
-
-  // Import agents and show progress
-  let imported = 0;
-  let skipped = 0;
-  
-  for (const [key, pluginAgents] of Object.entries(grouped)) {
-    console.log(`   📂 ${key}:`);
-    
-    for (const agent of pluginAgents) {
-      const targetPath = path.join(targetAgentsDir, agent.targetName);
-      
-      try {
-        // Check if target already exists
-        try {
-          await fs.access(targetPath);
-          console.log(`      ⏭️  ${agent.agentName} (already exists, skipping)`);
-          skipped++;
-          continue;
-        } catch {
-          // File doesn't exist, good to import
-        }
-        
-        // Read the original agent file
-        const content = await fs.readFile(agent.originalPath, 'utf-8');
-        
-        // Add metadata header to imported agent
-        const enhancedContent = `<!-- 
-Imported from Claude Code Plugin
-Marketplace: ${agent.marketplace}
-Plugin: ${agent.plugin}
-Original: ${agent.agentName}.md
-Imported: ${new Date().toISOString()}
--->
-
-${content}`;
-        
-        await fs.writeFile(targetPath, enhancedContent, 'utf-8');
-        console.log(`      ✅ ${agent.agentName}`);
-        imported++;
-      } catch (error) {
-        console.log(`      ❌ ${agent.agentName} (${(error as Error).message})`);
-      }
-    }
-  }
-  
-  // Create import manifest for tracking
-  const manifestPath = path.join(targetAgentsDir, '.import-manifest.json');
-  const manifest = {
-    importedAt: new Date().toISOString(),
-    pluginsPath: getClaudePluginsBasePath(),
-    summary: {
-      total: agents.length,
-      imported,
-      skipped
-    },
-    agents: agents.map(a => ({
-      marketplace: a.marketplace,
-      plugin: a.plugin,
-      original: a.agentName,
-      target: a.targetName
-    }))
-  };
-  
-  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
-  
-  console.log(`\n   📊 Import complete: ${imported} imported, ${skipped} skipped\n`);
-}
-
-// @claude instead of using the auto imported agents we'll build a standard on init pipeline
-// we'll use our packaged agents and init pipeline instead of creating in line 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function initCommand(
-  repoPath: string, 
-  options?: { 
+  repoPath: string,
+  options?: {
     importPluginAgents?: boolean;
     interactive?: boolean;
   }
@@ -202,87 +30,54 @@ export async function initCommand(
 
     // Import plugin agents (default to true)
     if (options?.importPluginAgents !== false) {
-      await importPluginAgents(agentsDir);
+      await AgentImporter.importPluginAgents(agentsDir);
     }
 
-    // Create example pipeline with imported agents if any exist
+    // Copy example pipeline templates to pipelines directory
+    const templatesDir = path.join(__dirname, '../templates/pipelines');
+    const templateFiles = [
+      'post-commit-example.yml',
+      'pre-commit-example.yml',
+      'pre-push-example.yml',
+      'post-merge-example.yml'
+    ];
+
+    console.log('✅ Creating example pipelines:');
+    for (const templateFile of templateFiles) {
+      const templatePath = path.join(templatesDir, templateFile);
+      const targetPath = path.join(pipelinesDir, templateFile);
+
+      try {
+        const templateContent = await fs.readFile(templatePath, 'utf-8');
+        await fs.writeFile(targetPath, templateContent, 'utf-8');
+        console.log(`   - .agent-pipeline/pipelines/${templateFile}`);
+      } catch (error) {
+        console.log(`   ⚠️  Could not create ${templateFile}: ${(error as Error).message}`);
+      }
+    }
+    console.log('');
+
+    // Create minimal example agents if no agents were imported
     const existingAgents = await fs.readdir(agentsDir);
     const mdAgents = existingAgents.filter(f => f.endsWith('.md') && !f.startsWith('.'));
-    
-    let examplePipeline: string;
-    
-    if (mdAgents.length > 0) {
-      // Create pipeline using imported agents
-      const firstAgent = mdAgents[0];
-      const secondAgent = mdAgents[1] || mdAgents[0];
-      
-      examplePipeline = `name: example-pipeline
-trigger: manual
 
-settings:
-  autoCommit: true
-  commitPrefix: "[pipeline:{{stage}}]"
-  failureStrategy: stop
-  executionMode: parallel
-
-# This pipeline uses agents imported from your Claude Code plugins
-agents:
-  - name: stage-1
-    agent: .claude/agents/${firstAgent}
-    timeout: 120
-    outputs:
-      - result
-      - status
-
-  - name: stage-2
-    agent: .claude/agents/${secondAgent}
-    dependsOn:
-      - stage-1
-    condition: "{{ stages.stage-1.outputs.status == 'success' }}"
-`;
-    } else {
-      // Use default example pipeline
-      examplePipeline = `name: example-pipeline
-trigger: manual
-
-settings:
-  autoCommit: true
-  commitPrefix: "[pipeline:{{stage}}]"
-  failureStrategy: stop
-
-agents:
-  - name: code-review
-    agent: .claude/agents/code-reviewer.md
-    timeout: 120
-    outputs:
-      - issues_found
-      - severity_level
-
-  - name: doc-updater
-    agent: .claude/agents/doc-updater.md
-    onFail: continue
-`;
-    }
-
-    const pipelinePath = path.join(pipelinesDir, 'example-pipeline.yml');
-    await fs.writeFile(pipelinePath, examplePipeline, 'utf-8');
-
-    console.log('✅ Created example pipeline:');
-    console.log(`   - .agent-pipeline/pipelines/example-pipeline.yml\n`);
-
-    // Only create default agents if no agents were imported
     if (mdAgents.length === 0) {
-      // ... existing code to create default agents ...
+      await createDefaultAgents(agentsDir);
       console.log('✅ Created example agents:');
       console.log(`   - .claude/agents/code-reviewer.md`);
-      console.log(`   - .claude/agents/doc-updater.md\n`);
+      console.log(`   - .claude/agents/doc-updater.md`);
+      console.log(`   - .claude/agents/quality-checker.md`);
+      console.log(`   - .claude/agents/security-auditor.md`);
+      console.log(`   - .claude/agents/summary.md\n`);
     }
 
-    // ... rest of existing code (gitignore, success message, etc.) ...
+    // Update .gitignore
+    await updateGitignore(repoPath);
 
+    // Success message
     console.log(`${'='.repeat(60)}`);
     console.log('\n✨ Agent Pipeline initialized successfully!\n');
-    
+
     if (mdAgents.length > 0) {
       console.log(`📦 Imported ${mdAgents.length} agent(s) from Claude Code plugins:`);
       mdAgents.slice(0, 5).forEach(agent => {
@@ -293,17 +88,163 @@ agents:
       }
       console.log('');
     }
-    
+
     console.log('Next steps:');
-    console.log('  1. Review the example pipeline: .agent-pipeline/pipelines/example-pipeline.yml');
+    console.log('  1. Review the example pipelines in .agent-pipeline/pipelines/');
     console.log('  2. Customize or use imported agents in .claude/agents/');
-    console.log('  3. Run your first pipeline: agent-pipeline run example-pipeline');
-    console.log('  4. Install git hooks (optional): agent-pipeline install example-pipeline');
+    console.log('  3. Run your first pipeline: agent-pipeline run post-commit-example');
+    console.log('  4. Install git hooks (optional): agent-pipeline install post-commit-example');
     console.log(`\n${'='.repeat(60)}\n`);
 
   } catch (error) {
     console.error('❌ Failed to initialize Agent Pipeline:');
     console.error((error as Error).message);
     throw error;
+  }
+}
+
+/**
+ * Create minimal default agents for first-time users
+ */
+async function createDefaultAgents(agentsDir: string): Promise<void> {
+  const agents = {
+    'code-reviewer.md': `# Code Review Agent
+
+You are a code review agent in an automated pipeline.
+
+## Your Task
+
+1. Review the git diff provided in the pipeline context
+2. Check for:
+   - Code style issues
+   - Potential logic errors
+   - Best practice violations
+   - Code complexity concerns
+
+## Output Format
+
+Provide your findings using the report_outputs tool:
+
+\`\`\`
+report_outputs({
+  issues_found: 0,
+  severity_level: "low"
+})
+\`\`\`
+
+Then provide a summary of your review.
+`,
+
+    'doc-updater.md': `# Documentation Updater Agent
+
+You are a documentation maintenance agent.
+
+## Your Task
+
+1. Review recent code changes
+2. Update relevant documentation files
+3. Ensure README.md reflects current state
+4. Add inline documentation where missing
+
+## Output Format
+
+Use the report_outputs tool to report your work:
+
+\`\`\`
+report_outputs({
+  files_updated: 0,
+  sections_added: 0
+})
+\`\`\`
+`,
+
+    'quality-checker.md': `# Quality Checker Agent
+
+You are a code quality analysis agent.
+
+## Your Task
+
+1. Analyze code complexity
+2. Check for code smells
+3. Identify refactoring opportunities
+4. Assess maintainability
+
+## Output Format
+
+Use the report_outputs tool:
+
+\`\`\`
+report_outputs({
+  quality_score: 85,
+  recommendations: 3
+})
+\`\`\`
+`,
+
+    'security-auditor.md': `# Security Auditor Agent
+
+You are a security analysis agent.
+
+## Your Task
+
+1. Scan for common security vulnerabilities
+2. Check for exposed secrets or API keys
+3. Review authentication and authorization
+4. Identify potential injection points
+
+## Output Format
+
+Use the report_outputs tool:
+
+\`\`\`
+report_outputs({
+  vulnerabilities: 0,
+  severity: "none"
+})
+\`\`\`
+`,
+
+    'summary.md': `# Summary Agent
+
+You are a pipeline summary agent.
+
+## Your Task
+
+1. Review outputs from previous pipeline stages
+2. Create a comprehensive summary
+3. Highlight key findings and actions taken
+
+Provide a clear, concise summary of the pipeline execution.
+`
+  };
+
+  for (const [filename, content] of Object.entries(agents)) {
+    await fs.writeFile(path.join(agentsDir, filename), content, 'utf-8');
+  }
+}
+
+/**
+ * Update .gitignore to exclude agent-pipeline artifacts
+ */
+async function updateGitignore(repoPath: string): Promise<void> {
+  const gitignorePath = path.join(repoPath, '.gitignore');
+  const agentPipelineEntry = `
+# Agent Pipeline
+.agent-pipeline/state/
+`;
+
+  try {
+    let gitignoreContent = '';
+    try {
+      gitignoreContent = await fs.readFile(gitignorePath, 'utf-8');
+    } catch {
+      // .gitignore doesn't exist, will create new one
+    }
+
+    if (!gitignoreContent.includes('.agent-pipeline/state/')) {
+      await fs.appendFile(gitignorePath, agentPipelineEntry, 'utf-8');
+    }
+  } catch (error) {
+    // Silently fail if can't update .gitignore
   }
 }

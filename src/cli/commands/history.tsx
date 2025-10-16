@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
+import { spawn } from 'child_process';
+import * as path from 'path';
 import { StateManager } from '../../core/state-manager.js';
 import { PipelineState } from '../../config/schema.js';
 
@@ -25,10 +27,49 @@ export const HistoryBrowser: React.FC<HistoryBrowserProps> = ({ repoPath }) => {
     setRuns(allRuns);
   };
 
+  const openLogFile = async () => {
+    if (runs.length === 0) return;
+
+    const selectedRun = runs[selectedIndex];
+    const logPath = path.join(
+      repoPath,
+      '.agent-pipeline',
+      'state',
+      'runs',
+      `${selectedRun.runId}.json`
+    );
+
+    // Determine pager
+    const pager = process.env.PAGER || 'less';
+
+    // Exit the Ink app temporarily
+    exit();
+
+    // Open log file in pager
+    const child = spawn(pager, [logPath], {
+      stdio: 'inherit',
+      shell: true
+    });
+
+    await new Promise<void>((resolve) => {
+      child.on('exit', () => {
+        resolve();
+      });
+      child.on('error', () => {
+        resolve();
+      });
+    });
+
+    // Restart the history browser (this won't work as intended, but we've exited)
+    // User will need to run the command again
+  };
+
   useInput((input: string, key: any) => {
     if (detailView) {
       if (key.escape || input === 'q') {
         setDetailView(false);
+      } else if (input === 'o') {
+        openLogFile();
       }
       return;
     }
@@ -39,6 +80,8 @@ export const HistoryBrowser: React.FC<HistoryBrowserProps> = ({ repoPath }) => {
       setSelectedIndex(Math.min(runs.length - 1, selectedIndex + 1));
     } else if (key.return) {
       setDetailView(true);
+    } else if (input === 'o') {
+      openLogFile();
     } else if (input === 'q') {
       exit();
     }
@@ -60,7 +103,7 @@ export const HistoryBrowser: React.FC<HistoryBrowserProps> = ({ repoPath }) => {
   return (
     <Box flexDirection="column" padding={1}>
       <Text bold color="cyan">📜 Pipeline History</Text>
-      <Text dimColor>Use ↑↓ to navigate, Enter to view details, q to quit</Text>
+      <Text dimColor>Use ↑↓ to navigate, Enter to view details, o to open log file, q to quit</Text>
       <Box height={1} />
 
       {runs.map((run, index) => (
@@ -108,7 +151,7 @@ const PipelineDetailView: React.FC<PipelineDetailViewProps> = ({ state }) => {
           <Text bold color="cyan">
             📊 Pipeline Details: {state.pipelineConfig.name}
           </Text>
-          <Text dimColor>Press q or ESC to go back</Text>
+          <Text dimColor>Press q or ESC to go back, o to open full log file</Text>
         </Box>
       </Box>
 

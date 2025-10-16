@@ -1,0 +1,56 @@
+name: post-commit-example
+trigger: post-commit
+
+# Settings for pipeline execution
+settings:
+  autoCommit: true
+  commitPrefix: "[pipeline:{{stage}}]"
+  failureStrategy: continue
+  preserveWorkingTree: false
+  executionMode: parallel
+
+# Git workflow configuration (optional)
+# git:
+#   baseBranch: main
+#   branchStrategy: reusable
+#   pullRequest:
+#     autoCreate: true
+#     title: "🤖 Automated Code Review - {{pipelineName}}"
+#     reviewers: []
+#     labels:
+#       - automated
+#       - code-review
+
+# Notification configuration (optional)
+# notifications:
+#   enabled: true
+#   events:
+#     - pipeline.completed
+#     - pipeline.failed
+#   channels:
+#     local:
+#       enabled: true
+#       sound: true
+
+# Agent stages
+agents:
+  # Run code review and quality checks in parallel
+  - name: code-review
+    agent: .claude/agents/code-reviewer.md
+    timeout: 120
+    outputs:
+      - issues_found
+      - severity_level
+
+  - name: quality-check
+    agent: .claude/agents/quality-checker.md
+    timeout: 120
+    onFail: warn
+
+  # Run documentation update after reviews complete
+  - name: doc-updater
+    agent: .claude/agents/doc-updater.md
+    dependsOn:
+      - code-review
+      - quality-check
+    timeout: 180

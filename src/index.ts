@@ -1,22 +1,38 @@
 #!/usr/bin/env node
 
-// src/index.ts
+// src/index.ts - Clean CLI router
 
 import React from 'react';
 import { render } from 'ink';
-import { PipelineRunner } from './core/pipeline-runner.js';
-import { PipelineLoader } from './config/pipeline-loader.js';
-import { StateManager } from './core/state-manager.js';
 import { Logger } from './utils/logger.js';
-import { HookInstaller } from './cli/hooks.js';
-import { rollbackCommand } from './cli/commands/rollback.js';
-import { PipelineValidator } from './validators/pipeline-validator.js';
+
+// Command imports
+import { runCommand } from './cli/commands/run.js';
+import { listCommand } from './cli/commands/list.js';
+import { statusCommand } from './cli/commands/status.js';
+import { installCommand } from './cli/commands/install.js';
+import { uninstallCommand } from './cli/commands/uninstall.js';
+import { testCommand } from './cli/commands/test.js';
 import { initCommand } from './cli/commands/init.js';
-import { PipelineUI } from './ui/pipeline-ui.js';
-import { HistoryBrowser } from './cli/commands/history.js';
+import { rollbackCommand } from './cli/commands/rollback.js';
 import { analyticsCommand } from './cli/commands/analytics.js';
 import { cleanupCommand } from './cli/commands/cleanup.js';
-import { NotificationManager } from './notifications/notification-manager.js';
+import { HistoryBrowser } from './cli/commands/history.js';
+
+// Pipeline commands
+import { createPipelineCommand } from './cli/commands/pipeline/create.js';
+import { deletePipelineCommand } from './cli/commands/pipeline/delete.js';
+import { clonePipelineCommand } from './cli/commands/pipeline/clone.js';
+import { editPipelineCommand } from './cli/commands/pipeline/edit.js';
+import { validatePipelineCommand } from './cli/commands/pipeline/validate.js';
+import { configPipelineCommand } from './cli/commands/pipeline/config.js';
+import { exportPipelineCommand } from './cli/commands/pipeline/export.js';
+import { importPipelineCommand } from './cli/commands/pipeline/import.js';
+
+// Agent commands
+import { listAgentsCommand } from './cli/commands/agent/list.js';
+import { agentInfoCommand } from './cli/commands/agent/info.js';
+import { pullAgentsCommand } from './cli/commands/agent/pull.js';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -29,160 +45,43 @@ async function main() {
     switch (command) {
       case 'run': {
         if (!subCommand) {
-          console.error('Usage: agent-pipeline run <pipeline-name> [--dry-run] [--no-interactive] [--no-pr] [--base-branch <branch>] [--pr-draft] [--pr-web] [--no-notifications]');
+          console.error('Usage: agent-pipeline run <pipeline-name> [options]');
           process.exit(1);
         }
 
-        // Check for flags
+        // Parse flags
         const dryRun = args.includes('--dry-run');
         const noInteractive = args.includes('--no-interactive');
-        const interactive = !noInteractive;
         const noPr = args.includes('--no-pr');
         const prDraft = args.includes('--pr-draft');
         const prWeb = args.includes('--pr-web');
         const noNotifications = args.includes('--no-notifications');
 
-        // Parse base-branch option
         let baseBranch: string | undefined;
         const baseBranchIndex = args.indexOf('--base-branch');
         if (baseBranchIndex !== -1 && args[baseBranchIndex + 1]) {
           baseBranch = args[baseBranchIndex + 1];
         }
 
-        const loader = new PipelineLoader(repoPath);
-        const config = await loader.loadPipeline(subCommand);
-
-        // Apply CLI flag overrides
-        if (noNotifications) {
-          config.notifications = { enabled: false };
-        }
-
-        if (noPr && config.git?.pullRequest) {
-          config.git.pullRequest.autoCreate = false;
-        }
-
-        if (baseBranch && config.git) {
-          config.git.baseBranch = baseBranch;
-        }
-
-        if (prDraft && config.git?.pullRequest) {
-          config.git.pullRequest.draft = true;
-        }
-
-        if (prWeb && config.git?.pullRequest) {
-          config.git.pullRequest.web = true;
-        }
-
-        // Validate pipeline configuration
-        const isValid = await PipelineValidator.validateAndReport(config, repoPath);
-        if (!isValid) {
-          process.exit(1);
-        }
-
-        const runner = new PipelineRunner(repoPath, dryRun);
-
-        // Render UI if interactive
-        let uiInstance;
-        if (interactive) {
-          uiInstance = render(
-            React.createElement(PipelineUI, {
-              onStateChange: (callback) => {
-                runner.onStateChange(callback);
-              }
-            })
-          );
-        }
-
-        try {
-          const result = await runner.runPipeline(config, { interactive });
-
-          if (uiInstance) {
-            uiInstance.unmount();
-          }
-
-          process.exit(result.status === 'completed' ? 0 : 1);
-        } catch (error) {
-          if (uiInstance) {
-            uiInstance.unmount();
-          }
-          throw error;
-        }
+        await runCommand(repoPath, subCommand, {
+          dryRun,
+          interactive: !noInteractive,
+          noPr,
+          baseBranch,
+          prDraft,
+          prWeb,
+          noNotifications
+        });
         break;
       }
 
       case 'list': {
-        const loader = new PipelineLoader(repoPath);
-        const pipelines = await loader.listPipelines();
-
-        if (pipelines.length === 0) {
-          console.log('No pipelines found in .agent-pipeline/pipelines/');
-        } else {
-          console.log('Available pipelines:');
-          pipelines.forEach(p => console.log(`  - ${p}`));
-        }
+        await listCommand(repoPath);
         break;
       }
 
       case 'status': {
-        const stateManager = new StateManager(repoPath);
-        const latestRun = await stateManager.getLatestRun();
-
-        if (!latestRun) {
-          console.log('No pipeline runs found');
-        } else {
-          console.log(`\n${'='.repeat(60)}`);
-          console.log(`Latest Pipeline Run: ${latestRun.pipelineConfig.name}`);
-          console.log(`${'='.repeat(60)}\n`);
-
-          console.log(`Run ID:       ${latestRun.runId}`);
-          console.log(`Status:       ${latestRun.status.toUpperCase()}`);
-          console.log(`Duration:     ${latestRun.artifacts.totalDuration.toFixed(2)}s`);
-          console.log(`Timestamp:    ${latestRun.trigger.timestamp}`);
-          console.log(`Trigger:      ${latestRun.trigger.type}`);
-          console.log(`Initial Commit: ${latestRun.artifacts.initialCommit?.substring(0, 7) || 'N/A'}`);
-          console.log(`Final Commit:   ${latestRun.artifacts.finalCommit?.substring(0, 7) || 'N/A'}`);
-
-          if (latestRun.artifacts.pullRequest) {
-            console.log(`Pull Request:   ${latestRun.artifacts.pullRequest.url}`);
-            console.log(`PR Branch:      ${latestRun.artifacts.pullRequest.branch}`);
-          }
-
-          console.log(`\n${'─'.repeat(60)}`);
-          console.log('Stages:\n');
-
-          latestRun.stages.forEach(stage => {
-            const statusIcon = stage.status === 'success' ? '✅' :
-                             stage.status === 'failed' ? '❌' :
-                             stage.status === 'skipped' ? '⏭️' : '⏳';
-            const duration = stage.duration ? `${stage.duration.toFixed(1)}s` : 'N/A';
-
-            console.log(`${statusIcon} ${stage.stageName}`);
-            console.log(`   Status: ${stage.status}`);
-            console.log(`   Duration: ${duration}`);
-
-            if (stage.commitSha) {
-              console.log(`   Commit: ${stage.commitSha.substring(0, 7)}`);
-            }
-
-            if (stage.extractedData && Object.keys(stage.extractedData).length > 0) {
-              console.log(`   Extracted Data:`);
-              for (const [key, value] of Object.entries(stage.extractedData)) {
-                console.log(`     - ${key}: ${value}`);
-              }
-            }
-
-            if (stage.error) {
-              console.log(`   Error: ${stage.error.message}`);
-              if (stage.error.suggestion) {
-                console.log(`   💡 ${stage.error.suggestion}`);
-              }
-            }
-
-            console.log('');
-          });
-
-          console.log(`${'='.repeat(60)}\n`);
-        }
+        await statusCommand(repoPath);
         break;
       }
 
@@ -191,35 +90,17 @@ async function main() {
           console.error('Usage: agent-pipeline install <pipeline-name>');
           process.exit(1);
         }
-
-        // Load pipeline config to get trigger type
-        const loader = new PipelineLoader(repoPath);
-        const config = await loader.loadPipeline(subCommand);
-
-        // Validate that the trigger is not 'manual'
-        if (config.trigger === 'manual') {
-          console.error('❌ Cannot install git hook for manual pipelines.');
-          console.error(`   Pipeline "${subCommand}" has trigger: manual`);
-          console.error(`   Use 'agent-pipeline run ${subCommand}' instead.`);
-          process.exit(1);
-        }
-
-        const installer = new HookInstaller(repoPath);
-        await installer.install(subCommand, config.trigger);
+        await installCommand(repoPath, subCommand);
         break;
       }
 
       case 'uninstall': {
-        const installer = new HookInstaller(repoPath);
-        await installer.uninstall();
+        await uninstallCommand(repoPath);
         break;
       }
 
       case 'rollback': {
-        // Parse options
         const options: { runId?: string; stages?: number } = {};
-
-        // Simple argument parsing
         for (let i = 1; i < args.length; i++) {
           if (args[i] === '--run-id' || args[i] === '-r') {
             options.runId = args[++i];
@@ -227,7 +108,6 @@ async function main() {
             options.stages = parseInt(args[++i], 10);
           }
         }
-
         await rollbackCommand(repoPath, options);
         break;
       }
@@ -243,9 +123,7 @@ async function main() {
       }
 
       case 'analytics': {
-        // Parse options
         const options: { pipeline?: string; days?: number } = {};
-
         for (let i = 1; i < args.length; i++) {
           if (args[i] === '--pipeline' || args[i] === '-p') {
             options.pipeline = args[++i];
@@ -253,23 +131,21 @@ async function main() {
             options.days = parseInt(args[++i], 10);
           }
         }
-
         await analyticsCommand(repoPath, options);
         break;
       }
 
       case 'cleanup': {
-        // Parse options
-        const options: { pipeline?: string; force?: boolean } = {};
-
+        const options: { pipeline?: string; force?: boolean; deleteLogs?: boolean } = {};
         for (let i = 1; i < args.length; i++) {
           if (args[i] === '--pipeline' || args[i] === '-p') {
             options.pipeline = args[++i];
           } else if (args[i] === '--force' || args[i] === '-f') {
             options.force = true;
+          } else if (args[i] === '--delete-logs') {
+            options.deleteLogs = true;
           }
         }
-
         await cleanupCommand(repoPath, options);
         break;
       }
@@ -279,85 +155,215 @@ async function main() {
           console.error('Usage: agent-pipeline test <pipeline-name> --notifications');
           process.exit(1);
         }
-
         const testNotifications = args.includes('--notifications');
+        await testCommand(repoPath, subCommand, { notifications: testNotifications });
+        break;
+      }
 
-        if (testNotifications) {
-          const loader = new PipelineLoader(repoPath);
-          const config = await loader.loadPipeline(subCommand);
+      // Pipeline management commands
+      case 'create': {
+        await createPipelineCommand(repoPath);
+        break;
+      }
 
-          if (!config.notifications) {
-            console.log('❌ No notification configuration found in pipeline');
-            process.exit(1);
+      case 'delete': {
+        if (!subCommand) {
+          console.error('Usage: agent-pipeline delete <pipeline-name> [--force] [--delete-logs]');
+          process.exit(1);
+        }
+        const force = args.includes('--force');
+        const deleteLogs = args.includes('--delete-logs');
+        await deletePipelineCommand(repoPath, subCommand, { force, deleteLogs });
+        break;
+      }
+
+      case 'clone': {
+        if (!subCommand) {
+          console.error('Usage: agent-pipeline clone <source-pipeline> [destination-name]');
+          process.exit(1);
+        }
+        const destName = args[2];
+        await clonePipelineCommand(repoPath, subCommand, destName);
+        break;
+      }
+
+      case 'edit': {
+        if (!subCommand) {
+          console.error('Usage: agent-pipeline edit <pipeline-name>');
+          process.exit(1);
+        }
+        await editPipelineCommand(repoPath, subCommand);
+        break;
+      }
+
+      case 'validate': {
+        if (!subCommand) {
+          console.error('Usage: agent-pipeline validate <pipeline-name>');
+          process.exit(1);
+        }
+        await validatePipelineCommand(repoPath, subCommand);
+        break;
+      }
+
+      case 'config': {
+        if (!subCommand) {
+          console.error('Usage: agent-pipeline config <pipeline-name>');
+          process.exit(1);
+        }
+        await configPipelineCommand(repoPath, subCommand);
+        break;
+      }
+
+      case 'export': {
+        if (!subCommand) {
+          console.error('Usage: agent-pipeline export <pipeline-name> [--output <file>] [--include-agents]');
+          process.exit(1);
+        }
+        let output: string | undefined;
+        const outputIndex = args.indexOf('--output');
+        if (outputIndex !== -1 && args[outputIndex + 1]) {
+          output = args[outputIndex + 1];
+        }
+        const includeAgents = args.includes('--include-agents');
+        await exportPipelineCommand(repoPath, subCommand, { output, includeAgents });
+        break;
+      }
+
+      case 'import': {
+        if (!subCommand) {
+          console.error('Usage: agent-pipeline import <file-or-url>');
+          process.exit(1);
+        }
+        await importPipelineCommand(repoPath, subCommand);
+        break;
+      }
+
+      // Agent management commands
+      case 'agent': {
+        const agentSubCommand = subCommand;
+        const agentArg = args[2];
+
+        switch (agentSubCommand) {
+          case 'list': {
+            await listAgentsCommand(repoPath);
+            break;
           }
 
-          const manager = new NotificationManager(config.notifications);
-          await manager.test();
-        } else {
-          console.log('Usage: agent-pipeline test <pipeline-name> --notifications');
+          case 'info': {
+            if (!agentArg) {
+              console.error('Usage: agent-pipeline agent info <agent-name>');
+              process.exit(1);
+            }
+            await agentInfoCommand(repoPath, agentArg);
+            break;
+          }
+
+          case 'pull': {
+            const source = agentArg;
+            await pullAgentsCommand(repoPath, { source });
+            break;
+          }
+
+          default: {
+            console.log(`
+Agent Management Commands:
+
+Usage:
+  agent-pipeline agent list                    List available agents
+  agent-pipeline agent info <agent-name>       Show detailed agent information
+  agent-pipeline agent pull [source]           Import agents from Claude Code plugins
+
+Examples:
+  agent-pipeline agent list
+  agent-pipeline agent info code-reviewer
+  agent-pipeline agent pull
+            `);
+          }
         }
         break;
       }
 
       default: {
         console.log(`
-Agent Pipeline - Sequential agent execution with state management
+Agent Pipeline - Intelligent agent orchestration for Claude Code
 
 Usage:
-  agent-pipeline run <pipeline-name> [options]    Run a pipeline
-  agent-pipeline list                              List available pipelines
-  agent-pipeline status                            Show last pipeline run status
-  agent-pipeline history                           Browse pipeline history (interactive)
-  agent-pipeline analytics [options]               Show pipeline analytics
-  agent-pipeline test <pipeline-name> [options]    Test pipeline configuration
-  agent-pipeline install <pipeline-name>           Install git hook (respects pipeline trigger)
-  agent-pipeline uninstall                         Remove all agent-pipeline git hooks
-  agent-pipeline rollback [options]                Rollback pipeline commits
-  agent-pipeline cleanup [options]                 Clean up pipeline branches
-  agent-pipeline init                              Initialize agent-pipeline project
+  agent-pipeline <command> [options]
+
+Core Commands:
+  run <pipeline-name>          Run a pipeline
+  list                         List available pipelines
+  status                       Show last pipeline run status
+  history                      Browse pipeline history (interactive)
+  analytics [options]          Show pipeline analytics
+  init                         Initialize agent-pipeline project
+
+Pipeline Management:
+  create                       Create a new pipeline (interactive)
+  edit <pipeline-name>         Edit pipeline configuration
+  delete <pipeline-name>       Delete a pipeline
+  clone <source> [dest]        Clone an existing pipeline
+  validate <pipeline-name>     Validate pipeline syntax and dependencies
+  config <pipeline-name>       View pipeline configuration
+  export <pipeline-name>       Export pipeline to file/stdout
+  import <file-or-url>         Import pipeline from file or URL
+
+Agent Management:
+  agent list                   List available agents
+  agent info <agent-name>      Show detailed agent information
+  agent pull [source]          Import agents from Claude Code plugins
+
+Git Integration:
+  install <pipeline-name>      Install git hook (respects pipeline trigger)
+  uninstall                    Remove all agent-pipeline git hooks
+  rollback [options]           Rollback pipeline commits
+  cleanup [options]            Clean up pipeline branches
+
+Testing:
+  test <pipeline-name> [opts]  Test pipeline configuration
 
 Run Options:
-  --dry-run                  Test without creating commits
-  --no-interactive           Disable live UI (use simple console output)
-  --no-notifications         Disable all notifications
-  --no-pr                    Skip PR creation even if configured
-  --base-branch <branch>     Override base branch for PR
-  --pr-draft                 Create PR as draft
-  --pr-web                   Open PR in browser for editing
+  --dry-run                    Test without creating commits
+  --no-interactive             Disable live UI (use simple console output)
+  --no-notifications           Disable all notifications
+  --no-pr                      Skip PR creation even if configured
+  --base-branch <branch>       Override base branch for PR
+  --pr-draft                   Create PR as draft
+  --pr-web                     Open PR in browser for editing
 
-Test Options:
-  --notifications            Test notification channels
+Delete/Cleanup Options:
+  --force                      Delete without confirmation
+  --delete-logs                Delete associated history files
+
+Export Options:
+  --output <file>              Export to file instead of stdout
+  --include-agents             Include agent definitions in export
 
 Analytics Options:
-  -p, --pipeline <name>      Filter by pipeline name
-  -d, --days <n>             Filter by last N days
+  -p, --pipeline <name>        Filter by pipeline name
+  -d, --days <n>               Filter by last N days
 
 Rollback Options:
-  -r, --run-id <id>          Rollback specific run ID
-  -s, --stages <n>           Rollback last N stages
-
-Cleanup Options:
-  -p, --pipeline <name>      Clean up specific pipeline branches
-  -f, --force                Delete without confirmation
+  -r, --run-id <id>            Rollback specific run ID
+  -s, --stages <n>             Rollback last N stages
 
 Examples:
+  agent-pipeline init
+  agent-pipeline create
   agent-pipeline run commit-review
   agent-pipeline run commit-review --dry-run
-  agent-pipeline run commit-review --no-interactive
-  agent-pipeline run commit-review --no-notifications
-  agent-pipeline run commit-review --no-pr
-  agent-pipeline run commit-review --pr-draft --pr-web
-  agent-pipeline test commit-review --notifications
+  agent-pipeline edit commit-review
+  agent-pipeline clone commit-review my-custom-review
+  agent-pipeline agent list
+  agent-pipeline agent pull
   agent-pipeline list
   agent-pipeline status
   agent-pipeline history
-  agent-pipeline analytics --pipeline commit-review --days 30
-  agent-pipeline cleanup --pipeline commit-review --force
+  agent-pipeline analytics --pipeline commit-review
+  agent-pipeline cleanup --force --delete-logs
   agent-pipeline install commit-review
-  agent-pipeline uninstall
-  agent-pipeline rollback
-  agent-pipeline rollback --stages 2
-  agent-pipeline rollback --run-id <uuid>
+  agent-pipeline export commit-review --include-agents --output backup.yml
+  agent-pipeline import https://example.com/pipeline.yml
         `);
       }
     }
