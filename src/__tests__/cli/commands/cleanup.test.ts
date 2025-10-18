@@ -2,13 +2,19 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cleanupCommand } from '../../../cli/commands/cleanup.js';
 import { BranchManager } from '../../../core/branch-manager.js';
 import { createTempDir, cleanupTempDir } from '../../setup.js';
+import * as fs from 'fs/promises';
+import { InteractivePrompts } from '../../../cli/utils/interactive-prompts.js';
 
 // Mock dependencies
 vi.mock('../../../core/branch-manager.js');
+vi.mock('fs/promises');
+vi.mock('../../../cli/utils/interactive-prompts.js');
 
 describe('cleanupCommand', () => {
   let tempDir: string;
   let mockBranchManager: any;
+  let mockFs: any;
+  let mockPrompts: any;
 
   beforeEach(async () => {
     tempDir = await createTempDir('cleanup-test-');
@@ -19,6 +25,16 @@ describe('cleanupCommand', () => {
       deleteLocalBranch: vi.fn(),
     };
     vi.mocked(BranchManager).mockImplementation(() => mockBranchManager);
+
+    // Setup fs mock
+    mockFs = vi.mocked(fs);
+    mockFs.readdir = vi.fn().mockResolvedValue([]);
+    mockFs.readFile = vi.fn().mockResolvedValue('{}');
+    mockFs.unlink = vi.fn().mockResolvedValue(undefined);
+
+    // Setup InteractivePrompts mock
+    mockPrompts = vi.mocked(InteractivePrompts);
+    mockPrompts.confirm = vi.fn().mockResolvedValue(false);
   });
 
   afterEach(async () => {
@@ -427,6 +443,371 @@ describe('cleanupCommand', () => {
 
       expect(console.log).toHaveBeenCalledWith('No pipeline branches found to clean up');
       expect(mockBranchManager.deleteLocalBranch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Log Deletion', () => {
+    describe('Basic Flag Behavior', () => {
+      it('should delete all state files with --delete-logs flag', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json']);
+        mockFs.readFile.mockResolvedValue(JSON.stringify({
+          runId: 'test-run',
+          pipelineConfig: { name: 'test-pipeline' },
+        }));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        expect(mockFs.readdir).toHaveBeenCalled();
+        expect(mockFs.unlink).toHaveBeenCalledTimes(2);
+        expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🗑️  Deleting history files...'));
+      });
+
+      it('should prompt when deleteLogs is false', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockPrompts.confirm.mockResolvedValue(false);
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: false });
+
+        // Current implementation treats false same as undefined, so it still prompts
+        expect(mockPrompts.confirm).toHaveBeenCalled();
+        expect(mockFs.readdir).not.toHaveBeenCalled();
+        expect(mockFs.unlink).not.toHaveBeenCalled();
+      });
+
+      it('should skip deletion when no branches deleted', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue([]);
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        expect(mockFs.readdir).not.toHaveBeenCalled();
+        expect(mockFs.unlink).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Interactive Prompt Behavior', () => {
+      it('should show interactive prompt when flag not provided', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockPrompts.confirm.mockResolvedValue(false);
+
+        await cleanupCommand(tempDir, { force: true });
+
+        expect(mockPrompts.confirm).toHaveBeenCalledWith(
+          expect.stringContaining('Delete associated history files?'),
+          false
+        );
+      });
+
+      it('should delete logs when user confirms', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockPrompts.confirm.mockResolvedValue(true);
+        mockFs.readdir.mockResolvedValue(['run-1.json']);
+        mockFs.readFile.mockResolvedValue(JSON.stringify({
+          runId: 'test-run',
+          pipelineConfig: { name: 'test' },
+        }));
+
+        await cleanupCommand(tempDir, { force: true });
+
+        expect(mockPrompts.confirm).toHaveBeenCalled();
+        expect(mockFs.readdir).toHaveBeenCalled();
+        expect(mockFs.unlink).toHaveBeenCalled();
+      });
+
+      it('should skip logs when user declines', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockPrompts.confirm.mockResolvedValue(false);
+
+        await cleanupCommand(tempDir, { force: true });
+
+        expect(mockPrompts.confirm).toHaveBeenCalled();
+        expect(mockFs.readdir).not.toHaveBeenCalled();
+        expect(mockFs.unlink).not.toHaveBeenCalled();
+      });
+
+      it('should not prompt when deleteLogs flag provided', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockFs.readdir.mockResolvedValue([]);
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        expect(mockPrompts.confirm).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('Pipeline Filtering', () => {
+      it('should delete only matching pipeline logs', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test-pipeline']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json', 'run-3.json']);
+        mockFs.readFile
+          .mockResolvedValueOnce(JSON.stringify({ pipelineConfig: { name: 'test-pipeline' } }))
+          .mockResolvedValueOnce(JSON.stringify({ pipelineConfig: { name: 'other-pipeline' } }))
+          .mockResolvedValueOnce(JSON.stringify({ pipelineConfig: { name: 'test-pipeline' } }));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true, pipeline: 'test-pipeline' });
+
+        expect(mockFs.unlink).toHaveBeenCalledTimes(2);
+      });
+
+      it('should delete all logs when no pipeline filter', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json']);
+        mockFs.readFile.mockResolvedValue(JSON.stringify({
+          pipelineConfig: { name: 'any-pipeline' },
+        }));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        expect(mockFs.unlink).toHaveBeenCalledTimes(2);
+      });
+
+      it('should handle multiple state files for same pipeline', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/build']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json', 'run-3.json']);
+        mockFs.readFile.mockResolvedValue(JSON.stringify({
+          pipelineConfig: { name: 'build' },
+        }));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true, pipeline: 'build' });
+
+        expect(mockFs.unlink).toHaveBeenCalledTimes(3);
+      });
+
+      it('should filter mixed pipeline logs correctly', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json', 'run-3.json', 'run-4.json']);
+        mockFs.readFile
+          .mockResolvedValueOnce(JSON.stringify({ pipelineConfig: { name: 'test' } }))
+          .mockResolvedValueOnce(JSON.stringify({ pipelineConfig: { name: 'other' } }))
+          .mockResolvedValueOnce(JSON.stringify({ pipelineConfig: { name: 'test' } }))
+          .mockResolvedValueOnce(JSON.stringify({ pipelineConfig: { name: 'different' } }));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true, pipeline: 'test' });
+
+        expect(mockFs.unlink).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe('File Operations & Error Handling', () => {
+      it('should display deleted count', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json', 'run-3.json']);
+        mockFs.readFile.mockResolvedValue(JSON.stringify({
+          pipelineConfig: { name: 'test' },
+        }));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        expect(console.log).toHaveBeenCalledWith(expect.stringContaining('📊 Deleted 3 history file(s)'));
+      });
+
+      it('should skip non-.json files', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'readme.txt', 'run-2.json', '.DS_Store']);
+        mockFs.readFile.mockResolvedValue(JSON.stringify({
+          pipelineConfig: { name: 'test' },
+        }));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        expect(mockFs.readFile).toHaveBeenCalledTimes(2); // Only .json files
+        expect(mockFs.unlink).toHaveBeenCalledTimes(2);
+      });
+
+      it('should handle missing state directory', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockRejectedValue(new Error('ENOENT: no such file or directory'));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        expect(console.error).toHaveBeenCalledWith(expect.stringContaining('⚠️  Could not delete history files'));
+      });
+
+      it('should handle file read errors', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json']);
+        mockFs.readFile.mockRejectedValueOnce(new Error('Permission denied'));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        // Current implementation stops processing on first error
+        expect(mockFs.readFile).toHaveBeenCalledTimes(1);
+        expect(console.error).toHaveBeenCalledWith(expect.stringContaining('⚠️  Could not delete history files'));
+      });
+
+      it('should handle JSON parse errors', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json']);
+        mockFs.readFile.mockResolvedValueOnce('invalid json{{}');
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        // Current implementation stops processing on first JSON parse error
+        expect(mockFs.readFile).toHaveBeenCalledTimes(1);
+        expect(console.error).toHaveBeenCalledWith(expect.stringContaining('⚠️  Could not delete history files'));
+      });
+
+      it('should show "no files found" message when directory empty', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue([]);
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        expect(console.log).toHaveBeenCalledWith(expect.stringContaining('No history files found to delete'));
+      });
+
+      it('should show "no files found" when no matches', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json']);
+        mockFs.readFile.mockResolvedValue(JSON.stringify({
+          pipelineConfig: { name: 'other-pipeline' },
+        }));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true, pipeline: 'test' });
+
+        expect(mockFs.unlink).not.toHaveBeenCalled();
+        expect(console.log).toHaveBeenCalledWith(expect.stringContaining('No history files found to delete'));
+      });
+    });
+
+    describe('Console Output', () => {
+      it('should display deletion header', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json']);
+        mockFs.readFile.mockResolvedValue(JSON.stringify({
+          pipelineConfig: { name: 'test' },
+        }));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🗑️  Deleting history files...'));
+      });
+
+      it('should display each deleted file', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json']);
+        mockFs.readFile.mockResolvedValue(JSON.stringify({
+          pipelineConfig: { name: 'test' },
+        }));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Deleted run-1.json'));
+        expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Deleted run-2.json'));
+      });
+
+      it('should display completion message even on errors', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockRejectedValue(new Error('Failed'));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✨ Cleanup complete!'));
+      });
+    });
+
+    describe('Integration Workflows', () => {
+      it('should complete full workflow: force + delete logs', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test-1', 'pipeline/test-2']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json']);
+        mockFs.readFile.mockResolvedValue(JSON.stringify({
+          pipelineConfig: { name: 'test' },
+        }));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true });
+
+        expect(mockBranchManager.deleteLocalBranch).toHaveBeenCalledTimes(2);
+        expect(mockFs.unlink).toHaveBeenCalledTimes(2);
+        expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✨ Cleanup complete!'));
+      });
+
+      it('should complete full workflow: filter + force + delete logs', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue([
+          'pipeline/my-pipeline-1',
+          'pipeline/my-pipeline-2',
+          'pipeline/other-1'
+        ]);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json', 'run-3.json']);
+        mockFs.readFile
+          .mockResolvedValueOnce(JSON.stringify({ pipelineConfig: { name: 'my-pipeline' } }))
+          .mockResolvedValueOnce(JSON.stringify({ pipelineConfig: { name: 'other' } }))
+          .mockResolvedValueOnce(JSON.stringify({ pipelineConfig: { name: 'my-pipeline' } }));
+
+        await cleanupCommand(tempDir, { force: true, deleteLogs: true, pipeline: 'my-pipeline' });
+
+        expect(mockBranchManager.deleteLocalBranch).toHaveBeenCalledTimes(2);
+        expect(mockFs.unlink).toHaveBeenCalledTimes(2); // Only my-pipeline logs
+      });
+
+      it('should complete full workflow: force + interactive decline', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockPrompts.confirm.mockResolvedValue(false);
+
+        await cleanupCommand(tempDir, { force: true });
+
+        expect(mockBranchManager.deleteLocalBranch).toHaveBeenCalledTimes(1);
+        expect(mockPrompts.confirm).toHaveBeenCalled();
+        expect(mockFs.unlink).not.toHaveBeenCalled();
+        expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✨ Cleanup complete!'));
+      });
+
+      it('should complete full workflow: force + interactive accept', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockPrompts.confirm.mockResolvedValue(true);
+
+        mockFs.readdir.mockResolvedValue(['run-1.json']);
+        mockFs.readFile.mockResolvedValue(JSON.stringify({
+          pipelineConfig: { name: 'test' },
+        }));
+
+        await cleanupCommand(tempDir, { force: true });
+
+        expect(mockBranchManager.deleteLocalBranch).toHaveBeenCalledTimes(1);
+        expect(mockPrompts.confirm).toHaveBeenCalled();
+        expect(mockFs.unlink).toHaveBeenCalledTimes(1);
+        expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✨ Cleanup complete!'));
+      });
     });
   });
 });
