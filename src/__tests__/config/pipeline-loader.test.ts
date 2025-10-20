@@ -221,6 +221,78 @@ describe('PipelineLoader', () => {
       expect(loaded.notifications?.enabled).toBe(true);
       expect(loaded.notifications?.channels?.slack?.webhookUrl).toBe('https://hooks.slack.com/test');
     });
+
+    it('should handle pipeline with context reduction configuration', async () => {
+      const contextReductionConfig = {
+        name: 'with-context-reduction',
+        trigger: 'manual',
+        settings: {
+          autoCommit: true,
+          commitPrefix: '[pipeline]',
+          failureStrategy: 'stop',
+          preserveWorkingTree: false,
+          contextReduction: {
+            enabled: true,
+            maxTokens: 50000,
+            strategy: 'summary-based',
+            contextWindow: 3,
+            requireSummary: true,
+            saveVerboseOutputs: true,
+            compressFileList: true,
+          },
+        },
+        agents: [
+          { name: 'stage-1', agent: 'agent.md' },
+        ],
+      };
+
+      const configPath = path.join(pipelinesDir, 'with-context-reduction.yml');
+      await fs.writeFile(configPath, YAML.stringify(contextReductionConfig), 'utf-8');
+
+      const loaded = await loader.loadPipeline('with-context-reduction');
+
+      expect(loaded.settings?.contextReduction).toBeDefined();
+      expect(loaded.settings?.contextReduction?.enabled).toBe(true);
+      expect(loaded.settings?.contextReduction?.maxTokens).toBe(50000);
+      expect(loaded.settings?.contextReduction?.strategy).toBe('summary-based');
+      expect(loaded.settings?.contextReduction?.contextWindow).toBe(3);
+      expect(loaded.settings?.contextReduction?.requireSummary).toBe(true);
+      expect(loaded.settings?.contextReduction?.saveVerboseOutputs).toBe(true);
+      expect(loaded.settings?.contextReduction?.compressFileList).toBe(true);
+    });
+
+    it('should handle pipeline with agent-based context reduction', async () => {
+      const agentBasedConfig = {
+        name: 'agent-based-reduction',
+        trigger: 'manual',
+        settings: {
+          autoCommit: true,
+          commitPrefix: '[pipeline]',
+          failureStrategy: 'stop',
+          preserveWorkingTree: false,
+          contextReduction: {
+            enabled: true,
+            maxTokens: 50000,
+            strategy: 'agent-based',
+            agentPath: '.claude/agents/context-reducer.md',
+            triggerThreshold: 45000,
+          },
+        },
+        agents: [
+          { name: 'stage-1', agent: 'agent.md' },
+        ],
+      };
+
+      const configPath = path.join(pipelinesDir, 'agent-based-reduction.yml');
+      await fs.writeFile(configPath, YAML.stringify(agentBasedConfig), 'utf-8');
+
+      const loaded = await loader.loadPipeline('agent-based-reduction');
+
+      expect(loaded.settings?.contextReduction).toBeDefined();
+      expect(loaded.settings?.contextReduction?.strategy).toBe('agent-based');
+      expect(loaded.settings?.contextReduction?.agentPath).toBe('.claude/agents/context-reducer.md');
+      expect(loaded.settings?.contextReduction?.triggerThreshold).toBe(45000);
+    });
   });
 
   describe('listPipelines', () => {

@@ -215,6 +215,157 @@ describe('PipelineValidator', () => {
 
       expect(errors.some(e => e.severity === 'warning' && e.message.includes('Timeout exceeds'))).toBe(true);
     });
+
+    it('should validate context reduction configuration (summary-based)', async () => {
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        settings: {
+          contextReduction: {
+            enabled: true,
+            maxTokens: 50000,
+            strategy: 'summary-based',
+            contextWindow: 3,
+            requireSummary: true,
+            saveVerboseOutputs: true,
+            compressFileList: true,
+          },
+        },
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      const contextErrors = errors.filter(e => e.field.includes('contextReduction'));
+      expect(contextErrors).toHaveLength(0);
+    });
+
+    it('should validate context reduction configuration (agent-based)', async () => {
+      // Create context reducer agent file
+      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      await fs.writeFile(path.join(agentsDir, 'context-reducer.md'), '# Context Reducer', 'utf-8');
+
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        settings: {
+          contextReduction: {
+            enabled: true,
+            maxTokens: 50000,
+            strategy: 'agent-based',
+            agentPath: '.claude/agents/context-reducer.md',
+            triggerThreshold: 45000,
+          },
+        },
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      const contextErrors = errors.filter(e => e.field.includes('contextReduction'));
+      expect(contextErrors).toHaveLength(0);
+    });
+
+    it('should detect invalid context reduction strategy', async () => {
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        settings: {
+          contextReduction: {
+            enabled: true,
+            maxTokens: 50000,
+            strategy: 'invalid-strategy' as any,
+          },
+        },
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      expect(errors.some(e => e.field.includes('contextReduction.strategy'))).toBe(true);
+    });
+
+    it('should detect negative maxTokens in context reduction', async () => {
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        settings: {
+          contextReduction: {
+            enabled: true,
+            maxTokens: -1000,
+            strategy: 'summary-based',
+          },
+        },
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      expect(errors.some(e => e.message.includes('maxTokens must be a positive number'))).toBe(true);
+    });
+
+    it('should warn about very low maxTokens', async () => {
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        settings: {
+          contextReduction: {
+            enabled: true,
+            maxTokens: 1000, // Very low
+            strategy: 'summary-based',
+          },
+        },
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      expect(errors.some(e => e.severity === 'warning' && e.message.includes('maxTokens is very low'))).toBe(true);
+    });
+
+    it('should detect negative contextWindow', async () => {
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        settings: {
+          contextReduction: {
+            enabled: true,
+            maxTokens: 50000,
+            strategy: 'summary-based',
+            contextWindow: -1,
+          },
+        },
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      expect(errors.some(e => e.message.includes('contextWindow must be a positive number'))).toBe(true);
+    });
+
+    it('should detect negative triggerThreshold', async () => {
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        settings: {
+          contextReduction: {
+            enabled: true,
+            maxTokens: 50000,
+            strategy: 'agent-based',
+            triggerThreshold: -1000,
+          },
+        },
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      expect(errors.some(e => e.message.includes('triggerThreshold must be a positive number'))).toBe(true);
+    });
+
+    it('should detect triggerThreshold exceeding maxTokens', async () => {
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        settings: {
+          contextReduction: {
+            enabled: true,
+            maxTokens: 50000,
+            strategy: 'agent-based',
+            triggerThreshold: 60000, // Greater than maxTokens
+          },
+        },
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      expect(errors.some(e => e.message.includes('triggerThreshold should be less than maxTokens'))).toBe(true);
+    });
   });
 
   describe('validateAndReport', () => {

@@ -104,6 +104,64 @@ export class PipelineValidator {
         severity: 'warning'
       });
     }
+
+    // Validate context reduction configuration
+    if (config.settings.contextReduction) {
+      const cr = config.settings.contextReduction;
+
+      // Validate strategy
+      const validStrategies = ['summary-based', 'agent-based'];
+      if (!validStrategies.includes(cr.strategy)) {
+        this.errors.push({
+          field: 'settings.contextReduction.strategy',
+          message: `Invalid context reduction strategy: ${cr.strategy}. Must be one of: ${validStrategies.join(', ')}`,
+          severity: 'error'
+        });
+      }
+
+      // Validate maxTokens
+      if (typeof cr.maxTokens !== 'number' || cr.maxTokens <= 0) {
+        this.errors.push({
+          field: 'settings.contextReduction.maxTokens',
+          message: 'maxTokens must be a positive number',
+          severity: 'error'
+        });
+      } else if (cr.maxTokens < 5000) {
+        this.errors.push({
+          field: 'settings.contextReduction.maxTokens',
+          message: 'maxTokens is very low (< 5000). Consider increasing to at least 10000.',
+          severity: 'warning'
+        });
+      }
+
+      // Validate contextWindow
+      if (cr.contextWindow !== undefined) {
+        if (typeof cr.contextWindow !== 'number' || cr.contextWindow <= 0) {
+          this.errors.push({
+            field: 'settings.contextReduction.contextWindow',
+            message: 'contextWindow must be a positive number',
+            severity: 'error'
+          });
+        }
+      }
+
+      // Validate triggerThreshold
+      if (cr.triggerThreshold !== undefined) {
+        if (typeof cr.triggerThreshold !== 'number' || cr.triggerThreshold <= 0) {
+          this.errors.push({
+            field: 'settings.contextReduction.triggerThreshold',
+            message: 'triggerThreshold must be a positive number',
+            severity: 'error'
+          });
+        } else if (cr.triggerThreshold > cr.maxTokens) {
+          this.errors.push({
+            field: 'settings.contextReduction.triggerThreshold',
+            message: 'triggerThreshold should be less than maxTokens',
+            severity: 'error'
+          });
+        }
+      }
+    }
   }
 
   private validateAgents(config: PipelineConfig): void {
