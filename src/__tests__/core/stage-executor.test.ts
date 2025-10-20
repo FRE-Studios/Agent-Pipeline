@@ -57,6 +57,17 @@ vi.mock('fs/promises', () => ({
   readFile: vi.fn().mockResolvedValue('Mock agent system prompt'),
 }));
 
+// Mock OutputStorageManager
+vi.mock('../../core/output-storage-manager.js', () => ({
+  OutputStorageManager: vi.fn(() => ({
+    saveStageOutputs: vi.fn().mockResolvedValue({ structured: 'path/to/output.json', raw: 'path/to/raw.md' }),
+    savePipelineSummary: vi.fn().mockResolvedValue('path/to/summary.json'),
+    saveChangedFiles: vi.fn().mockResolvedValue('path/to/changed-files.txt'),
+    readStageOutput: vi.fn().mockResolvedValue(null),
+    compressFileList: vi.fn((files: string[]) => `Changed ${files.length} files`),
+  })),
+}));
+
 describe('StageExecutor', () => {
   beforeAll(() => {
     vi.useFakeTimers();
@@ -69,6 +80,8 @@ describe('StageExecutor', () => {
   let executor: StageExecutor;
   let mockGitManager: ReturnType<typeof createMockGitManager>;
   let mockQuery: ReturnType<typeof vi.fn>;
+  const testRunId = 'test-run-id-12345';
+  const testRepoPath = '/test/repo/path';
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -95,7 +108,7 @@ describe('StageExecutor', () => {
   describe('executeStage - Success Scenarios', () => {
     it('should execute stage successfully with agent output', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -121,7 +134,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const promise = executor.executeStage(stageWithRetry, runningPipelineState);
       promise.catch(() => {}); // Suppress unhandled rejection warning
@@ -138,7 +151,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -160,7 +173,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const promise = executor.executeStage(basicStageConfig, runningPipelineState);
       await vi.advanceTimersByTimeAsync(1000);
@@ -175,7 +188,7 @@ describe('StageExecutor', () => {
         commitSha: 'integration-commit',
         commitMessage: '[pipeline:test-stage] Integration test',
       });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -197,7 +210,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(stageWithOutputs, runningPipelineState);
 
@@ -214,7 +227,7 @@ describe('StageExecutor', () => {
         commitSha: 'new-commit-123',
         commitMessage: '[pipeline:test-stage] Test commit',
       });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -233,7 +246,7 @@ describe('StageExecutor', () => {
         hasChanges: true,
         commitSha: 'custom-commit-456',
       });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(stageWithCustomCommit, runningPipelineState);
 
@@ -247,7 +260,7 @@ describe('StageExecutor', () => {
 
     it('should not commit when auto-commit is disabled', async () => {
       mockGitManager = createMockGitManager({ hasChanges: true });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(
         stageWithAutoCommitDisabled,
@@ -261,7 +274,7 @@ describe('StageExecutor', () => {
 
     it('should not commit when no changes are present', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -272,7 +285,7 @@ describe('StageExecutor', () => {
 
     it('should execute in dry-run mode with changes', async () => {
       mockGitManager = createMockGitManager({ hasChanges: true });
-      executor = new StageExecutor(mockGitManager, true); // dry-run mode
+      executor = new StageExecutor(mockGitManager, true, testRunId, testRepoPath); // dry-run mode
 
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -288,7 +301,7 @@ describe('StageExecutor', () => {
 
     it('should execute in dry-run mode without changes', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, true);
+      executor = new StageExecutor(mockGitManager, true, testRunId, testRepoPath);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -298,7 +311,7 @@ describe('StageExecutor', () => {
 
     it('should invoke output callback with streaming updates', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const outputCallback = vi.fn();
       await executor.executeStage(
@@ -313,7 +326,7 @@ describe('StageExecutor', () => {
 
     it('should execute successfully with retry configured (no retries needed)', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(stageWithRetry, runningPipelineState);
 
@@ -326,7 +339,7 @@ describe('StageExecutor', () => {
 
     it('should respect custom timeout value', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(stageWithLongTimeout, runningPipelineState);
 
@@ -337,7 +350,7 @@ describe('StageExecutor', () => {
     it('should include stage inputs in agent context', async () => {
       const fs = await import('fs/promises');
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       await executor.executeStage(stageWithInputs, runningPipelineState);
 
@@ -350,7 +363,7 @@ describe('StageExecutor', () => {
 
     it('should include previous stages in context', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       await executor.executeStage(basicStageConfig, completedPipelineState);
 
@@ -368,7 +381,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -383,7 +396,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const promise = executor.executeStage(stageWithRetry, runningPipelineState);
@@ -412,7 +425,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const promise = executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -432,7 +445,7 @@ describe('StageExecutor', () => {
       );
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -447,7 +460,7 @@ describe('StageExecutor', () => {
       vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -461,7 +474,7 @@ describe('StageExecutor', () => {
       vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -475,7 +488,7 @@ describe('StageExecutor', () => {
       vi.mocked(fs.readFile).mockRejectedValue(new Error('permission denied'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -489,7 +502,7 @@ describe('StageExecutor', () => {
       vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -504,7 +517,7 @@ describe('StageExecutor', () => {
       vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const promise = executor.executeStage(stageWithRetry, runningPipelineState);
@@ -525,7 +538,7 @@ describe('StageExecutor', () => {
       vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -537,7 +550,7 @@ describe('StageExecutor', () => {
 
     it('should handle git commit failure', async () => {
       mockGitManager = createMockGitManager({ hasChanges: true, shouldFailCommit: true });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -550,7 +563,7 @@ describe('StageExecutor', () => {
   describe('buildAgentContext', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
     });
 
     it('should build context with no previous stages', async () => {
@@ -640,8 +653,9 @@ describe('StageExecutor', () => {
 
       const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
       const callArgs = mockQueryFn.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('file1.ts');
-      expect(callArgs.prompt).toContain('file2.ts');
+      // With context reduction enabled, files are compressed
+      expect(callArgs.prompt).toContain('Changed 2 files');
+      expect(callArgs.prompt).toContain('changed-files.txt');
     });
 
     it('should include stage inputs in context', async () => {
@@ -659,7 +673,7 @@ describe('StageExecutor', () => {
   describe('runAgentWithTimeout', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
     });
 
     it('should execute agent query successfully', async () => {
@@ -828,7 +842,7 @@ describe('StageExecutor', () => {
   describe('Tool-based output extraction', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
     });
 
     it('should extract data from report_outputs tool call', async () => {
@@ -975,7 +989,7 @@ describe('StageExecutor', () => {
   describe('extractOutputs', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
     });
 
     it('should extract single output key', async () => {
@@ -1076,7 +1090,7 @@ describe('StageExecutor', () => {
   describe('calculateDuration', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
     });
 
     it('should calculate duration with valid start and end times', async () => {
@@ -1112,7 +1126,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const promise = executor.executeStage(basicStageConfig, runningPipelineState);
       await vi.advanceTimersByTimeAsync(1000);
@@ -1125,7 +1139,7 @@ describe('StageExecutor', () => {
   describe('captureErrorDetails', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
     });
 
     it('should capture ENOENT error with file path suggestion', async () => {
@@ -1236,7 +1250,7 @@ describe('StageExecutor', () => {
       vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = retryingQuery;
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -1260,7 +1274,7 @@ describe('StageExecutor', () => {
         commitSha: 'integration-commit',
         commitMessage: '[pipeline:test-stage] Integration test',
       });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -1275,7 +1289,7 @@ describe('StageExecutor', () => {
       vi.mocked(fs.readFile).mockResolvedValue('Custom agent prompt');
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -1284,7 +1298,7 @@ describe('StageExecutor', () => {
 
     it('should handle concurrent stage executions', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const promise1 = executor.executeStage(basicStageConfig, runningPipelineState);
       const promise2 = executor.executeStage(
@@ -1306,7 +1320,7 @@ describe('StageExecutor', () => {
       vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -1316,7 +1330,7 @@ describe('StageExecutor', () => {
 
     it('should track stage execution state transitions correctly', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false);
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);

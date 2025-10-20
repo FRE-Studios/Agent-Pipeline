@@ -9,6 +9,7 @@ import { StateManager } from './state-manager.js';
 import { DAGPlanner } from './dag-planner.js';
 import { ParallelExecutor } from './parallel-executor.js';
 import { ConditionEvaluator } from './condition-evaluator.js';
+import { OutputStorageManager } from './output-storage-manager.js';
 import { PipelineConfig, PipelineState, AgentStageConfig } from '../config/schema.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
@@ -18,28 +19,23 @@ export class PipelineRunner {
   private gitManager: GitManager;
   private branchManager: BranchManager;
   private prCreator: PRCreator;
-  private stageExecutor: StageExecutor;
   private stateManager: StateManager;
   private dagPlanner: DAGPlanner;
-  private parallelExecutor: ParallelExecutor;
   private conditionEvaluator: ConditionEvaluator;
   private notificationManager?: NotificationManager;
   private dryRun: boolean;
+  private repoPath: string;
   private stateUpdateCallbacks: Array<(state: PipelineState) => void> = [];
   private originalBranch: string = '';
 
   constructor(repoPath: string, dryRun: boolean = false) {
+    this.repoPath = repoPath;
     this.gitManager = new GitManager(repoPath);
     this.branchManager = new BranchManager(repoPath);
     this.prCreator = new PRCreator();
-    this.stageExecutor = new StageExecutor(this.gitManager, dryRun);
     this.stateManager = new StateManager(repoPath);
     this.dagPlanner = new DAGPlanner();
     this.conditionEvaluator = new ConditionEvaluator();
-    this.parallelExecutor = new ParallelExecutor(
-      this.stageExecutor,
-      (state) => this.notifyStateChange(state)
-    );
     this.dryRun = dryRun;
   }
 
@@ -127,6 +123,13 @@ export class PipelineRunner {
         totalDuration: 0
       }
     };
+
+    // Create StageExecutor and ParallelExecutor for this run
+    const stageExecutor = new StageExecutor(this.gitManager, this.dryRun, state.runId, this.repoPath);
+    const parallelExecutor = new ParallelExecutor(
+      stageExecutor,
+      (state) => this.notifyStateChange(state)
+    );
 
     if (this.dryRun) {
       console.log(`\n🧪 DRY RUN MODE - No commits will be created\n`);
@@ -229,7 +232,7 @@ export class PipelineRunner {
         let groupResult;
         if (shouldRunParallel) {
           // Parallel execution
-          groupResult = await this.parallelExecutor.executeParallelGroup(
+          groupResult = await parallelExecutor.executeParallelGroup(
             enabledStages,
             state,
             (stageName, output) => {
@@ -250,7 +253,7 @@ export class PipelineRunner {
 
         } else {
           // Sequential execution (fallback or explicit mode)
-          groupResult = await this.parallelExecutor.executeSequentialGroup(
+          groupResult = await parallelExecutor.executeSequentialGroup(
             enabledStages,
             state,
             (stageName, output) => {
@@ -275,7 +278,7 @@ export class PipelineRunner {
 
         // Log group result
         if (this.shouldLog(options.interactive || false) && shouldRunParallel) {
-          console.log(`📊 ${this.parallelExecutor.aggregateResults(groupResult)}\n`);
+          console.log(`📊 ${parallelExecutor.aggregateResults(groupResult)}\n`);
         }
 
         // Handle group failures
@@ -318,6 +321,13 @@ export class PipelineRunner {
     const endTime = Date.now();
     state.artifacts.totalDuration = (endTime - startTime) / 1000;
     state.artifacts.finalCommit = await this.gitManager.getCurrentCommit();
+
+    // Save pipeline summary and changed files (if context reduction enabled)
+    if (config.settings?.contextReduction?.saveVerboseOutputs !== false) {
+      const outputStorageManager = new OutputStorageManager(this.repoPath, state.runId);
+      await outputStorageManager.savePipelineSummary(state.stages);
+      await outputStorageManager.saveChangedFiles(state.artifacts.changedFiles);
+    }
 
     // Push and create PR if configured
     if (pipelineBranch && config.git?.pullRequest?.autoCreate) {

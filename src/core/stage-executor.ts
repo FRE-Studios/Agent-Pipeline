@@ -5,6 +5,7 @@ import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
 import { RetryHandler } from './retry-handler.js';
 import { OutputToolBuilder } from './output-tool-builder.js';
+import { OutputStorageManager } from './output-storage-manager.js';
 import { AgentStageConfig, StageExecution, PipelineState } from '../config/schema.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { ErrorFactory } from '../utils/error-factory.js';
@@ -12,12 +13,16 @@ import { TokenEstimator } from '../utils/token-estimator.js';
 
 export class StageExecutor {
   private retryHandler: RetryHandler;
+  private outputStorageManager: OutputStorageManager;
 
   constructor(
     private gitManager: GitManager,
-    private dryRun: boolean = false
+    private dryRun: boolean = false,
+    runId: string,
+    repoPath: string
   ) {
     this.retryHandler = new RetryHandler();
+    this.outputStorageManager = new OutputStorageManager(repoPath, runId);
   }
 
   async executeStage(
@@ -36,7 +41,7 @@ export class StageExecutor {
     // Define the core execution logic
     const executeAttempt = async (): Promise<void> => {
       // Build context for agent
-      const agentContext = this.buildAgentContext(stageConfig, pipelineState);
+      const agentContext = await this.buildAgentContext(stageConfig, pipelineState);
 
       // Load agent system prompt
       const systemPrompt = await fs.readFile(stageConfig.agent, 'utf-8');
@@ -71,6 +76,16 @@ export class StageExecutor {
           cache_creation: result.tokenUsage.cache_creation_input_tokens,
           cache_read: result.tokenUsage.cache_read_input_tokens
         };
+      }
+
+      // Save outputs to files (if enabled)
+      if (pipelineState.pipelineConfig.settings?.contextReduction?.saveVerboseOutputs !== false) {
+        const outputFiles = await this.outputStorageManager.saveStageOutputs(
+          stageConfig.name,
+          execution.extractedData,
+          execution.agentOutput || ''
+        );
+        execution.outputFiles = outputFiles;
       }
 
       // Auto-commit if enabled
@@ -152,36 +167,56 @@ export class StageExecutor {
     }
   }
 
-  private buildAgentContext(
+  private async buildAgentContext(
     stageConfig: AgentStageConfig,
     pipelineState: PipelineState
-  ): string {
-    const previousStages = pipelineState.stages
-      .filter(s => s.status === 'success')
-      .map(s => ({
-        name: s.stageName,
-        output: s.extractedData || {},
-        commit: s.commitSha
-      }));
+  ): Promise<string> {
+    // Load config with sensible defaults
+    const config = pipelineState.pipelineConfig.settings?.contextReduction || {
+      enabled: true,
+      maxTokens: 50000,
+      strategy: 'summary-based' as const,
+      contextWindow: 3,
+      requireSummary: true,
+      saveVerboseOutputs: true,
+      compressFileList: true
+    };
 
+    // Filter successful previous stages
+    const previousStages = pipelineState.stages.filter(s => s.status === 'success');
+
+    // Apply context window
+    const contextWindow = config.contextWindow || 3;
+    const recentStages = previousStages.slice(-contextWindow);
+    const olderStages = previousStages.slice(0, -contextWindow);
+
+    // Build recent stages context (summaries + key metrics)
+    const recentStagesContext = this.buildRecentStagesContext(recentStages, pipelineState.runId);
+
+    // Build older stages summary (file references only)
+    const olderStagesContext = this.buildOlderStagesContext(olderStages, pipelineState.runId);
+
+    // Handle changed files (compressed or full)
+    const changedFilesContext = config.compressFileList
+      ? this.buildCompressedFilesContext(pipelineState)
+      : this.buildFullFilesContext(pipelineState);
+
+    // Build output instructions
     const outputInstructions = OutputToolBuilder.buildOutputInstructions(stageConfig.outputs);
 
-    return `
+    // Construct full context
+    const context = `
 # Pipeline Context
 
 **Pipeline Run ID:** ${pipelineState.runId}
 **Current Stage:** ${stageConfig.name}
 **Trigger Commit:** ${pipelineState.trigger.commitSha}
 
-## Previous Stages
-${previousStages.map(s => `
-### ${s.name}
-- Commit: ${s.commit}
-- Output: ${JSON.stringify(s.output, null, 2)}
-`).join('\n')}
+${recentStagesContext}
 
-## Changed Files
-${pipelineState.artifacts.changedFiles.join('\n')}
+${olderStagesContext}
+
+${changedFilesContext}
 
 ## Your Task
 ${JSON.stringify(stageConfig.inputs || {}, null, 2)}
@@ -189,10 +224,99 @@ ${JSON.stringify(stageConfig.inputs || {}, null, 2)}
 ${outputInstructions ? `\n${outputInstructions}\n` : ''}
 
 ---
-
-Please analyze the current repository state and make any necessary changes.
-When done, describe what you changed and why.
+**Note:** Use the Read tool to access full outputs if you need detailed information.
     `.trim();
+
+    // Check token count and warn if needed
+    if (config.enabled) {
+      await this.checkContextTokens(context, config);
+    }
+
+    return context;
+  }
+
+  private buildRecentStagesContext(
+    recentStages: import('../config/schema.js').StageExecution[],
+    _runId: string
+  ): string {
+    if (recentStages.length === 0) return '';
+
+    const stageContexts = recentStages.map(s => {
+      // Extract summary (if exists)
+      const summary = s.extractedData?.summary
+        ? String(s.extractedData.summary)
+        : 'No summary provided';
+
+      // Extract key metrics (all outputs except summary)
+      const keyMetrics = Object.entries(s.extractedData || {})
+        .filter(([key]) => key !== 'summary')
+        .map(([key, value]) => `${key}=${value}`)
+        .join(', ');
+
+      // Build file reference (if saved)
+      const fileReference = s.outputFiles?.structured
+        ? `- **Full Output:** ${s.outputFiles.structured}`
+        : '';
+
+      return `
+### ${s.stageName}
+- **Summary:** ${summary}
+${keyMetrics ? `- **Key Metrics:** ${keyMetrics}` : ''}
+- **Commit:** ${s.commitSha || 'No commit'}
+${fileReference}
+      `.trim();
+    }).join('\n\n');
+
+    return `## Previous Stages (Last ${recentStages.length} in context window)\n\n${stageContexts}`;
+  }
+
+  private buildOlderStagesContext(
+    olderStages: import('../config/schema.js').StageExecution[],
+    runId: string
+  ): string {
+    if (olderStages.length === 0) return '';
+
+    const stageNames = olderStages.map(s => s.stageName).join(', ');
+    return `## Earlier Stages\nStages ${stageNames} completed. Full history: .agent-pipeline/outputs/${runId}/pipeline-summary.json\n`;
+  }
+
+  private buildCompressedFilesContext(pipelineState: PipelineState): string {
+    const compressed = this.outputStorageManager.compressFileList(
+      pipelineState.artifacts.changedFiles
+    );
+
+    return `## Changed Files Summary
+${compressed}
+Full list: .agent-pipeline/outputs/${pipelineState.runId}/changed-files.txt`;
+  }
+
+  private buildFullFilesContext(pipelineState: PipelineState): string {
+    const files = pipelineState.artifacts.changedFiles.join('\n');
+    return `## Changed Files\n${files}`;
+  }
+
+  private async checkContextTokens(
+    context: string,
+    config: { enabled: boolean; maxTokens: number }
+  ): Promise<void> {
+    const tokenEstimator = new TokenEstimator();
+    const { tokens, method } = await tokenEstimator.smartCount(context, config.maxTokens);
+    tokenEstimator.dispose();
+
+    const percentage = (tokens / config.maxTokens) * 100;
+
+    if (tokens > config.maxTokens) {
+      console.warn(
+        `⚠️  Context size (${PipelineFormatter.formatTokenCount(tokens)} tokens, ${percentage.toFixed(0)}%) ` +
+        `exceeds limit (${PipelineFormatter.formatTokenCount(config.maxTokens)}). ` +
+        `Consider reducing contextWindow or using agent-based reduction.`
+      );
+    } else if (tokens > config.maxTokens * 0.8) {
+      console.log(
+        `ℹ️  Context size: ${PipelineFormatter.formatTokenCount(tokens)} tokens ` +
+        `(${method}, ${percentage.toFixed(0)}% of limit, approaching threshold)`
+      );
+    }
   }
 
   private async runAgentWithTimeout(

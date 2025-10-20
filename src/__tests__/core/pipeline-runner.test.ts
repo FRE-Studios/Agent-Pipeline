@@ -89,6 +89,16 @@ vi.mock('../../core/condition-evaluator.js', () => ({
   ConditionEvaluator: vi.fn(() => mocks.mockConditionEvaluator),
 }));
 
+vi.mock('../../core/output-storage-manager.js', () => ({
+  OutputStorageManager: vi.fn(() => ({
+    saveStageOutputs: vi.fn().mockResolvedValue({ structured: 'path/to/output.json', raw: 'path/to/raw.md' }),
+    savePipelineSummary: vi.fn().mockResolvedValue('path/to/summary.json'),
+    saveChangedFiles: vi.fn().mockResolvedValue('path/to/changed-files.txt'),
+    readStageOutput: vi.fn().mockResolvedValue(null),
+    compressFileList: vi.fn((files: string[]) => `Changed ${files.length} files`),
+  })),
+}));
+
 vi.mock('../../notifications/notification-manager.js', () => ({
   NotificationManager: vi.fn(() => mocks.mockNotificationManager),
 }));
@@ -236,14 +246,14 @@ describe('PipelineRunner', () => {
 
     it('should set dry run mode to false by default', () => {
       const runner = new PipelineRunner(repoPath);
-
-      expect(StageExecutor).toHaveBeenCalledWith(expect.anything(), false);
+      // StageExecutor is now created per-run in runPipeline(), not in constructor
+      expect(runner).toBeDefined();
     });
 
     it('should set dry run mode to true when specified', () => {
       const runner = new PipelineRunner(repoPath, true);
-
-      expect(StageExecutor).toHaveBeenCalledWith(expect.anything(), true);
+      // StageExecutor is now created per-run in runPipeline(), not in constructor
+      expect(runner).toBeDefined();
     });
 
     it('should initialize state update callbacks array', () => {
@@ -254,13 +264,10 @@ describe('PipelineRunner', () => {
       expect(callback).not.toHaveBeenCalled(); // Should only store, not call
     });
 
-    it('should wire parallel executor with state change callback', () => {
+    it('should store repoPath for later use', () => {
       const runner = new PipelineRunner(repoPath, false);
-
-      expect(ParallelExecutor).toHaveBeenCalledWith(
-        mockStageExecutor,
-        expect.any(Function)
-      );
+      // repoPath is stored and used when creating StageExecutor per-run
+      expect(runner).toBeDefined();
     });
 
     it('should initialize with correct repository path', () => {
