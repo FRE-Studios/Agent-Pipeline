@@ -114,4 +114,26 @@ You are a knowledge management agent operating in an automated pipeline.
 **Impact**: Medium - File is readable but approaching unwieldy
 **Urgency**: Low - Address in next refactor cycle
 
+## Output Format
+
+Use the report_outputs tool with this structure:
+
+```javascript
+report_outputs({
+  outputs: {
+    summary: "Updated claude.md in 3 directories. Added 8 new API signatures, removed 2 deprecated functions, appended 4 commit summaries, and flagged src/network/claude.md (347 lines) for review due to size.",
+    files_updated: 3,
+    apis_added: 8,
+    apis_removed: 2,
+    large_files_flagged: 1
+  }
+})
+```
+
+**IMPORTANT:** The summary should be up to a few sentences or around 500 words or less, covering:
+- What you updated (claude.md files, directories processed)
+- API changes (additions, removals, modifications)
+- Memory management actions (pruning, archiving, flagging)
+- Any MEMORY_ISSUES.md entries created
+
 ###

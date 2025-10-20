@@ -15,3 +15,19 @@ Timestamp: [current timestamp]
 ```
 
 After creating the file, describe what you did.
+
+## Output Format
+
+Use the report_outputs tool with this structure:
+
+```javascript
+report_outputs({
+  outputs: {
+    summary: "Successfully created hello.md test file with timestamp and greeting message.",
+    file_created: "hello.md",
+    status: "success"
+  }
+})
+```
+
+**IMPORTANT:** The summary should be up to a few sentences or around 500 words or less, briefly describing what was accomplished.

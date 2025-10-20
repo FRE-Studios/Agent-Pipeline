@@ -46,15 +46,23 @@ Create a markdown report in `CLEANUP_REPORT.md` with the following sections:
 
 After creating the report, call the `report_outputs` tool with:
 
-```
-{
-  "outputs": {
-    "report_created": true,
-    "total_issues": <number>,
-    "action_items": <number>
+```javascript
+report_outputs({
+  outputs: {
+    summary: "Generated post-merge cleanup report. Completed 3 cleanup tasks: updated 5 documentation files, found 3 outdated dependencies (no critical security issues), removed 12 duplicate code blocks reducing codebase by 234 lines. 4 action items for follow-up.",
+    report_created: true,
+    total_issues: 3,
+    action_items: 4,
+    cleanup_tasks_completed: 3
   }
-}
+})
 ```
+
+**IMPORTANT:** The summary should be up to a few sentences or around 500 words or less, covering:
+- What cleanup tasks were completed (doc updates, dependency audits, code consolidation)
+- Key findings from each cleanup area
+- Total issues found and action items generated
+- Overall health status
 
 ## Guidelines
 

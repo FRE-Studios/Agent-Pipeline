@@ -387,6 +387,139 @@ severity: high
 
 Both methods work. Tool-based preserves data types and handles complex structures. Text-based falls back to regex extraction.
 
+### Context Reduction
+
+Agent Pipeline implements intelligent context reduction to prevent token overflow in multi-stage pipelines. As pipelines progress through stages, context can grow linearly (~5k tokens per stage). Context reduction keeps pipelines lean while preserving all critical information.
+
+**The Problem:**
+```
+Stage 1: ~5k tokens
+Stage 2: ~10k tokens (includes Stage 1 outputs)
+Stage 3: ~15k tokens (includes Stage 1 + 2 outputs)
+Stage N: ~5k + (N * 5k) tokens
+```
+
+**The Solution:**
+Summary-based context passing with file-based output storage achieves **81% token reduction** with zero data loss.
+
+#### How It Works
+
+1. **Agents provide summaries**: Each agent reports a concise `summary` field (up to a few sentences or ~500 words) covering what they did, key findings, and main outcomes.
+2. **Full outputs saved to files**: All detailed data saved to `.agent-pipeline/outputs/{runId}/` for agent access.
+3. **Context window limiting**: Only recent stages (default: 3) included in full context; older stages referenced by file path.
+4. **Intelligent file compression**: Changed file lists compressed to directory summaries.
+
+#### Configuration
+
+Add to pipeline settings:
+
+```yaml
+settings:
+  contextReduction:
+    enabled: true                 # Enable context reduction (default: true)
+    maxTokens: 50000              # Token limit for context
+    strategy: summary-based       # summary-based or agent-based
+    contextWindow: 3              # Recent stages to include in full
+    requireSummary: true          # Require summary field from agents
+    saveVerboseOutputs: true      # Save full outputs to files
+    compressFileList: true        # Compress changed files list
+```
+
+#### Agent Summary Format
+
+Agents should include a `summary` field in their `report_outputs`:
+
+```javascript
+report_outputs({
+  outputs: {
+    summary: "Reviewed 12 files. Found 5 issues (2 critical, 3 warnings). Main concerns: security in auth.ts, performance in query.ts.",
+    issues_found: 5,
+    severity_level: "high",
+    files_reviewed: 12
+  }
+})
+```
+
+**Summary Guidelines:**
+- **Length**: Up to a few sentences or around 500 words or less
+- **Content**: What you did, key findings, main concerns/outcomes
+- **Clarity**: Concise but informative for downstream agents
+
+#### Context Example
+
+**Before Context Reduction (Stage 8, ~65k tokens):**
+```markdown
+## Previous Stages
+
+### stage-1
+- Commit: d4e5f6g
+- Output: {
+    "issues_found": 12,
+    "severity": "high",
+    "details": { ...large nested object... }
+  }
+
+### stage-2, stage-3, stage-4, stage-5, stage-6, stage-7
+...all with full verbose outputs
+```
+
+**After Context Reduction (Stage 8, ~12k tokens):**
+```markdown
+## Previous Stages (Last 3 in context window)
+
+### stage-6
+- **Summary:** Ran test suite. 142 tests passed, 3 failed in auth module.
+- **Key Metrics:** tests_passed=142, tests_failed=3
+- **Commit:** m4n5o6p
+- **Full Output:** .agent-pipeline/outputs/{runId}/stage-6-output.json
+
+### stage-7
+- **Summary:** Code coverage analysis. 94.2% coverage, 8 files untested.
+- **Key Metrics:** coverage=94.2%, untested_files=8
+- **Commit:** p7q8r9s
+- **Full Output:** .agent-pipeline/outputs/{runId}/stage-7-output.json
+
+## Earlier Stages
+Stages stage-1, stage-2, stage-3, stage-4, stage-5 completed.
+Full history: .agent-pipeline/outputs/{runId}/pipeline-summary.json
+
+## Changed Files Summary
+Changed 53 files in: src/core/ (12), src/cli/ (8), src/utils/ (4)...
+Full list: .agent-pipeline/outputs/{runId}/changed-files.txt
+
+---
+**Note:** Use the Read tool to access full outputs if you need detailed information.
+```
+
+**Result:** 81% token reduction, zero data loss, agents can still access full outputs via Read tool.
+
+#### Output Storage
+
+All outputs saved to `.agent-pipeline/outputs/{runId}/`:
+
+```
+.agent-pipeline/
+└── outputs/
+    └── {runId}/
+        ├── {stage}-output.json      # Structured outputs
+        ├── {stage}-raw.md           # Full agent response
+        ├── changed-files.txt        # Complete file list
+        └── pipeline-summary.json    # Run metadata
+```
+
+Agents can read these files using standard Read tool for detailed information when needed.
+
+#### Token Monitoring
+
+Context size is monitored with warnings at thresholds:
+
+```
+ℹ️  Context size: 40k tokens (estimated, 80% of limit, approaching threshold)
+⚠️  Context size (52k tokens) exceeds limit (50000). Consider reducing contextWindow...
+```
+
+Use `smartCount()` method for precise token counting when approaching limits.
+
 ### Configuration Options
 
 #### Pipeline Settings

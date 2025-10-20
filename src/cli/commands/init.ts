@@ -57,6 +57,10 @@ export async function initCommand(
     }
     console.log('');
 
+    //TODO to do 
+    //FIXME:
+    //ensure we pacakge agents in the dir and review these fallback agents 
+
     // Create minimal example agents if no agents were imported
     const existingAgents = await fs.readdir(agentsDir);
     const mdAgents = existingAgents.filter(f => f.endsWith('.md') && !f.startsWith('.'));
@@ -123,16 +127,25 @@ You are a code review agent in an automated pipeline.
 
 ## Output Format
 
-Provide your findings using the report_outputs tool:
+Use the report_outputs tool with this structure:
 
-\`\`\`
+\`\`\`javascript
 report_outputs({
-  issues_found: 0,
-  severity_level: "low"
+  outputs: {
+    summary: "Reviewed 12 files. Found 5 issues (2 critical, 3 warnings). Main concerns: security in auth.ts, performance in query.ts.",
+    issues_found: 5,
+    severity_level: "high",
+    files_reviewed: 12
+  }
 })
 \`\`\`
 
-Then provide a summary of your review.
+**IMPORTANT:** The summary should be up to a few sentences or around 500 words or less, covering:
+- What you did (files reviewed, code analyzed)
+- Key findings (issue count, severity breakdown)
+- Main concerns or critical issues requiring attention
+
+Then provide a detailed summary of your review findings.
 `,
 
     'doc-updater.md': `# Documentation Updater Agent
@@ -150,12 +163,21 @@ You are a documentation maintenance agent.
 
 Use the report_outputs tool to report your work:
 
-\`\`\`
+\`\`\`javascript
 report_outputs({
-  files_updated: 0,
-  sections_added: 0
+  outputs: {
+    summary: "Updated documentation across 5 files. Added 3 new API sections to README.md, updated 2 inline code comments, and created CHANGELOG entry for new features.",
+    files_updated: 5,
+    sections_added: 3,
+    inline_docs_added: 2
+  }
 })
 \`\`\`
+
+**IMPORTANT:** The summary should be up to a few sentences or around 500 words or less, covering:
+- What you updated (documentation files, sections modified)
+- Changes made (new sections, inline docs, examples)
+- Areas improved (API docs, README, changelogs)
 `,
 
     'quality-checker.md': `# Quality Checker Agent
@@ -173,12 +195,23 @@ You are a code quality analysis agent.
 
 Use the report_outputs tool:
 
-\`\`\`
+\`\`\`javascript
 report_outputs({
-  quality_score: 85,
-  recommendations: 3
+  outputs: {
+    summary: "Analyzed code quality across 8 files. Applied 12 refactoring improvements including 4 error handling additions, 3 variable renames, and 5 code simplifications. Overall quality score improved from 72 to 86.",
+    quality_score: 86,
+    improvements_made: 12,
+    files_analyzed: 8,
+    recommendations: 3
+  }
 })
 \`\`\`
+
+**IMPORTANT:** The summary should be up to a few sentences or around 500 words or less, covering:
+- What you analyzed (file count, code areas reviewed)
+- Quality improvements applied (refactorings, fixes, enhancements)
+- Quality score change (before/after)
+- Remaining recommendations
 `,
 
     'security-auditor.md': `# Security Auditor Agent
@@ -196,12 +229,23 @@ You are a security analysis agent.
 
 Use the report_outputs tool:
 
-\`\`\`
+\`\`\`javascript
 report_outputs({
-  vulnerabilities: 0,
-  severity: "none"
+  outputs: {
+    summary: "Scanned 15 files for security vulnerabilities. Found 2 issues (1 high-severity SQL injection risk in user.ts, 1 medium XSS vulnerability in template.tsx). No exposed secrets detected.",
+    vulnerabilities: 2,
+    severity: "high",
+    files_scanned: 15,
+    critical_count: 0
+  }
 })
 \`\`\`
+
+**IMPORTANT:** The summary should be up to a few sentences or around 500 words or less, covering:
+- What you scanned (file count, areas analyzed)
+- Security issues found (count, severity breakdown)
+- Critical vulnerabilities or exposed secrets
+- Overall security posture
 `,
 
     'summary.md': `# Summary Agent
@@ -213,6 +257,27 @@ You are a pipeline summary agent.
 1. Review outputs from previous pipeline stages
 2. Create a comprehensive summary
 3. Highlight key findings and actions taken
+
+## Output Format
+
+Use the report_outputs tool:
+
+\`\`\`javascript
+report_outputs({
+  outputs: {
+    summary: "Pipeline completed with 4 stages. Code review found 5 issues (2 high-severity), security scan found 0 vulnerabilities, quality checker improved score from 72 to 86. All tests passing. Ready for review.",
+    total_stages: 4,
+    total_issues: 5,
+    overall_status: "success"
+  }
+})
+\`\`\`
+
+**IMPORTANT:** The summary should be up to a few sentences or around 500 words or less, covering:
+- What stages completed (count, names)
+- Key findings from each stage
+- Overall pipeline status
+- Next steps or action items
 
 Provide a clear, concise summary of the pipeline execution.
 `

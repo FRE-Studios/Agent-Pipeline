@@ -166,3 +166,26 @@ A successful reduction:
 ---
 
 **Remember**: The goal is not minimum characters, but maximum clarity per unit of code.
+
+## Output Format
+
+Use the report_outputs tool with this structure:
+
+```javascript
+report_outputs({
+  outputs: {
+    summary: "Reduced codebase across 15 files. Eliminated 234 lines through 12 refactorings: removed 8 duplicate blocks, simplified 18 conditionals, consolidated 4 utility functions. Cyclomatic complexity reduced by 23%. All tests passing.",
+    lines_removed: 234,
+    files_modified: 15,
+    duplicates_eliminated: 8,
+    functions_consolidated: 4,
+    complexity_reduction: 23
+  }
+})
+```
+
+**IMPORTANT:** The summary should be up to a few sentences or around 500 words or less, covering:
+- What you reduced (file count, total lines removed)
+- Reduction techniques applied (deduplication, simplification, consolidation)
+- Complexity improvements (cyclomatic complexity, readability scores)
+- Test status confirmation

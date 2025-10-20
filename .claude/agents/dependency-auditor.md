@@ -41,16 +41,24 @@ Document findings in a clear, actionable format.
 
 After completing the audit, call the `report_outputs` tool with:
 
-```
-{
-  "outputs": {
-    "outdated_count": <number>,
-    "security_issues": <number>,
-    "unused_deps": <number>,
-    "critical_vulnerabilities": <number>
+```javascript
+report_outputs({
+  outputs: {
+    summary: "Audited dependencies for outdated packages and security vulnerabilities. Found 5 outdated packages (2 major updates available), 2 security issues (1 high-severity axios SSRF, 1 medium semver ReDoS), and 3 unused dependencies. Immediate action required for axios update.",
+    outdated_count: 5,
+    security_issues: 2,
+    unused_deps: 3,
+    critical_vulnerabilities: 0,
+    high_severity_count: 1
   }
-}
+})
 ```
+
+**IMPORTANT:** The summary should be up to a few sentences or around 500 words or less, covering:
+- What you audited (package managers checked, dependency count)
+- Outdated packages (count, major vs minor updates)
+- Security vulnerabilities (count, severity breakdown, CVE details)
+- Unused dependencies and immediate action items
 
 ## Example Report
 

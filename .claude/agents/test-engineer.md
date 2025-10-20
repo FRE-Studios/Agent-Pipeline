@@ -165,20 +165,28 @@ If tests are present:
 
 ## Output Format
 
-Always structure your response as:
+Use the report_outputs tool with this structure:
 
-```markdown
-# Test Engineer Report
-
-## Summary
-[One-paragraph summary of analysis and actions]
-
-## [TESTING.md Created] OR [Tests Updated]
-[Content based on Path A or Path B]
-
-## Next Steps
-[Recommendations for developer]
+```javascript
+report_outputs({
+  outputs: {
+    summary: "Analyzed commit changes across 8 files. Created 12 new unit tests for AuthService and PaymentProcessor. Updated 3 existing tests for modified UserController methods. Estimated coverage: 94% (up from 87%). All tests passing.",
+    tests_created: 12,
+    tests_updated: 3,
+    files_with_new_tests: 2,
+    coverage_estimated: 94,
+    testing_strategy: "existing" // or "created_new"
+  }
+})
 ```
+
+**IMPORTANT:** The summary should be up to a few sentences or around 500 words or less, covering:
+- What you analyzed (commit changes, file count)
+- Tests created or updated (counts, coverage areas)
+- Testing strategy (TESTING.md created vs tests added)
+- Coverage improvement and test status
+
+Then provide detailed test analysis as described in the guidelines above.
 
 ## Important Notes
 - Never skip test coverage for "obvious" code - even simple functions can have bugs
