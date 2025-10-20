@@ -413,4 +413,236 @@ describe('PipelineFormatter', () => {
       });
     });
   });
+
+  describe('formatTokenCount', () => {
+    describe('Small Numbers (< 1000)', () => {
+      it('should format numbers under 1000 as plain numbers', () => {
+        expect(PipelineFormatter.formatTokenCount(0)).toBe('0');
+        expect(PipelineFormatter.formatTokenCount(1)).toBe('1');
+        expect(PipelineFormatter.formatTokenCount(50)).toBe('50');
+        expect(PipelineFormatter.formatTokenCount(500)).toBe('500');
+        expect(PipelineFormatter.formatTokenCount(999)).toBe('999');
+      });
+    });
+
+    describe('Round Thousands', () => {
+      it('should format round thousands without decimals', () => {
+        expect(PipelineFormatter.formatTokenCount(1000)).toBe('1k');
+        expect(PipelineFormatter.formatTokenCount(2000)).toBe('2k');
+        expect(PipelineFormatter.formatTokenCount(10000)).toBe('10k');
+        expect(PipelineFormatter.formatTokenCount(23000)).toBe('23k');
+        expect(PipelineFormatter.formatTokenCount(100000)).toBe('100k');
+      });
+    });
+
+    describe('Non-Round Thousands', () => {
+      it('should format non-round thousands with one decimal place', () => {
+        expect(PipelineFormatter.formatTokenCount(1500)).toBe('1.5k');
+        expect(PipelineFormatter.formatTokenCount(2345)).toBe('2.3k');
+        expect(PipelineFormatter.formatTokenCount(23456)).toBe('23.5k');
+        expect(PipelineFormatter.formatTokenCount(25234)).toBe('25.2k');
+        expect(PipelineFormatter.formatTokenCount(13123)).toBe('13.1k');
+      });
+
+      it('should round to one decimal place correctly', () => {
+        expect(PipelineFormatter.formatTokenCount(1234)).toBe('1.2k');
+        expect(PipelineFormatter.formatTokenCount(1256)).toBe('1.3k');
+        expect(PipelineFormatter.formatTokenCount(1999)).toBe('2k'); // Rounds to whole number
+      });
+    });
+
+    describe('Edge Cases', () => {
+      it('should handle very large numbers', () => {
+        expect(PipelineFormatter.formatTokenCount(500000)).toBe('500k');
+        expect(PipelineFormatter.formatTokenCount(999999)).toBe('1000k');
+      });
+
+      it('should handle exactly 1000', () => {
+        expect(PipelineFormatter.formatTokenCount(1000)).toBe('1k');
+      });
+    });
+  });
+
+  describe('formatTokenUsage', () => {
+    describe('Complete Token Usage', () => {
+      it('should format full token usage with all fields', () => {
+        const tokenUsage = {
+          estimated_input: 23000,
+          actual_input: 25234,
+          output: 13123,
+          cache_creation: 5000,
+          cache_read: 2000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Input: 25.2k tokens');
+        expect(result).toContain('Output: 13.1k');
+        expect(result).toContain('Cache created: 5k');
+        expect(result).toContain('Cache read: 2k');
+      });
+
+      it('should show estimation comparison when difference > 5%', () => {
+        const tokenUsage = {
+          estimated_input: 20000,
+          actual_input: 25000,
+          output: 13000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Input: 25k tokens');
+        expect(result).toContain('(est. 20k)');
+      });
+
+      it('should NOT show estimation comparison when difference <= 5%', () => {
+        const tokenUsage = {
+          estimated_input: 24000,
+          actual_input: 25000,
+          output: 13000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Input: 25k tokens');
+        expect(result).not.toContain('(est.');
+      });
+    });
+
+    describe('Minimal Token Usage', () => {
+      it('should format token usage without cache fields', () => {
+        const tokenUsage = {
+          estimated_input: 23000,
+          actual_input: 25000,
+          output: 13000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Input: 25k tokens');
+        expect(result).toContain('Output: 13k');
+        expect(result).not.toContain('Cache');
+      });
+
+      it('should format exact match between estimated and actual', () => {
+        const tokenUsage = {
+          estimated_input: 25000,
+          actual_input: 25000,
+          output: 13000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Input: 25k tokens');
+        expect(result).not.toContain('(est.');
+        expect(result).toContain('Output: 13k');
+      });
+    });
+
+    describe('Cache Token Handling', () => {
+      it('should include cache_creation when present', () => {
+        const tokenUsage = {
+          estimated_input: 25000,
+          actual_input: 25000,
+          output: 13000,
+          cache_creation: 5000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Cache created: 5k');
+      });
+
+      it('should include cache_read when present', () => {
+        const tokenUsage = {
+          estimated_input: 25000,
+          actual_input: 25000,
+          output: 13000,
+          cache_read: 2000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Cache read: 2k');
+      });
+
+      it('should include both cache fields when present', () => {
+        const tokenUsage = {
+          estimated_input: 25000,
+          actual_input: 25000,
+          output: 13000,
+          cache_creation: 5000,
+          cache_read: 2000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Cache created: 5k');
+        expect(result).toContain('Cache read: 2k');
+      });
+    });
+
+    describe('Edge Cases', () => {
+      it('should return empty string for undefined token usage', () => {
+        const result = PipelineFormatter.formatTokenUsage(undefined);
+
+        expect(result).toBe('');
+      });
+
+      it('should handle small token counts', () => {
+        const tokenUsage = {
+          estimated_input: 500,
+          actual_input: 600,
+          output: 300
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Input: 600 tokens');
+        expect(result).toContain('Output: 300');
+      });
+
+      it('should use pipe separators between parts', () => {
+        const tokenUsage = {
+          estimated_input: 23000,
+          actual_input: 25000,
+          output: 13000,
+          cache_creation: 5000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toMatch(/\|/);
+        const pipeCount = (result.match(/\|/g) || []).length;
+        expect(pipeCount).toBeGreaterThan(0);
+      });
+    });
+
+    describe('Estimation Difference Threshold', () => {
+      it('should show estimation for exactly 5% difference', () => {
+        const tokenUsage = {
+          estimated_input: 23750,  // 5% less than 25000
+          actual_input: 25000,
+          output: 13000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        // 5% should NOT show (needs to be > 5%)
+        expect(result).not.toContain('(est.');
+      });
+
+      it('should show estimation for >5% difference', () => {
+        const tokenUsage = {
+          estimated_input: 23000,  // ~8% less than 25000
+          actual_input: 25000,
+          output: 13000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('(est. 23k)');
+      });
+    });
+  });
 });

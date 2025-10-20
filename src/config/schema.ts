@@ -138,6 +138,15 @@ export interface StageExecution {
     raw: string;                       // Path: .agent-pipeline/outputs/{runId}/{stage}-raw.md
   };
 
+  // Token usage tracking
+  tokenUsage?: {
+    estimated_input: number;           // Estimated input tokens (from TokenEstimator)
+    actual_input: number;              // Actual input tokens (from SDK)
+    output: number;                    // Output tokens (from SDK)
+    cache_creation?: number;           // Cache creation tokens (from SDK)
+    cache_read?: number;               // Cache read tokens (from SDK)
+  };
+
   // Retry tracking
   retryAttempt?: number;               // Current retry attempt (0 = first try)
   maxRetries?: number;                 // Max retry attempts configured

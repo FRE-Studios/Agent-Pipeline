@@ -12,8 +12,8 @@ export class OutputStorageManager {
   private outputDir: string;
 
   constructor(
-    private repoPath: string,
-    private runId: string
+    repoPath: string,
+    runId: string
   ) {
     this.outputDir = path.join(repoPath, '.agent-pipeline', 'outputs', runId);
   }

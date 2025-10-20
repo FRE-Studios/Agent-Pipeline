@@ -8,6 +8,7 @@ import { OutputToolBuilder } from './output-tool-builder.js';
 import { AgentStageConfig, StageExecution, PipelineState } from '../config/schema.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { ErrorFactory } from '../utils/error-factory.js';
+import { TokenEstimator } from '../utils/token-estimator.js';
 
 export class StageExecutor {
   private retryHandler: RetryHandler;
@@ -40,9 +41,15 @@ export class StageExecutor {
       // Load agent system prompt
       const systemPrompt = await fs.readFile(stageConfig.agent, 'utf-8');
 
+      // Estimate input tokens before execution
+      const tokenEstimator = new TokenEstimator();
+      const estimatedTokens = tokenEstimator.estimateTokens(agentContext + systemPrompt);
+      tokenEstimator.dispose();
+
       // Run agent using SDK query
       const retryInfo = PipelineFormatter.formatRetryInfo(execution.retryAttempt, execution.maxRetries);
       console.log(`🤖 Running stage: ${stageConfig.name}${retryInfo}...`);
+      console.log(`   Estimated input: ~${PipelineFormatter.formatTokenCount(estimatedTokens)} tokens`);
 
       const result = await this.runAgentWithTimeout(
         agentContext,
@@ -54,6 +61,17 @@ export class StageExecutor {
 
       execution.agentOutput = result.textOutput;
       execution.extractedData = result.extractedData;
+
+      // Store token usage
+      if (result.tokenUsage) {
+        execution.tokenUsage = {
+          estimated_input: estimatedTokens,
+          actual_input: result.tokenUsage.input_tokens,
+          output: result.tokenUsage.output_tokens,
+          cache_creation: result.tokenUsage.cache_creation_input_tokens,
+          cache_read: result.tokenUsage.cache_read_input_tokens
+        };
+      }
 
       // Auto-commit if enabled
       const shouldCommit = (stageConfig.autoCommit ?? true) && !this.dryRun;
@@ -98,6 +116,14 @@ export class StageExecutor {
       execution.status = 'success';
       execution.endTime = new Date().toISOString();
       execution.duration = this.calculateDuration(execution);
+
+      // Log completion with token usage
+      console.log(`✅ Stage completed: ${stageConfig.name}`);
+      if (execution.tokenUsage) {
+        console.log(`   ${PipelineFormatter.formatTokenUsage(execution.tokenUsage)} | Duration: ${execution.duration.toFixed(1)}s`);
+      } else {
+        console.log(`   Duration: ${execution.duration.toFixed(1)}s`);
+      }
 
       return execution;
 
@@ -175,7 +201,16 @@ When done, describe what you changed and why.
     timeoutSeconds?: number,
     outputKeys?: string[],
     onOutputUpdate?: (output: string) => void
-  ): Promise<{ textOutput: string; extractedData?: Record<string, unknown> }> {
+  ): Promise<{
+    textOutput: string;
+    extractedData?: Record<string, unknown>;
+    tokenUsage?: {
+      input_tokens: number;
+      output_tokens: number;
+      cache_creation_input_tokens?: number;
+      cache_read_input_tokens?: number;
+    };
+  }> {
     const timeout = (timeoutSeconds || 300) * 1000; // Default 5 minutes
 
     const runQuery = async () => {
@@ -193,9 +228,15 @@ When done, describe what you changed and why.
         }
       });
 
-      // Collect assistant messages and tool calls
+      // Collect assistant messages, tool calls, and token usage
       let textOutput = '';
       let toolExtractedData: Record<string, unknown> | undefined;
+      let tokenUsage: {
+        input_tokens: number;
+        output_tokens: number;
+        cache_creation_input_tokens?: number;
+        cache_read_input_tokens?: number;
+      } | undefined;
 
       for await (const message of q) {
         if (message.type === 'assistant') {
@@ -215,6 +256,14 @@ When done, describe what you changed and why.
               }
             }
           }
+        } else if (message.type === 'result' && message.subtype === 'success') {
+          // Capture token usage from SDK result message
+          tokenUsage = {
+            input_tokens: message.usage.input_tokens,
+            output_tokens: message.usage.output_tokens,
+            cache_creation_input_tokens: message.usage.cache_creation_input_tokens,
+            cache_read_input_tokens: message.usage.cache_read_input_tokens
+          };
         }
       }
 
@@ -224,12 +273,21 @@ When done, describe what you changed and why.
         extractedData = this.extractOutputs(textOutput, outputKeys);
       }
 
-      return { textOutput, extractedData };
+      return { textOutput, extractedData, tokenUsage };
     };
 
     return Promise.race([
       runQuery(),
-      new Promise<{ textOutput: string; extractedData?: Record<string, unknown> }>((_, reject) =>
+      new Promise<{
+        textOutput: string;
+        extractedData?: Record<string, unknown>;
+        tokenUsage?: {
+          input_tokens: number;
+          output_tokens: number;
+          cache_creation_input_tokens?: number;
+          cache_read_input_tokens?: number;
+        };
+      }>((_, reject) =>
         setTimeout(() => reject(new Error('Agent timeout')), timeout)
       )
     ]);

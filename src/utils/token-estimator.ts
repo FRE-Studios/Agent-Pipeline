@@ -1,6 +1,6 @@
 // src/utils/token-estimator.ts
 
-import { encoding_for_model, type Tiktoken } from 'tiktoken';
+import { get_encoding, type Tiktoken, type TiktokenEncoding } from 'tiktoken';
 
 /**
  * Token estimation utility for context size management
@@ -13,10 +13,10 @@ import { encoding_for_model, type Tiktoken } from 'tiktoken';
 export class TokenEstimator {
   private encoder: Tiktoken | null = null;
   private encoderInitialized = false;
-  private readonly model: string;
+  private readonly encoding: TiktokenEncoding;
 
-  constructor(model: string = 'cl100k_base') {
-    this.model = model;
+  constructor(encoding: TiktokenEncoding = 'cl100k_base') {
+    this.encoding = encoding;
   }
 
   /**
@@ -48,7 +48,7 @@ export class TokenEstimator {
 
     try {
       if (!this.encoderInitialized) {
-        this.encoder = encoding_for_model(this.model);
+        this.encoder = get_encoding(this.encoding);
         this.encoderInitialized = true;
       }
 

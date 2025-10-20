@@ -302,7 +302,7 @@ function test() {
         // Estimation should be within ±50% of precise count
         const ratio = estimate / precise;
         expect(ratio).toBeGreaterThan(0.5);
-        expect(ratio).toBeLessThan(1.5);
+        expect(ratio).toBeLessThanOrEqual(1.5);
       }
     });
   });

@@ -30,6 +30,7 @@ describe('HistoryBrowser', () => {
     status: 'completed',
     trigger: {
       type: 'manual',
+      commitSha: 'abc1234567',
       timestamp: '2024-01-15T10:00:00Z'
     },
     stages: [
@@ -46,6 +47,7 @@ describe('HistoryBrowser', () => {
     artifacts: {
       initialCommit: 'abc1234567',
       finalCommit: 'def7890123',
+      changedFiles: ['src/test.ts'],
       totalDuration: 10.5
     }
   };
@@ -612,8 +614,9 @@ describe('HistoryBrowser', () => {
       const incompleteRun: PipelineState = {
         ...mockRun,
         artifacts: {
-          initialCommit: undefined,
+          initialCommit: 'abc1234',
           finalCommit: undefined,
+          changedFiles: [],
           totalDuration: 0
         }
       };

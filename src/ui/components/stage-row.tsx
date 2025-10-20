@@ -4,6 +4,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import Spinner from 'ink-spinner';
 import { StageExecution } from '../../config/schema.js';
+import { PipelineFormatter } from '../../utils/pipeline-formatter.js';
 
 interface StageRowProps {
   stage: StageExecution;
@@ -65,6 +66,13 @@ export const StageRow: React.FC<StageRowProps> = ({
         <Box marginLeft={3}>
           <Text dimColor>└─ Commit: </Text>
           <Text color="cyan">{stage.commitSha.substring(0, 7)}</Text>
+        </Box>
+      )}
+
+      {stage.tokenUsage && stage.status === 'success' && (
+        <Box marginLeft={3}>
+          <Text dimColor>└─ Tokens: </Text>
+          <Text color="magenta">{PipelineFormatter.formatTokenUsage(stage.tokenUsage)}</Text>
         </Box>
       )}
 
