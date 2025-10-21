@@ -1,4 +1,4 @@
-# Phase 7: Integration Testing
+# Integration Testing
 
 ## Overview
 
