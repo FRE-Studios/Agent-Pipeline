@@ -330,7 +330,7 @@ export class GroupExecutionOrchestrator {
   private handleGroupFailures(
     groupResult: any,
     stagesToRun: AgentStageConfig[],
-    state: PipelineState,
+    _state: PipelineState,
     config: PipelineConfig,
     interactive: boolean
   ): boolean {
