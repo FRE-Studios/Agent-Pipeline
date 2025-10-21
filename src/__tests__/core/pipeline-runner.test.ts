@@ -12,6 +12,7 @@ import { ParallelExecutor } from '../../core/parallel-executor.js';
 import { ConditionEvaluator } from '../../core/condition-evaluator.js';
 import { NotificationManager } from '../../notifications/notification-manager.js';
 import { PipelineState, StageExecution } from '../../config/schema.js';
+import { PipelineFormatter } from '../../utils/pipeline-formatter.js';
 import { createMockGitManager } from '../mocks/git-manager.js';
 import { createMockNotificationManager } from '../mocks/notification-manager.js';
 import { createMockDAGPlanner } from '../mocks/dag-planner.js';
@@ -311,8 +312,8 @@ describe('PipelineRunner', () => {
             executorResult = await mockParallelExecutor.executeSequentialGroup(group.stages, state, undefined);
           }
         } catch (e) {
-          // Executor might throw in some test scenarios
-          executorResult = null;
+          // Executor threw an error - re-throw so PipelineRunner can handle it
+          throw e;
         }
 
         // If test has mocked executor to return failures, use that result
@@ -384,7 +385,16 @@ describe('PipelineRunner', () => {
 
             if (failureStrategy === 'stop') {
               shouldStop = true;
+              // Log failure message (matching real GroupExecutionOrchestrator behavior)
+              if (!interactive) {
+                console.log(`🛑 Pipeline stopped due to stage failure: ${failedStage.stageName}\n`);
+              }
               break;
+            } else if (failureStrategy === 'continue') {
+              // Log warning for continue mode
+              if (!interactive) {
+                console.log(`⚠️  Stage ${failedStage.stageName} failed but continuing (continue mode)\n`);
+              }
             }
           }
         }
@@ -415,9 +425,12 @@ describe('PipelineRunner', () => {
     const mockPipelineFinalizer = {
       finalize: vi.fn().mockImplementation(async (state, config, pipelineBranch, originalBranch, startTime, interactive, notify, stateChange) => {
         // Preserve the incoming state, add finalization artifacts
+        // Handle status: if 'running', set to 'completed'; if 'failed', keep 'failed'
+        const finalStatus = state.status === 'failed' ? 'failed' : (state.status === 'running' ? 'completed' : state.status);
+
         const finalState = {
           ...state,
-          status: state.status, // Preserve status (could be 'running', 'failed', 'completed')
+          status: finalStatus,
           artifacts: {
             ...state.artifacts,
             totalDuration: (Date.now() - startTime) / 1000,
@@ -453,6 +466,11 @@ describe('PipelineRunner', () => {
             pipelineState: finalState,
             prUrl: finalState.artifacts.pullRequest.url
           });
+        }
+
+        // Print summary if not interactive (matching real PipelineFinalizer behavior)
+        if (!interactive) {
+          console.log(PipelineFormatter.formatSummary(finalState));
         }
 
         return finalState;

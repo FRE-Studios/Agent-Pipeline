@@ -90,7 +90,6 @@ The original `pipeline-runner.ts` had:
 - `src/core/group-execution-orchestrator.ts` (1 line removed - status setting bug fix)
 - `src/__tests__/core/pipeline-runner.test.ts` (some tests fail)
 
----
 
 ## Additional Notes
 
