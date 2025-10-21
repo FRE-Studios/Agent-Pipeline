@@ -1,11 +1,15 @@
 {
   "name": "agent-pipeline",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Intelligent agent orchestration with parallel execution, conditional logic, git workflow automation, and multi-channel notifications for Claude Code",
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "bin": {
     "agent-pipeline": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc",
@@ -15,7 +19,12 @@
     "prepublishOnly": "npm run build"
   },
   "files": [
-    "dist",
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.d.ts.map",
+    "dist/**/*.js.map",
+    "!dist/**/*.test.*",
+    "!dist/__tests__",
     "README.md",
     "license",
     "CLAUDE.md"
@@ -43,6 +52,10 @@
   "homepage": "https://github.com/FRE-Studios/agent-pipeline#readme",
   "bugs": {
     "url": "https://github.com/FRE-Studios/agent-pipeline/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/FRE-Studios"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",

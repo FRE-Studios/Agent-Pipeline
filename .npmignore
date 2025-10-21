@@ -11,6 +11,7 @@ TESTING.md
 
 # Build config
 tsconfig.json
+.npmrc
 
 # Development documentation
 overview.md
