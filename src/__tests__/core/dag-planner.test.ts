@@ -210,6 +210,48 @@ describe('DAGPlanner', () => {
       expect(level3!.level).toBeGreaterThan(level2!.level);
     });
 
+    it('should respect dependency order and include all stages', () => {
+      const dependencyChainConfig = {
+        name: 'dependency-chain',
+        trigger: 'manual' as const,
+        agents: [
+          { name: 'lint', agent: 'lint.md' },
+          { name: 'build', agent: 'build.md', dependsOn: ['lint'] },
+          { name: 'deploy', agent: 'deploy.md', dependsOn: ['build'] },
+        ],
+      };
+
+      const result = planner.buildExecutionPlan(dependencyChainConfig);
+      const orderedStages = result.plan.groups.flatMap(group => group.stages.map(stage => stage.name));
+
+      expect(orderedStages).toEqual(['lint', 'build', 'deploy']);
+    });
+
+    it('should place dependent stages after all prerequisites', () => {
+      const branchingConfig = {
+        name: 'branching-test',
+        trigger: 'manual' as const,
+        agents: [
+          { name: 'setup', agent: 'setup.md' },
+          { name: 'lint', agent: 'lint.md', dependsOn: ['setup'] },
+          { name: 'test', agent: 'test.md', dependsOn: ['setup'] },
+          { name: 'deploy', agent: 'deploy.md', dependsOn: ['lint', 'test'] },
+        ],
+      };
+
+      const result = planner.buildExecutionPlan(branchingConfig);
+      const orderedStages = result.plan.groups.flatMap(group => group.stages.map(stage => stage.name));
+
+      expect(orderedStages.includes('setup')).toBe(true);
+      expect(orderedStages.includes('lint')).toBe(true);
+      expect(orderedStages.includes('test')).toBe(true);
+      expect(orderedStages.includes('deploy')).toBe(true);
+      expect(orderedStages.indexOf('setup')).toBeLessThan(orderedStages.indexOf('lint'));
+      expect(orderedStages.indexOf('setup')).toBeLessThan(orderedStages.indexOf('test'));
+      expect(orderedStages.indexOf('lint')).toBeLessThan(orderedStages.indexOf('deploy'));
+      expect(orderedStages.indexOf('test')).toBeLessThan(orderedStages.indexOf('deploy'));
+    });
+
     it('should group parallel stages at same level', () => {
       const parallelAtSameLevel = {
         name: 'parallel-same-level',

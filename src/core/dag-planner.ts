@@ -22,7 +22,7 @@ export class DAGPlanner {
 
     const nodes = this.buildNodes(config);
     const adjacencyList = this.buildAdjacencyList(nodes);
-    const sortedStages = this.topologicalSort(nodes, adjacencyList);
+    const sortedStages = this.topologicalSort(nodes);
     const groups = this.groupByLevel(sortedStages, nodes);
 
     const plan: ExecutionPlan = {
@@ -214,21 +214,14 @@ export class DAGPlanner {
    * Topological sort using Kahn's algorithm
    */
   private topologicalSort(
-    nodes: Map<string, ExecutionNode>,
-    adjacencyList: Map<string, string[]>
+    nodes: Map<string, ExecutionNode>
   ): string[] {
     const inDegree = new Map<string, number>();
     const sorted: string[] = [];
 
-    // Calculate in-degrees
-    for (const name of nodes.keys()) {
-      inDegree.set(name, 0);
-    }
-
-    for (const dependencies of adjacencyList.values()) {
-      for (const dependency of dependencies) {
-        inDegree.set(dependency, (inDegree.get(dependency) || 0) + 1);
-      }
+    // Calculate in-degrees directly from dependency counts
+    for (const [name, node] of nodes) {
+      inDegree.set(name, node.dependencies.length);
     }
 
     // Find all nodes with no dependencies (in-degree 0)
@@ -258,6 +251,10 @@ export class DAGPlanner {
           queue.push(dependent);
         }
       }
+    }
+
+    if (sorted.length !== nodes.size) {
+      throw new Error('Invalid pipeline DAG: unresolved dependencies detected');
     }
 
     return sorted;
