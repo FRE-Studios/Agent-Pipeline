@@ -94,11 +94,14 @@ export class PipelineRunner {
     options: { interactive?: boolean } = {}
   ): Promise<PipelineState> {
     const interactive = options.interactive || false;
+    this.notificationManager = config.notifications
+      ? new NotificationManager(config.notifications)
+      : undefined;
 
     // Phase 1: Initialize pipeline
     const initResult = await this.initializer.initialize(
       config,
-      { interactive },
+      { interactive, notificationManager: this.notificationManager },
       this.notify.bind(this),
       this.notifyStateChange.bind(this)
     );

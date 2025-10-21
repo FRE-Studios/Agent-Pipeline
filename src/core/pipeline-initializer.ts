@@ -32,14 +32,16 @@ export class PipelineInitializer {
    */
   async initialize(
     config: PipelineConfig,
-    options: { interactive?: boolean },
+    options: { interactive?: boolean; notificationManager?: NotificationManager },
     notifyCallback: (context: NotificationContext) => Promise<void>,
     stateChangeCallback: (state: PipelineState) => void
   ): Promise<InitializationResult> {
     // Setup notification manager
-    const notificationManager = config.notifications
-      ? new NotificationManager(config.notifications)
-      : undefined;
+    const notificationManager =
+      options.notificationManager ||
+      (config.notifications
+        ? new NotificationManager(config.notifications)
+        : undefined);
 
     // Save original branch to return to later
     const originalBranch = await this.branchManager.getCurrentBranch();
