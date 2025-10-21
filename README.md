@@ -15,6 +15,9 @@ An agent CI/CD pipeline for intelligent, multi-stage workflows with full visibil
 - **YAML Configuration** - Define pipelines in simple, readable YAML files
 - **Error Handling** - Configurable failure strategies (stop/warn/continue)
 - **Pipeline History** - All runs are saved with full state tracking
+//@agent add context awareness / reduction (see context-reducer)
+
+//@agent remove "Phases" and "prioritites" this is a read me not a dev log. 
 
 **Phase 2 Enhancements:**
 - **Git Hook Management** - Auto-install/uninstall post-commit hooks
