@@ -1,0 +1,178 @@
+# Large Pipeline Example with Agent-Based Context Reduction
+#
+# This example demonstrates agent-based context reduction in a large, multi-stage pipeline.
+# With 10+ stages, context can grow to 60k+ tokens. Agent-based reduction keeps it under 15k.
+
+name: large-pipeline-example
+trigger: manual
+
+settings:
+  autoCommit: true
+  commitPrefix: "[pipeline:{{stage}}]"
+  failureStrategy: continue
+  preserveWorkingTree: false
+  executionMode: parallel
+
+  # Agent-based context reduction configuration
+  contextReduction:
+    enabled: true
+    maxTokens: 50000                    # Token limit for context
+    strategy: agent-based               # Use intelligent agent-based reduction
+    agentPath: .claude/agents/context-reducer.md  # Path to context reducer agent
+    triggerThreshold: 45000             # Trigger reduction at 90% of maxTokens (45k)
+    contextWindow: 3                    # Keep last 3 stages in full after reduction
+    saveVerboseOutputs: true            # Save full outputs to .agent-pipeline/outputs/
+
+# Git workflow with branch isolation
+git:
+  baseBranch: main
+  branchStrategy: reusable
+  pullRequest:
+    autoCreate: true
+    title: "🤖 Large Pipeline - {{pipelineName}}"
+    reviewers: []
+    labels:
+      - automated
+      - pipeline
+    draft: false
+
+# Notification configuration
+notifications:
+  enabled: true
+  events:
+    - pipeline.completed
+    - pipeline.failed
+  channels:
+    local:
+      enabled: true
+      sound: true
+
+agents:
+  # Stage 1: Initial code review
+  - name: code-review
+    agent: .claude/agents/code-reviewer.md
+    outputs:
+      - issues_found
+      - severity_level
+      - files_reviewed
+
+  # Stage 2: Security audit (parallel with quality check)
+  - name: security-audit
+    agent: .claude/agents/security-auditor.md
+    outputs:
+      - vulnerabilities
+      - critical_count
+      - files_scanned
+
+  # Stage 3: Quality check (parallel with security audit)
+  - name: quality-check
+    agent: .claude/agents/quality-checker.md
+    outputs:
+      - quality_score
+      - improvements_made
+      - recommendations
+
+  # Stage 4: Documentation update
+  - name: doc-update
+    agent: .claude/agents/doc-updater.md
+    dependsOn:
+      - code-review
+      - security-audit
+      - quality-check
+    outputs:
+      - files_updated
+      - sections_added
+
+  # Stage 5: Dependency audit
+  - name: dependency-audit
+    agent: .claude/agents/dependency-auditor.md
+    outputs:
+      - outdated_count
+      - security_issues
+
+  # Stage 6: Performance analysis
+  - name: performance-analysis
+    agent: .claude/agents/quality-checker.md
+    inputs:
+      focus_areas: "performance, optimization"
+    outputs:
+      - performance_score
+      - bottlenecks_found
+
+  # Stage 7: Test coverage check
+  - name: test-coverage
+    agent: .claude/agents/quality-checker.md
+    inputs:
+      focus_areas: "test coverage, edge cases"
+    outputs:
+      - coverage_percentage
+      - missing_tests
+
+  # Stage 8: Code consolidation
+  - name: code-consolidation
+    agent: .claude/agents/code-reducer.md
+    dependsOn:
+      - code-review
+      - quality-check
+    outputs:
+      - duplicates_found
+      - files_merged
+
+  # Stage 9: Memory management review
+  - name: memory-review
+    agent: .claude/agents/memory-updater.md
+    outputs:
+      - memory_issues
+      - optimizations_applied
+
+  # Stage 10: Final summary report
+  - name: summary-report
+    agent: .claude/agents/summary.md
+    dependsOn:
+      - code-review
+      - security-audit
+      - quality-check
+      - doc-update
+      - dependency-audit
+      - performance-analysis
+      - test-coverage
+      - code-consolidation
+      - memory-review
+    outputs:
+      - total_stages
+      - total_issues
+      - overall_status
+
+  # Stage 11: Cleanup
+  - name: cleanup
+    agent: .claude/agents/cleanup-reporter.md
+    dependsOn:
+      - summary-report
+    outputs:
+      - cleanup_actions
+      - files_removed
+
+# How Context Reduction Works:
+#
+# Without reduction (at stage 10):
+# - Stage 1: 5k tokens
+# - Stage 2: 10k tokens (includes Stage 1)
+# - Stage 3: 15k tokens (includes 1-2)
+# - ...
+# - Stage 10: 50k+ tokens (includes 1-9) ❌ EXCEEDS LIMIT
+#
+# With agent-based reduction (at stage 10):
+# 1. After stage group completes, check if next stage's context > 45k tokens
+# 2. If yes, trigger context-reducer agent
+# 3. Reducer reads upcoming agent definition (stage 10: summary-report.md)
+# 4. Reducer analyzes what stage 10 needs (all metrics, critical findings)
+# 5. Reducer creates intelligent summary preserving relevant info
+# 6. Context reduced: 50k → 12k tokens ✅ UNDER LIMIT
+# 7. Stage 10 runs with reduced but complete context
+#
+# Benefits:
+# ✅ Never exceed token limits
+# ✅ Preserve all critical information
+# ✅ Intelligent, context-aware reduction
+# ✅ No manual intervention required
+# ✅ Full audit trail in .agent-pipeline/outputs/

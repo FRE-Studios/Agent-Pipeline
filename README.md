@@ -520,6 +520,92 @@ Context size is monitored with warnings at thresholds:
 
 Use `smartCount()` method for precise token counting when approaching limits.
 
+#### Agent-Based Context Reduction (Advanced)
+
+For very large pipelines (10+ stages) or when you need intelligent, adaptive context reduction, use the **agent-based strategy**. This uses an AI agent to analyze and summarize context, providing context-aware reduction based on what the next agent needs.
+
+**When to Use:**
+- 🔹 Pipelines with 10+ stages
+- 🔹 Complex multi-stage workflows with verbose outputs
+- 🔹 Situations where agents don't consistently provide good summaries
+- 🔹 Need for intelligent, semantic reduction
+
+**How It Works:**
+
+1. **After each stage group completes**, pipeline estimates context size for the next stage
+2. **If context exceeds threshold** (default: 90% of maxTokens = 45k), trigger context reducer agent
+3. **Reducer agent receives:**
+   - Full verbose outputs from all previous stages
+   - Upcoming agent's file definition (to understand its needs)
+   - Full pipeline configuration
+4. **Reducer creates intelligent summary** preserving:
+   - Information the upcoming agent needs (reads its definition)
+   - All numeric metrics and critical findings
+   - Important decisions and actions
+   - Removes redundant/verbose details
+5. **Context replaced** with summary, reducing from ~50k → ~12k tokens (75-80% reduction)
+6. **Pipeline continues** with reduced context
+
+**Configuration:**
+
+```yaml
+settings:
+  contextReduction:
+    enabled: true
+    maxTokens: 50000
+    strategy: agent-based                           # Use agent-based reduction
+    agentPath: .claude/agents/context-reducer.md    # Path to reducer agent
+    triggerThreshold: 45000                         # Trigger at 90% of maxTokens (default)
+    contextWindow: 3                                # Keep last 3 stages after reduction
+    saveVerboseOutputs: true                        # Save full outputs to files
+```
+
+**Example Output:**
+
+When context reduction triggers, you'll see:
+
+```
+🤖 Running stage: code-review...
+   Estimated input: ~23k tokens
+✅ Stage completed: code-review
+   Input: 25.2k tokens | Output: 13.1k | Duration: 45.3s
+
+⚠️  Context approaching limit (47k tokens). Running context reducer...
+
+🤖 Running context-reducer agent...
+✅ Context reduction completed (12.3s)
+✅ Context reduced successfully
+
+🤖 Running stage: final-summary...
+```
+
+**Pros vs Cons:**
+
+✅ **Advantages:**
+- Intelligent, context-aware reduction
+- Reads upcoming agent to preserve relevant info
+- Handles complex multi-stage relationships
+- No need to update agent prompts
+- Adaptive to pipeline needs
+
+⚠️ **Trade-offs:**
+- Adds ~$0.01-0.05 per reduction (extra API call)
+- Adds 5-15 seconds latency per reduction
+- More complex than summary-based
+- May fail (has fallback to continue)
+
+**Best Practice:**
+
+Start with **summary-based** (simpler, faster, no extra cost). Upgrade to **agent-based** if:
+- Pipeline exceeds 10 stages regularly
+- Context warnings appear frequently
+- Agents don't provide consistent summaries
+- Need maximum automation
+
+**Example Pipeline:**
+
+See `large-pipeline-example.yml` for a complete 11-stage pipeline using agent-based reduction.
+
 ### Configuration Options
 
 #### Pipeline Settings

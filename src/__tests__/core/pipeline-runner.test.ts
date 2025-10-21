@@ -1682,4 +1682,210 @@ describe('PipelineRunner', () => {
       expect(skippedStage?.status).toBe('skipped');
     });
   });
+
+  describe('Context Reduction Integration', () => {
+    it('should not trigger context reduction when strategy is summary-based', async () => {
+      const configWithSummaryBased = {
+        ...simplePipelineConfig,
+        settings: {
+          autoCommit: true,
+          commitPrefix: '[test]',
+          failureStrategy: 'stop' as const,
+          preserveWorkingTree: false,
+          contextReduction: {
+            enabled: true,
+            maxTokens: 50000,
+            strategy: 'summary-based' as const,
+            contextWindow: 3
+          }
+        }
+      };
+
+      const runner = new PipelineRunner(repoPath, false);
+
+      const state = await runner.runPipeline(configWithSummaryBased);
+
+      expect(state.status).toBe('completed');
+      // Should not have any __context_reducer__ stages
+      expect(state.stages.find(s => s.stageName === '__context_reducer__')).toBeUndefined();
+    });
+
+    it('should not trigger context reduction when disabled', async () => {
+      const configWithDisabledReduction = {
+        ...simplePipelineConfig,
+        settings: {
+          autoCommit: true,
+          commitPrefix: '[test]',
+          failureStrategy: 'stop' as const,
+          preserveWorkingTree: false,
+          contextReduction: {
+            enabled: false,
+            maxTokens: 50000,
+            strategy: 'agent-based' as const,
+            agentPath: '.claude/agents/context-reducer.md'
+          }
+        }
+      };
+
+      const runner = new PipelineRunner(repoPath, false);
+
+      const state = await runner.runPipeline(configWithDisabledReduction);
+
+      expect(state.status).toBe('completed');
+      expect(state.stages.find(s => s.stageName === '__context_reducer__')).toBeUndefined();
+    });
+
+    it('should not trigger context reduction when agentPath is missing', async () => {
+      const configWithMissingPath = {
+        ...simplePipelineConfig,
+        settings: {
+          autoCommit: true,
+          commitPrefix: '[test]',
+          failureStrategy: 'stop' as const,
+          preserveWorkingTree: false,
+          contextReduction: {
+            enabled: true,
+            maxTokens: 50000,
+            strategy: 'agent-based' as const
+            // agentPath is missing
+          }
+        }
+      };
+
+      const runner = new PipelineRunner(repoPath, false);
+
+      const state = await runner.runPipeline(configWithMissingPath);
+
+      expect(state.status).toBe('completed');
+      expect(state.stages.find(s => s.stageName === '__context_reducer__')).toBeUndefined();
+    });
+
+    it('should handle context reduction errors gracefully and continue pipeline', async () => {
+      // This test verifies that even if context reduction fails,
+      // the pipeline continues execution without crashing
+      const configWithAgentBased = {
+        name: 'agent-based-reduction-pipeline',
+        trigger: 'manual' as const,
+        settings: {
+          autoCommit: true,
+          commitPrefix: '[test]',
+          failureStrategy: 'stop' as const,
+          preserveWorkingTree: false,
+          contextReduction: {
+            enabled: true,
+            maxTokens: 50000,
+            strategy: 'agent-based' as const,
+            agentPath: '.claude/agents/context-reducer.md',
+            triggerThreshold: 1 // Very low threshold to always trigger
+          }
+        },
+        agents: [
+          {
+            name: 'stage-1',
+            agent: '.claude/agents/test.md'
+          },
+          {
+            name: 'stage-2',
+            agent: '.claude/agents/test.md'
+          }
+        ]
+      };
+
+      // Create multi-group execution graph to trigger reduction check
+      const multiGroupGraph = {
+        validation: {
+          valid: true,
+          errors: [],
+          warnings: []
+        },
+        plan: {
+          groups: [
+            {
+              level: 0,
+              stages: [configWithAgentBased.agents[0]]
+            },
+            {
+              level: 1,
+              stages: [configWithAgentBased.agents[1]]
+            }
+          ],
+          maxParallelism: 1
+        }
+      };
+
+      mockDAGPlanner = createMockDAGPlanner({ executionGraph: multiGroupGraph });
+      mocks.mockDAGPlanner = mockDAGPlanner;
+
+      const runner = new PipelineRunner(repoPath, false);
+
+      // Even if context reduction throws errors, pipeline should complete
+      const state = await runner.runPipeline(configWithAgentBased);
+
+      expect(state.status).toBe('completed');
+      // Pipeline should have completed both stages despite any reduction errors
+      expect(state.stages.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('should complete pipeline successfully with agent-based context reduction', async () => {
+      const configWithAgentBased = {
+        name: 'agent-based-reduction-pipeline',
+        trigger: 'manual' as const,
+        settings: {
+          autoCommit: true,
+          commitPrefix: '[test]',
+          failureStrategy: 'stop' as const,
+          preserveWorkingTree: false,
+          contextReduction: {
+            enabled: true,
+            maxTokens: 50000,
+            strategy: 'agent-based' as const,
+            agentPath: '.claude/agents/context-reducer.md',
+            triggerThreshold: 45000
+          }
+        },
+        agents: [
+          {
+            name: 'stage-1',
+            agent: '.claude/agents/test.md'
+          },
+          {
+            name: 'stage-2',
+            agent: '.claude/agents/test.md'
+          }
+        ]
+      };
+
+      const multiGroupGraph = {
+        validation: {
+          valid: true,
+          errors: [],
+          warnings: []
+        },
+        plan: {
+          groups: [
+            {
+              level: 0,
+              stages: [configWithAgentBased.agents[0]]
+            },
+            {
+              level: 1,
+              stages: [configWithAgentBased.agents[1]]
+            }
+          ],
+          maxParallelism: 1
+        }
+      };
+
+      mockDAGPlanner = createMockDAGPlanner({ executionGraph: multiGroupGraph });
+      mocks.mockDAGPlanner = mockDAGPlanner;
+
+      const runner = new PipelineRunner(repoPath, false);
+
+      const state = await runner.runPipeline(configWithAgentBased);
+
+      // Pipeline should complete successfully
+      expect(state.status).toBe('completed');
+      expect(state.stages.length).toBeGreaterThanOrEqual(2);
+    });
+  });
 });

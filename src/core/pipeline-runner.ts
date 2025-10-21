@@ -10,10 +10,13 @@ import { DAGPlanner } from './dag-planner.js';
 import { ParallelExecutor } from './parallel-executor.js';
 import { ConditionEvaluator } from './condition-evaluator.js';
 import { OutputStorageManager } from './output-storage-manager.js';
+import { ContextReducer } from './context-reducer.js';
+import { TokenEstimator } from '../utils/token-estimator.js';
 import { PipelineConfig, PipelineState, AgentStageConfig } from '../config/schema.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
+import { ExecutionGraph } from './types/execution-graph.js';
 
 export class PipelineRunner {
   private gitManager: GitManager;
@@ -107,7 +110,7 @@ export class PipelineRunner {
     const triggerCommit = await this.gitManager.getCurrentCommit();
     const changedFiles = await this.gitManager.getChangedFiles(triggerCommit);
 
-    const state: PipelineState = {
+    let state: PipelineState = {
       runId: uuidv4(),
       pipelineConfig: config,
       trigger: {
@@ -275,6 +278,71 @@ export class PipelineRunner {
         // Save state after each group
         await this.stateManager.saveState(state);
         this.notifyStateChange(state);
+
+        // Check if context reduction needed (agent-based strategy)
+        if (config.settings?.contextReduction?.enabled &&
+            config.settings.contextReduction.strategy === 'agent-based' &&
+            config.settings.contextReduction.agentPath) {
+
+          // Get next stage to execute (peek ahead)
+          const nextStage = this.getNextStageToExecute(
+            executionGraph,
+            executionGraph.plan.groups.indexOf(group)
+          );
+
+          if (nextStage) {
+            // Estimate context size for next stage
+            const contextEstimate = await this.estimateNextContext(state, nextStage);
+
+            // Create ContextReducer instance
+            const contextReducer = new ContextReducer(
+              this.gitManager,
+              this.repoPath,
+              state.runId
+            );
+
+            // Check if reduction needed
+            if (contextReducer.shouldReduce(contextEstimate, config.settings.contextReduction)) {
+              if (this.shouldLog(options.interactive || false)) {
+                console.log(
+                  `⚠️  Context approaching limit (${PipelineFormatter.formatTokenCount(contextEstimate)} tokens). ` +
+                  `Running context reducer...\n`
+                );
+              }
+
+              try {
+                // Run reduction
+                const reducerOutput = await contextReducer.runReduction(
+                  state,
+                  nextStage,
+                  config.settings.contextReduction.agentPath
+                );
+
+                // Apply reduction to state (if successful)
+                if (reducerOutput.status === 'success') {
+                  state = contextReducer.applyReduction(state, reducerOutput);
+
+                  // Save reduced state
+                  await this.stateManager.saveState(state);
+                  this.notifyStateChange(state);
+
+                  if (this.shouldLog(options.interactive || false)) {
+                    console.log(`✅ Context reduced successfully\n`);
+                  }
+                } else {
+                  if (this.shouldLog(options.interactive || false)) {
+                    console.log(`⚠️  Context reduction failed. Continuing with full context.\n`);
+                  }
+                }
+              } catch (error) {
+                // Never let context reduction crash the pipeline
+                if (this.shouldLog(options.interactive || false)) {
+                  console.warn(`⚠️  Context reduction error: ${error}. Continuing with full context.\n`);
+                }
+              }
+            }
+          }
+        }
 
         // Log group result
         if (this.shouldLog(options.interactive || false) && shouldRunParallel) {
@@ -451,5 +519,56 @@ export class PipelineRunner {
 
   onStateChange(callback: (state: PipelineState) => void): void {
     this.stateUpdateCallbacks.push(callback);
+  }
+
+  /**
+   * Get next stage to execute (peek ahead)
+   */
+  private getNextStageToExecute(
+    executionGraph: ExecutionGraph,
+    currentGroupIndex: number
+  ): AgentStageConfig | null {
+    // Look at next group
+    const nextGroupIndex = currentGroupIndex + 1;
+    if (nextGroupIndex >= executionGraph.plan.groups.length) {
+      return null; // No more stages
+    }
+
+    const nextGroup = executionGraph.plan.groups[nextGroupIndex];
+
+    // Return first enabled stage from next group
+    const enabledStage = nextGroup.stages.find(s => s.enabled !== false);
+    return enabledStage || null;
+  }
+
+  /**
+   * Estimate context token count for next stage
+   */
+  private async estimateNextContext(
+    state: PipelineState,
+    nextStage: AgentStageConfig
+  ): Promise<number> {
+    // Build a mock StageExecutor to use its buildAgentContext method
+    const stageExecutor = new StageExecutor(
+      this.gitManager,
+      this.dryRun,
+      state.runId,
+      this.repoPath
+    );
+
+    try {
+      // Build context as it would be for the next stage
+      const context = await (stageExecutor as any).buildAgentContext(nextStage, state);
+
+      // Estimate token count
+      const tokenEstimator = new TokenEstimator();
+      const estimate = tokenEstimator.estimateTokens(context);
+      tokenEstimator.dispose();
+
+      return estimate;
+    } catch (error) {
+      // If estimation fails, return safe default (below threshold)
+      return 0;
+    }
   }
 }
