@@ -2,7 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-See @README.md for comprehensive feature documentation and usage examples.
+See @README.md for comprehensive feature documentation and usage examples. Deep dives now live under:
+- `docs/configuration.md` – pipeline settings, git workflow, notifications
+- `docs/examples.md` – shipped pipeline templates
+- `docs/cli.md` – command reference
 
 ## Tech Stack
 - **Language**: TypeScript (ES2022, ESNext modules)
@@ -19,10 +22,10 @@ The pipeline executes in this order:
 1. **Pipeline Loader** (`src/config/pipeline-loader.ts`) - Parses YAML configurations
 2. **Pipeline Validator** (`src/validators/pipeline-validator.ts`) - Pre-flight checks, DAG cycle detection
 3. **DAG Planner** (`src/core/dag-planner.ts`) - Analyzes dependencies, creates execution graph with topological sort
-4. **Pipeline Runner** (`src/core/pipeline-runner.ts`) - Main orchestrator that:
-   - Sets up git branch isolation via Branch Manager
-   - Executes stage groups in dependency order
-   - Delegates to Parallel/Sequential Executor based on config
+4. **Pipeline Runner** (`src/core/pipeline-runner.ts`) - Coordinates the run lifecycle via:
+   - **Pipeline Initializer** (`src/core/pipeline-initializer.ts`) – prepares git state, notifications, and execution context
+   - **Group Execution Orchestrator** (`src/core/group-execution-orchestrator.ts`) – evaluates conditions, executes stage groups (parallel or sequential), triggers context reduction
+   - **Pipeline Finalizer** (`src/core/pipeline-finalizer.ts`) – restores branches, summarizes results, optionally creates PRs
 5. **Parallel Executor** (`src/core/parallel-executor.ts`) - Runs independent stages concurrently
 6. **Stage Executor** (`src/core/stage-executor.ts`) - Executes individual agent stages with retry logic
 7. **Output Tool Builder** (`src/core/output-tool-builder.ts`) - Provides MCP `report_outputs` tool for structured data extraction
@@ -34,22 +37,25 @@ The pipeline executes in this order:
 
 **DAG Execution**: Stages declare dependencies via `dependsOn` array. DAG Planner performs topological sort and groups stages by execution level. Each level runs in parallel, levels execute sequentially.
 
-**State Management**: Each pipeline run gets a unique `runId`. State is saved after each stage group completes. This enables rollback, analytics, and history browsing.
+**State Management**: Each pipeline run gets a unique `runId`. State is saved after each stage group completes by `StateManager`. This enables rollback, analytics, and history browsing.
 
 **Git Workflow**: Pipelines run on isolated branches (`pipeline/{name}` or `pipeline/{name}-{runId}`). Each stage creates an atomic commit. Original branch is restored after completion.
 
 **Output Extraction**: Agents report structured data via MCP `report_outputs` tool or text format. Tool-based extraction preserves types (objects, arrays, numbers). Text-based falls back to regex. Single reusable MCP server created via `OutputToolBuilder` with generic `z.record(z.string(), z.unknown())` schema.
 
-**Conditional Execution**: Condition Evaluator (`src/core/condition-evaluator.ts`) parses template expressions like `{{ stages.review.outputs.issues > 0 }}` and evaluates against pipeline state.
+**Conditional Execution**: Condition Evaluator (`src/core/condition-evaluator.ts`) parses template expressions like `{{ stages.review.outputs.issues > 0 }}` and evaluates against pipeline state before delegation to the orchestrator.
 
-**Retry Mechanism**: Retry Handler (`src/core/retry-handler.ts`) implements exponential/linear/fixed backoff strategies. Wraps stage execution with configurable retry logic.
+**Retry Mechanism**: Retry Handler (`src/core/retry-handler.ts`) implements exponential/linear/fixed backoff strategies. `StageExecutor` uses it to wrap agent execution with configurable retry logic.
 
 **UI Architecture**: Dual-mode operation - Interactive mode uses Ink/React terminal UI (`src/ui/pipeline-ui.tsx`) with real-time updates. Non-interactive mode uses simple console logging.
 
 ### Critical Files
 
 - `src/config/schema.ts` - TypeScript interfaces for all configuration and state types
-- `src/core/pipeline-runner.ts` - Main orchestrator (450+ lines, handles entire execution lifecycle)
+- `src/core/pipeline-runner.ts` - Entry point that wires initializer, group orchestrator, and finalizer
+- `src/core/pipeline-initializer.ts` - Pre-run setup (git, notifications, parallel executor)
+- `src/core/group-execution-orchestrator.ts` - Executes DAG groups, handles skips, saves state
+- `src/core/pipeline-finalizer.ts` - Cleans up, restores branches, triggers PR creation/summaries
 - `src/core/stage-executor.ts` - Stage execution with MCP tool integration and output extraction
 - `src/core/output-tool-builder.ts` - Singleton MCP server for `report_outputs` tool
 - `src/core/types/execution-graph.ts` - DAG type definitions
