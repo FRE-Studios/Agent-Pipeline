@@ -137,6 +137,20 @@ describe('PRCreator', () => {
       ).rejects.toThrow('GitHub CLI (gh) is not installed');
     });
 
+    it('should throw error with full message when gh CLI not installed', async () => {
+      configureMockSpawn({ version: ghVersionNotInstalled });
+      try {
+        await prCreator.createPR('feature-branch', 'main', {}, prPipelineStateCompleted);
+        expect.fail('Should have thrown error');
+      } catch (error: any) {
+        expect(error.message).toContain('GitHub CLI (gh) is not installed');
+        expect(error.message).toContain('Install from: https://cli.github.com/');
+        expect(error.message).toContain('Or disable PR creation:');
+        expect(error.message).toContain('- Remove git.pullRequest.autoCreate from your pipeline config');
+        expect(error.message).toContain('- Or run with: agent-pipeline run <pipeline> --no-pr');
+      }
+    });
+
     it('should throw error when gh CLI not authenticated', async () => {
       configureMockSpawn({
         version: ghVersionOutput,
@@ -199,6 +213,23 @@ describe('PRCreator', () => {
         expect(body).toContain('2 retries');
         expect(body).toContain('1 retries');
       });
+
+    it('should include failed and skipped stage icons in default body', async () => {
+        await prCreator.createPR('feature-branch', 'main', {}, prPipelineStatePartial);
+        const bodyArg = mockSpawn.spawn.mock.calls.find((call: any) =>
+          call[1].includes('--body')
+        )?.[1];
+        const bodyIndex = bodyArg?.indexOf('--body');
+        const body = bodyIndex !== undefined ? bodyArg[bodyIndex + 1] : '';
+
+        // Should contain success, failed, and skipped icons
+        expect(body).toContain('✅'); // success icon
+        expect(body).toContain('❌'); // failed icon
+        expect(body).toContain('⏭️'); // skipped icon
+        expect(body).toContain('lint'); // lint stage succeeded
+        expect(body).toContain('build'); // build stage failed
+        expect(body).toContain('deploy'); // deploy stage skipped
+      });
   });
 
   describe('createPR - Command Building', () => {
@@ -254,6 +285,42 @@ describe('PRCreator', () => {
         await expect(
             prCreator.createPR('feature-branch', 'main', {}, prPipelineStateCompleted)
         ).rejects.toThrow('Failed to create PR');
+    });
+
+    it('should re-throw non-Error instances', async () => {
+        // Configure spawn to succeed for checkGHCLI but fail with non-Error on PR creation
+        mockSpawn.spawn.mockImplementation((command: string, args: string[]) => {
+          const commandStr = args.join(' ');
+
+          // Let checkGHCLI succeed
+          if (commandStr.includes('--version')) {
+            const proc = new MockProcess(ghVersionOutput.stdout, '', 0);
+            setTimeout(() => proc.run(), 0);
+            return proc;
+          }
+          if (commandStr.includes('auth status')) {
+            const proc = new MockProcess(ghAuthStatusOutput.stdout, '', 0);
+            setTimeout(() => proc.run(), 0);
+            return proc;
+          }
+
+          // Throw non-Error on PR creation
+          if (commandStr.includes('pr create')) {
+            const proc = new MockProcess('', '', 0);
+            setTimeout(() => {
+              proc.emit('error', 'string error'); // Non-Error instance
+            }, 0);
+            return proc;
+          }
+
+          const proc = new MockProcess('', '', 0);
+          setTimeout(() => proc.run(), 0);
+          return proc;
+        });
+
+        await expect(
+            prCreator.createPR('feature-branch', 'main', {}, prPipelineStateCompleted)
+        ).rejects.toBe('string error');
     });
   });
 

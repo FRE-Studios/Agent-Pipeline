@@ -68,6 +68,15 @@ vi.mock('../../core/output-storage-manager.js', () => ({
   })),
 }));
 
+// Mock TokenEstimator
+vi.mock('../../utils/token-estimator.js', () => ({
+  TokenEstimator: vi.fn(() => ({
+    smartCount: vi.fn().mockResolvedValue({ tokens: 10000, method: 'estimated' }),
+    estimateTokens: vi.fn().mockReturnValue(10000),
+    dispose: vi.fn(),
+  })),
+}));
+
 describe('StageExecutor', () => {
   beforeAll(() => {
     vi.useFakeTimers();
@@ -1399,6 +1408,191 @@ describe('StageExecutor', () => {
       expect(new Date(result.endTime!).getTime()).toBeGreaterThanOrEqual(
         new Date(result.startTime).getTime()
       );
+    });
+  });
+
+  describe('Context Size Warnings', () => {
+    it('should log warning when context size is at 80% threshold', async () => {
+      const consoleLogSpy = vi.spyOn(console, 'log');
+
+      // Import and setup mock before creating executor
+      const { TokenEstimator } = await import('../../utils/token-estimator.js');
+      // Use 40001 tokens (just above 80% threshold of 50k = 40k)
+      const mockSmartCount = vi.fn().mockResolvedValue({ tokens: 40001, method: 'estimated' });
+      const mockDispose = vi.fn();
+
+      // Override the TokenEstimator mock for this test
+      vi.mocked(TokenEstimator).mockImplementation(() => ({
+        smartCount: mockSmartCount,
+        estimateTokens: vi.fn().mockReturnValue(40001),
+        dispose: mockDispose,
+      }) as any);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+
+      // Create state with context reduction enabled
+      const stateWithContextReduction = {
+        ...runningPipelineState,
+        pipelineConfig: {
+          ...runningPipelineState.pipelineConfig,
+          settings: {
+            ...runningPipelineState.pipelineConfig.settings,
+            contextReduction: {
+              enabled: true,
+              maxTokens: 50000,
+              strategy: 'summary-based' as const,
+              contextWindow: 3,
+              requireSummary: true,
+              saveVerboseOutputs: true,
+              compressFileList: true,
+            },
+          },
+        },
+      };
+
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+      await executor.executeStage(basicStageConfig, stateWithContextReduction);
+
+      // Verify warning was logged
+      const logCalls = consoleLogSpy.mock.calls.map(call => call[0]);
+      // Check for the specific warning pattern - it's logged as a single call
+      const hasContextWarning = logCalls.some(msg =>
+        typeof msg === 'string' &&
+        msg.includes('ℹ️  Context size:') &&
+        msg.includes('80%') &&
+        msg.includes('approaching threshold')
+      );
+      expect(hasContextWarning).toBe(true);
+      expect(mockDispose).toHaveBeenCalled();
+
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should log warning when context exceeds max tokens', async () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn');
+
+      // Import and setup mock
+      const { TokenEstimator } = await import('../../utils/token-estimator.js');
+      const mockSmartCount = vi.fn().mockResolvedValue({ tokens: 55000, method: 'estimated' });
+      const mockDispose = vi.fn();
+
+      // Override the TokenEstimator mock for this test
+      vi.mocked(TokenEstimator).mockImplementation(() => ({
+        smartCount: mockSmartCount,
+        estimateTokens: vi.fn().mockReturnValue(55000),
+        dispose: mockDispose,
+      }) as any);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+
+      const stateWithContextReduction = {
+        ...runningPipelineState,
+        pipelineConfig: {
+          ...runningPipelineState.pipelineConfig,
+          settings: {
+            ...runningPipelineState.pipelineConfig.settings,
+            contextReduction: {
+              enabled: true,
+              maxTokens: 50000,
+              strategy: 'summary-based' as const,
+              contextWindow: 3,
+              requireSummary: true,
+              saveVerboseOutputs: true,
+              compressFileList: true,
+            },
+          },
+        },
+      };
+
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+      await executor.executeStage(basicStageConfig, stateWithContextReduction);
+
+      // Verify warning was logged
+      const warnCalls = consoleWarnSpy.mock.calls.map(call => call[0]);
+      const hasExceedsWarning = warnCalls.some(msg =>
+        typeof msg === 'string' && msg.includes('⚠️  Context size') && msg.includes('exceeds limit')
+      );
+      expect(hasExceedsWarning).toBe(true);
+
+      consoleWarnSpy.mockRestore();
+    });
+  });
+
+  describe('Token Usage with Cache Metrics', () => {
+    it('should capture token usage with cache metrics from SDK result', async () => {
+      const queryWithCacheMetrics = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Mock response' }],
+          },
+        };
+        // Yield SDK result message with cache metrics
+        yield {
+          type: 'result',
+          subtype: 'success',
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 500,
+            cache_creation_input_tokens: 200,
+            cache_read_input_tokens: 300,
+          },
+        };
+      });
+
+      // Update the mock query before executing
+      const sdk = await import('@anthropic-ai/claude-agent-sdk');
+      mockQuery = vi.mocked(sdk.query);
+      mockQuery.mockImplementation(queryWithCacheMetrics);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.tokenUsage).toBeDefined();
+      expect(result.tokenUsage?.actual_input).toBe(1000);
+      expect(result.tokenUsage?.output).toBe(500);
+      expect(result.tokenUsage?.cache_creation).toBe(200);
+      expect(result.tokenUsage?.cache_read).toBe(300);
+    });
+
+    it('should handle token usage without cache metrics', async () => {
+      const queryWithoutCacheMetrics = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Mock response' }],
+          },
+        };
+        // Yield SDK result without cache metrics
+        yield {
+          type: 'result',
+          subtype: 'success',
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 500,
+          },
+        };
+      });
+
+      // Update the mock query before executing
+      const sdk = await import('@anthropic-ai/claude-agent-sdk');
+      mockQuery = vi.mocked(sdk.query);
+      mockQuery.mockImplementation(queryWithoutCacheMetrics);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.tokenUsage).toBeDefined();
+      expect(result.tokenUsage?.actual_input).toBe(1000);
+      expect(result.tokenUsage?.output).toBe(500);
+      expect(result.tokenUsage?.cache_creation).toBeUndefined();
+      expect(result.tokenUsage?.cache_read).toBeUndefined();
     });
   });
 });
