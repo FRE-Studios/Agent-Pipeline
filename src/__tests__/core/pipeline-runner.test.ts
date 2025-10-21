@@ -267,19 +267,39 @@ describe('PipelineRunner', () => {
 
     const mockGroupOrchestrator = {
       processGroup: vi.fn().mockImplementation(async (group, state, config, graph, executor, interactive) => {
-        // Check if test has mocked ParallelExecutor to simulate failures
-        const parallelExecutorMock = mockParallelExecutor.executeParallelGroup as any;
-        const sequentialExecutorMock = mockParallelExecutor.executeSequentialGroup as any;
+        // Skip empty groups
+        if (!group.stages || group.stages.length === 0) {
+          return {
+            state,
+            shouldStopPipeline: false
+          };
+        }
 
+        // Determine execution mode: parallel or sequential
+        const isParallelMode = config.settings?.executionMode === 'parallel' ||
+                               (group.stages.length > 1 && config.settings?.executionMode !== 'sequential');
+
+        // Try calling executor first (in case test has mocked it to return failures)
+        let executorResult;
+        try {
+          if (isParallelMode) {
+            executorResult = await mockParallelExecutor.executeParallelGroup(group.stages, state, undefined);
+          } else {
+            executorResult = await mockParallelExecutor.executeSequentialGroup(group.stages, state, undefined);
+          }
+        } catch (e) {
+          // Executor might throw in some test scenarios
+          executorResult = null;
+        }
+
+        // If test has mocked executor to return failures, use that result
+        // Otherwise, generate default executions based on stage properties
         let executionResult;
-        if (parallelExecutorMock.mock && parallelExecutorMock.mock.results.length > 0) {
-          // Test has mocked parallel executor - use its result
-          executionResult = await parallelExecutorMock();
-        } else if (sequentialExecutorMock.mock && sequentialExecutorMock.mock.results.length > 0) {
-          // Test has mocked sequential executor - use its result
-          executionResult = await sequentialExecutorMock();
+        if (executorResult && executorResult.anyFailed) {
+          // Test has mocked a failure scenario, use it
+          executionResult = executorResult;
         } else {
-          // Default behavior: simulate successful execution
+          // Generate default executions based on stage properties (disabled, conditional, etc.)
           executionResult = {
             executions: group.stages.map((stage: any) => {
               const hash = stage.name.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
@@ -292,28 +312,32 @@ describe('PipelineRunner', () => {
               if (isDisabled) {
                 return {
                   stageName: stage.name,
-                  status: 'skipped',
+                  status: 'skipped' as const,
                   startTime: new Date().toISOString(),
                   endTime: new Date().toISOString(),
                   duration: 0,
                 };
               }
 
-              if (isConditional && mockConditionEvaluator.evaluate.mock.results[0]?.value === false) {
-                return {
-                  stageName: stage.name,
-                  status: 'skipped',
-                  startTime: new Date().toISOString(),
-                  endTime: new Date().toISOString(),
-                  duration: 0,
-                  conditionEvaluated: true,
-                  conditionResult: false,
-                };
+              if (isConditional) {
+                // Call condition evaluator if stage has condition
+                const conditionResult = mocks.mockConditionEvaluator.evaluate(stage.condition, state);
+                if (conditionResult === false) {
+                  return {
+                    stageName: stage.name,
+                    status: 'skipped' as const,
+                    startTime: new Date().toISOString(),
+                    endTime: new Date().toISOString(),
+                    duration: 0,
+                    conditionEvaluated: true,
+                    conditionResult: false,
+                  };
+                }
               }
 
               return {
                 stageName: stage.name,
-                status: 'success',
+                status: 'success' as const,
                 startTime: new Date().toISOString(),
                 endTime: new Date().toISOString(),
                 duration: 1,
@@ -328,11 +352,15 @@ describe('PipelineRunner', () => {
         const newStages = executionResult.executions;
         const shouldStop = executionResult.anyFailed && (config.settings?.failureStrategy === 'stop' || !config.settings?.failureStrategy);
 
+        // Only set status to 'failed' if we're stopping the pipeline
+        // With 'warn' or 'continue' strategy, keep status as 'running' and let runner set to 'completed'
+        const newStatus = shouldStop ? 'failed' : state.status;
+
         return {
           state: {
             ...state,
             stages: [...state.stages, ...newStages],
-            status: executionResult.anyFailed ? 'failed' : state.status
+            status: newStatus
           },
           shouldStopPipeline: shouldStop
         };
