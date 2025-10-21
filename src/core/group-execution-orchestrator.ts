@@ -355,7 +355,7 @@ export class GroupExecutionOrchestrator {
             `🛑 Pipeline stopped due to stage failure: ${failedStage.stageName}\n`
           );
         }
-        state.status = 'failed';
+        // Don't modify state.status here - that's the caller's (PipelineRunner) responsibility
         return true; // Stop pipeline
       } else if (failureStrategy === 'continue') {
         if (this.shouldLog(interactive)) {

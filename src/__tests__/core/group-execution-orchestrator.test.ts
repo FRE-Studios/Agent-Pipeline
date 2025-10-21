@@ -70,6 +70,17 @@ describe('GroupExecutionOrchestrator', () => {
   };
 
   beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Reset mockState to fresh state
+    mockState.stages = [];
+    mockState.status = 'running';
+    mockState.artifacts = {
+      initialCommit: 'abc123',
+      changedFiles: [],
+      totalDuration: 0
+    };
+
     mockGitManager = new GitManager('/test/repo');
     mockStateManager = new StateManager('/test/repo');
     mockShouldLog = vi.fn().mockReturnValue(true);
@@ -389,7 +400,9 @@ describe('GroupExecutionOrchestrator', () => {
       );
 
       expect(result.shouldStopPipeline).toBe(true);
-      expect(result.state.status).toBe('failed');
+      // Orchestrator doesn't set status - that's PipelineRunner's responsibility
+      // Status remains 'running' until PipelineRunner sets it to 'failed'
+      expect(result.state.status).toBe('running');
     });
 
     it('should continue pipeline on failure with continue strategy', async () => {

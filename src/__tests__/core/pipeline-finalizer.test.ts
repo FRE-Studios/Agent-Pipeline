@@ -13,8 +13,27 @@ vi.mock('../../core/git-manager.js');
 vi.mock('../../core/branch-manager.js');
 vi.mock('../../core/pr-creator.js');
 vi.mock('../../core/state-manager.js');
-vi.mock('../../core/output-storage-manager.js');
-vi.mock('../../utils/pipeline-formatter.js');
+
+// Hoisted mocks for OutputStorageManager and PipelineFormatter
+const { mockOutputStorageManager, mockPipelineFormatter } = vi.hoisted(() => {
+  return {
+    mockOutputStorageManager: {
+      savePipelineSummary: vi.fn().mockResolvedValue('/path/to/summary.json'),
+      saveChangedFiles: vi.fn().mockResolvedValue('/path/to/files.txt')
+    },
+    mockPipelineFormatter: {
+      formatSummary: vi.fn().mockReturnValue('Pipeline Summary Output')
+    }
+  };
+});
+
+vi.mock('../../core/output-storage-manager.js', () => ({
+  OutputStorageManager: vi.fn(() => mockOutputStorageManager)
+}));
+
+vi.mock('../../utils/pipeline-formatter.js', () => ({
+  PipelineFormatter: mockPipelineFormatter
+}));
 
 describe('PipelineFinalizer', () => {
   let finalizer: PipelineFinalizer;
@@ -50,6 +69,20 @@ describe('PipelineFinalizer', () => {
   };
 
   beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Re-setup hoisted mock return values after clearAllMocks
+    mockOutputStorageManager.savePipelineSummary.mockResolvedValue('/path/to/summary.json');
+    mockOutputStorageManager.saveChangedFiles.mockResolvedValue('/path/to/files.txt');
+    mockPipelineFormatter.formatSummary.mockReturnValue('Pipeline Summary Output');
+
+    // Reset mockState to fresh state (remove any modifications from previous tests)
+    mockState.artifacts = {
+      initialCommit: 'abc123',
+      changedFiles: ['file1.ts'],
+      totalDuration: 0
+    };
+
     mockGitManager = new GitManager('/test/repo');
     mockBranchManager = new BranchManager('/test/repo');
     mockPRCreator = new PRCreator();
@@ -95,17 +128,6 @@ describe('PipelineFinalizer', () => {
     });
 
     it('should save outputs when configured', async () => {
-      const { OutputStorageManager } = await import('../../core/output-storage-manager.js');
-      const mockSavePipelineSummary = vi.fn().mockResolvedValue('/path/to/summary');
-      const mockSaveChangedFiles = vi.fn().mockResolvedValue('/path/to/files');
-
-      vi.spyOn(OutputStorageManager.prototype, 'savePipelineSummary').mockImplementation(
-        mockSavePipelineSummary
-      );
-      vi.spyOn(OutputStorageManager.prototype, 'saveChangedFiles').mockImplementation(
-        mockSaveChangedFiles
-      );
-
       await finalizer.finalize(
         mockState,
         mockConfig,
@@ -117,18 +139,11 @@ describe('PipelineFinalizer', () => {
         mockStateChangeCallback
       );
 
-      expect(mockSavePipelineSummary).toHaveBeenCalledWith(mockState.stages);
-      expect(mockSaveChangedFiles).toHaveBeenCalledWith(mockState.artifacts.changedFiles);
+      expect(mockOutputStorageManager.savePipelineSummary).toHaveBeenCalledWith(mockState.stages);
+      expect(mockOutputStorageManager.saveChangedFiles).toHaveBeenCalledWith(mockState.artifacts.changedFiles);
     });
 
     it('should not save outputs when disabled in config', async () => {
-      const { OutputStorageManager } = await import('../../core/output-storage-manager.js');
-      const mockSavePipelineSummary = vi.fn();
-
-      vi.spyOn(OutputStorageManager.prototype, 'savePipelineSummary').mockImplementation(
-        mockSavePipelineSummary
-      );
-
       const configWithDisabledOutputs = {
         ...mockConfig,
         settings: {
@@ -149,7 +164,7 @@ describe('PipelineFinalizer', () => {
         mockStateChangeCallback
       );
 
-      expect(mockSavePipelineSummary).not.toHaveBeenCalled();
+      expect(mockOutputStorageManager.savePipelineSummary).not.toHaveBeenCalled();
     });
 
     it('should create PR when configured', async () => {
@@ -386,10 +401,6 @@ describe('PipelineFinalizer', () => {
     });
 
     it('should print summary in non-interactive mode', async () => {
-      const { PipelineFormatter } = await import('../../utils/pipeline-formatter.js');
-      const mockFormatSummary = vi
-        .spyOn(PipelineFormatter, 'formatSummary')
-        .mockReturnValue('Summary output');
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       await finalizer.finalize(
@@ -403,15 +414,13 @@ describe('PipelineFinalizer', () => {
         mockStateChangeCallback
       );
 
-      expect(mockFormatSummary).toHaveBeenCalledWith(mockState);
-      expect(consoleSpy).toHaveBeenCalledWith('Summary output');
+      expect(mockPipelineFormatter.formatSummary).toHaveBeenCalledWith(mockState);
+      expect(consoleSpy).toHaveBeenCalledWith('Pipeline Summary Output');
 
       consoleSpy.mockRestore();
     });
 
     it('should not print summary in interactive mode', async () => {
-      const { PipelineFormatter } = await import('../../utils/pipeline-formatter.js');
-      const mockFormatSummary = vi.spyOn(PipelineFormatter, 'formatSummary');
       mockShouldLog.mockReturnValue(false); // Interactive mode
 
       await finalizer.finalize(
@@ -425,7 +434,7 @@ describe('PipelineFinalizer', () => {
         mockStateChangeCallback
       );
 
-      expect(mockFormatSummary).not.toHaveBeenCalled();
+      expect(mockPipelineFormatter.formatSummary).not.toHaveBeenCalled();
     });
 
     it('should notify PR created event when PR is created', async () => {
