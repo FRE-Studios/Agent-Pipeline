@@ -187,8 +187,6 @@ npm test src/__tests__/core/group-execution-orchestrator.test.ts -- --run
 - ✅ Pattern is simple and repetitive
 - ✅ Only test assertions need updating
 
-**Effort Required**: 2-2.5 hours of mechanical find/replace work across 4 categories
-
 ---
 
 ### Analysis Summary
