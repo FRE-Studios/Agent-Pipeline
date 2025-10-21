@@ -238,29 +238,42 @@ describe('PipelineRunner', () => {
 
     // Create mocks for new orchestration classes
     const mockPipelineInitializer = {
-      initialize: vi.fn().mockResolvedValue({
-        state: {
-          runId: 'test-uuid-12345',
-          pipelineConfig: simplePipelineConfig,
-          trigger: {
-            type: 'manual',
-            commitSha: 'abc1234def5678901234567890abcdef12345678',
-            timestamp: new Date().toISOString()
+      initialize: vi.fn().mockImplementation(async (config, options, notifyCallback, stateChangeCallback) => {
+        const result = {
+          state: {
+            runId: 'test-uuid-12345',
+            pipelineConfig: config,
+            trigger: {
+              type: 'manual',
+              commitSha: 'abc1234def5678901234567890abcdef12345678',
+              timestamp: new Date().toISOString()
+            },
+            stages: [],
+            status: 'running',
+            artifacts: {
+              initialCommit: 'abc1234def5678901234567890abcdef12345678',
+              changedFiles: ['test.ts'],
+              totalDuration: 0
+            }
           },
-          stages: [],
-          status: 'running',
-          artifacts: {
-            initialCommit: 'abc1234def5678901234567890abcdef12345678',
-            changedFiles: ['test.ts'],
-            totalDuration: 0
-          }
-        },
-        stageExecutor: mockStageExecutor,
-        parallelExecutor: mockParallelExecutor,
-        pipelineBranch: undefined,
-        originalBranch: 'main',
-        notificationManager: undefined,
-        startTime: Date.now()
+          stageExecutor: mockStageExecutor,
+          parallelExecutor: mockParallelExecutor,
+          pipelineBranch: config.git ? 'pipeline/test-branch' : undefined,
+          originalBranch: 'main',
+          notificationManager: options.notificationManager || (config.notifications ? mockNotificationManager : undefined),
+          startTime: Date.now()
+        };
+
+        // Call state change callback like real initializer does
+        stateChangeCallback(result.state);
+
+        // Call notification callback for pipeline.started
+        await notifyCallback({
+          event: 'pipeline.started',
+          pipelineState: result.state
+        });
+
+        return result;
       })
     };
     mocks.mockPipelineInitializer = mockPipelineInitializer;
@@ -371,7 +384,7 @@ describe('PipelineRunner', () => {
     const mockPipelineFinalizer = {
       finalize: vi.fn().mockImplementation(async (state, config, pipelineBranch, originalBranch, startTime, interactive, notify, stateChange) => {
         // Preserve the incoming state, add finalization artifacts
-        return {
+        const finalState = {
           ...state,
           status: state.status, // Preserve status (could be 'running', 'failed', 'completed')
           artifacts: {
@@ -385,6 +398,33 @@ describe('PipelineRunner', () => {
             } : undefined
           }
         };
+
+        // Call state change callback
+        stateChange(finalState);
+
+        // Notify pipeline completion based on status
+        if (finalState.status === 'failed') {
+          await notify({
+            event: 'pipeline.failed',
+            pipelineState: finalState
+          });
+        } else {
+          await notify({
+            event: 'pipeline.completed',
+            pipelineState: finalState
+          });
+        }
+
+        // Notify PR creation if applicable
+        if (finalState.artifacts.pullRequest) {
+          await notify({
+            event: 'pr.created',
+            pipelineState: finalState,
+            prUrl: finalState.artifacts.pullRequest.url
+          });
+        }
+
+        return finalState;
       })
     };
     mocks.mockPipelineFinalizer = mockPipelineFinalizer;
@@ -719,8 +759,8 @@ describe('PipelineRunner', () => {
 
       await runner.runPipeline(simplePipelineConfig);
 
-      // Should still complete successfully, orchestrator called only for non-empty groups
-      expect(mocks.mockGroupOrchestrator.processGroup).toHaveBeenCalledTimes(1);
+      // Should still complete successfully, orchestrator called for both groups (mock handles empty groups internally)
+      expect(mocks.mockGroupOrchestrator.processGroup).toHaveBeenCalledTimes(2);
     });
 
     it('should log execution plan summary when not interactive', async () => {
