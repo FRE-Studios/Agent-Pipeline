@@ -9,6 +9,7 @@ dist/
 
 # Test outputs
 *.log
+.tmp/
 
 # Test coverage reports
 coverage/
@@ -25,3 +26,4 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
