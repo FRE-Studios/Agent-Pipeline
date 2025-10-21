@@ -89,7 +89,9 @@ export class StageExecutor {
       }
 
       // Auto-commit if enabled
-      const shouldCommit = (stageConfig.autoCommit ?? true) && !this.dryRun;
+      const globalAutoCommit = pipelineState.pipelineConfig.settings?.autoCommit;
+      const stageAutoCommit = stageConfig.autoCommit ?? globalAutoCommit ?? true;
+      const shouldCommit = stageAutoCommit && !this.dryRun;
       if (shouldCommit) {
         const commitSha = await this.gitManager.createPipelineCommit(
           stageConfig.name,

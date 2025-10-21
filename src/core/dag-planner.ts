@@ -254,7 +254,7 @@ export class DAGPlanner {
     }
 
     if (sorted.length !== nodes.size) {
-      throw new Error('Invalid pipeline DAG: unresolved dependencies detected');
+      throw new Error('Invalid pipeline DAG: Cycle detected or incomplete DAG');
     }
 
     return sorted;

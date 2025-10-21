@@ -272,6 +272,64 @@ describe('StageExecutor', () => {
       expect(mockGitManager.createPipelineCommit).not.toHaveBeenCalled();
     });
 
+    it('should respect pipeline-level auto-commit disabled setting', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: true });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+
+      const noAutoCommitPipelineState: PipelineState = {
+        ...runningPipelineState,
+        pipelineConfig: {
+          ...runningPipelineState.pipelineConfig,
+          settings: {
+            ...runningPipelineState.pipelineConfig.settings!,
+            autoCommit: false,
+          },
+        },
+      };
+
+      const result = await executor.executeStage(basicStageConfig, noAutoCommitPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.commitSha).toBeUndefined();
+      expect(mockGitManager.createPipelineCommit).not.toHaveBeenCalled();
+    });
+
+    it('should allow stage override to enable auto-commit when pipeline disabled', async () => {
+      mockGitManager = createMockGitManager({
+        hasChanges: true,
+        commitSha: 'override-commit',
+        commitMessage: '[pipeline:override-stage] Override commit',
+      });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+
+      const noAutoCommitPipelineState: PipelineState = {
+        ...runningPipelineState,
+        pipelineConfig: {
+          ...runningPipelineState.pipelineConfig,
+          settings: {
+            ...runningPipelineState.pipelineConfig.settings!,
+            autoCommit: false,
+          },
+        },
+      };
+
+      const overrideStageConfig = {
+        ...basicStageConfig,
+        name: 'override-stage',
+        autoCommit: true,
+      };
+
+      const result = await executor.executeStage(overrideStageConfig, noAutoCommitPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.commitSha).toBe('override-commit');
+      expect(mockGitManager.createPipelineCommit).toHaveBeenCalledWith(
+        'override-stage',
+        'test-run-123',
+        undefined
+      );
+    });
+
     it('should not commit when no changes are present', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
