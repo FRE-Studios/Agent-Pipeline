@@ -7,6 +7,8 @@ import {
   SlackNotificationConfig
 } from '../types.js';
 
+const BROADCAST_MENTIONS = new Set(['channel', 'here', 'everyone']);
+
 interface SlackBlock {
   type: string;
   [key: string]: any;
@@ -147,15 +149,18 @@ export class SlackNotifier extends BaseNotifier {
         // Mention users on failure if configured
         if (this.config.mentionOnFailure && this.config.mentionOnFailure.length > 0) {
           const mentions = this.config.mentionOnFailure
-            .map(user => (user.startsWith('@') ? `<!${user.substring(1)}>` : `<@${user}>`))
+            .map(user => this.formatMention(user))
+            .filter((mention): mention is string => Boolean(mention))
             .join(' ');
-          blocks.push({
-            type: 'section',
-            text: {
-              type: 'mrkdwn',
-              text: `CC: ${mentions}`
-            }
-          });
+          if (mentions.length > 0) {
+            blocks.push({
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: `CC: ${mentions}`
+              }
+            });
+          }
         }
         color = 'danger';
         break;
@@ -216,5 +221,31 @@ export class SlackNotifier extends BaseNotifier {
     }
 
     return payload;
+  }
+
+  /**
+   * Normalize mention tokens to Slack's special mention syntax.
+   */
+  private formatMention(rawMention: string): string | null {
+    const mention = rawMention?.trim();
+    if (!mention) {
+      return null;
+    }
+
+    // Respect already-formatted mentions like <@U12345> or <!channel>
+    if (mention.startsWith('<') && mention.endsWith('>')) {
+      return mention;
+    }
+
+    const normalized = mention.replace(/^@/, '');
+    if (!normalized) {
+      return null;
+    }
+
+    if (normalized.startsWith('!') || BROADCAST_MENTIONS.has(normalized)) {
+      return `<!${normalized.replace(/^!/, '')}>`;
+    }
+
+    return `<@${normalized}>`;
   }
 }
