@@ -140,6 +140,7 @@ export class PipelineRunner {
         state = result.state;
 
         if (result.shouldStopPipeline) {
+          state.status = 'failed';
           break;
         }
       }

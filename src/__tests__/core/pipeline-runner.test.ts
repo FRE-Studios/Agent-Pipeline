@@ -107,7 +107,16 @@ vi.mock('../../core/pipeline-initializer.js', () => ({
 }));
 
 vi.mock('../../core/group-execution-orchestrator.js', () => ({
-  GroupExecutionOrchestrator: vi.fn(() => mocks.mockGroupOrchestrator),
+  GroupExecutionOrchestrator: vi.fn((gitManager, stateManager, repoPath, dryRun, shouldLog, stateChangeCallback, notifyStageResultsCallback) => {
+    // Capture callbacks for use in mock implementation
+    if (mocks.mockGroupOrchestrator) {
+      (mocks.mockGroupOrchestrator as any)._callbacks = {
+        stateChange: stateChangeCallback,
+        notifyStageResults: notifyStageResultsCallback
+      };
+    }
+    return mocks.mockGroupOrchestrator;
+  }),
 }));
 
 vi.mock('../../core/pipeline-finalizer.js', () => ({
@@ -279,6 +288,7 @@ describe('PipelineRunner', () => {
     mocks.mockPipelineInitializer = mockPipelineInitializer;
 
     const mockGroupOrchestrator = {
+      _callbacks: null as any,  // Will be set by mock factory
       processGroup: vi.fn().mockImplementation(async (group, state, config, graph, executor, interactive) => {
         // Skip empty groups
         if (!group.stages || group.stages.length === 0) {
@@ -363,18 +373,39 @@ describe('PipelineRunner', () => {
         }
 
         const newStages = executionResult.executions;
-        const shouldStop = executionResult.anyFailed && (config.settings?.failureStrategy === 'stop' || !config.settings?.failureStrategy);
 
-        // Only set status to 'failed' if we're stopping the pipeline
-        // With 'warn' or 'continue' strategy, keep status as 'running' and let runner set to 'completed'
-        const newStatus = shouldStop ? 'failed' : state.status;
+        // Check if any failed stage has onFail: 'stop' (stage-level override)
+        let shouldStop = false;
+        if (executionResult.anyFailed) {
+          const failedStages = executionResult.executions.filter((e: any) => e.status === 'failed');
+          for (const failedStage of failedStages) {
+            const stageConfig = group.stages.find((s: any) => s.name === failedStage.stageName);
+            const failureStrategy = stageConfig?.onFail || config.settings?.failureStrategy || 'stop';
+
+            if (failureStrategy === 'stop') {
+              shouldStop = true;
+              break;
+            }
+          }
+        }
+
+        // Don't set status to 'failed' here - let PipelineRunner handle it
+        // Keep status as 'running' to match real orchestrator behavior
+        const newStatus = state.status;
+
+        const newState = {
+          ...state,
+          stages: [...state.stages, ...newStages],
+          status: newStatus
+        };
+
+        // Call notification callback for stage results (if available)
+        if (mockGroupOrchestrator._callbacks?.notifyStageResults) {
+          await mockGroupOrchestrator._callbacks.notifyStageResults(newStages, newState);
+        }
 
         return {
-          state: {
-            ...state,
-            stages: [...state.stages, ...newStages],
-            status: newStatus
-          },
+          state: newState,
           shouldStopPipeline: shouldStop
         };
       })
