@@ -61,7 +61,8 @@ export class ContextReducer {
       if (execution.endTime) {
         const start = new Date(execution.startTime).getTime();
         const end = new Date(execution.endTime).getTime();
-        execution.duration = (end - start) / 1000;
+        const elapsedSeconds = (end - start) / 1000;
+        execution.duration = elapsedSeconds > 0 ? elapsedSeconds : 0.001;
       }
 
       console.log(`✅ Context reduction completed (${execution.duration?.toFixed(1)}s)`);
@@ -237,17 +238,34 @@ Focus on what the **upcoming agent needs to know**, not what previous agents did
     const timeout = 300000; // 5 minutes
 
     const runQuery = async () => {
-      const mcpServer = OutputToolBuilder.getMcpServer();
+      let mcpServer: ReturnType<typeof OutputToolBuilder.getMcpServer> | undefined;
+      try {
+        mcpServer = OutputToolBuilder.getMcpServer();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`⚠️  Failed to initialize output tool server: ${message}`);
+      }
+
+      type McpServerInstance = ReturnType<typeof OutputToolBuilder.getMcpServer>;
+
+      const options: {
+        systemPrompt: string;
+        settingSources: string[];
+        mcpServers?: Record<string, McpServerInstance>;
+      } = {
+        systemPrompt,
+        settingSources: ['project']
+      };
+
+      if (mcpServer) {
+        options.mcpServers = {
+          'pipeline-outputs': mcpServer
+        };
+      }
 
       const q = query({
         prompt: userPrompt,
-        options: {
-          systemPrompt,
-          settingSources: ['project'],
-          mcpServers: {
-            'pipeline-outputs': mcpServer
-          }
-        }
+        options
       });
 
       let textOutput = '';
