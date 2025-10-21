@@ -51,7 +51,7 @@ export class GroupExecutionOrchestrator {
     interactive: boolean
   ): Promise<GroupProcessingResult> {
     // Filter stages by enabled status
-    const { enabledStages, disabledStages } = this.filterDisabledStages(
+    const { enabledStages } = this.filterDisabledStages(
       group,
       state,
       interactive
@@ -195,7 +195,7 @@ export class GroupExecutionOrchestrator {
     state: PipelineState,
     executionMode: 'parallel' | 'sequential',
     parallelExecutor: ParallelExecutor,
-    interactive: boolean
+    _interactive: boolean
   ) {
     const shouldRunParallel =
       executionMode === 'parallel' && stagesToRun.length > 1;

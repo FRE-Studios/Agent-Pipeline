@@ -1,6 +1,6 @@
 // src/core/context-reducer.ts
 
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { query, type SettingSource } from '@anthropic-ai/claude-agent-sdk';
 import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
 import { OutputToolBuilder } from './output-tool-builder.js';
@@ -250,7 +250,7 @@ Focus on what the **upcoming agent needs to know**, not what previous agents did
 
       const options: {
         systemPrompt: string;
-        settingSources: string[];
+        settingSources: SettingSource[];
         mcpServers?: Record<string, McpServerInstance>;
       } = {
         systemPrompt,
