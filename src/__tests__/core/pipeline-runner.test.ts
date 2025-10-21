@@ -53,6 +53,9 @@ const mocks = vi.hoisted(() => {
     mockParallelExecutor: null as any,
     mockConditionEvaluator: null as any,
     mockNotificationManager: null as any,
+    mockPipelineInitializer: null as any,
+    mockGroupOrchestrator: null as any,
+    mockPipelineFinalizer: null as any,
   };
 });
 
@@ -97,6 +100,18 @@ vi.mock('../../core/output-storage-manager.js', () => ({
     readStageOutput: vi.fn().mockResolvedValue(null),
     compressFileList: vi.fn((files: string[]) => `Changed ${files.length} files`),
   })),
+}));
+
+vi.mock('../../core/pipeline-initializer.js', () => ({
+  PipelineInitializer: vi.fn(() => mocks.mockPipelineInitializer),
+}));
+
+vi.mock('../../core/group-execution-orchestrator.js', () => ({
+  GroupExecutionOrchestrator: vi.fn(() => mocks.mockGroupOrchestrator),
+}));
+
+vi.mock('../../core/pipeline-finalizer.js', () => ({
+  PipelineFinalizer: vi.fn(() => mocks.mockPipelineFinalizer),
 }));
 
 vi.mock('../../notifications/notification-manager.js', () => ({
@@ -221,6 +236,79 @@ describe('PipelineRunner', () => {
     mockNotificationManager = createMockNotificationManager();
     mocks.mockNotificationManager = mockNotificationManager;
 
+    // Create mocks for new orchestration classes
+    const mockPipelineInitializer = {
+      initialize: vi.fn().mockResolvedValue({
+        state: {
+          runId: 'test-uuid-12345',
+          pipelineConfig: simplePipelineConfig,
+          trigger: {
+            type: 'manual',
+            commitSha: 'abc1234def5678901234567890abcdef12345678',
+            timestamp: new Date().toISOString()
+          },
+          stages: [],
+          status: 'running',
+          artifacts: {
+            initialCommit: 'abc1234def5678901234567890abcdef12345678',
+            changedFiles: ['test.ts'],
+            totalDuration: 0
+          }
+        },
+        stageExecutor: mockStageExecutor,
+        parallelExecutor: mockParallelExecutor,
+        pipelineBranch: undefined,
+        originalBranch: 'main',
+        notificationManager: undefined,
+        startTime: Date.now()
+      })
+    };
+    mocks.mockPipelineInitializer = mockPipelineInitializer;
+
+    const mockGroupOrchestrator = {
+      processGroup: vi.fn().mockResolvedValue({
+        state: {
+          runId: 'test-uuid-12345',
+          pipelineConfig: simplePipelineConfig,
+          trigger: {
+            type: 'manual',
+            commitSha: 'abc1234def5678901234567890abcdef12345678',
+            timestamp: new Date().toISOString()
+          },
+          stages: [],
+          status: 'running',
+          artifacts: {
+            initialCommit: 'abc1234def5678901234567890abcdef12345678',
+            changedFiles: ['test.ts'],
+            totalDuration: 0
+          }
+        },
+        shouldStopPipeline: false
+      })
+    };
+    mocks.mockGroupOrchestrator = mockGroupOrchestrator;
+
+    const mockPipelineFinalizer = {
+      finalize: vi.fn().mockResolvedValue({
+        runId: 'test-uuid-12345',
+        pipelineConfig: simplePipelineConfig,
+        trigger: {
+          type: 'manual',
+          commitSha: 'abc1234def5678901234567890abcdef12345678',
+          timestamp: new Date().toISOString()
+        },
+        stages: [],
+        status: 'completed',
+        artifacts: {
+          initialCommit: 'abc1234def5678901234567890abcdef12345678',
+          changedFiles: ['test.ts'],
+          totalDuration: 1.5,
+          finalCommit: 'def5678abc1234def5678901234567890abcdef12'
+        }
+      })
+    };
+    mocks.mockPipelineFinalizer = mockPipelineFinalizer;
+
     // Spy on console methods
     consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -241,12 +329,22 @@ describe('PipelineRunner', () => {
       expect(PRCreator).toHaveBeenCalled();
       expect(StateManager).toHaveBeenCalledWith(repoPath);
       expect(DAGPlanner).toHaveBeenCalled();
-      expect(ConditionEvaluator).toHaveBeenCalled();
+    });
+
+    it('should initialize orchestration components correctly', async () => {
+      const { PipelineInitializer } = await import('../../core/pipeline-initializer.js');
+      const { GroupExecutionOrchestrator } = await import('../../core/group-execution-orchestrator.js');
+      const { PipelineFinalizer } = await import('../../core/pipeline-finalizer.js');
+
+      new PipelineRunner(repoPath, false);
+
+      expect(PipelineInitializer).toHaveBeenCalled();
+      expect(GroupExecutionOrchestrator).toHaveBeenCalled();
+      expect(PipelineFinalizer).toHaveBeenCalled();
     });
 
     it('should set dry run mode to false by default', () => {
       const runner = new PipelineRunner(repoPath);
-      // StageExecutor is now created per-run in runPipeline(), not in constructor
       expect(runner).toBeDefined();
     });
 
