@@ -26,7 +26,9 @@ export async function clonePipelineCommand(
 
     // If target exists, add suffix
     let suffix = 1;
-    while (true) {
+    let foundUniqueName = false;
+
+    while (!foundUniqueName) {
       try {
         await fs.access(targetPath);
         // File exists, try next suffix
@@ -42,7 +44,7 @@ export async function clonePipelineCommand(
         suffix++;
       } catch {
         // File doesn't exist, we can use this name
-        break;
+        foundUniqueName = true;
       }
     }
 
