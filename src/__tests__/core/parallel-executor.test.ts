@@ -551,7 +551,7 @@ describe('ParallelExecutor', () => {
     });
 
     describe('state management', () => {
-      it('should update pipelineState after each stage', async () => {
+      it('should not mutate pipelineState during execution', async () => {
         const stages: AgentStageConfig[] = [
           { name: 'stage1', agent: 'agent1.md' },
           { name: 'stage2', agent: 'agent2.md' },
@@ -565,17 +565,15 @@ describe('ParallelExecutor', () => {
           .mockResolvedValueOnce(execution1)
           .mockResolvedValueOnce(execution2);
 
-        await parallelExecutor.executeSequentialGroup(stages, state);
+        const result = await parallelExecutor.executeSequentialGroup(stages, state);
 
-        expect(state.stages).toHaveLength(2);
-        expect(state.stages[0].stageName).toBe('stage1');
-        expect(state.stages[1].stageName).toBe('stage2');
+        expect(result.executions).toEqual([execution1, execution2]);
+        expect(state.stages).toHaveLength(0);
       });
 
-      it('should call onStateChange callback after each stage', async () => {
+      it('should not call onStateChange callback when provided', async () => {
         const stages: AgentStageConfig[] = [
           { name: 'stage1', agent: 'agent1.md' },
-          { name: 'stage2', agent: 'agent2.md' },
         ];
 
         const state = { ...runningPipelineState, stages: [] };
@@ -585,8 +583,7 @@ describe('ParallelExecutor', () => {
 
         await parallelExecutor.executeSequentialGroup(stages, state);
 
-        expect(onStateChangeSpy).toHaveBeenCalledTimes(2);
-        expect(onStateChangeSpy).toHaveBeenCalledWith(state);
+        expect(onStateChangeSpy).not.toHaveBeenCalled();
       });
 
       it('should work without onStateChange callback', async () => {
@@ -604,28 +601,6 @@ describe('ParallelExecutor', () => {
         );
 
         expect(result.allSucceeded).toBe(true);
-      });
-
-      it('should include execution in state before next stage starts', async () => {
-        const stages: AgentStageConfig[] = [
-          { name: 'stage1', agent: 'agent1.md' },
-          { name: 'stage2', agent: 'agent2.md' },
-        ];
-
-        const state = { ...runningPipelineState, stages: [] };
-
-        (mockStageExecutor.executeStage as any).mockImplementation(
-          async (config: AgentStageConfig) => {
-            if (config.name === 'stage2') {
-              // When stage2 starts, stage1 should be in state
-              expect(state.stages).toHaveLength(1);
-              expect(state.stages[0].stageName).toBe('stage1');
-            }
-            return { ...successfulStageExecution, stageName: config.name };
-          }
-        );
-
-        await parallelExecutor.executeSequentialGroup(stages, state);
       });
     });
 
@@ -762,7 +737,7 @@ describe('ParallelExecutor', () => {
         expect(result.allSucceeded).toBe(true);
       });
 
-      it('should not mutate original pipeline state stages array', async () => {
+      it('should leave original pipeline state stages array unchanged', async () => {
         const stages: AgentStageConfig[] = [
           { name: 'stage1', agent: 'agent1.md' },
         ];
@@ -775,8 +750,7 @@ describe('ParallelExecutor', () => {
 
         await parallelExecutor.executeSequentialGroup(stages, originalState);
 
-        // State should have been mutated (by design for sequential execution)
-        expect(originalState.stages.length).toBe(originalStagesLength + 1);
+        expect(originalState.stages.length).toBe(originalStagesLength);
       });
     });
   });

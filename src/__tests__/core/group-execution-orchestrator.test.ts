@@ -278,7 +278,7 @@ describe('GroupExecutionOrchestrator', () => {
         settings: { executionMode: 'sequential' as const }
       };
 
-      await orchestrator.processGroup(
+      const result = await orchestrator.processGroup(
         mockGroup,
         mockState,
         sequentialConfig,
@@ -288,6 +288,54 @@ describe('GroupExecutionOrchestrator', () => {
       );
 
       expect(mockParallelExecutor.executeSequentialGroup).toHaveBeenCalled();
+      expect(result.state.stages).toHaveLength(1);
+    });
+
+    it('should append each sequential execution exactly once', async () => {
+      const multiStageGroup: ExecutionGroup = {
+        level: 0,
+        stages: [
+          { name: 'stage-a', agent: '.claude/agents/a.md' },
+          { name: 'stage-b', agent: '.claude/agents/b.md' }
+        ]
+      };
+
+      const mockGroupResult = {
+        executions: [
+          {
+            stageName: 'stage-a',
+            status: 'success',
+            startTime: new Date().toISOString()
+          },
+          {
+            stageName: 'stage-b',
+            status: 'success',
+            startTime: new Date().toISOString()
+          }
+        ],
+        anyFailed: false
+      };
+
+      vi.spyOn(mockParallelExecutor, 'executeSequentialGroup').mockResolvedValue(
+        mockGroupResult
+      );
+
+      const sequentialConfig = {
+        ...mockConfig,
+        settings: { executionMode: 'sequential' as const }
+      };
+
+      const result = await orchestrator.processGroup(
+        multiStageGroup,
+        mockState,
+        sequentialConfig,
+        mockExecutionGraph,
+        mockParallelExecutor,
+        false
+      );
+
+      expect(result.state.stages).toHaveLength(2);
+      expect(result.state.stages.map(s => s.stageName)).toEqual(['stage-a', 'stage-b']);
     });
 
     it('should save state after group execution', async () => {

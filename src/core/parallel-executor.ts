@@ -118,12 +118,6 @@ export class ParallelExecutor {
       );
 
       executions.push(execution);
-
-      // Update pipeline state with completed stage
-      pipelineState.stages.push(execution);
-      if (this.onStateChange) {
-        this.onStateChange(pipelineState);
-      }
     }
 
     return this.buildExecutionResult(executions, startTime);
