@@ -36,6 +36,8 @@ export class PipelineInitializer {
     notifyCallback: (context: NotificationContext) => Promise<void>,
     stateChangeCallback: (state: PipelineState) => void
   ): Promise<InitializationResult> {
+    const runId = uuidv4();
+
     // Setup notification manager
     const notificationManager =
       options.notificationManager ||
@@ -47,14 +49,18 @@ export class PipelineInitializer {
     const originalBranch = await this.branchManager.getCurrentBranch();
 
     // Setup pipeline branch if git config exists
-    const pipelineBranch = await this.setupBranchIsolation(config, options.interactive || false);
+    const pipelineBranch = await this.setupBranchIsolation(
+      config,
+      runId,
+      options.interactive || false
+    );
 
     // Get trigger commit and changed files
     const triggerCommit = await this.gitManager.getCurrentCommit();
     const changedFiles = await this.gitManager.getChangedFiles(triggerCommit);
 
     // Create initial state
-    const state = this.createInitialState(config, triggerCommit, changedFiles);
+    const state = this.createInitialState(config, runId, triggerCommit, changedFiles);
 
     // Create executors
     const stageExecutor = new StageExecutor(
@@ -98,6 +104,7 @@ export class PipelineInitializer {
    */
   private async setupBranchIsolation(
     config: PipelineConfig,
+    runId: string,
     interactive: boolean
   ): Promise<string | undefined> {
     if (!config.git || this.dryRun) {
@@ -106,7 +113,7 @@ export class PipelineInitializer {
 
     const pipelineBranch = await this.branchManager.setupPipelineBranch(
       config.name,
-      uuidv4(), // We'll use this runId for branch naming
+      runId,
       config.git.baseBranch || 'main',
       config.git.branchStrategy || 'reusable',
       config.git.branchPrefix || 'pipeline'
@@ -124,11 +131,12 @@ export class PipelineInitializer {
    */
   private createInitialState(
     config: PipelineConfig,
+    runId: string,
     triggerCommit: string,
     changedFiles: string[]
   ): PipelineState {
     return {
-      runId: uuidv4(),
+      runId,
       pipelineConfig: config,
       trigger: {
         type: config.trigger,

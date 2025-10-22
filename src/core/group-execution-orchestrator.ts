@@ -15,6 +15,7 @@ import {
   StageExecution
 } from '../config/schema.js';
 import { ExecutionGraph, ExecutionGroup } from './types/execution-graph.js';
+import type { ParallelExecutionResult } from './parallel-executor.js';
 
 export interface GroupProcessingResult {
   state: PipelineState;
@@ -328,9 +329,9 @@ export class GroupExecutionOrchestrator {
    * Handle group failures based on failure strategy
    */
   private handleGroupFailures(
-    groupResult: any,
+    groupResult: ParallelExecutionResult,
     stagesToRun: AgentStageConfig[],
-    _state: PipelineState,
+    state: PipelineState,
     config: PipelineConfig,
     interactive: boolean
   ): boolean {
@@ -349,19 +350,44 @@ export class GroupExecutionOrchestrator {
       const failureStrategy =
         stageConfig?.onFail || config.settings?.failureStrategy || 'stop';
 
-      if (failureStrategy === 'stop') {
-        if (this.shouldLog(interactive)) {
-          console.log(
-            `🛑 Pipeline stopped due to stage failure: ${failedStage.stageName}\n`
-          );
+      switch (failureStrategy) {
+        case 'stop': {
+          if (this.shouldLog(interactive)) {
+            console.log(
+              `🛑 Pipeline stopped due to stage failure: ${failedStage.stageName}\n`
+            );
+          }
+          return true;
         }
-        // Don't modify state.status here - that's the caller's (PipelineRunner) responsibility
-        return true; // Stop pipeline
-      } else if (failureStrategy === 'continue') {
-        if (this.shouldLog(interactive)) {
-          console.log(
-            `⚠️  Stage ${failedStage.stageName} failed but continuing (continue mode)\n`
-          );
+        case 'continue': {
+          if (this.shouldLog(interactive)) {
+            console.log(
+              `⚠️  Stage ${failedStage.stageName} failed but continuing (continue mode)\n`
+            );
+          }
+          if (state.status === 'running') {
+            state.status = 'partial';
+          }
+          break;
+        }
+        case 'warn': {
+          if (this.shouldLog(interactive)) {
+            console.log(
+              `⚠️  Stage ${failedStage.stageName} failed (warn mode) - continuing pipeline\n`
+            );
+          }
+          if (state.status === 'running') {
+            state.status = 'partial';
+          }
+          break;
+        }
+        default: {
+          if (this.shouldLog(interactive)) {
+            console.log(
+              `🛑 Pipeline stopped due to stage failure: ${failedStage.stageName} (unrecognized failure strategy "${failureStrategy}")\n`
+            );
+          }
+          return true;
         }
       }
     }

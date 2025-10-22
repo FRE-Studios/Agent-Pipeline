@@ -444,7 +444,47 @@ describe('GroupExecutionOrchestrator', () => {
       );
 
       expect(result.shouldStopPipeline).toBe(false);
-      expect(result.state.status).toBe('running');
+      expect(result.state.status).toBe('partial');
+    });
+
+    it('should mark state partial when stage uses warn strategy', async () => {
+      const stageWithWarnStrategy: ExecutionGroup = {
+        level: 0,
+        stages: [
+          {
+            name: 'warn-stage',
+            agent: '.claude/agents/test.md',
+            onFail: 'warn'
+          }
+        ]
+      };
+
+      const mockGroupResult = {
+        executions: [
+          {
+            stageName: 'warn-stage',
+            status: 'failed',
+            startTime: new Date().toISOString()
+          }
+        ],
+        anyFailed: true
+      };
+
+      vi.spyOn(mockParallelExecutor, 'executeSequentialGroup').mockResolvedValue(
+        mockGroupResult
+      );
+
+      const result = await orchestrator.processGroup(
+        stageWithWarnStrategy,
+        mockState,
+        mockConfig,
+        mockExecutionGraph,
+        mockParallelExecutor,
+        false
+      );
+
+      expect(result.shouldStopPipeline).toBe(false);
+      expect(result.state.status).toBe('partial');
     });
 
     it('should use stage-level failure strategy over global', async () => {
