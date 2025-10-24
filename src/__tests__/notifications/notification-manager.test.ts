@@ -185,18 +185,36 @@ describe('NotificationManager', () => {
   });
 
   describe('constructor and initialization', () => {
-    it('should initialize with default events when no config provided', () => {
-      const manager = new NotificationManager();
+    it('should default to core events when events list omitted', async () => {
+      const manager = new NotificationManager({
+        enabled: true,
+        channels: { local: { enabled: true } }
+      });
 
-      // Default events should be pipeline.completed, pipeline.failed, pr.created
-      const context1 = createNotificationContext('pipeline.completed');
-      const context2 = createNotificationContext('pipeline.started');
+      const defaultEvents: NotificationEvent[] = [
+        'pipeline.completed',
+        'pipeline.failed',
+        'pr.created'
+      ];
 
-      // Test that default events work (implementation detail)
-      expect(manager).toBeDefined();
+      for (const event of defaultEvents) {
+        const overrides =
+          event === 'pipeline.failed'
+            ? { pipelineState: createTestPipelineState({ status: 'failed' }) }
+            : undefined;
+        const context = createNotificationContext(event, overrides);
+        const results = await manager.notify(context);
+        expect(results).toHaveLength(1);
+        expect(results[0].channel).toBe('local');
+        expect(results[0].success).toBe(true);
+      }
+
+      const skippedContext = createNotificationContext('pipeline.started');
+      const skippedResults = await manager.notify(skippedContext);
+      expect(skippedResults).toEqual([]);
     });
 
-    it('should initialize with custom events from config', () => {
+    it('should honor custom event list from config', async () => {
       const config: NotificationConfig = {
         enabled: true,
         events: ['pipeline.started', 'stage.completed'],
@@ -204,10 +222,17 @@ describe('NotificationManager', () => {
       };
 
       const manager = new NotificationManager(config);
-      expect(manager).toBeDefined();
+
+      const includedContext = createNotificationContext('pipeline.started');
+      const includedResults = await manager.notify(includedContext);
+      expect(includedResults.length).toBeGreaterThan(0);
+
+      const excludedContext = createNotificationContext('pipeline.completed');
+      const excludedResults = await manager.notify(excludedContext);
+      expect(excludedResults).toEqual([]);
     });
 
-    it('should initialize local notifier when local channel enabled', () => {
+    it('should register only local notifier when configured', async () => {
       const config: NotificationConfig = {
         enabled: true,
         events: ['pipeline.completed'],
@@ -217,14 +242,19 @@ describe('NotificationManager', () => {
       };
 
       const manager = new NotificationManager(config);
-      expect(manager).toBeDefined();
+      const context = createNotificationContext('pipeline.completed');
+      const results = await manager.notify(context);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].channel).toBe('local');
     });
 
-    it('should initialize slack notifier when slack channel enabled', () => {
+    it('should register only slack notifier when configured', async () => {
       const config: NotificationConfig = {
         enabled: true,
         events: ['pipeline.completed'],
         channels: {
+          local: { enabled: false },
           slack: {
             enabled: true,
             webhookUrl: 'https://hooks.slack.com/test'
@@ -233,10 +263,14 @@ describe('NotificationManager', () => {
       };
 
       const manager = new NotificationManager(config);
-      expect(manager).toBeDefined();
+      const context = createNotificationContext('pipeline.completed');
+      const results = await manager.notify(context);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].channel).toBe('slack');
     });
 
-    it('should initialize both notifiers when both channels enabled', () => {
+    it('should register both notifiers when both channels enabled', async () => {
       const config: NotificationConfig = {
         enabled: true,
         events: ['pipeline.completed'],
@@ -250,7 +284,10 @@ describe('NotificationManager', () => {
       };
 
       const manager = new NotificationManager(config);
-      expect(manager).toBeDefined();
+      const context = createNotificationContext('pipeline.completed');
+      const results = await manager.notify(context);
+
+      expect(results.map(r => r.channel).sort()).toEqual(['local', 'slack']);
     });
 
     it('should not initialize notifiers when enabled is false', async () => {
@@ -487,8 +524,8 @@ describe('NotificationManager', () => {
       const context = createNotificationContext('pipeline.completed');
       const results = await manager.notify(context);
 
-      // Should have results from both channels
-      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results).toHaveLength(2);
+      expect(results.map(r => r.channel).sort()).toEqual(['local', 'slack']);
       expect(results.every(r => r.success)).toBe(true);
     });
 
@@ -518,14 +555,13 @@ describe('NotificationManager', () => {
       const context = createNotificationContext('pipeline.completed');
       const results = await manager.notify(context);
 
-      // Should have results from both, even though one failed
-      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results).toHaveLength(2);
+      const successResult = results.find(r => r.success);
+      const failureResult = results.find(r => !r.success);
 
-      // At least one should have failed
-      const hasFailed = results.some(r => !r.success);
-      const hasSucceeded = results.some(r => r.success);
-
-      expect(hasFailed || hasSucceeded).toBe(true);
+      expect(successResult?.channel).toBe('slack');
+      expect(failureResult?.channel).toBe('local');
+      expect(failureResult?.error).toBe('Local notification failed');
     });
 
     it('should return error details when notification fails', async () => {
@@ -548,14 +584,10 @@ describe('NotificationManager', () => {
       const context = createNotificationContext('pipeline.completed');
       const results = await manager.notify(context);
 
-      if (results.length > 0) {
-        const failedResult = results.find(r => !r.success);
-        if (failedResult) {
-          expect(failedResult.success).toBe(false);
-          expect(failedResult.error).toBeDefined();
-          expect(failedResult.channel).toBe('local');
-        }
-      }
+      expect(results).toHaveLength(1);
+      expect(results[0].success).toBe(false);
+      expect(results[0].channel).toBe('local');
+      expect(results[0].error).toBe('Local notification failed');
     });
 
     it('should return empty array when no notifiers configured', async () => {
@@ -599,11 +631,9 @@ describe('NotificationManager', () => {
       const context = createNotificationContext('pipeline.completed');
       const results = await manager.notify(context);
 
-      // Should only have results from configured notifiers
-      expect(results.length).toBeGreaterThanOrEqual(0);
-      if (results.length > 0) {
-        expect(results.every(r => r.success)).toBe(true);
-      }
+      expect(results).toHaveLength(1);
+      expect(results[0].channel).toBe('slack');
+      expect(results[0].success).toBe(true);
     });
 
     it('should return empty array when all notifiers are unconfigured', async () => {
@@ -786,8 +816,8 @@ describe('NotificationManager', () => {
       const context = createNotificationContext('pipeline.completed');
       const results = await manager.notify(context);
 
-      // Should only notify configured ones
-      expect(results.length).toBeLessThanOrEqual(1);
+      expect(results).toHaveLength(1);
+      expect(results[0].channel).toBe('local');
     });
 
     it('should return empty array when no notifiers are configured', async () => {
@@ -871,7 +901,8 @@ describe('NotificationManager', () => {
       const results = await manager.notify(context);
 
       // Both are configured, should get both results
-      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results).toHaveLength(2);
+      expect(results.every(r => r.success)).toBe(true);
     });
 
     it('should handle notifiers that return false for isConfigured', async () => {
@@ -941,8 +972,8 @@ describe('NotificationManager', () => {
       const manager = new NotificationManager(config);
       await manager.test();
 
-      // Check that console.log was called
-      expect(consoleLogSpy).toHaveBeenCalled();
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('✅ local'));
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('✅ slack'));
     });
 
     it('should show error when no channels configured', async () => {
@@ -972,12 +1003,7 @@ describe('NotificationManager', () => {
       const manager = new NotificationManager(config);
       await manager.test();
 
-      // Should have success message
-      const calls = consoleLogSpy.mock.calls;
-      const hasSuccess = calls.some((call: any[]) =>
-        call[0]?.includes('✅') || call[0]?.includes('Test notification sent')
-      );
-      expect(hasSuccess || calls.length > 0).toBe(true);
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('✅ local'));
     });
 
     it('should show error for failing notifiers', async () => {
@@ -1061,7 +1087,7 @@ describe('NotificationManager', () => {
       expect(results).toEqual([]);
     });
 
-    it('should handle config with no channels object', async () => {
+    it('should default to local notifier when channels config missing', async () => {
       const config: NotificationConfig = {
         enabled: true,
         events: ['pipeline.completed'],
@@ -1072,9 +1098,8 @@ describe('NotificationManager', () => {
       const context = createNotificationContext('pipeline.completed');
       const results = await manager.notify(context);
 
-      // When channels is undefined, local defaults to enabled (line 31: channels?.local?.enabled !== false)
-      // So we expect at least the local notifier result
-      expect(results.length).toBeGreaterThanOrEqual(0);
+      expect(results).toHaveLength(1);
+      expect(results[0].channel).toBe('local');
     });
   });
 });

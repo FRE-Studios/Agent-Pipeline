@@ -80,44 +80,99 @@ describe('SlackNotifier', () => {
   });
 
   describe('constructor and configuration', () => {
-    it('should create notifier with webhook URL from config', () => {
+    it('should use webhook URL from config when sending', async () => {
       const notifier = new SlackNotifier({ webhookUrl: testWebhookUrl });
-      expect(notifier.channel).toBe('slack');
+      const context = createNotificationContext('pipeline.started');
+
+      await notifier.send(context);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        testWebhookUrl,
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        })
+      );
     });
 
-    it('should create notifier with webhook URL from environment variable', () => {
+    it('should fall back to webhook URL from environment variable', async () => {
       process.env.SLACK_WEBHOOK_URL = testWebhookUrl;
       const notifier = new SlackNotifier({});
-      expect(notifier.channel).toBe('slack');
+      const context = createNotificationContext('pipeline.started');
+
+      await notifier.send(context);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        testWebhookUrl,
+        expect.any(Object)
+      );
     });
 
-    it('should prefer config webhookUrl over environment variable', () => {
+    it('should prefer config webhookUrl over environment variable', async () => {
       process.env.SLACK_WEBHOOK_URL = 'https://env-webhook.com';
       const configUrl = 'https://config-webhook.com';
       const notifier = new SlackNotifier({ webhookUrl: configUrl });
-      expect(notifier.channel).toBe('slack');
+      const context = createNotificationContext('pipeline.started');
+
+      await notifier.send(context);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        configUrl,
+        expect.any(Object)
+      );
     });
 
-    it('should create notifier with empty webhook URL when not configured', () => {
+    it('should report not configured when webhook URL missing', async () => {
       delete process.env.SLACK_WEBHOOK_URL;
       const notifier = new SlackNotifier({});
-      expect(notifier.channel).toBe('slack');
+      const context = createNotificationContext('pipeline.started');
+
+      const result = await notifier.send(context);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Slack webhook URL not configured');
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('should create notifier with channel override', () => {
+    it('should include channel override in payload', async () => {
       const notifier = new SlackNotifier({
         webhookUrl: testWebhookUrl,
         channel: '#custom-channel'
       });
-      expect(notifier.channel).toBe('slack');
+      const context = createNotificationContext('pipeline.started');
+
+      await notifier.send(context);
+
+      const payload = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(payload.channel).toBe('#custom-channel');
     });
 
-    it('should create notifier with mentionOnFailure', () => {
+    it('should include mentionOnFailure users when pipeline fails', async () => {
       const notifier = new SlackNotifier({
         webhookUrl: testWebhookUrl,
         mentionOnFailure: ['channel', 'U12345']
       });
-      expect(notifier.channel).toBe('slack');
+      const pipelineState = createTestPipelineState({
+        status: 'failed',
+        stages: [
+          {
+            stageName: 'lint',
+            status: 'failed',
+            error: { message: 'Stage failed', timestamp: new Date().toISOString() },
+            startTime: new Date().toISOString(),
+            endTime: new Date().toISOString()
+          }
+        ]
+      });
+      const context = createNotificationContext('pipeline.failed', { pipelineState });
+
+      await notifier.send(context);
+
+      const payload = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const mentionBlock = payload.attachments[0].blocks.find(
+        (block: any) => block.text?.text?.startsWith('CC:')
+      );
+      expect(mentionBlock?.text?.text).toBe('CC: <!channel> <@U12345>');
     });
   });
 
