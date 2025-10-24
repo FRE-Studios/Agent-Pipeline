@@ -58,40 +58,58 @@ export class PipelineAnalytics {
   }
 
   private calculateStageMetrics(runs: PipelineState[]): Map<string, StageMetrics> {
-    const metrics = new Map<string, StageMetrics>();
+    type StageAggregate = {
+      stageName: string;
+      totalRuns: number;
+      successCount: number;
+      failureCount: number;
+      durationTotal: number;
+      durationSamples: number;
+    };
+
+    const aggregates = new Map<string, StageAggregate>();
 
     for (const run of runs) {
       for (const stage of run.stages) {
-        if (!metrics.has(stage.stageName)) {
-          metrics.set(stage.stageName, {
-            stageName: stage.stageName,
-            successRate: 0,
-            averageDuration: 0,
-            failureCount: 0,
-            totalRuns: 0
-          });
-        }
+        const aggregate = aggregates.get(stage.stageName) ?? {
+          stageName: stage.stageName,
+          totalRuns: 0,
+          successCount: 0,
+          failureCount: 0,
+          durationTotal: 0,
+          durationSamples: 0
+        };
 
-        const stageMetric = metrics.get(stage.stageName)!;
-        stageMetric.totalRuns++;
+        aggregate.totalRuns++;
 
         if (stage.status === 'success') {
-          stageMetric.successRate =
-            (stageMetric.successRate * (stageMetric.totalRuns - 1) + 1) /
-            stageMetric.totalRuns;
+          aggregate.successCount++;
         } else if (stage.status === 'failed') {
-          stageMetric.failureCount++;
-          stageMetric.successRate =
-            (stageMetric.successRate * (stageMetric.totalRuns - 1) + 0) /
-            stageMetric.totalRuns;
+          aggregate.failureCount++;
         }
 
-        if (stage.duration) {
-          stageMetric.averageDuration =
-            (stageMetric.averageDuration * (stageMetric.totalRuns - 1) + stage.duration) /
-            stageMetric.totalRuns;
+        if (typeof stage.duration === 'number') {
+          aggregate.durationTotal += stage.duration;
+          aggregate.durationSamples++;
         }
+
+        aggregates.set(stage.stageName, aggregate);
       }
+    }
+
+    const metrics = new Map<string, StageMetrics>();
+
+    for (const aggregate of aggregates.values()) {
+      const { stageName, totalRuns, successCount, failureCount, durationTotal, durationSamples } =
+        aggregate;
+
+      metrics.set(stageName, {
+        stageName,
+        totalRuns,
+        failureCount,
+        successRate: totalRuns > 0 ? successCount / totalRuns : 0,
+        averageDuration: durationSamples > 0 ? durationTotal / durationSamples : 0
+      });
     }
 
     return metrics;
@@ -132,11 +150,14 @@ export class PipelineAnalytics {
     }
 
     return Array.from(dataByDay.entries())
-      .map(([date, data]) => ({
-        date,
-        successRate: data.successes / (data.successes + data.failures),
-        totalRuns: data.successes + data.failures
-      }))
+      .map(([date, data]) => {
+        const totalRuns = data.successes + data.failures;
+        return {
+          date,
+          successRate: totalRuns > 0 ? data.successes / totalRuns : 0,
+          totalRuns
+        };
+      })
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 }

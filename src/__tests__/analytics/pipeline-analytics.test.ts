@@ -360,6 +360,54 @@ describe('PipelineAnalytics', () => {
         expect(stage1Metrics!.successRate).toBe(1);
         expect(stage2Metrics!.successRate).toBe(0); // No successful runs
       });
+
+      it('should treat skipped runs as non-successful when computing success rate', async () => {
+        const successfulRun = {
+          ...analyticsSuccessRun1,
+          stages: [
+            {
+              stageName: 'stage-skip-check',
+              status: 'success' as const,
+              startTime: '2024-01-20T10:00:00.000Z',
+              endTime: '2024-01-20T10:01:00.000Z',
+              duration: 60000,
+              commitSha: 'skip-check-success',
+            },
+          ],
+        };
+        const skippedRun = {
+          ...analyticsSuccessRun1,
+          runId: 'analytics-skipped-success-rate',
+          trigger: {
+            ...analyticsSuccessRun1.trigger,
+            timestamp: '2024-01-21T10:00:00.000Z',
+          },
+          stages: [
+            {
+              stageName: 'stage-skip-check',
+              status: 'skipped' as const,
+              startTime: '2024-01-21T10:00:00.000Z',
+              conditionEvaluated: true,
+              conditionResult: false,
+            },
+          ],
+          status: 'completed' as const,
+          artifacts: {
+            ...analyticsSuccessRun1.artifacts,
+            finalCommit: undefined,
+            changedFiles: ['skip-check.ts'],
+            totalDuration: 0,
+          },
+        };
+
+        vi.mocked(mockStateManager.getAllRuns).mockResolvedValue([successfulRun, skippedRun]);
+
+        const metrics = await analytics.generateMetrics();
+        const stageMetrics = metrics.stageMetrics.get('stage-skip-check');
+
+        expect(stageMetrics!.totalRuns).toBe(2);
+        expect(stageMetrics!.successRate).toBe(0.5);
+      });
     });
 
     describe('duration calculations', () => {
@@ -406,6 +454,44 @@ describe('PipelineAnalytics', () => {
         const reviewMetrics = metrics.stageMetrics.get('review');
 
         expect(reviewMetrics!.averageDuration).toBe(120000);
+      });
+
+      it('should ignore skipped runs when averaging duration', async () => {
+        const skippedRun = {
+          ...analyticsSuccessRun1,
+          runId: 'analytics-duration-skip',
+          stages: [
+            {
+              stageName: 'stage-duration-skip',
+              status: 'skipped' as const,
+              startTime: '2024-01-20T12:00:00.000Z',
+              conditionEvaluated: true,
+              conditionResult: false,
+            },
+          ],
+        };
+        const completedRun = {
+          ...analyticsSuccessRun1,
+          runId: 'analytics-duration-complete',
+          stages: [
+            {
+              stageName: 'stage-duration-skip',
+              status: 'success' as const,
+              startTime: '2024-01-21T12:00:00.000Z',
+              endTime: '2024-01-21T12:02:00.000Z',
+              duration: 120000,
+              commitSha: 'duration-success',
+            },
+          ],
+        };
+
+        vi.mocked(mockStateManager.getAllRuns).mockResolvedValue([skippedRun, completedRun]);
+
+        const metrics = await analytics.generateMetrics();
+        const stageMetrics = metrics.stageMetrics.get('stage-duration-skip');
+
+        expect(stageMetrics!.averageDuration).toBe(120000);
+        expect(stageMetrics!.totalRuns).toBe(2);
       });
     });
 
@@ -754,6 +840,42 @@ describe('PipelineAnalytics', () => {
 
         expect(trends.length).toBe(1);
         expect(trends[0].totalRuns).toBe(2);
+      });
+
+      it('should coerce success rate to 0 when a day has only partial runs', async () => {
+        const partialRun = {
+          ...analyticsMultiStageRun,
+          runId: 'analytics-partial-only',
+          trigger: {
+            ...analyticsMultiStageRun.trigger,
+            timestamp: '2024-01-22T12:00:00.000Z',
+          },
+          status: 'partial' as const,
+          stages: analyticsMultiStageRun.stages.map((stage) => ({
+            ...stage,
+            status: stage.stageName === 'security' ? 'failed' : 'success',
+          })),
+        };
+        const followedByAnotherPartial = {
+          ...partialRun,
+          runId: 'analytics-partial-2',
+          trigger: {
+            ...partialRun.trigger,
+            timestamp: '2024-01-22T15:00:00.000Z',
+          },
+        };
+
+        vi.mocked(mockStateManager.getAllRuns).mockResolvedValue([
+          partialRun,
+          followedByAnotherPartial,
+        ]);
+
+        const metrics = await analytics.generateMetrics();
+        const trends = metrics.trendsOverTime;
+
+        expect(trends.length).toBe(1);
+        expect(trends[0].totalRuns).toBe(0);
+        expect(trends[0].successRate).toBe(0);
       });
     });
   });
