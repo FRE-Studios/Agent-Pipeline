@@ -582,6 +582,27 @@ describe('SlackNotifier', () => {
       );
       expect(mentionBlock).toBeUndefined();
     });
+
+    it('should show fallback text when no failed stages are provided', async () => {
+      const notifier = new SlackNotifier({ webhookUrl: testWebhookUrl });
+      const pipelineState = createTestPipelineState({
+        status: 'failed',
+        stages: []
+      });
+      const context = createNotificationContext('pipeline.failed', { pipelineState });
+      await notifier.send(context);
+
+      const payload = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(payload.attachments[0].blocks).toContainEqual(
+        expect.objectContaining({
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: '*Failed Stages:*\n• Unknown stage (no error details)'
+          }
+        })
+      );
+    });
   });
 
   describe('send() - stage.completed event', () => {
@@ -741,6 +762,19 @@ describe('SlackNotifier', () => {
           }
         })
       );
+    });
+
+    it('should omit PR link when prUrl is not provided', async () => {
+      const notifier = new SlackNotifier({ webhookUrl: testWebhookUrl });
+      const context = createNotificationContext('pr.created');
+      await notifier.send(context);
+
+      const payload = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const prBlock = payload.attachments[0].blocks.find(
+        (block: any) => block.text?.text?.includes('Pull Request Created')
+      );
+      expect(prBlock).toBeDefined();
+      expect(prBlock.text.text).toBe('🔀 *Pull Request Created*\nfor test-pipeline');
     });
   });
 

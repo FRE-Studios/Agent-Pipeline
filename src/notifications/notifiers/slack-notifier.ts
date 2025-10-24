@@ -136,13 +136,17 @@ export class SlackNotifier extends BaseNotifier {
         });
 
         const failedStages = pipelineState.stages.filter(s => s.status === 'failed');
+        const failedStageLines =
+          failedStages.length > 0
+            ? failedStages.map(
+                s => `• *${s.stageName}*: ${s.error?.message || 'Unknown error'}`
+              )
+            : ['• Unknown stage (no error details)'];
         blocks.push({
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*Failed Stages:*\n${failedStages
-              .map(s => `• *${s.stageName}*: ${s.error?.message || 'Unknown error'}`)
-              .join('\n')}`
+            text: `*Failed Stages:*\n${failedStageLines.join('\n')}`
           }
         });
 
@@ -196,7 +200,11 @@ export class SlackNotifier extends BaseNotifier {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `🔀 *Pull Request Created*\n<${prUrl}|View PR> for ${pipelineState.pipelineConfig.name}`
+            text: `🔀 *Pull Request Created*\n${
+              prUrl
+                ? `<${prUrl}|View PR> for ${pipelineState.pipelineConfig.name}`
+                : `for ${pipelineState.pipelineConfig.name}`
+            }`
           }
         });
         color = 'good';
