@@ -255,6 +255,39 @@ describe('LocalNotifier', () => {
     });
   });
 
+  describe('send() - async behavior', () => {
+    it('should wait for node-notifier callback before resolving', async () => {
+      const notifier = new LocalNotifier();
+      const context = createNotificationContext('pipeline.completed');
+
+      try {
+        vi.useFakeTimers();
+        mockNotify.mockImplementation((options: any, callback: any) => {
+          setTimeout(() => {
+            callback?.(null, 'activated');
+          }, 1000);
+        });
+
+        const sendPromise = notifier.send(context);
+        let settled = false;
+        sendPromise.then(() => {
+          settled = true;
+        });
+
+        await vi.advanceTimersByTimeAsync(999);
+        expect(settled).toBe(false);
+
+        await vi.advanceTimersByTimeAsync(1);
+        await expect(sendPromise).resolves.toEqual({
+          success: true,
+          channel: 'local'
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe('send() - pipeline.failed event', () => {
     it('should send notification for pipeline.failed with failed stage', async () => {
       const notifier = new LocalNotifier();
@@ -334,6 +367,78 @@ describe('LocalNotifier', () => {
       expect(mockNotify).toHaveBeenCalledWith(
         expect.objectContaining({
           message: 'test-pipeline failed at stage: stage-1'
+        }),
+        expect.any(Function)
+      );
+    });
+
+    it('should find failed stage even if successful stages appear first', async () => {
+      const notifier = new LocalNotifier();
+      const pipelineState = createTestPipelineState({
+        status: 'failed',
+        stages: [
+          {
+            stageName: 'successful-stage',
+            status: 'success',
+            duration: 2.0,
+            outputs: {},
+            startTime: new Date().toISOString(),
+            endTime: new Date().toISOString()
+          },
+          {
+            stageName: 'actual-failure',
+            status: 'failed',
+            duration: 4.0,
+            outputs: {},
+            error: {
+              message: 'Boom',
+              timestamp: new Date().toISOString()
+            },
+            startTime: new Date().toISOString(),
+            endTime: new Date().toISOString()
+          }
+        ]
+      });
+      const context = createNotificationContext('pipeline.failed', { pipelineState });
+      await notifier.send(context);
+
+      expect(mockNotify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'test-pipeline failed at stage: actual-failure'
+        }),
+        expect.any(Function)
+      );
+    });
+
+    it('should fall back to unknown when no stages are marked failed', async () => {
+      const notifier = new LocalNotifier();
+      const pipelineState = createTestPipelineState({
+        status: 'failed',
+        stages: [
+          {
+            stageName: 'lint',
+            status: 'success',
+            duration: 1.0,
+            outputs: {},
+            startTime: new Date().toISOString(),
+            endTime: new Date().toISOString()
+          },
+          {
+            stageName: 'tests',
+            status: 'skipped',
+            duration: 0,
+            outputs: {},
+            startTime: new Date().toISOString(),
+            endTime: new Date().toISOString()
+          }
+        ]
+      });
+      const context = createNotificationContext('pipeline.failed', { pipelineState });
+      await notifier.send(context);
+
+      expect(mockNotify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'test-pipeline failed at stage: unknown'
         }),
         expect.any(Function)
       );
