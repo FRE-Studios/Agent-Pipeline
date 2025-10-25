@@ -5,6 +5,8 @@ import { PipelineInitializer } from '../../core/pipeline-initializer.js';
 import { GitManager } from '../../core/git-manager.js';
 import { BranchManager } from '../../core/branch-manager.js';
 import { PipelineConfig } from '../../config/schema.js';
+import { StageExecutor } from '../../core/stage-executor.js';
+import { ParallelExecutor } from '../../core/parallel-executor.js';
 
 // Mock dependencies
 vi.mock('../../core/git-manager.js');
@@ -75,6 +77,7 @@ describe('PipelineInitializer', () => {
       });
       expect(result.state.runId).toBeDefined();
       expect(result.state.trigger.timestamp).toBeDefined();
+      expect(mockGitManager.getChangedFiles).toHaveBeenCalledWith('abc123');
     });
 
     it('should create notification manager when configured', async () => {
@@ -108,6 +111,19 @@ describe('PipelineInitializer', () => {
       );
 
       expect(result.notificationManager).toBeUndefined();
+    });
+
+    it('should reuse provided notification manager instance', async () => {
+      const providedManager = { notify: vi.fn() } as any;
+
+      const result = await initializer.initialize(
+        mockConfig,
+        { interactive: false, notificationManager: providedManager },
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      expect(result.notificationManager).toBe(providedManager);
     });
 
     it('should save original branch', async () => {
@@ -187,7 +203,12 @@ describe('PipelineInitializer', () => {
       expect(result.pipelineBranch).toBeUndefined();
     });
 
-    it('should create stage executor and parallel executor', async () => {
+    it('should create stage executor and parallel executor with correct arguments', async () => {
+      const stageExecutorMock = StageExecutor as unknown as vi.Mock;
+      const parallelExecutorMock = ParallelExecutor as unknown as vi.Mock;
+      stageExecutorMock.mockClear();
+      parallelExecutorMock.mockClear();
+
       const result = await initializer.initialize(
         mockConfig,
         { interactive: false },
@@ -195,8 +216,19 @@ describe('PipelineInitializer', () => {
         mockStateChangeCallback
       );
 
-      expect(result.stageExecutor).toBeDefined();
-      expect(result.parallelExecutor).toBeDefined();
+      expect(stageExecutorMock).toHaveBeenCalledWith(
+        mockGitManager,
+        false,
+        result.state.runId,
+        '/test/repo'
+      );
+      expect(result.stageExecutor).toBe(stageExecutorMock.mock.instances[0]);
+
+      expect(parallelExecutorMock).toHaveBeenCalledWith(
+        result.stageExecutor,
+        mockStateChangeCallback
+      );
+      expect(result.parallelExecutor).toBe(parallelExecutorMock.mock.instances[0]);
     });
 
     it('should call state change callback', async () => {
