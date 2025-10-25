@@ -129,6 +129,30 @@ describe('StageExecutor', () => {
       expect(result.duration).toBeGreaterThanOrEqual(0);
     });
 
+    it('should persist stage outputs and attach file references when verbose saving enabled', async () => {
+      const { OutputStorageManager } = await import('../../core/output-storage-manager.js');
+      const outputStorageMock = vi.mocked(OutputStorageManager);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      const storageInstance = outputStorageMock.mock.results.at(-1)?.value as {
+        saveStageOutputs: ReturnType<typeof vi.fn>;
+      } | undefined;
+
+      expect(storageInstance?.saveStageOutputs).toHaveBeenCalledWith(
+        'test-stage',
+        undefined,
+        'Mock agent response'
+      );
+      expect(result.outputFiles).toEqual({
+        structured: 'path/to/output.json',
+        raw: 'path/to/raw.md',
+      });
+    });
+
     it('should execute successfully after retries (test 1)', async () => {
       let callCount = 0;
       mockQuery.mockImplementation(async function* () {
@@ -625,6 +649,42 @@ describe('StageExecutor', () => {
       expect(result.status).toBe('failed');
       expect(result.error?.message).toContain('Git commit failed');
     });
+
+    it('should skip saving verbose outputs when disabled via pipeline settings', async () => {
+      const { OutputStorageManager } = await import('../../core/output-storage-manager.js');
+      const outputStorageMock = vi.mocked(OutputStorageManager);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+
+      const noVerboseState: PipelineState = {
+        ...runningPipelineState,
+        pipelineConfig: {
+          ...runningPipelineState.pipelineConfig,
+          settings: {
+            ...runningPipelineState.pipelineConfig.settings,
+            contextReduction: {
+              enabled: true,
+              maxTokens: 50000,
+              strategy: 'summary-based',
+              contextWindow: 3,
+              requireSummary: true,
+              saveVerboseOutputs: false,
+              compressFileList: true,
+            },
+          },
+        },
+      };
+
+      const result = await executor.executeStage(basicStageConfig, noVerboseState);
+
+      const storageInstance = outputStorageMock.mock.results.at(-1)?.value as {
+        saveStageOutputs: ReturnType<typeof vi.fn>;
+      } | undefined;
+
+      expect(storageInstance?.saveStageOutputs).not.toHaveBeenCalled();
+      expect(result.outputFiles).toBeUndefined();
+    });
   });
 
   describe('buildAgentContext', () => {
@@ -666,6 +726,39 @@ describe('StageExecutor', () => {
       expect(callArgs.prompt).toContain('stage-2');
     });
 
+    it('should include earlier-stage summary when exceeding context window', async () => {
+      const extendedState: PipelineState = {
+        ...runningPipelineState,
+        pipelineConfig: {
+          ...runningPipelineState.pipelineConfig,
+          settings: {
+            ...runningPipelineState.pipelineConfig.settings,
+            contextReduction: {
+              enabled: true,
+              contextWindow: 2,
+              maxTokens: 50000,
+              strategy: 'summary-based',
+              requireSummary: true,
+              saveVerboseOutputs: true,
+              compressFileList: true,
+            },
+          },
+        },
+        stages: [
+          { stageName: 'stage-a', status: 'success', startTime: '2024-01-01T00:00:00.000Z', endTime: '2024-01-01T00:01:00.000Z', duration: 60 },
+          { stageName: 'stage-b', status: 'success', startTime: '2024-01-01T00:01:00.000Z', endTime: '2024-01-01T00:02:00.000Z', duration: 60 },
+          { stageName: 'stage-c', status: 'success', startTime: '2024-01-01T00:02:00.000Z', endTime: '2024-01-01T00:03:00.000Z', duration: 60 },
+        ],
+      };
+
+      await executor.executeStage(basicStageConfig, extendedState);
+
+      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
+      const callArgs = mockQueryFn.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('Earlier Stages');
+      expect(callArgs.prompt).toContain('.agent-pipeline/outputs/test-run-123/pipeline-summary.json');
+    });
+
     it('should filter out non-successful stages from context', async () => {
       const stateWithFailure: PipelineState = {
         ...runningPipelineState,
@@ -704,6 +797,42 @@ describe('StageExecutor', () => {
       const callArgs = mockQueryFn.mock.calls[0][0];
       expect(callArgs.prompt).toContain('result');
       expect(callArgs.prompt).toContain('success');
+    });
+
+    it('should reference stored output files for recent stages', async () => {
+      const stateWithOutputFiles: PipelineState = {
+        ...runningPipelineState,
+        stages: [
+          {
+            stageName: 'file-stage',
+            status: 'success',
+            startTime: '2024-01-01T00:00:00.000Z',
+            endTime: '2024-01-01T00:01:00.000Z',
+            duration: 60,
+            outputFiles: {
+              structured: 'path/to/structured.json',
+              raw: 'path/to/raw.md',
+            },
+          },
+        ],
+      };
+
+      await executor.executeStage(basicStageConfig, stateWithOutputFiles);
+
+      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
+      const callArgs = mockQueryFn.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('Full Output');
+      expect(callArgs.prompt).toContain('path/to/structured.json');
+    });
+
+    it('should include output instructions when stage declares outputs', async () => {
+      await executor.executeStage(stageWithOutputs, runningPipelineState);
+
+      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
+      const callArgs = mockQueryFn.mock.calls[0][0];
+      expect(callArgs.prompt).toContain('## Reporting Outputs');
+      expect(callArgs.prompt).toContain('report_outputs');
+      expect(callArgs.prompt).toContain('issues_found');
     });
 
     it('should include commit SHAs in context', async () => {
