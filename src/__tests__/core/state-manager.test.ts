@@ -82,6 +82,25 @@ describe('StateManager', () => {
       expect(failedStage?.error?.message).toBe('Agent execution failed');
       expect(failedStage?.error?.suggestion).toBe('Check agent configuration');
     });
+
+    it('should overwrite existing state when saving the same runId', async () => {
+      await stateManager.saveState(completedPipelineState);
+
+      const updatedState = {
+        ...completedPipelineState,
+        status: 'failed' as const,
+        artifacts: {
+          ...completedPipelineState.artifacts,
+          totalDuration: 999,
+        },
+      };
+
+      await stateManager.saveState(updatedState);
+
+      const loaded = await stateManager.loadState(updatedState.runId);
+      expect(loaded?.status).toBe('failed');
+      expect(loaded?.artifacts.totalDuration).toBe(999);
+    });
   });
 
   describe('loadState', () => {
@@ -162,6 +181,40 @@ describe('StateManager', () => {
       const latest = await stateManager.getLatestRun();
 
       expect(latest?.runId).toBe(completedPipelineState.runId);
+    });
+
+    it('should ignore non-JSON files when determining the latest run', async () => {
+      await stateManager.saveState(completedPipelineState);
+      await stateManager.saveState(failedPipelineState);
+      await stateManager.saveState(runningPipelineState);
+
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const stateDir = path.join(tempDir, '.agent-pipeline', 'state', 'runs');
+
+      // Create a non-JSON file with a newer modification time than the saved states
+      await fs.writeFile(path.join(stateDir, 'notes.txt'), 'Not JSON', 'utf-8');
+
+      const latest = await stateManager.getLatestRun();
+
+      expect(latest?.runId).toBe(runningPipelineState.runId);
+    });
+
+    it('should skip corrupted JSON files when determining the latest run', async () => {
+      await stateManager.saveState(completedPipelineState);
+      await stateManager.saveState(failedPipelineState);
+      await stateManager.saveState(runningPipelineState);
+
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const stateDir = path.join(tempDir, '.agent-pipeline', 'state', 'runs');
+
+      // Write a corrupted JSON file after the valid states so it has the newest timestamp
+      await fs.writeFile(path.join(stateDir, 'corrupted.json'), '{ invalid json }', 'utf-8');
+
+      const latest = await stateManager.getLatestRun();
+
+      expect(latest?.runId).toBe(runningPipelineState.runId);
     });
   });
 

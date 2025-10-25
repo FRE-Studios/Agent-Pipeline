@@ -148,6 +148,13 @@ describe('RetryHandler', () => {
         await expect(promise).rejects.toThrow('string error');
         expect(mockFn).toHaveBeenCalledTimes(2);
       });
+
+      it('should short-circuit when retryConfig is undefined (no retries)', async () => {
+        const mockFn = vi.fn().mockRejectedValue(new Error('fail'));
+
+        await expect(handler.executeWithRetry(mockFn, undefined)).rejects.toThrow('fail');
+        expect(mockFn).toHaveBeenCalledTimes(1);
+      });
     });
 
     describe('retry callback', () => {
@@ -246,6 +253,17 @@ describe('RetryHandler', () => {
             lastError: error1
           })
         );
+      });
+
+      it('should not call onRetry when error is non-retryable', async () => {
+        const mockFn = vi.fn().mockRejectedValue(new Error('401 Unauthorized'));
+        const onRetry = vi.fn();
+
+        await expect(handler.executeWithRetry(mockFn, { maxAttempts: 3, backoff: 'fixed', initialDelay: 10 }, onRetry))
+          .rejects
+          .toThrow('401 Unauthorized');
+
+        expect(onRetry).not.toHaveBeenCalled();
       });
     });
 
@@ -443,22 +461,25 @@ describe('RetryHandler', () => {
       it('should use default maxDelay of 30000ms when not specified', async () => {
         const mockFn = vi.fn()
           .mockRejectedValueOnce(new Error('fail'))
+          .mockRejectedValueOnce(new Error('fail'))
           .mockResolvedValueOnce('success');
 
-        // With initialDelay of 20000, exponential would give 20000 * 2^0 = 20000
-        // But without maxDelay specified, it should default to 30000
+        // With initialDelay of 20000, exponential attempts would be:
+        // attempt 0 => 20000ms, attempt 1 => 40000ms (should clamp to default 30000ms)
         const config: RetryConfig = {
-          maxAttempts: 3,
+          maxAttempts: 4,
           backoff: 'exponential',
           initialDelay: 20000
         };
         const onRetry = vi.fn();
 
         const promise = handler.executeWithRetry(mockFn, config, onRetry);
-        await vi.advanceTimersByTimeAsync(20000);
+        await vi.advanceTimersByTimeAsync(20000); // First retry uses 20000ms
+        await vi.advanceTimersByTimeAsync(30000); // Should clamp second delay to default max
         await promise;
 
         expect(onRetry.mock.calls[0][0].delays[0]).toBe(20000);
+        expect(onRetry.mock.calls[1][0].delays[1]).toBe(30000);
       });
 
       it('should handle very large exponential values', async () => {
@@ -494,7 +515,7 @@ describe('RetryHandler', () => {
     });
   });
 
-  describe('shouldRetry (error classification)', () => {
+    describe('shouldRetry (error classification)', () => {
     describe('non-retryable errors', () => {
       it('should not retry 401 errors', async () => {
         const mockFn = vi.fn().mockRejectedValue(new Error('401 Unauthorized'));
@@ -705,6 +726,20 @@ describe('RetryHandler', () => {
       it('should retry unknown errors by default', async () => {
         const mockFn = vi.fn()
           .mockRejectedValueOnce(new Error('Some random error'))
+          .mockResolvedValueOnce('success');
+
+        const config: RetryConfig = { maxAttempts: 3, backoff: 'fixed', initialDelay: 50 };
+
+        const promise = handler.executeWithRetry(mockFn, config);
+        await vi.advanceTimersByTimeAsync(50);
+        await promise;
+
+        expect(mockFn).toHaveBeenCalledTimes(2);
+      });
+
+      it('should retry 429 rate limit errors', async () => {
+        const mockFn = vi.fn()
+          .mockRejectedValueOnce(new Error('429 Too Many Requests'))
           .mockResolvedValueOnce('success');
 
         const config: RetryConfig = { maxAttempts: 3, backoff: 'fixed', initialDelay: 50 };

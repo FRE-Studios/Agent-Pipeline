@@ -38,11 +38,12 @@ export class StateManager {
   async getLatestRun(): Promise<PipelineState | null> {
     try {
       const files = await fs.readdir(this.stateDir);
-      if (files.length === 0) return null;
+      const jsonFiles = files.filter((file) => file.endsWith('.json'));
+      if (jsonFiles.length === 0) return null;
 
       // Sort by modification time, newest first
       const fileStats = await Promise.all(
-        files.map(async (file) => ({
+        jsonFiles.map(async (file) => ({
           file,
           mtime: (await fs.stat(path.join(this.stateDir, file))).mtime
         }))
@@ -50,7 +51,12 @@ export class StateManager {
 
       fileStats.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
 
-      return this.loadState(path.parse(fileStats[0].file).name);
+      for (const { file } of fileStats) {
+        const run = await this.loadState(path.parse(file).name);
+        if (run) return run;
+      }
+
+      return null;
     } catch {
       return null;
     }
