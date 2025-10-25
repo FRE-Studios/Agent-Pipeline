@@ -52,6 +52,37 @@ describe('ParallelExecutor', () => {
         expect(result.executions[2].stageName).toBe('stage3');
       });
 
+      it('should overlap execution windows when running in parallel', async () => {
+        const stages: AgentStageConfig[] = [
+          { name: 'fast', agent: 'fast.md' },
+          { name: 'slow', agent: 'slow.md' },
+        ];
+
+        const runningStages = new Set<string>();
+        let observedOverlap = false;
+
+        (mockStageExecutor.executeStage as any).mockImplementation(
+          async (config: AgentStageConfig) => {
+            runningStages.add(config.name);
+            if (runningStages.size > 1) {
+              observedOverlap = true;
+            }
+            await new Promise(resolve =>
+              setTimeout(resolve, config.name === 'slow' ? 40 : 20)
+            );
+            runningStages.delete(config.name);
+            return { ...successfulStageExecution, stageName: config.name };
+          }
+        );
+
+        await parallelExecutor.executeParallelGroup(
+          stages,
+          runningPipelineState
+        );
+
+        expect(observedOverlap).toBe(true);
+      });
+
       it('should set allSucceeded=true when all stages succeed', async () => {
         const stages: AgentStageConfig[] = [
           { name: 'stage1', agent: 'agent1.md' },
@@ -433,6 +464,26 @@ describe('ParallelExecutor', () => {
         const calls = (mockStageExecutor.executeStage as any).mock.calls;
         expect(calls[0][0]).toEqual(stages[0]);
       });
+
+      it('should notify onStateChange after each parallel stage completes', async () => {
+        const stages: AgentStageConfig[] = [
+          { name: 'alpha', agent: 'alpha.md' },
+          { name: 'beta', agent: 'beta.md' },
+        ];
+
+        (mockStageExecutor.executeStage as any)
+          .mockResolvedValue({ ...successfulStageExecution });
+
+        await parallelExecutor.executeParallelGroup(
+          stages,
+          runningPipelineState
+        );
+
+        expect(onStateChangeSpy).toHaveBeenCalledTimes(2);
+        for (const call of onStateChangeSpy.mock.calls) {
+          expect(call[0]).toBe(runningPipelineState);
+        }
+      });
     });
   });
 
@@ -571,9 +622,10 @@ describe('ParallelExecutor', () => {
         expect(state.stages).toHaveLength(0);
       });
 
-      it('should not call onStateChange callback when provided', async () => {
+      it('should call onStateChange callback after each sequential stage completes', async () => {
         const stages: AgentStageConfig[] = [
           { name: 'stage1', agent: 'agent1.md' },
+          { name: 'stage2', agent: 'agent2.md' },
         ];
 
         const state = { ...runningPipelineState, stages: [] };
@@ -583,7 +635,10 @@ describe('ParallelExecutor', () => {
 
         await parallelExecutor.executeSequentialGroup(stages, state);
 
-        expect(onStateChangeSpy).not.toHaveBeenCalled();
+        expect(onStateChangeSpy).toHaveBeenCalledTimes(2);
+        for (const call of onStateChangeSpy.mock.calls) {
+          expect(call[0]).toBe(state);
+        }
       });
 
       it('should work without onStateChange callback', async () => {
@@ -659,6 +714,30 @@ describe('ParallelExecutor', () => {
         );
 
         expect(result.executions[0]).toEqual(failedExec);
+      });
+
+      it('should convert rejected stages into failed executions and continue', async () => {
+        const stages: AgentStageConfig[] = [
+          { name: 'unstable', agent: 'unstable.md' },
+          { name: 'recovery', agent: 'recovery.md' },
+        ];
+
+        const rejectedError = new Error('boom');
+        (mockStageExecutor.executeStage as any)
+          .mockRejectedValueOnce(rejectedError)
+          .mockResolvedValueOnce({ ...successfulStageExecution, stageName: 'recovery' });
+
+        const result = await parallelExecutor.executeSequentialGroup(
+          stages,
+          runningPipelineState
+        );
+
+        expect(result.executions).toHaveLength(2);
+        expect(result.executions[0].status).toBe('failed');
+        expect(result.executions[0].stageName).toBe('unstable');
+        expect(result.executions[0].error?.message).toBe('boom');
+        expect(result.executions[0].error?.agentPath).toBe('unstable.md');
+        expect(result.executions[1].stageName).toBe('recovery');
       });
     });
 

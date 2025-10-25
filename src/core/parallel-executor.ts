@@ -17,6 +17,27 @@ export class ParallelExecutor {
     private onStateChange?: (state: PipelineState) => void
   ) {}
 
+  private emitStateChange(state: PipelineState): void {
+    if (this.onStateChange) {
+      this.onStateChange(state);
+    }
+  }
+
+  private createFailedExecution(
+    stageConfig: AgentStageConfig,
+    reason: unknown
+  ): StageExecution {
+    const timestamp = new Date().toISOString();
+    return {
+      stageName: stageConfig.name,
+      status: 'failed',
+      startTime: timestamp,
+      endTime: timestamp,
+      duration: 0,
+      error: ErrorFactory.createStageError(reason, stageConfig.agent)
+    };
+  }
+
   private createStageCallback(
     stageName: string,
     onOutputUpdate?: (stageName: string, output: string) => void
@@ -61,11 +82,18 @@ export class ParallelExecutor {
     const promises = stages.map(async (stageConfig) => {
       const stageOutputCallback = this.createStageCallback(stageConfig.name, onOutputUpdate);
 
-      return this.stageExecutor.executeStage(
-        stageConfig,
-        pipelineState,
-        stageOutputCallback
-      );
+      try {
+        const execution = await this.stageExecutor.executeStage(
+          stageConfig,
+          pipelineState,
+          stageOutputCallback
+        );
+        this.emitStateChange(pipelineState);
+        return execution;
+      } catch (error) {
+        this.emitStateChange(pipelineState);
+        throw error;
+      }
     });
 
     // Execute all stages in parallel using allSettled
@@ -79,14 +107,7 @@ export class ParallelExecutor {
       } else {
         // Handle rejected promise
         const stageConfig = stages[index];
-        return {
-          stageName: stageConfig.name,
-          status: 'failed',
-          startTime: new Date().toISOString(),
-          endTime: new Date().toISOString(),
-          duration: 0,
-          error: ErrorFactory.createStageError(result.reason, stageConfig.agent)
-        };
+        return this.createFailedExecution(stageConfig, result.reason);
       }
     });
 
@@ -110,14 +131,19 @@ export class ParallelExecutor {
 
     for (const stageConfig of stages) {
       const stageOutputCallback = this.createStageCallback(stageConfig.name, onOutputUpdate);
-
-      const execution = await this.stageExecutor.executeStage(
-        stageConfig,
-        pipelineState,
-        stageOutputCallback
-      );
-
-      executions.push(execution);
+      try {
+        const execution = await this.stageExecutor.executeStage(
+          stageConfig,
+          pipelineState,
+          stageOutputCallback
+        );
+        executions.push(execution);
+        this.emitStateChange(pipelineState);
+      } catch (error) {
+        const failedExecution = this.createFailedExecution(stageConfig, error);
+        executions.push(failedExecution);
+        this.emitStateChange(pipelineState);
+      }
     }
 
     return this.buildExecutionResult(executions, startTime);
