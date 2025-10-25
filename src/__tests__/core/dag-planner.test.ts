@@ -21,6 +21,7 @@ describe('DAGPlanner', () => {
       expect(result.plan.groups[0].stages).toHaveLength(2);
       expect(result.plan.groups[0].level).toBe(0);
       expect(result.plan.isSequential).toBe(false); // Two stages at same level = parallel possible
+      expect(result.validation.warnings).toHaveLength(0);
       expect(result.validation.valid).toBe(true);
     });
 
@@ -28,6 +29,7 @@ describe('DAGPlanner', () => {
       const result = planner.buildExecutionPlan(parallelPipelineConfig);
 
       expect(result.plan.totalStages).toBe(4);
+      expect(result.plan.maxParallelism).toBe(3);
       expect(result.validation.valid).toBe(true);
 
       // Verify that stages with no dependencies are at a lower level than summary
@@ -82,6 +84,7 @@ describe('DAGPlanner', () => {
 
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(0);
     });
 
     it('should detect cyclic dependencies', () => {
@@ -142,7 +145,7 @@ describe('DAGPlanner', () => {
       const result = planner.validateDAG(deepChainConfig);
 
       expect(result.valid).toBe(true);
-      expect(result.warnings.some(w => w.includes('Deep dependency'))).toBe(true);
+      expect(result.warnings.some(w => w.includes('Deep dependency chain detected (6 levels)'))).toBe(true);
     });
 
     it('should handle complex dependency graphs', () => {
@@ -162,6 +165,7 @@ describe('DAGPlanner', () => {
 
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
+      expect(result.warnings).toHaveLength(0);
     });
   });
 
@@ -208,6 +212,13 @@ describe('DAGPlanner', () => {
       expect(level1!.level).toBeGreaterThan(level0a!.level);
       expect(level2!.level).toBeGreaterThan(level1!.level);
       expect(level3!.level).toBeGreaterThan(level2!.level);
+      // Ensure execution groups align with levels
+      const groupLevels = result.plan.groups.map(group => group.level);
+      expect(groupLevels).toEqual([0, 1, 2, 3]);
+      expect(result.plan.groups[0].stages.map(stage => stage.name).sort()).toEqual(['level-0-a', 'level-0-b']);
+      expect(result.plan.groups[1].stages.map(stage => stage.name)).toEqual(['level-1']);
+      expect(result.plan.groups[2].stages.map(stage => stage.name)).toEqual(['level-2']);
+      expect(result.plan.groups[3].stages.map(stage => stage.name)).toEqual(['level-3']);
     });
 
     it('should respect dependency order and include all stages', () => {
@@ -276,6 +287,7 @@ describe('DAGPlanner', () => {
       expect(p2!.level).toBe(p3!.level);
       // All three parallel stages should be at the same level
       expect(result.plan.totalStages).toBe(5);
+      expect(result.plan.maxParallelism).toBe(3);
     });
   });
 
@@ -316,10 +328,13 @@ describe('DAGPlanner', () => {
 
       const sequential = planner.buildExecutionPlan(sequentialConfig);
       expect(sequential.plan.isSequential).toBe(true);
+      expect(sequential.plan.maxParallelism).toBe(1);
 
       // Parallel pipeline should not be sequential
       const parallel = planner.buildExecutionPlan(parallelPipelineConfig);
       expect(parallel.plan.totalStages).toBe(4);
+      expect(parallel.plan.isSequential).toBe(false);
+      expect(parallel.plan.maxParallelism).toBe(3);
     });
   });
 });
