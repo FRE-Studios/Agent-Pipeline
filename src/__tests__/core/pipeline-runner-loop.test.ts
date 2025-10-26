@@ -84,6 +84,14 @@ describe('PipelineRunner - Loop Mode', () => {
         changedFiles: [],
         totalDuration: 1000,
       },
+      loopContext: {
+        enabled: false,
+        currentIteration: 1,
+        maxIterations: 100,
+        loopSessionId: '',
+        pipelineSource: 'library',
+        terminationReason: undefined,
+      },
     };
 
     // Mock ProjectConfigLoader
@@ -806,8 +814,21 @@ describe('PipelineRunner - Loop Mode', () => {
     it('should populate loopContext in pipeline state', async () => {
       const runner = new PipelineRunner(tempDir);
 
+      // Mock state with loopContext properly populated (as the initializer would do)
+      const loopMockState = {
+        ...mockPipelineState,
+        loopContext: {
+          enabled: true,
+          currentIteration: 1,
+          maxIterations: 100,
+          loopSessionId: 'test-loop-session-id',
+          pipelineSource: 'library' as const,
+          terminationReason: undefined,
+        },
+      };
+
       vi.spyOn(runner as any, '_executeSinglePipeline')
-        .mockResolvedValue(mockPipelineState);
+        .mockResolvedValue(loopMockState);
 
       const result = await runner.runPipeline(mockPipelineConfig, {
         loop: true,

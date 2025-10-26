@@ -5,7 +5,7 @@ import { GitManager } from './git-manager.js';
 import { BranchManager } from './branch-manager.js';
 import { StageExecutor } from './stage-executor.js';
 import { ParallelExecutor } from './parallel-executor.js';
-import { PipelineConfig, PipelineState, LoopContext } from '../config/schema.js';
+import { PipelineConfig, PipelineState, LoopContext, PipelineMetadata } from '../config/schema.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
 
@@ -36,6 +36,8 @@ export class PipelineInitializer {
       interactive?: boolean;
       notificationManager?: NotificationManager;
       loopContext?: LoopContext;
+      loopSessionId?: string;
+      metadata?: PipelineMetadata;
     },
     notifyCallback: (context: NotificationContext) => Promise<void>,
     stateChangeCallback: (state: PipelineState) => void
@@ -64,7 +66,15 @@ export class PipelineInitializer {
     const changedFiles = await this.gitManager.getChangedFiles(triggerCommit);
 
     // Create initial state
-    const state = this.createInitialState(config, runId, triggerCommit, changedFiles);
+    const state = this.createInitialState(
+      config,
+      runId,
+      triggerCommit,
+      changedFiles,
+      options.loopContext,
+      options.loopSessionId,
+      options.metadata
+    );
 
     // Create executors
     const stageExecutor = new StageExecutor(
@@ -138,8 +148,30 @@ export class PipelineInitializer {
     config: PipelineConfig,
     runId: string,
     triggerCommit: string,
-    changedFiles: string[]
+    changedFiles: string[],
+    loopContext?: LoopContext,
+    loopSessionId?: string,
+    metadata?: PipelineMetadata
   ): PipelineState {
+    // Always populate loopContext (with enabled: true/false)
+    const stateLoopContext = loopContext
+      ? {
+          enabled: true,
+          currentIteration: loopContext.currentIteration ?? 1,
+          maxIterations: loopContext.maxIterations ?? 100,
+          loopSessionId: loopSessionId ?? '',
+          pipelineSource: (metadata?.sourceType ?? 'library') as 'library' | 'loop-pending',
+          terminationReason: undefined as 'natural' | 'limit-reached' | 'failure' | undefined
+        }
+      : {
+          enabled: false,
+          currentIteration: 1,
+          maxIterations: 100,
+          loopSessionId: '',
+          pipelineSource: 'library' as 'library' | 'loop-pending',
+          terminationReason: undefined as 'natural' | 'limit-reached' | 'failure' | undefined
+        };
+
     return {
       runId,
       pipelineConfig: config,
@@ -154,7 +186,8 @@ export class PipelineInitializer {
         initialCommit: triggerCommit,
         changedFiles,
         totalDuration: 0
-      }
+      },
+      loopContext: stateLoopContext
     };
   }
 

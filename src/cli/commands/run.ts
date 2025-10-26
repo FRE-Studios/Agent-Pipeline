@@ -82,7 +82,12 @@ export async function runCommand(
       maxLoopIterations: options.maxLoopIterations
     });
 
-    process.exit(result.status === 'completed' ? 0 : 1);
+    // Determine exit code based on status and termination reason
+    const exitCode = result.status === 'completed'
+      ? (result.loopContext?.terminationReason === 'limit-reached' ? 1 : 0)
+      : 1;
+
+    process.exit(exitCode);
   } catch (error) {
     throw error;
   } finally {

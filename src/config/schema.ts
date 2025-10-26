@@ -148,6 +148,7 @@ export interface PipelineState {
     maxIterations: number;
     loopSessionId: string;              // UUID (generated in Part F)
     pipelineSource: 'library' | 'loop-pending';
+    terminationReason?: 'natural' | 'limit-reached' | 'failure';
   };
 }
 

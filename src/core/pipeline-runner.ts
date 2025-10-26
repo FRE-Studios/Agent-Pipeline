@@ -169,38 +169,16 @@ export class PipelineRunner {
       lastState = await this._executeSinglePipeline(
         currentConfig,
         currentMetadata,
-        { interactive, notificationManager, loopContext }
+        {
+          interactive,
+          notificationManager,
+          loopContext,
+          loopSessionId: loopSession?.sessionId
+        }
       );
-
-      // Populate loopContext in state for observability
-      if (loopEnabled && loopSession) {
-        lastState.loopContext = {
-          enabled: true,
-          currentIteration: iterationCount,
-          maxIterations,
-          loopSessionId: loopSession.sessionId,
-          pipelineSource: currentMetadata?.sourceType || 'library'
-        };
-      }
 
       // Emit state update for UI (this resets the UI for next iteration)
       this.notifyStateChange(lastState);
-
-      // Record iteration in loop session
-      if (loopEnabled && loopSession) {
-        const pipelineName = currentMetadata?.sourcePath
-          ? path.basename(currentMetadata.sourcePath, '.yml')
-          : currentConfig.name;
-
-        await this.loopStateManager.appendIteration(loopSession.sessionId, {
-          iterationNumber: iterationCount,
-          pipelineName,
-          runId: lastState.runId,
-          status: lastState.status === 'completed' ? 'completed' : 'failed',
-          duration: lastState.artifacts.totalDuration,
-          triggeredNext: false  // Will be updated to true if we find a next pipeline
-        });
-      }
 
       // Log iteration completion in non-interactive mode
       if (this.shouldLog(interactive) && loopEnabled && lastState.status === 'completed') {
@@ -228,6 +206,10 @@ export class PipelineRunner {
 
       // Handle failures (after file movement)
       if (lastState.status === 'failed') {
+        // Record iteration with triggeredNext=false
+        if (loopEnabled && loopSession) {
+          await this.recordIteration(loopSession.sessionId, lastState, currentMetadata, false);
+        }
         loopTerminationReason = 'failure';
         const pipelineName = currentMetadata?.sourcePath
           ? path.basename(currentMetadata.sourcePath, '.yml')
@@ -240,21 +222,27 @@ export class PipelineRunner {
 
       // Exit loop if --loop not enabled
       if (!loopEnabled) {
+        // Record single iteration with triggeredNext=false
+        if (loopSession) {
+          await this.recordIteration(loopSession.sessionId, lastState, currentMetadata, false);
+        }
         break;
       }
 
       // Find next pipeline
       const nextFile = await this._findNextPipelineFile(loopingConfig);
+      const triggeredNext = nextFile !== undefined;
+
+      // Record iteration with correct triggeredNext status
+      if (loopSession) {
+        await this.recordIteration(loopSession.sessionId, lastState, currentMetadata, triggeredNext);
+      }
+
       if (!nextFile) {
         if (this.shouldLog(interactive)) {
           console.log('Loop: no pending pipelines, exiting.');
         }
         break;
-      }
-
-      // Update the last iteration's triggeredNext field
-      if (loopSession && loopSession.iterations.length > 0) {
-        loopSession.iterations[loopSession.iterations.length - 1].triggeredNext = true;
       }
 
       // Move next file to running directory
@@ -298,9 +286,9 @@ export class PipelineRunner {
       throw new Error('Pipeline execution completed without a final state');
     }
 
-    // Mark state as failed if loop limit was reached (treat as error condition)
-    if (loopTerminationReason === 'limit-reached') {
-      lastState.status = 'failed';
+    // Store termination reason in loopContext instead of mutating state.status
+    if (lastState.loopContext) {
+      lastState.loopContext.terminationReason = loopTerminationReason;
     }
 
     // Complete loop session if loop mode was enabled
@@ -419,20 +407,27 @@ export class PipelineRunner {
    */
   private async _executeSinglePipeline(
     config: PipelineConfig,
-    _metadata: PipelineMetadata | undefined,
+    metadata: PipelineMetadata | undefined,
     options: {
       interactive: boolean;
       notificationManager?: NotificationManager;
       loopContext?: LoopContext;
+      loopSessionId?: string;
     }
   ): Promise<PipelineState> {
-    const { interactive, loopContext } = options;
+    const { interactive, loopContext, loopSessionId } = options;
     this.notificationManager = options.notificationManager;
 
     // Phase 1: Initialize pipeline
     const initResult = await this.initializer.initialize(
       config,
-      { interactive, notificationManager: this.notificationManager, loopContext },
+      {
+        interactive,
+        notificationManager: this.notificationManager,
+        loopContext,
+        loopSessionId,
+        metadata
+      },
       this.notify.bind(this),
       this.notifyStateChange.bind(this)
     );
@@ -500,5 +495,28 @@ export class PipelineRunner {
     );
 
     return state;
+  }
+
+  /**
+   * Records a loop iteration with the correct triggeredNext status
+   */
+  private async recordIteration(
+    sessionId: string,
+    state: PipelineState,
+    metadata: PipelineMetadata | undefined,
+    triggeredNext: boolean
+  ): Promise<void> {
+    const pipelineName = metadata?.sourcePath
+      ? path.basename(metadata.sourcePath, '.yml')
+      : state.pipelineConfig.name;
+
+    await this.loopStateManager.appendIteration(sessionId, {
+      iterationNumber: state.loopContext?.currentIteration ?? 1,
+      pipelineName,
+      runId: state.runId,
+      status: state.status === 'completed' ? 'completed' : 'failed',
+      duration: state.artifacts.totalDuration,
+      triggeredNext
+    });
   }
 }
