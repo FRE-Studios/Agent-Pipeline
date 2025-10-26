@@ -2,10 +2,18 @@
 
 import { StateManager } from '../core/state-manager.js';
 import { PipelineState } from '../config/schema.js';
-import { PipelineMetrics, StageMetrics, TimeSeriesData } from './types.js';
+import { PipelineMetrics, StageMetrics, TimeSeriesData, LoopMetrics } from './types.js';
+import { LoopStateManager } from '../core/loop-state-manager.js';
 
 export class PipelineAnalytics {
-  constructor(private stateManager: StateManager) {}
+  private loopStateManager: LoopStateManager;
+
+  constructor(
+    private stateManager: StateManager,
+    repoPath: string
+  ) {
+    this.loopStateManager = new LoopStateManager(repoPath);
+  }
 
   async generateMetrics(
     pipelineName?: string,
@@ -159,5 +167,65 @@ export class PipelineAnalytics {
         };
       })
       .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  /**
+   * Generate metrics for loop sessions
+   */
+  async generateLoopMetrics(
+    timeRange?: { start: Date; end: Date }
+  ): Promise<LoopMetrics> {
+    const allSessions = await this.loopStateManager.getAllSessions();
+
+    // Filter by time range
+    const filteredSessions = timeRange
+      ? allSessions.filter((session) => {
+          const sessionTime = new Date(session.startTime);
+          return sessionTime >= timeRange.start && sessionTime <= timeRange.end;
+        })
+      : allSessions;
+
+    // Calculate session counts by status
+    const totalSessions = filteredSessions.length;
+    const completedSessions = filteredSessions.filter(s => s.status === 'completed').length;
+    const failedSessions = filteredSessions.filter(s => s.status === 'failed').length;
+    const limitReachedSessions = filteredSessions.filter(s => s.status === 'limit-reached').length;
+
+    // Calculate iteration statistics
+    const totalIterations = filteredSessions.reduce((sum, s) => sum + s.totalIterations, 0);
+    const averageIterationsPerSession = totalSessions > 0
+      ? totalIterations / totalSessions
+      : 0;
+
+    // Find most common pipelines
+    const pipelineCounts = new Map<string, number>();
+    for (const session of filteredSessions) {
+      for (const iteration of session.iterations) {
+        pipelineCounts.set(
+          iteration.pipelineName,
+          (pipelineCounts.get(iteration.pipelineName) || 0) + 1
+        );
+      }
+    }
+
+    // Calculate termination reasons
+    const terminationReasons = new Map<string, number>();
+    for (const session of filteredSessions) {
+      terminationReasons.set(
+        session.status,
+        (terminationReasons.get(session.status) || 0) + 1
+      );
+    }
+
+    return {
+      totalSessions,
+      completedSessions,
+      failedSessions,
+      limitReachedSessions,
+      averageIterationsPerSession,
+      totalIterations,
+      mostCommonPipelines: pipelineCounts,
+      terminationReasons
+    };
   }
 }

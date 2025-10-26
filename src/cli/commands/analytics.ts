@@ -8,10 +8,11 @@ export async function analyticsCommand(
   options: {
     pipeline?: string;
     days?: number;
+    loops?: boolean;
   }
 ): Promise<void> {
   const stateManager = new StateManager(repoPath);
-  const analytics = new PipelineAnalytics(stateManager);
+  const analytics = new PipelineAnalytics(stateManager, repoPath);
 
   const timeRange = options.days
     ? {
@@ -19,6 +20,12 @@ export async function analyticsCommand(
         end: new Date()
       }
     : undefined;
+
+  // Handle loop analytics separately
+  if (options.loops) {
+    await displayLoopMetrics(analytics, timeRange, options.days);
+    return;
+  }
 
   const metrics = await analytics.generateMetrics(options.pipeline, timeRange);
 
@@ -74,6 +81,58 @@ export async function analyticsCommand(
       console.log(
         `  ${trend.date}: ${successBar} ${(trend.successRate * 100).toFixed(0)}% (${trend.totalRuns} runs)`
       );
+    }
+    console.log('');
+  }
+}
+
+/**
+ * Display loop-specific analytics
+ */
+async function displayLoopMetrics(
+  analytics: PipelineAnalytics,
+  timeRange: { start: Date; end: Date } | undefined,
+  days: number | undefined
+): Promise<void> {
+  const metrics = await analytics.generateLoopMetrics(timeRange);
+
+  if (metrics.totalSessions === 0) {
+    console.log('\n📊 Loop Analytics\n');
+    console.log('No loop sessions found for the specified criteria.\n');
+    return;
+  }
+
+  console.log('\n📊 Loop Analytics\n');
+
+  if (days) {
+    console.log(`Time Range: Last ${days} days`);
+  }
+  console.log('');
+
+  console.log(`Total Sessions: ${metrics.totalSessions}`);
+  console.log(`Completed: ${metrics.completedSessions}`);
+  console.log(`Failed: ${metrics.failedSessions}`);
+  console.log(`Limit Reached: ${metrics.limitReachedSessions}`);
+  console.log(`Total Iterations: ${metrics.totalIterations}`);
+  console.log(`Avg Iterations/Session: ${metrics.averageIterationsPerSession.toFixed(2)}\n`);
+
+  if (metrics.terminationReasons.size > 0) {
+    console.log('Termination Reasons:');
+    for (const [reason, count] of metrics.terminationReasons) {
+      const percentage = ((count / metrics.totalSessions) * 100).toFixed(1);
+      console.log(`  ${reason}: ${count} (${percentage}%)`);
+    }
+    console.log('');
+  }
+
+  if (metrics.mostCommonPipelines.size > 0) {
+    console.log('Most Common Pipelines:');
+    const sortedPipelines = Array.from(metrics.mostCommonPipelines.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
+
+    for (const [pipeline, count] of sortedPipelines) {
+      console.log(`  ${count}x ${pipeline}`);
     }
     console.log('');
   }

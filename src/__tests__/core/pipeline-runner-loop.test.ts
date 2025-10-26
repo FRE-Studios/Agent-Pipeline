@@ -70,13 +70,20 @@ describe('PipelineRunner - Loop Mode', () => {
 
     // Setup mock pipeline state
     mockPipelineState = {
-      name: 'test-pipeline',
       runId: 'test-run-123',
-      status: 'completed',
-      startTime: new Date().toISOString(),
-      endTime: new Date().toISOString(),
-      executionTime: 1000,
+      pipelineConfig: mockPipelineConfig,
+      trigger: {
+        type: 'manual',
+        commitSha: 'abc123',
+        timestamp: new Date().toISOString(),
+      },
       stages: [],
+      status: 'completed',
+      artifacts: {
+        initialCommit: 'abc123',
+        changedFiles: [],
+        totalDuration: 1000,
+      },
     };
 
     // Mock ProjectConfigLoader
@@ -647,6 +654,171 @@ describe('PipelineRunner - Loop Mode', () => {
 
       const failedFiles = await fs.readdir(failedDir);
       expect(failedFiles.some(f => f.startsWith('bad'))).toBe(true);
+    });
+  });
+
+  describe('Loop Session Tracking', () => {
+    it('should create loop session when loop mode is enabled', async () => {
+      const runner = new PipelineRunner(tempDir);
+      const loopStateManager = (runner as any).loopStateManager;
+      const startSessionSpy = vi.spyOn(loopStateManager, 'startSession');
+
+      vi.spyOn(runner as any, '_executeSinglePipeline')
+        .mockResolvedValue(mockPipelineState);
+
+      await runner.runPipeline(mockPipelineConfig, {
+        loop: true,
+        interactive: false,
+      });
+
+      expect(startSessionSpy).toHaveBeenCalledWith(100); // default maxIterations
+    });
+
+    it('should not create loop session when loop mode is disabled', async () => {
+      const runner = new PipelineRunner(tempDir);
+      const loopStateManager = (runner as any).loopStateManager;
+      const startSessionSpy = vi.spyOn(loopStateManager, 'startSession');
+
+      vi.spyOn(runner as any, '_executeSinglePipeline')
+        .mockResolvedValue(mockPipelineState);
+
+      await runner.runPipeline(mockPipelineConfig, {
+        loop: false,
+        interactive: false,
+      });
+
+      expect(startSessionSpy).not.toHaveBeenCalled();
+    });
+
+    it('should append iteration after each pipeline execution', async () => {
+      // Create a pending file
+      await fs.writeFile(
+        path.join(pendingDir, 'task1.yml'),
+        'name: task1\ntrigger: manual\nagents: []'
+      );
+
+      vi.mocked(PipelineLoader).mockImplementation(() => ({
+        loadPipelineFromPath: vi.fn().mockResolvedValue({
+          config: mockPipelineConfig,
+          metadata: {
+            sourcePath: path.join(runningDir, 'task1.yml'),
+            sourceType: 'loop-pending' as const,
+            loadedAt: new Date().toISOString(),
+          },
+        }),
+      } as any));
+
+      const runner = new PipelineRunner(tempDir);
+      const loopStateManager = (runner as any).loopStateManager;
+      const appendIterationSpy = vi.spyOn(loopStateManager, 'appendIteration');
+
+      vi.spyOn(runner as any, '_executeSinglePipeline')
+        .mockResolvedValue(mockPipelineState);
+
+      await runner.runPipeline(mockPipelineConfig, {
+        loop: true,
+        interactive: false,
+      });
+
+      // Should append iteration for seed pipeline and the pending pipeline
+      expect(appendIterationSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('should complete session with "completed" status on natural exit', async () => {
+      const runner = new PipelineRunner(tempDir);
+      const loopStateManager = (runner as any).loopStateManager;
+      const completeSessionSpy = vi.spyOn(loopStateManager, 'completeSession');
+
+      vi.spyOn(runner as any, '_executeSinglePipeline')
+        .mockResolvedValue(mockPipelineState);
+
+      await runner.runPipeline(mockPipelineConfig, {
+        loop: true,
+        interactive: false,
+      });
+
+      expect(completeSessionSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        'completed'
+      );
+    });
+
+    it('should complete session with "failed" status on pipeline failure', async () => {
+      const failedState = { ...mockPipelineState, status: 'failed' };
+
+      const runner = new PipelineRunner(tempDir);
+      const loopStateManager = (runner as any).loopStateManager;
+      const completeSessionSpy = vi.spyOn(loopStateManager, 'completeSession');
+
+      vi.spyOn(runner as any, '_executeSinglePipeline')
+        .mockResolvedValue(failedState);
+
+      await runner.runPipeline(mockPipelineConfig, {
+        loop: true,
+        interactive: false,
+      });
+
+      expect(completeSessionSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        'failed'
+      );
+    });
+
+    it('should complete session with "limit-reached" status when hitting max iterations', async () => {
+      // Create many pending files to exceed limit
+      for (let i = 1; i <= 5; i++) {
+        await fs.writeFile(
+          path.join(pendingDir, `task${i}.yml`),
+          `name: task${i}\ntrigger: manual\nagents: []`
+        );
+      }
+
+      vi.mocked(PipelineLoader).mockImplementation(() => ({
+        loadPipelineFromPath: vi.fn().mockResolvedValue({
+          config: mockPipelineConfig,
+          metadata: {
+            sourcePath: path.join(runningDir, 'taskX.yml'),
+            sourceType: 'loop-pending' as const,
+            loadedAt: new Date().toISOString(),
+          },
+        }),
+      } as any));
+
+      const runner = new PipelineRunner(tempDir);
+      const loopStateManager = (runner as any).loopStateManager;
+      const completeSessionSpy = vi.spyOn(loopStateManager, 'completeSession');
+
+      vi.spyOn(runner as any, '_executeSinglePipeline')
+        .mockResolvedValue(mockPipelineState);
+
+      await runner.runPipeline(mockPipelineConfig, {
+        loop: true,
+        maxLoopIterations: 2, // Set low limit
+        interactive: false,
+      });
+
+      expect(completeSessionSpy).toHaveBeenCalledWith(
+        expect.any(String),
+        'limit-reached'
+      );
+    });
+
+    it('should populate loopContext in pipeline state', async () => {
+      const runner = new PipelineRunner(tempDir);
+
+      vi.spyOn(runner as any, '_executeSinglePipeline')
+        .mockResolvedValue(mockPipelineState);
+
+      const result = await runner.runPipeline(mockPipelineConfig, {
+        loop: true,
+        interactive: false,
+      });
+
+      expect(result.loopContext).toBeDefined();
+      expect(result.loopContext!.enabled).toBe(true);
+      expect(result.loopContext!.loopSessionId).toBeDefined();
+      expect(result.loopContext!.currentIteration).toBe(1);
+      expect(result.loopContext!.maxIterations).toBe(100);
     });
   });
 });

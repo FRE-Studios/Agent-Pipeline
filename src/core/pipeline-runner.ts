@@ -13,6 +13,7 @@ import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
 import { ProjectConfigLoader } from '../config/project-config-loader.js';
 import { PipelineLoader } from '../config/pipeline-loader.js';
+import { LoopStateManager, LoopSession } from './loop-state-manager.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -30,6 +31,7 @@ export class PipelineRunner {
   private repoPath: string;
   private stateUpdateCallbacks: Array<(state: PipelineState) => void> = [];
   private projectConfigLoader: ProjectConfigLoader;
+  private loopStateManager: LoopStateManager;
 
   constructor(repoPath: string, dryRun: boolean = false) {
     this.repoPath = repoPath;
@@ -40,6 +42,7 @@ export class PipelineRunner {
     this.stateManager = new StateManager(repoPath);
     this.dagPlanner = new DAGPlanner();
     this.projectConfigLoader = new ProjectConfigLoader(repoPath);
+    this.loopStateManager = new LoopStateManager(repoPath);
 
     // Initialize orchestration components
     this.initializer = new PipelineInitializer(
@@ -127,6 +130,12 @@ export class PipelineRunner {
     let currentMetadata = options.loopMetadata;
     let loopTerminationReason: 'natural' | 'limit-reached' | 'failure' = 'natural';
 
+    // Create loop session if loop mode is enabled
+    let loopSession: LoopSession | undefined;
+    if (loopEnabled) {
+      loopSession = this.loopStateManager.startSession(maxIterations);
+    }
+
     // Main loop
     while (true) {
       iterationCount++;
@@ -163,8 +172,35 @@ export class PipelineRunner {
         { interactive, notificationManager, loopContext }
       );
 
+      // Populate loopContext in state for observability
+      if (loopEnabled && loopSession) {
+        lastState.loopContext = {
+          enabled: true,
+          currentIteration: iterationCount,
+          maxIterations,
+          loopSessionId: loopSession.sessionId,
+          pipelineSource: currentMetadata?.sourceType || 'library'
+        };
+      }
+
       // Emit state update for UI (this resets the UI for next iteration)
       this.notifyStateChange(lastState);
+
+      // Record iteration in loop session
+      if (loopEnabled && loopSession) {
+        const pipelineName = currentMetadata?.sourcePath
+          ? path.basename(currentMetadata.sourcePath, '.yml')
+          : currentConfig.name;
+
+        await this.loopStateManager.appendIteration(loopSession.sessionId, {
+          iterationNumber: iterationCount,
+          pipelineName,
+          runId: lastState.runId,
+          status: lastState.status === 'completed' ? 'completed' : 'failed',
+          duration: lastState.artifacts.totalDuration,
+          triggeredNext: false  // Will be updated to true if we find a next pipeline
+        });
+      }
 
       // Log iteration completion in non-interactive mode
       if (this.shouldLog(interactive) && loopEnabled && lastState.status === 'completed') {
@@ -216,6 +252,11 @@ export class PipelineRunner {
         break;
       }
 
+      // Update the last iteration's triggeredNext field
+      if (loopSession && loopSession.iterations.length > 0) {
+        loopSession.iterations[loopSession.iterations.length - 1].triggeredNext = true;
+      }
+
       // Move next file to running directory
       const fileName = path.basename(nextFile);
       let runningPath: string;
@@ -260,6 +301,14 @@ export class PipelineRunner {
     // Mark state as failed if loop limit was reached (treat as error condition)
     if (loopTerminationReason === 'limit-reached') {
       lastState.status = 'failed';
+    }
+
+    // Complete loop session if loop mode was enabled
+    if (loopEnabled && loopSession) {
+      const sessionStatus = loopTerminationReason === 'natural' ? 'completed' :
+                           loopTerminationReason === 'limit-reached' ? 'limit-reached' :
+                           'failed';
+      await this.loopStateManager.completeSession(loopSession.sessionId, sessionStatus);
     }
 
     return lastState;

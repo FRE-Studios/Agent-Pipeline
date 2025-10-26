@@ -22,7 +22,7 @@ describe('PipelineAnalytics', () => {
     mockStateManager = {
       getAllRuns: vi.fn(),
     } as any;
-    analytics = new PipelineAnalytics(mockStateManager);
+    analytics = new PipelineAnalytics(mockStateManager, '/test/repo');
   });
 
   describe('generateMetrics()', () => {

@@ -23,6 +23,7 @@ describe('analyticsCommand', () => {
     // Setup PipelineAnalytics mock
     mockAnalytics = {
       generateMetrics: vi.fn(),
+      generateLoopMetrics: vi.fn(),
     };
     vi.mocked(PipelineAnalytics).mockImplementation(() => mockAnalytics);
   });
@@ -756,6 +757,241 @@ describe('analyticsCommand', () => {
       expect(trendLog).toContain('25%');
       // 0.25 * 20 = 5 blocks
       expect(trendLog).toContain('█'.repeat(5));
+    });
+  });
+
+  describe('Loop Analytics (--loops flag)', () => {
+    it('should call generateLoopMetrics when loops flag is true', async () => {
+      mockAnalytics.generateLoopMetrics.mockResolvedValue({
+        totalSessions: 5,
+        completedSessions: 3,
+        failedSessions: 1,
+        limitReachedSessions: 1,
+        averageIterationsPerSession: 2.5,
+        totalIterations: 10,
+        mostCommonPipelines: new Map(),
+        terminationReasons: new Map(),
+      });
+
+      await analyticsCommand(tempDir, { loops: true });
+
+      expect(mockAnalytics.generateLoopMetrics).toHaveBeenCalledWith(undefined);
+      expect(mockAnalytics.generateMetrics).not.toHaveBeenCalled();
+    });
+
+    it('should call generateLoopMetrics with time range when loops and days provided', async () => {
+      mockAnalytics.generateLoopMetrics.mockResolvedValue({
+        totalSessions: 3,
+        completedSessions: 2,
+        failedSessions: 1,
+        limitReachedSessions: 0,
+        averageIterationsPerSession: 3,
+        totalIterations: 9,
+        mostCommonPipelines: new Map(),
+        terminationReasons: new Map(),
+      });
+
+      await analyticsCommand(tempDir, { loops: true, days: 7 });
+
+      expect(mockAnalytics.generateLoopMetrics).toHaveBeenCalled();
+      const timeRange = mockAnalytics.generateLoopMetrics.mock.calls[0][0];
+      expect(timeRange).toBeDefined();
+      expect(timeRange.start).toBeInstanceOf(Date);
+      expect(timeRange.end).toBeInstanceOf(Date);
+    });
+
+    it('should display loop analytics header', async () => {
+      mockAnalytics.generateLoopMetrics.mockResolvedValue({
+        totalSessions: 5,
+        completedSessions: 3,
+        failedSessions: 1,
+        limitReachedSessions: 1,
+        averageIterationsPerSession: 2.5,
+        totalIterations: 10,
+        mostCommonPipelines: new Map(),
+        terminationReasons: new Map(),
+      });
+
+      await analyticsCommand(tempDir, { loops: true });
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('📊 Loop Analytics'));
+    });
+
+    it('should display no sessions found message when no loop sessions', async () => {
+      mockAnalytics.generateLoopMetrics.mockResolvedValue({
+        totalSessions: 0,
+        completedSessions: 0,
+        failedSessions: 0,
+        limitReachedSessions: 0,
+        averageIterationsPerSession: 0,
+        totalIterations: 0,
+        mostCommonPipelines: new Map(),
+        terminationReasons: new Map(),
+      });
+
+      await analyticsCommand(tempDir, { loops: true });
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('No loop sessions found'));
+    });
+
+    it('should display loop session metrics', async () => {
+      mockAnalytics.generateLoopMetrics.mockResolvedValue({
+        totalSessions: 10,
+        completedSessions: 7,
+        failedSessions: 2,
+        limitReachedSessions: 1,
+        averageIterationsPerSession: 4.5,
+        totalIterations: 45,
+        mostCommonPipelines: new Map(),
+        terminationReasons: new Map(),
+      });
+
+      await analyticsCommand(tempDir, { loops: true });
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Total Sessions: 10'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Completed: 7'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Failed: 2'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Limit Reached: 1'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Total Iterations: 45'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Avg Iterations/Session: 4.50'));
+    });
+
+    it('should display termination reasons when present', async () => {
+      const terminationReasons = new Map([
+        ['completed', 5],
+        ['failed', 2],
+        ['limit-reached', 1],
+      ]);
+
+      mockAnalytics.generateLoopMetrics.mockResolvedValue({
+        totalSessions: 8,
+        completedSessions: 5,
+        failedSessions: 2,
+        limitReachedSessions: 1,
+        averageIterationsPerSession: 3.5,
+        totalIterations: 28,
+        mostCommonPipelines: new Map(),
+        terminationReasons,
+      });
+
+      await analyticsCommand(tempDir, { loops: true });
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Termination Reasons:'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringMatching(/completed:.*5.*\(62.5%\)/));
+      expect(console.log).toHaveBeenCalledWith(expect.stringMatching(/failed:.*2.*\(25.0%\)/));
+      expect(console.log).toHaveBeenCalledWith(expect.stringMatching(/limit-reached:.*1.*\(12.5%\)/));
+    });
+
+    it('should display most common pipelines when present', async () => {
+      const mostCommonPipelines = new Map([
+        ['pipeline-a', 10],
+        ['pipeline-b', 5],
+        ['pipeline-c', 3],
+      ]);
+
+      mockAnalytics.generateLoopMetrics.mockResolvedValue({
+        totalSessions: 5,
+        completedSessions: 5,
+        failedSessions: 0,
+        limitReachedSessions: 0,
+        averageIterationsPerSession: 3.6,
+        totalIterations: 18,
+        mostCommonPipelines,
+        terminationReasons: new Map(),
+      });
+
+      await analyticsCommand(tempDir, { loops: true });
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Most Common Pipelines:'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('10x pipeline-a'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('5x pipeline-b'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('3x pipeline-c'));
+    });
+
+    it('should sort most common pipelines by count descending', async () => {
+      const mostCommonPipelines = new Map([
+        ['pipeline-a', 3],
+        ['pipeline-b', 10],
+        ['pipeline-c', 5],
+      ]);
+
+      mockAnalytics.generateLoopMetrics.mockResolvedValue({
+        totalSessions: 5,
+        completedSessions: 5,
+        failedSessions: 0,
+        limitReachedSessions: 0,
+        averageIterationsPerSession: 3.6,
+        totalIterations: 18,
+        mostCommonPipelines,
+        terminationReasons: new Map(),
+      });
+
+      await analyticsCommand(tempDir, { loops: true });
+
+      const logs = vi.mocked(console.log).mock.calls.map((call) => call[0]);
+      const pipelineLogs = logs.filter((log) => log && log.includes('x pipeline-'));
+
+      expect(pipelineLogs[0]).toContain('10x pipeline-b');
+      expect(pipelineLogs[1]).toContain('5x pipeline-c');
+      expect(pipelineLogs[2]).toContain('3x pipeline-a');
+    });
+
+    it('should limit most common pipelines to top 10', async () => {
+      const mostCommonPipelines = new Map(
+        Array.from({ length: 15 }, (_, i) => [`pipeline-${i}`, 15 - i])
+      );
+
+      mockAnalytics.generateLoopMetrics.mockResolvedValue({
+        totalSessions: 5,
+        completedSessions: 5,
+        failedSessions: 0,
+        limitReachedSessions: 0,
+        averageIterationsPerSession: 12,
+        totalIterations: 60,
+        mostCommonPipelines,
+        terminationReasons: new Map(),
+      });
+
+      await analyticsCommand(tempDir, { loops: true });
+
+      const logs = vi.mocked(console.log).mock.calls.map((call) => call[0]);
+      const pipelineLogs = logs.filter((log) => log && log.includes('x pipeline-'));
+
+      expect(pipelineLogs).toHaveLength(10);
+    });
+
+    it('should skip termination reasons section when empty', async () => {
+      mockAnalytics.generateLoopMetrics.mockResolvedValue({
+        totalSessions: 5,
+        completedSessions: 5,
+        failedSessions: 0,
+        limitReachedSessions: 0,
+        averageIterationsPerSession: 3,
+        totalIterations: 15,
+        mostCommonPipelines: new Map(),
+        terminationReasons: new Map(),
+      });
+
+      await analyticsCommand(tempDir, { loops: true });
+
+      expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining('Termination Reasons:'));
+    });
+
+    it('should skip most common pipelines section when empty', async () => {
+      mockAnalytics.generateLoopMetrics.mockResolvedValue({
+        totalSessions: 5,
+        completedSessions: 5,
+        failedSessions: 0,
+        limitReachedSessions: 0,
+        averageIterationsPerSession: 0,
+        totalIterations: 0,
+        mostCommonPipelines: new Map(),
+        terminationReasons: new Map(),
+      });
+
+      await analyticsCommand(tempDir, { loops: true });
+
+      expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining('Most Common Pipelines:'));
     });
   });
 });

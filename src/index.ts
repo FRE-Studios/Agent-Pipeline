@@ -132,12 +132,14 @@ async function main() {
       }
 
       case 'analytics': {
-        const options: { pipeline?: string; days?: number } = {};
+        const options: { pipeline?: string; days?: number; loops?: boolean } = {};
         for (let i = 1; i < args.length; i++) {
           if (args[i] === '--pipeline' || args[i] === '-p') {
             options.pipeline = args[++i];
           } else if (args[i] === '--days' || args[i] === '-d') {
             options.days = parseInt(args[++i], 10);
+          } else if (args[i] === '--loops' || args[i] === '-l') {
+            options.loops = true;
           }
         }
         await analyticsCommand(repoPath, options);
@@ -353,6 +355,7 @@ Export Options:
 Analytics Options:
   -p, --pipeline <name>        Filter by pipeline name
   -d, --days <n>               Filter by last N days
+  -l, --loops                  Show loop session analytics instead of pipeline runs
 
 Rollback Options:
   -r, --run-id <id>            Rollback specific run ID
@@ -371,6 +374,7 @@ Examples:
   agent-pipeline status
   agent-pipeline history
   agent-pipeline analytics --pipeline commit-review
+  agent-pipeline analytics --loops --days 7
   agent-pipeline cleanup --force --delete-logs
   agent-pipeline install commit-review
   agent-pipeline export commit-review --include-agents --output backup.yml

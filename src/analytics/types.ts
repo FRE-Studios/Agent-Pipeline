@@ -22,3 +22,14 @@ export interface TimeSeriesData {
   successRate: number;
   totalRuns: number;
 }
+
+export interface LoopMetrics {
+  totalSessions: number;
+  completedSessions: number;
+  failedSessions: number;
+  limitReachedSessions: number;
+  averageIterationsPerSession: number;
+  totalIterations: number;
+  mostCommonPipelines: Map<string, number>;
+  terminationReasons: Map<string, number>;
+}
