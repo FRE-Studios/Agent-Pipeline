@@ -5,7 +5,7 @@ import { GitManager } from './git-manager.js';
 import { BranchManager } from './branch-manager.js';
 import { StageExecutor } from './stage-executor.js';
 import { ParallelExecutor } from './parallel-executor.js';
-import { PipelineConfig, PipelineState } from '../config/schema.js';
+import { PipelineConfig, PipelineState, LoopContext } from '../config/schema.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
 
@@ -32,7 +32,11 @@ export class PipelineInitializer {
    */
   async initialize(
     config: PipelineConfig,
-    options: { interactive?: boolean; notificationManager?: NotificationManager },
+    options: {
+      interactive?: boolean;
+      notificationManager?: NotificationManager;
+      loopContext?: LoopContext;
+    },
     notifyCallback: (context: NotificationContext) => Promise<void>,
     stateChangeCallback: (state: PipelineState) => void
   ): Promise<InitializationResult> {
@@ -67,7 +71,8 @@ export class PipelineInitializer {
       this.gitManager,
       this.dryRun,
       state.runId,
-      this.repoPath
+      this.repoPath,
+      options.loopContext
     );
     const parallelExecutor = new ParallelExecutor(
       stageExecutor,

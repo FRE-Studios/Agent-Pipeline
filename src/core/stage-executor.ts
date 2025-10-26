@@ -6,7 +6,7 @@ import { GitManager } from './git-manager.js';
 import { RetryHandler } from './retry-handler.js';
 import { OutputToolBuilder } from './output-tool-builder.js';
 import { OutputStorageManager } from './output-storage-manager.js';
-import { AgentStageConfig, StageExecution, PipelineState } from '../config/schema.js';
+import { AgentStageConfig, StageExecution, PipelineState, LoopContext } from '../config/schema.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { ErrorFactory } from '../utils/error-factory.js';
 import { TokenEstimator } from '../utils/token-estimator.js';
@@ -19,7 +19,8 @@ export class StageExecutor {
     private gitManager: GitManager,
     private dryRun: boolean = false,
     runId: string,
-    repoPath: string
+    repoPath: string,
+    private loopContext?: LoopContext
   ) {
     this.retryHandler = new RetryHandler();
     this.outputStorageManager = new OutputStorageManager(repoPath, runId);
@@ -206,6 +207,9 @@ export class StageExecutor {
     // Build output instructions
     const outputInstructions = OutputToolBuilder.buildOutputInstructions(stageConfig.outputs);
 
+    // Build loop context section if enabled
+    const loopContextSection = this.buildLoopContextSection();
+
     // Construct full context
     const context = `
 # Pipeline Context
@@ -219,6 +223,8 @@ ${recentStagesContext}
 ${olderStagesContext}
 
 ${changedFilesContext}
+
+${loopContextSection}
 
 ## Your Task
 ${JSON.stringify(stageConfig.inputs || {}, null, 2)}
@@ -295,6 +301,29 @@ Full list: .agent-pipeline/outputs/${pipelineState.runId}/changed-files.txt`;
   private buildFullFilesContext(pipelineState: PipelineState): string {
     const files = pipelineState.artifacts.changedFiles.join('\n');
     return `## Changed Files\n${files}`;
+  }
+
+  private buildLoopContextSection(): string {
+    if (!this.loopContext?.enabled) {
+      return '';
+    }
+
+    return `
+## Pipeline Looping
+
+This pipeline is running in LOOP MODE. After completion, the orchestrator will check for the next pipeline to run.
+
+**To queue the next pipeline:**
+- Write a valid pipeline YAML file to: \`${this.loopContext.directories.pending}\`
+- The file will be automatically picked up and executed after this pipeline completes
+- Use the same format as regular pipeline definitions in \`.agent-pipeline/pipelines/\`
+
+**Current loop status:**
+- Iteration: ${this.loopContext.currentIteration}/${this.loopContext.maxIterations}
+- Pending directory: \`${this.loopContext.directories.pending}\`
+
+**Note:** Only create a next pipeline if your analysis determines follow-up work is needed.
+`.trim();
   }
 
   private async checkContextTokens(

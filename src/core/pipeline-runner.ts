@@ -8,7 +8,7 @@ import { DAGPlanner } from './dag-planner.js';
 import { PipelineInitializer } from './pipeline-initializer.js';
 import { GroupExecutionOrchestrator } from './group-execution-orchestrator.js';
 import { PipelineFinalizer } from './pipeline-finalizer.js';
-import { PipelineConfig, PipelineState, PipelineMetadata, LoopingConfig } from '../config/schema.js';
+import { PipelineConfig, PipelineState, PipelineMetadata, LoopingConfig, LoopContext } from '../config/schema.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
 import { ProjectConfigLoader } from '../config/project-config-loader.js';
@@ -144,11 +144,21 @@ export class PipelineRunner {
         console.log(`🔁 Loop iteration ${iterationCount}: Running pipeline '${pipelineName}'...`);
       }
 
+      // Build loop context for this iteration
+      const loopContext: LoopContext | undefined = loopEnabled && loopingConfig.enabled
+        ? {
+            enabled: true,
+            directories: loopingConfig.directories,
+            currentIteration: iterationCount,
+            maxIterations
+          }
+        : undefined;
+
       // Execute single pipeline
       lastState = await this._executeSinglePipeline(
         currentConfig,
         currentMetadata,
-        { interactive, notificationManager }
+        { interactive, notificationManager, loopContext }
       );
 
       // Emit state update for UI
@@ -347,19 +357,20 @@ export class PipelineRunner {
    */
   private async _executeSinglePipeline(
     config: PipelineConfig,
-    _metadata: PipelineMetadata | undefined, // Reserved for Part D (agent context injection)
+    _metadata: PipelineMetadata | undefined,
     options: {
       interactive: boolean;
       notificationManager?: NotificationManager;
+      loopContext?: LoopContext;
     }
   ): Promise<PipelineState> {
-    const { interactive } = options;
+    const { interactive, loopContext } = options;
     this.notificationManager = options.notificationManager;
 
     // Phase 1: Initialize pipeline
     const initResult = await this.initializer.initialize(
       config,
-      { interactive, notificationManager: this.notificationManager },
+      { interactive, notificationManager: this.notificationManager, loopContext },
       this.notify.bind(this),
       this.notifyStateChange.bind(this)
     );

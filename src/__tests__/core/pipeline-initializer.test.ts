@@ -220,7 +220,8 @@ describe('PipelineInitializer', () => {
         mockGitManager,
         false,
         result.state.runId,
-        '/test/repo'
+        '/test/repo',
+        undefined  // loopContext (not provided in this test)
       );
       expect(result.stageExecutor).toBe(stageExecutorMock.mock.instances[0]);
 

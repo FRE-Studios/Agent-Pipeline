@@ -19,6 +19,13 @@ export interface PipelineMetadata {
   loadedAt: string;                // ISO timestamp
 }
 
+export interface LoopContext {
+  enabled: boolean;
+  directories: LoopingConfig['directories'];
+  currentIteration?: number;
+  maxIterations?: number;
+}
+
 export interface GitConfig {
   baseBranch?: string;                    // Branch to PR into (default: 'main')
   branchStrategy?: 'reusable' | 'unique-per-run'; // Branch naming strategy (default: 'reusable')
@@ -132,6 +139,15 @@ export interface PipelineState {
       number: number;
       branch: string;
     };
+  };
+
+  // Loop context (for UI/observability when running in loop mode)
+  loopContext?: {
+    enabled: boolean;
+    currentIteration: number;           // 1-indexed
+    maxIterations: number;
+    loopSessionId: string;              // UUID (generated in Part F)
+    pipelineSource: 'library' | 'loop-pending';
   };
 }
 
