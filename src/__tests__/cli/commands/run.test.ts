@@ -64,7 +64,7 @@ describe('runCommand', () => {
   describe('Basic Execution', () => {
     it('should load pipeline configuration', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -80,7 +80,7 @@ describe('runCommand', () => {
 
     it('should validate pipeline before running', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -95,7 +95,7 @@ describe('runCommand', () => {
 
     it('should exit with code 1 when validation fails', async () => {
       const config = { name: 'invalid-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(false);
 
       await expect(
@@ -108,7 +108,7 @@ describe('runCommand', () => {
 
     it('should create PipelineRunner with correct parameters', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -123,7 +123,7 @@ describe('runCommand', () => {
 
     it('should run pipeline with config', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -145,7 +145,7 @@ describe('runCommand', () => {
         agents: [],
         notifications: { enabled: true },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -172,7 +172,7 @@ describe('runCommand', () => {
           pullRequest: { autoCreate: true },
         },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -203,7 +203,7 @@ describe('runCommand', () => {
           baseBranch: 'main',
         },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -232,7 +232,7 @@ describe('runCommand', () => {
           pullRequest: { draft: false },
         },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -263,7 +263,7 @@ describe('runCommand', () => {
           pullRequest: {},
         },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -287,7 +287,7 @@ describe('runCommand', () => {
 
     it('should enable dry-run mode when --dry-run flag set', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -311,7 +311,7 @@ describe('runCommand', () => {
           pullRequest: { autoCreate: true, draft: false },
         },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -347,7 +347,7 @@ describe('runCommand', () => {
   describe('Interactive Mode', () => {
     it('should run in interactive mode by default', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -363,7 +363,7 @@ describe('runCommand', () => {
 
     it('should disable interactive mode when --no-interactive flag set', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -379,7 +379,7 @@ describe('runCommand', () => {
 
     it('should render UI when interactive mode is enabled', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -394,7 +394,7 @@ describe('runCommand', () => {
 
     it('should register onStateChange callback when UI is rendered', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -412,7 +412,7 @@ describe('runCommand', () => {
 
     it('should unmount UI after pipeline completes', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -430,7 +430,7 @@ describe('runCommand', () => {
 
     it('should unmount UI on error', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockRejectedValue(new Error('Pipeline failed'));
 
@@ -450,7 +450,7 @@ describe('runCommand', () => {
   describe('Exit Codes', () => {
     it('should exit with code 0 when pipeline completes successfully', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -463,7 +463,7 @@ describe('runCommand', () => {
 
     it('should exit with code 1 when pipeline fails', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'failed' });
 
@@ -476,7 +476,7 @@ describe('runCommand', () => {
 
     it('should exit with code 1 when validation fails', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(false);
 
       await expect(
@@ -488,7 +488,7 @@ describe('runCommand', () => {
 
     it('should exit with code 1 for partial pipeline completion', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'partial' });
 
@@ -514,7 +514,7 @@ describe('runCommand', () => {
 
     it('should handle runner errors and unmount UI', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockRejectedValue(new Error('Runner error'));
 
@@ -530,7 +530,7 @@ describe('runCommand', () => {
 
     it('should propagate errors after cleanup', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockRejectedValue(new Error('Custom error'));
 
@@ -543,7 +543,7 @@ describe('runCommand', () => {
 
     it('should handle validation errors', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockRejectedValue(new Error('Validation error'));
 
       await expect(
@@ -560,7 +560,7 @@ describe('runCommand', () => {
         agents: [],
         // No git config
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -581,7 +581,7 @@ describe('runCommand', () => {
         agents: [],
         // No notifications
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -606,7 +606,7 @@ describe('runCommand', () => {
         agents: [],
         git: {},
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -623,7 +623,7 @@ describe('runCommand', () => {
     it('should handle very long pipeline names', async () => {
       const longName = 'very-long-pipeline-name-that-might-cause-issues';
       const config = { name: longName, trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -650,7 +650,7 @@ describe('runCommand', () => {
           pullRequest: { autoCreate: true },
         },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -673,7 +673,7 @@ describe('runCommand', () => {
     it('should work with different repository paths', async () => {
       const customPath = '/custom/repo/path';
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
@@ -698,7 +698,7 @@ describe('runCommand', () => {
         },
         notifications: { enabled: true },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 

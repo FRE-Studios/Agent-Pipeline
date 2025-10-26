@@ -28,22 +28,27 @@ describe('PipelineLoader', () => {
       const configPath = path.join(pipelinesDir, 'test-pipeline.yml');
       await fs.writeFile(configPath, YAML.stringify(simplePipelineConfig), 'utf-8');
 
-      const loaded = await loader.loadPipeline('test-pipeline');
+      const { config, metadata } = await loader.loadPipeline('test-pipeline');
 
-      expect(loaded.name).toBe(simplePipelineConfig.name);
-      expect(loaded.trigger).toBe(simplePipelineConfig.trigger);
-      expect(loaded.agents).toHaveLength(simplePipelineConfig.agents.length);
+      expect(config.name).toBe(simplePipelineConfig.name);
+      expect(config.trigger).toBe(simplePipelineConfig.trigger);
+      expect(config.agents).toHaveLength(simplePipelineConfig.agents.length);
+
+      expect(metadata.sourceType).toBe('library');
+      expect(metadata.sourcePath).toBe(configPath);
+      expect(metadata.loadedAt).toBeDefined();
     });
 
     it('should load pipeline with all properties', async () => {
       const configPath = path.join(pipelinesDir, 'parallel-test.yml');
       await fs.writeFile(configPath, YAML.stringify(parallelPipelineConfig), 'utf-8');
 
-      const loaded = await loader.loadPipeline('parallel-test');
+      const { config, metadata } = await loader.loadPipeline('parallel-test');
 
-      expect(loaded.name).toBe(parallelPipelineConfig.name);
-      expect(loaded.agents).toHaveLength(4);
-      expect(loaded.settings?.executionMode).toBe('parallel');
+      expect(config.name).toBe(parallelPipelineConfig.name);
+      expect(config.agents).toHaveLength(4);
+      expect(config.settings?.executionMode).toBe('parallel');
+      expect(metadata.sourceType).toBe('library');
     });
 
     it('should throw error for non-existent pipeline', async () => {
@@ -104,10 +109,10 @@ describe('PipelineLoader', () => {
       const configPath = path.join(pipelinesDir, 'complex.yml');
       await fs.writeFile(configPath, YAML.stringify(complexConfig), 'utf-8');
 
-      const loaded = await loader.loadPipeline('complex');
+      const { config } = await loader.loadPipeline('complex');
 
-      expect(loaded.agents[1].dependsOn).toEqual(['stage-1']);
-      expect(loaded.agents[2].dependsOn).toEqual(['stage-1', 'stage-2']);
+      expect(config.agents[1].dependsOn).toEqual(['stage-1']);
+      expect(config.agents[2].dependsOn).toEqual(['stage-1', 'stage-2']);
     });
 
     it('should handle pipeline with conditional stages', async () => {
@@ -128,9 +133,9 @@ describe('PipelineLoader', () => {
       const configPath = path.join(pipelinesDir, 'conditional.yml');
       await fs.writeFile(configPath, YAML.stringify(conditionalConfig), 'utf-8');
 
-      const loaded = await loader.loadPipeline('conditional');
+      const { config } = await loader.loadPipeline('conditional');
 
-      expect(loaded.agents[1].condition).toBe('{{ stages.review.outputs.issues > 0 }}');
+      expect(config.agents[1].condition).toBe('{{ stages.review.outputs.issues > 0 }}');
     });
 
     it('should handle pipeline with retry configuration', async () => {
@@ -154,11 +159,11 @@ describe('PipelineLoader', () => {
       const configPath = path.join(pipelinesDir, 'retry.yml');
       await fs.writeFile(configPath, YAML.stringify(retryConfig), 'utf-8');
 
-      const loaded = await loader.loadPipeline('retry');
+      const { config } = await loader.loadPipeline('retry');
 
-      expect(loaded.agents[0].retry).toBeDefined();
-      expect(loaded.agents[0].retry?.maxAttempts).toBe(3);
-      expect(loaded.agents[0].retry?.backoff).toBe('exponential');
+      expect(config.agents[0].retry).toBeDefined();
+      expect(config.agents[0].retry?.maxAttempts).toBe(3);
+      expect(config.agents[0].retry?.backoff).toBe('exponential');
     });
 
     it('should handle pipeline with git configuration', async () => {
@@ -182,11 +187,11 @@ describe('PipelineLoader', () => {
       const configPath = path.join(pipelinesDir, 'git-workflow.yml');
       await fs.writeFile(configPath, YAML.stringify(gitConfig), 'utf-8');
 
-      const loaded = await loader.loadPipeline('git-workflow');
+      const { config } = await loader.loadPipeline('git-workflow');
 
-      expect(loaded.git).toBeDefined();
-      expect(loaded.git?.baseBranch).toBe('main');
-      expect(loaded.git?.pullRequest?.autoCreate).toBe(true);
+      expect(config.git).toBeDefined();
+      expect(config.git?.baseBranch).toBe('main');
+      expect(config.git?.pullRequest?.autoCreate).toBe(true);
     });
 
     it('should handle pipeline with notifications', async () => {
@@ -215,11 +220,11 @@ describe('PipelineLoader', () => {
       const configPath = path.join(pipelinesDir, 'with-notifications.yml');
       await fs.writeFile(configPath, YAML.stringify(notificationConfig), 'utf-8');
 
-      const loaded = await loader.loadPipeline('with-notifications');
+      const { config } = await loader.loadPipeline('with-notifications');
 
-      expect(loaded.notifications).toBeDefined();
-      expect(loaded.notifications?.enabled).toBe(true);
-      expect(loaded.notifications?.channels?.slack?.webhookUrl).toBe('https://hooks.slack.com/test');
+      expect(config.notifications).toBeDefined();
+      expect(config.notifications?.enabled).toBe(true);
+      expect(config.notifications?.channels?.slack?.webhookUrl).toBe('https://hooks.slack.com/test');
     });
 
     it('should handle pipeline with context reduction configuration', async () => {
@@ -249,16 +254,16 @@ describe('PipelineLoader', () => {
       const configPath = path.join(pipelinesDir, 'with-context-reduction.yml');
       await fs.writeFile(configPath, YAML.stringify(contextReductionConfig), 'utf-8');
 
-      const loaded = await loader.loadPipeline('with-context-reduction');
+      const { config } = await loader.loadPipeline('with-context-reduction');
 
-      expect(loaded.settings?.contextReduction).toBeDefined();
-      expect(loaded.settings?.contextReduction?.enabled).toBe(true);
-      expect(loaded.settings?.contextReduction?.maxTokens).toBe(50000);
-      expect(loaded.settings?.contextReduction?.strategy).toBe('summary-based');
-      expect(loaded.settings?.contextReduction?.contextWindow).toBe(3);
-      expect(loaded.settings?.contextReduction?.requireSummary).toBe(true);
-      expect(loaded.settings?.contextReduction?.saveVerboseOutputs).toBe(true);
-      expect(loaded.settings?.contextReduction?.compressFileList).toBe(true);
+      expect(config.settings?.contextReduction).toBeDefined();
+      expect(config.settings?.contextReduction?.enabled).toBe(true);
+      expect(config.settings?.contextReduction?.maxTokens).toBe(50000);
+      expect(config.settings?.contextReduction?.strategy).toBe('summary-based');
+      expect(config.settings?.contextReduction?.contextWindow).toBe(3);
+      expect(config.settings?.contextReduction?.requireSummary).toBe(true);
+      expect(config.settings?.contextReduction?.saveVerboseOutputs).toBe(true);
+      expect(config.settings?.contextReduction?.compressFileList).toBe(true);
     });
 
     it('should handle pipeline with agent-based context reduction', async () => {
@@ -286,12 +291,12 @@ describe('PipelineLoader', () => {
       const configPath = path.join(pipelinesDir, 'agent-based-reduction.yml');
       await fs.writeFile(configPath, YAML.stringify(agentBasedConfig), 'utf-8');
 
-      const loaded = await loader.loadPipeline('agent-based-reduction');
+      const { config } = await loader.loadPipeline('agent-based-reduction');
 
-      expect(loaded.settings?.contextReduction).toBeDefined();
-      expect(loaded.settings?.contextReduction?.strategy).toBe('agent-based');
-      expect(loaded.settings?.contextReduction?.agentPath).toBe('.claude/agents/context-reducer.md');
-      expect(loaded.settings?.contextReduction?.triggerThreshold).toBe(45000);
+      expect(config.settings?.contextReduction).toBeDefined();
+      expect(config.settings?.contextReduction?.strategy).toBe('agent-based');
+      expect(config.settings?.contextReduction?.agentPath).toBe('.claude/agents/context-reducer.md');
+      expect(config.settings?.contextReduction?.triggerThreshold).toBe(45000);
     });
   });
 
@@ -388,12 +393,12 @@ describe('PipelineLoader', () => {
       const configPath = path.join(pipelinesDir, `${longName}.yml`);
       await fs.writeFile(configPath, YAML.stringify(simplePipelineConfig), 'utf-8');
 
-      const loaded = await loader.loadPipeline(longName);
-      expect(loaded).toBeDefined();
+      const { config } = await loader.loadPipeline(longName);
+      expect(config).toBeDefined();
     });
 
     it('should handle pipeline with unicode characters', async () => {
-      const config = {
+      const testConfig = {
         name: 'unicode-test-🚀',
         trigger: 'manual',
         agents: [
@@ -402,10 +407,10 @@ describe('PipelineLoader', () => {
       };
 
       const configPath = path.join(pipelinesDir, 'unicode.yml');
-      await fs.writeFile(configPath, YAML.stringify(config), 'utf-8');
+      await fs.writeFile(configPath, YAML.stringify(testConfig), 'utf-8');
 
-      const loaded = await loader.loadPipeline('unicode');
-      expect(loaded.name).toBe('unicode-test-🚀');
+      const { config } = await loader.loadPipeline('unicode');
+      expect(config.name).toBe('unicode-test-🚀');
     });
 
     it('should handle empty YAML file', async () => {
@@ -432,9 +437,9 @@ agents:
       const configPath = path.join(pipelinesDir, 'commented.yml');
       await fs.writeFile(configPath, yamlWithComments, 'utf-8');
 
-      const loaded = await loader.loadPipeline('commented');
-      expect(loaded.name).toBe('commented-pipeline');
-      expect(loaded.agents).toHaveLength(1);
+      const { config } = await loader.loadPipeline('commented');
+      expect(config.name).toBe('commented-pipeline');
+      expect(config.agents).toHaveLength(1);
     });
 
     it('should handle concurrent pipeline loads', async () => {
@@ -444,13 +449,13 @@ agents:
       await fs.writeFile(configPath1, YAML.stringify({ ...simplePipelineConfig, name: 'concurrent1' }), 'utf-8');
       await fs.writeFile(configPath2, YAML.stringify({ ...parallelPipelineConfig, name: 'concurrent2' }), 'utf-8');
 
-      const [loaded1, loaded2] = await Promise.all([
+      const [result1, result2] = await Promise.all([
         loader.loadPipeline('concurrent1'),
         loader.loadPipeline('concurrent2'),
       ]);
 
-      expect(loaded1.name).toBe('concurrent1');
-      expect(loaded2.name).toBe('concurrent2');
+      expect(result1.config.name).toBe('concurrent1');
+      expect(result2.config.name).toBe('concurrent2');
     });
 
     it('should preserve agent order from YAML', async () => {
@@ -467,11 +472,173 @@ agents:
       const configPath = path.join(pipelinesDir, 'ordered.yml');
       await fs.writeFile(configPath, YAML.stringify(orderedConfig), 'utf-8');
 
-      const loaded = await loader.loadPipeline('ordered');
+      const { config } = await loader.loadPipeline('ordered');
 
-      expect(loaded.agents[0].name).toBe('first');
-      expect(loaded.agents[1].name).toBe('second');
-      expect(loaded.agents[2].name).toBe('third');
+      expect(config.agents[0].name).toBe('first');
+      expect(config.agents[1].name).toBe('second');
+      expect(config.agents[2].name).toBe('third');
+    });
+  });
+
+  describe('loadPipelineFromPath', () => {
+    it('should load pipeline from absolute path', async () => {
+      const externalDir = path.join(tempDir, 'external');
+      await fs.mkdir(externalDir, { recursive: true });
+
+      const configPath = path.join(externalDir, 'external-pipeline.yml');
+      await fs.writeFile(configPath, YAML.stringify(simplePipelineConfig), 'utf-8');
+
+      const { config, metadata } = await loader.loadPipelineFromPath(configPath);
+
+      expect(config.name).toBe(simplePipelineConfig.name);
+      expect(config.agents).toHaveLength(simplePipelineConfig.agents.length);
+      expect(metadata.sourceType).toBe('loop-pending');
+      expect(metadata.sourcePath).toBe(path.resolve(configPath));
+      expect(metadata.loadedAt).toBeDefined();
+    });
+
+    it('should load pipeline from relative path', async () => {
+      const externalDir = path.join(tempDir, 'external');
+      await fs.mkdir(externalDir, { recursive: true });
+
+      const configPath = path.join(externalDir, 'relative-pipeline.yml');
+      await fs.writeFile(configPath, YAML.stringify(simplePipelineConfig), 'utf-8');
+
+      // Use relative path
+      const relativePath = path.relative(process.cwd(), configPath);
+      const { config, metadata } = await loader.loadPipelineFromPath(relativePath);
+
+      expect(config.name).toBe(simplePipelineConfig.name);
+      expect(metadata.sourceType).toBe('loop-pending');
+      expect(path.isAbsolute(metadata.sourcePath)).toBe(true);
+    });
+
+    it('should load pipeline from outside .agent-pipeline directory', async () => {
+      const outsideDir = path.join(tempDir, 'somewhere-else', 'pipelines');
+      await fs.mkdir(outsideDir, { recursive: true });
+
+      const configPath = path.join(outsideDir, 'outside-pipeline.yml');
+      await fs.writeFile(configPath, YAML.stringify(parallelPipelineConfig), 'utf-8');
+
+      const { config, metadata } = await loader.loadPipelineFromPath(configPath);
+
+      expect(config.name).toBe(parallelPipelineConfig.name);
+      expect(metadata.sourceType).toBe('loop-pending');
+      expect(metadata.sourcePath).toContain('somewhere-else');
+    });
+
+    it('should throw error for non-existent file', async () => {
+      const nonExistentPath = path.join(tempDir, 'does-not-exist.yml');
+
+      await expect(loader.loadPipelineFromPath(nonExistentPath))
+        .rejects
+        .toThrow('Pipeline file not found');
+    });
+
+    it('should validate required fields from path-loaded pipeline', async () => {
+      const invalidConfig = {
+        // Missing required fields
+        trigger: 'manual',
+      };
+
+      const configPath = path.join(tempDir, 'invalid-from-path.yml');
+      await fs.writeFile(configPath, YAML.stringify(invalidConfig), 'utf-8');
+
+      await expect(loader.loadPipelineFromPath(configPath))
+        .rejects
+        .toThrow('Invalid pipeline configuration: missing required fields');
+    });
+
+    it('should handle malformed YAML from path', async () => {
+      const configPath = path.join(tempDir, 'malformed.yml');
+      await fs.writeFile(configPath, 'invalid: yaml: content:', 'utf-8');
+
+      await expect(loader.loadPipelineFromPath(configPath))
+        .rejects
+        .toThrow();
+    });
+
+    it('should return different metadata sourceType than loadPipeline', async () => {
+      // Load from library
+      const libraryPath = path.join(pipelinesDir, 'library-test.yml');
+      await fs.writeFile(libraryPath, YAML.stringify(simplePipelineConfig), 'utf-8');
+      const libraryResult = await loader.loadPipeline('library-test');
+
+      // Load from path
+      const externalPath = path.join(tempDir, 'path-test.yml');
+      await fs.writeFile(externalPath, YAML.stringify(simplePipelineConfig), 'utf-8');
+      const pathResult = await loader.loadPipelineFromPath(externalPath);
+
+      expect(libraryResult.metadata.sourceType).toBe('library');
+      expect(pathResult.metadata.sourceType).toBe('loop-pending');
+    });
+
+    it('should handle concurrent loads from different paths', async () => {
+      const path1 = path.join(tempDir, 'concurrent-path-1.yml');
+      const path2 = path.join(tempDir, 'concurrent-path-2.yml');
+
+      await fs.writeFile(path1, YAML.stringify({ ...simplePipelineConfig, name: 'concurrent1' }), 'utf-8');
+      await fs.writeFile(path2, YAML.stringify({ ...parallelPipelineConfig, name: 'concurrent2' }), 'utf-8');
+
+      const [result1, result2] = await Promise.all([
+        loader.loadPipelineFromPath(path1),
+        loader.loadPipelineFromPath(path2),
+      ]);
+
+      expect(result1.config.name).toBe('concurrent1');
+      expect(result2.config.name).toBe('concurrent2');
+      expect(result1.metadata.sourcePath).toBe(path.resolve(path1));
+      expect(result2.metadata.sourcePath).toBe(path.resolve(path2));
+    });
+
+    it('should include timestamp in metadata', async () => {
+      const configPath = path.join(tempDir, 'timestamped.yml');
+      await fs.writeFile(configPath, YAML.stringify(simplePipelineConfig), 'utf-8');
+
+      const before = new Date().toISOString();
+      const { metadata } = await loader.loadPipelineFromPath(configPath);
+      const after = new Date().toISOString();
+
+      expect(metadata.loadedAt).toBeDefined();
+      expect(metadata.loadedAt >= before).toBe(true);
+      expect(metadata.loadedAt <= after).toBe(true);
+    });
+
+    it('should handle pipeline with all features from path', async () => {
+      const complexConfig = {
+        name: 'complex-from-path',
+        trigger: 'manual',
+        git: {
+          baseBranch: 'main',
+          branchStrategy: 'unique-per-run',
+        },
+        notifications: {
+          enabled: true,
+          events: ['pipeline.completed'],
+        },
+        settings: {
+          autoCommit: true,
+          commitPrefix: '[loop]',
+          failureStrategy: 'stop',
+          preserveWorkingTree: false,
+        },
+        agents: [
+          { name: 'stage-1', agent: 'agent1.md' },
+          { name: 'stage-2', agent: 'agent2.md', dependsOn: ['stage-1'] },
+        ],
+      };
+
+      const configPath = path.join(tempDir, 'complex-from-path.yml');
+      await fs.writeFile(configPath, YAML.stringify(complexConfig), 'utf-8');
+
+      const { config, metadata } = await loader.loadPipelineFromPath(configPath);
+
+      expect(config.name).toBe('complex-from-path');
+      expect(config.git).toBeDefined();
+      expect(config.notifications).toBeDefined();
+      expect(config.settings).toBeDefined();
+      expect(config.agents).toHaveLength(2);
+      expect(metadata.sourceType).toBe('loop-pending');
     });
   });
 });

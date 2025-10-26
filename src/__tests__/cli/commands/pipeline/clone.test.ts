@@ -51,7 +51,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -70,7 +77,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -93,7 +107,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -116,7 +137,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -148,7 +176,14 @@ describe('clonePipelineCommand', () => {
           { name: 'agent2', agent: 'agent2.md' },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -173,7 +208,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -198,7 +240,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
 
       // Mock: first access (test-pipeline-clone) exists, second doesn't
       vi.mocked(fs.access)
@@ -226,7 +275,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
 
       // Mock: first 3 files exist, 4th doesn't
       vi.mocked(fs.access)
@@ -256,7 +312,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
 
       // Mock: custom-name exists, custom-name-1 doesn't
       vi.mocked(fs.access)
@@ -284,7 +347,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
 
       // Mock: clone exists, clone-1 doesn't
       vi.mocked(fs.access)
@@ -314,7 +384,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -333,7 +410,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -353,7 +437,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -389,7 +480,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockRejectedValue(new Error('Permission denied'));
 
@@ -421,7 +519,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -445,7 +550,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -486,7 +598,14 @@ describe('clonePipelineCommand', () => {
           { name: 'agent2', agent: 'agent2.md', dependsOn: ['agent1'] },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -516,7 +635,14 @@ describe('clonePipelineCommand', () => {
         trigger: 'manual',
         agents: [{ name: 'agent1', agent: 'agent1.md' }],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.access).mockRejectedValue(new Error('File not found'));
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 

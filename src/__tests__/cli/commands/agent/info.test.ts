@@ -61,13 +61,19 @@ describe('agentInfoCommand', () => {
       mockLoader.loadPipeline.mockImplementation((name: string) => {
         if (name === 'pipeline1') {
           return Promise.resolve({
-            name: 'pipeline1',
-            agents: [{ agent: '.claude/agents/reviewer.md' }],
+            config: {
+              name: 'pipeline1',
+              agents: [{ agent: '.claude/agents/reviewer.md' }],
+            },
+            metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() }
           });
         }
         return Promise.resolve({
-          name: 'pipeline2',
-          agents: [{ agent: '.claude/agents/other.md' }],
+          config: {
+            name: 'pipeline2',
+            agents: [{ agent: '.claude/agents/other.md' }],
+          },
+          metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() }
         });
       });
 
@@ -92,10 +98,10 @@ describe('agentInfoCommand', () => {
 
       mockLoader.listPipelines.mockResolvedValue(['p1', 'p2', 'p3']);
       mockLoader.loadPipeline.mockImplementation((name: string) => {
-        return Promise.resolve({
+        return Promise.resolve({ config: {
           name,
           agents: [{ agent: '.claude/agents/popular.md' }],
-        });
+        }, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       });
 
       await agentInfoCommand(tempDir, 'popular');
@@ -147,8 +153,15 @@ describe('agentInfoCommand', () => {
 
       mockLoader.listPipelines.mockResolvedValue(['test-pipeline']);
       mockLoader.loadPipeline.mockResolvedValue({
-        name: 'test-pipeline',
-        agents: [{ agent: '.claude/agents/agent.md' }],
+        config: {
+          name: 'test-pipeline',
+          agents: [{ agent: '.claude/agents/agent.md' }],
+        },
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
       });
 
       await agentInfoCommand(tempDir, 'agent');
@@ -161,8 +174,15 @@ describe('agentInfoCommand', () => {
 
       mockLoader.listPipelines.mockResolvedValue(['test-pipeline']);
       mockLoader.loadPipeline.mockResolvedValue({
-        name: 'test-pipeline',
-        agents: [{ agent: 'agent' }],
+        config: {
+          name: 'test-pipeline',
+          agents: [{ agent: 'agent' }],
+        },
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
       });
 
       await agentInfoCommand(tempDir, 'agent');
@@ -177,8 +197,15 @@ describe('agentInfoCommand', () => {
       mockLoader.loadPipeline.mockImplementation((name: string) => {
         if (name === 'valid') {
           return Promise.resolve({
-            name: 'valid',
-            agents: [{ agent: '.claude/agents/agent.md' }],
+            config: {
+              name: 'valid',
+              agents: [{ agent: '.claude/agents/agent.md' }],
+            },
+            metadata: {
+              sourcePath: "/test/path.yml",
+              sourceType: "library" as const,
+              loadedAt: new Date().toISOString()
+            }
           });
         }
         return Promise.reject(new Error('Invalid pipeline'));
@@ -334,10 +361,10 @@ describe('agentInfoCommand', () => {
       const pipelines = Array.from({ length: 20 }, (_, i) => `pipeline-${i}`);
       mockLoader.listPipelines.mockResolvedValue(pipelines);
       mockLoader.loadPipeline.mockImplementation((name: string) => {
-        return Promise.resolve({
+        return Promise.resolve({ config: {
           name,
           agents: [{ agent: '.claude/agents/popular.md' }],
-        });
+        }, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       });
 
       await agentInfoCommand(tempDir, 'popular');
@@ -362,8 +389,15 @@ describe('agentInfoCommand', () => {
 
       mockLoader.listPipelines.mockResolvedValue(['pipeline1']);
       mockLoader.loadPipeline.mockResolvedValue({
-        name: 'pipeline1',
-        agents: [{ agent: '.claude/agents/test-agent.md' }],
+        config: {
+          name: 'pipeline1',
+          agents: [{ agent: '.claude/agents/test-agent.md' }],
+        },
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
       });
 
       await agentInfoCommand(tempDir, 'test-agent');

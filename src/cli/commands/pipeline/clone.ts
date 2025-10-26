@@ -13,7 +13,7 @@ export async function clonePipelineCommand(
   try {
     // Load source pipeline
     const loader = new PipelineLoader(repoPath);
-    const sourceConfig = await loader.loadPipeline(sourceName);
+    const { config: sourceConfig } = await loader.loadPipeline(sourceName);
 
     // Determine destination name
     let targetName = destName || `${sourceName}-clone`;

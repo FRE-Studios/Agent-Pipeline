@@ -52,7 +52,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [{ name: 'agent1', agent: 'agent1.md' }],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
 
@@ -74,7 +81,14 @@ describe('deletePipelineCommand', () => {
           { name: 'agent2', agent: 'agent2.md' },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
 
@@ -94,7 +108,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
 
@@ -116,7 +137,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
 
@@ -137,7 +165,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
 
@@ -156,7 +191,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValue(false);
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
 
@@ -174,7 +216,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValue(false); // For log deletion
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
 
@@ -195,7 +244,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValue(false);
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
 
@@ -218,7 +274,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
       vi.mocked(fs.readdir).mockResolvedValue([]);
@@ -241,7 +304,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValue(true); // For delete confirmation
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
       vi.mocked(fs.readdir).mockResolvedValue(['run1.json', 'run2.json'] as any);
@@ -266,7 +336,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValue(true); // For delete confirmation
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
       vi.mocked(fs.readdir).mockResolvedValue(['run1.json', 'run2.json', 'run3.json'] as any);
@@ -293,7 +370,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValue(true); // For delete confirmation
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
       vi.mocked(fs.readdir).mockResolvedValue(['run1.json', 'run2.json'] as any);
@@ -316,7 +400,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
 
@@ -336,7 +427,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValueOnce(true).mockResolvedValueOnce(true);
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
       vi.mocked(fs.readdir).mockRejectedValue(new Error('Directory not found'));
@@ -359,7 +457,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValue(true); // For delete confirmation
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
       vi.mocked(fs.readdir).mockResolvedValue(['run1.json', '.DS_Store', 'readme.txt'] as any);
@@ -383,7 +488,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValue(true); // For delete confirmation
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
       vi.mocked(fs.readdir).mockResolvedValue(['corrupted.json'] as any);
@@ -422,7 +534,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValue(true);
       vi.mocked(fs.unlink).mockRejectedValue(new Error('Permission denied'));
 
@@ -453,7 +572,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
       vi.mocked(fs.readdir).mockResolvedValue(['run1.json'] as any);
       vi.mocked(fs.readFile).mockResolvedValue(
@@ -485,7 +611,14 @@ describe('deletePipelineCommand', () => {
         trigger: 'post-commit',
         agents: [{ name: 'agent1', agent: 'agent1.md' }],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(InteractivePrompts.confirm).mockResolvedValueOnce(true).mockResolvedValueOnce(true);
       vi.mocked(fs.unlink).mockResolvedValue(undefined);
       vi.mocked(fs.readdir).mockResolvedValue([]);

@@ -33,7 +33,7 @@ export async function agentInfoCommand(
 
     for (const pipelineName of allPipelines) {
       try {
-        const config = await loader.loadPipeline(pipelineName);
+        const { config } = await loader.loadPipeline(pipelineName);
         const agentFile = path.basename(agentPath);
         const isUsed = config.agents.some(a =>
           a.agent.endsWith(agentFile) ||

@@ -120,3 +120,6 @@ Tests use Vitest with extensive mocking:
 - `unique-per-run` - Unique branch per run (`pipeline/commit-review-{runId}`)
 
 **Dry Run Mode**: When enabled, skip all git commits but execute agents. Useful for testing pipelines.
+
+## Development Flow
+When planning new features or fixes, if you notice the changes will require a large refactoring, only do a detailed plan of the first phase of required changes and ask user for review before the next phases. 

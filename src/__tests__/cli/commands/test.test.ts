@@ -55,7 +55,7 @@ describe('testCommand', () => {
           },
         },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockNotificationManager.test.mockResolvedValue(undefined);
 
       await testCommand(tempDir, 'test-pipeline', { notifications: true });
@@ -72,7 +72,7 @@ describe('testCommand', () => {
         agents: [],
         // No notifications config
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
 
       await expect(
         testCommand(tempDir, 'test-pipeline', { notifications: true })
@@ -89,7 +89,7 @@ describe('testCommand', () => {
         agents: [],
         notifications: undefined,
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
 
       await expect(
         testCommand(tempDir, 'test-pipeline', { notifications: true })
@@ -105,7 +105,7 @@ describe('testCommand', () => {
         agents: [],
         notifications: null,
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
 
       await expect(
         testCommand(tempDir, 'test-pipeline', { notifications: true })
@@ -129,7 +129,7 @@ describe('testCommand', () => {
         agents: [],
         notifications: notificationConfig,
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockNotificationManager.test.mockResolvedValue(undefined);
 
       await testCommand(tempDir, 'test-pipeline', { notifications: true });
@@ -177,7 +177,7 @@ describe('testCommand', () => {
         agents: [],
         notifications: { enabled: true, events: [], channels: {} },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockNotificationManager.test.mockResolvedValue(undefined);
 
       await testCommand(tempDir, 'my-pipeline', { notifications: true });
@@ -220,7 +220,7 @@ describe('testCommand', () => {
         agents: [],
         notifications: notificationConfig,
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockNotificationManager.test.mockResolvedValue(undefined);
 
       await testCommand(tempDir, 'test-pipeline', { notifications: true });
@@ -235,7 +235,7 @@ describe('testCommand', () => {
         agents: [],
         notifications: { enabled: true, events: [], channels: {} },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockNotificationManager.test.mockRejectedValue(new Error('Slack webhook failed'));
 
       await expect(
@@ -262,7 +262,7 @@ describe('testCommand', () => {
         agents: [],
         notifications: notificationConfig,
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockNotificationManager.test.mockResolvedValue(undefined);
 
       await testCommand(tempDir, 'test-pipeline', { notifications: true });
@@ -279,7 +279,7 @@ describe('testCommand', () => {
         agents: [],
         notifications: {},
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockNotificationManager.test.mockResolvedValue(undefined);
 
       // Empty object is truthy, so it should not exit
@@ -303,7 +303,7 @@ describe('testCommand', () => {
           },
         },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockNotificationManager.test.mockResolvedValue(undefined);
 
       await testCommand(tempDir, 'test-pipeline', { notifications: true });
@@ -319,7 +319,7 @@ describe('testCommand', () => {
         agents: [],
         notifications: { enabled: true, events: [], channels: {} },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockNotificationManager.test.mockResolvedValue(undefined);
 
       await testCommand(tempDir, longName, { notifications: true });
@@ -335,7 +335,7 @@ describe('testCommand', () => {
         agents: [],
         notifications: { enabled: true, events: [], channels: {} },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockNotificationManager.test.mockResolvedValue(undefined);
 
       await testCommand(tempDir, specialName, { notifications: true });
@@ -358,7 +358,7 @@ describe('testCommand', () => {
           },
         },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockNotificationManager.test.mockResolvedValue(undefined);
 
       await testCommand(tempDir, 'test-pipeline', { notifications: true });
@@ -376,7 +376,7 @@ describe('testCommand', () => {
         agents: [],
         notifications: null,
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
 
       await expect(
         testCommand(tempDir, 'test-pipeline', { notifications: true })
@@ -394,7 +394,7 @@ describe('testCommand', () => {
         agents: [],
         notifications: { enabled: true, events: [], channels: {} },
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockNotificationManager.test.mockResolvedValue(undefined);
 
       await testCommand(customPath, 'test-pipeline', { notifications: true });

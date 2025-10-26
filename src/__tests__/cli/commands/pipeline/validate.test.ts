@@ -49,7 +49,14 @@ describe('validatePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(PipelineValidator.validateAndReport).mockResolvedValue(true);
 
       try {
@@ -67,7 +74,14 @@ describe('validatePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(PipelineValidator.validateAndReport).mockResolvedValue(true);
 
       try {
@@ -85,7 +99,14 @@ describe('validatePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(PipelineValidator.validateAndReport).mockResolvedValue(true);
 
       try {
@@ -105,7 +126,14 @@ describe('validatePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(PipelineValidator.validateAndReport).mockResolvedValue(true);
 
       try {
@@ -123,7 +151,14 @@ describe('validatePipelineCommand', () => {
         trigger: 'invalid-trigger',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(PipelineValidator.validateAndReport).mockResolvedValue(false);
 
       await expect(
@@ -141,7 +176,14 @@ describe('validatePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(PipelineValidator.validateAndReport).mockResolvedValue(true);
 
       try {
@@ -159,7 +201,14 @@ describe('validatePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(PipelineValidator.validateAndReport).mockResolvedValue(false);
 
       await expect(
@@ -190,7 +239,14 @@ describe('validatePipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(PipelineValidator.validateAndReport).mockRejectedValue(new Error('Validation crashed'));
 
       await expect(
@@ -219,7 +275,14 @@ describe('validatePipelineCommand', () => {
         trigger: 'post-commit',
         agents: [{ name: 'agent1', agent: 'agent1.md' }],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(PipelineValidator.validateAndReport).mockResolvedValue(true);
 
       try {
@@ -247,7 +310,14 @@ describe('validatePipelineCommand', () => {
           { name: 'agent2', agent: 'agent2.md', dependsOn: ['agent1'] },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(PipelineValidator.validateAndReport).mockResolvedValue(true);
 
       try {

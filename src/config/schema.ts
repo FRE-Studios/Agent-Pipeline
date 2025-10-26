@@ -2,6 +2,23 @@
 
 import { NotificationConfig } from '../notifications/types.js';
 
+export interface LoopingConfig {
+  enabled: boolean;
+  maxIterations?: number;  // Default: 100
+  directories: {
+    pending: string;    // Absolute paths
+    running: string;
+    finished: string;
+    failed: string;
+  };
+}
+
+export interface PipelineMetadata {
+  sourcePath: string;              // Absolute path to YAML file
+  sourceType: 'library' | 'loop-pending';
+  loadedAt: string;                // ISO timestamp
+}
+
 export interface GitConfig {
   baseBranch?: string;                    // Branch to PR into (default: 'main')
   branchStrategy?: 'reusable' | 'unique-per-run'; // Branch naming strategy (default: 'reusable')

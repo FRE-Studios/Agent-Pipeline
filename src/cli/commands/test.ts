@@ -14,7 +14,7 @@ export async function testCommand(
 ): Promise<void> {
   if (options.notifications) {
     const loader = new PipelineLoader(repoPath);
-    const config = await loader.loadPipeline(pipelineName);
+    const { config } = await loader.loadPipeline(pipelineName);
 
     if (!config.notifications) {
       console.log('❌ No notification configuration found in pipeline');

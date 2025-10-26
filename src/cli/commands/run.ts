@@ -23,7 +23,7 @@ export async function runCommand(
   options: RunOptions = {}
 ): Promise<void> {
   const loader = new PipelineLoader(repoPath);
-  const config = await loader.loadPipeline(pipelineName);
+  const { config } = await loader.loadPipeline(pipelineName);
 
   // Apply CLI flag overrides
   if (options.noNotifications) {

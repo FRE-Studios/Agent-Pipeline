@@ -11,7 +11,7 @@ export async function validatePipelineCommand(
     console.log(`\n📋 Validating pipeline: ${pipelineName}\n`);
 
     const loader = new PipelineLoader(repoPath);
-    const config = await loader.loadPipeline(pipelineName);
+    const { config } = await loader.loadPipeline(pipelineName);
 
     const isValid = await PipelineValidator.validateAndReport(config, repoPath);
 

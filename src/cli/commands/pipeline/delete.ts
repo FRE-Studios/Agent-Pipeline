@@ -18,7 +18,7 @@ export async function deletePipelineCommand(
   try {
     // Load pipeline to verify it exists and show details
     const loader = new PipelineLoader(repoPath);
-    const config = await loader.loadPipeline(pipelineName);
+    const { config } = await loader.loadPipeline(pipelineName);
 
     console.log(`\n🗑️  Delete Pipeline: ${pipelineName}\n`);
     console.log(`   Trigger: ${config.trigger}`);

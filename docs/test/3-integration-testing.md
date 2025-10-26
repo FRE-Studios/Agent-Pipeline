@@ -907,3 +907,103 @@ After implementing integration tests, manually verify:
 2. Add CONTRIBUTING.md with development guidelines
 3. Create CHANGELOG.md for version tracking
 4. Prepare for npm publication
+
+
+
+
+ Manual Test Plan
+
+  - Aim: Validate the first-time user journey for the pending open-source release using a clean local clone + npm link to
+    mimic a published package.
+
+  Environment Prep
+
+  - Baseline: Use Node.js 18.x (nvm install 18 && nvm use 18) and export CLAUDE_API_KEY=<token> before running the CLI so
+    agent stages can authenticate.
+  - Fresh Clone: From an empty folder run:
+
+    git clone https://github.com/FRE-Studios/agent-pipeline.git
+    cd agent-pipeline
+    npm install
+    npm run build
+    npm link
+    agent-pipeline --version
+    Expect version banner and no stack traces.
+  - Sandbox Workspace: In a separate directory create a scratch repo for manual tests so the example pipelines don’t
+    pollute the source tree:
+
+    mkdir ~/agent-pipeline-e2e && cd ~/agent-pipeline-e2e
+    git init
+    agent-pipeline init
+    Confirm .agent-pipeline/ and .claude/agents/ are scaffolded and git status shows the new files.
+  - Cleanup Afterward: When finished, npm unlink -g agent-pipeline && npm unlink inside the source repo to remove the
+    global link.
+
+  Core CLI Experience
+
+  - Help & Listing: Run agent-pipeline --help, agent-pipeline list, agent-pipeline status (before any run). Expect human-
+    readable help, example pipelines listed, and a friendly “no runs yet” message.
+  - Version Guardrail: On a Node 16 shell (via nvm use 16), run any command and confirm the CLI rejects unsupported
+    runtimes with a clear error, then switch back to 18.
+  - Agent Catalog: Execute agent-pipeline agent list and agent-pipeline agent info code-reviewer. Verify metadata matches
+    docs and the command exits cleanly.
+
+  Pipeline Execution
+
+  - Smoke Run: In the scratch repo, run:
+
+    agent-pipeline run test-pipeline
+    Expect Ink UI progress, two stage commits on a pipeline/test-pipeline branch, green summary, and state files
+    under .agent-pipeline/state.
+  - CLI Fallback: Re-run with agent-pipeline run test-pipeline --no-interactive and --dry-run to ensure non-TTY logging
+    works and no commits occur during dry-run.
+  - Parallel & Conditional: Run agent-pipeline run parallel-example and agent-pipeline run conditional-example. Confirm
+    concurrent stage rendering, retry logging, and conditional skips or triggers (e.g., “auto-fix skipped” vs. “celebrate
+    ran”).
+  - Notification Toggle: Run agent-pipeline run test-pipeline --no-notifications and ensure logs note notifications are
+    suppressed.
+
+  Git Workflow
+
+  - Branch Isolation: After each run, verify with git status and git branch that the tool created/updated pipeline/<name>
+    and switched back to the starter branch on completion.
+  - Commit Hygiene: Inspect the atomic commits (git log --oneline --decorate --graph) to confirm stage-specific prefixes
+    and messages.
+  - PR Integration: With gh installed, run agent-pipeline run git-workflow-example --pr-draft. Expect a draft PR attempt;
+    if credentials are missing, verify the CLI logs a graceful fallback. Repeat with --no-pr to ensure the override
+    suppresses PR creation.
+  - Cleanup & Rollback: Run agent-pipeline cleanup --force and agent-pipeline rollback --stages 1. Confirm branches are
+    removed or reset with confirmation prompts and no unintended HEAD resets.
+
+  State & History
+
+  - History Browser: Execute agent-pipeline history to launch the Ink UI; scroll through entries and exit without errors.
+  - Analytics: Run agent-pipeline analytics and agent-pipeline analytics --pipeline test-pipeline --days 7; check
+    summaries align with recent runs.
+  - State Files: Inspect .agent-pipeline/state/runs/<runId>.json and .agent-pipeline/outputs/<runId>/ to confirm outputs
+    and summaries are persisted and match the UI reports.
+
+  Notifications & Integrations
+
+  - Local Notifications: Trigger agent-pipeline test test-pipeline --notifications and verify desktop notifications (or
+    that a macOS/Linux notifier log appears).
+  - Slack Fallback: Temporarily unset SLACK_WEBHOOK_URL and run the same test; expect the CLI to warn but continue
+    without crashing.
+  - Git Hook Install: Run agent-pipeline install test-pipeline, confirm the appropriate git hook script appears, make a
+    dummy commit, and observe the hook calling the CLI asynchronously.
+
+  Error & Edge Cases
+
+  - Missing API Key: Unset CLAUDE_API_KEY and rerun agent-pipeline run test-pipeline; confirm a clear authentication
+    error and that the pipeline halts safely.
+  - Bad Pipeline Config: Edit a pipeline to reference a non-existent agent or introduce a DAG cycle, then run agent-
+    pipeline validate <pipeline> to ensure validator errors are descriptive.
+  - Filesystem Permissions: Temporarily make a stage output directory read-only and run a pipeline to confirm the CLI
+    reports the write failure and aborts gracefully.
+  - CLI Import/Export: Test agent-pipeline export test-pipeline --include-agents and then agent-pipeline import <file> in
+    a fresh workspace; verify parity between source and imported files.
+
+  Wrap-Up
+
+  - Remove the scratch repo or reset it, unlink the package, and capture notes on any confusing error messages or steps
+    that felt non-obvious for a first-time user.

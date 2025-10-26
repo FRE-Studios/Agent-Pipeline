@@ -48,7 +48,7 @@ describe('installCommand', () => {
         trigger: 'post-commit',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(tempDir, 'test-pipeline');
@@ -65,7 +65,7 @@ describe('installCommand', () => {
         trigger: 'pre-commit',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(tempDir, 'lint-pipeline');
@@ -79,7 +79,7 @@ describe('installCommand', () => {
         trigger: 'pre-push',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(tempDir, 'test-pipeline');
@@ -93,7 +93,7 @@ describe('installCommand', () => {
         trigger: 'post-merge',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(tempDir, 'cleanup-pipeline');
@@ -109,7 +109,7 @@ describe('installCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
 
       await expect(
         installCommand(tempDir, 'manual-pipeline')
@@ -126,7 +126,7 @@ describe('installCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
 
       try {
         await installCommand(tempDir, 'manual-pipeline');
@@ -143,7 +143,7 @@ describe('installCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
 
       await expect(
         installCommand(tempDir, 'manual-pipeline')
@@ -158,7 +158,7 @@ describe('installCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
 
       try {
         await installCommand(tempDir, 'my-manual-pipeline');
@@ -175,7 +175,7 @@ describe('installCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
 
       try {
         await installCommand(tempDir, 'manual-pipeline');
@@ -194,7 +194,7 @@ describe('installCommand', () => {
         trigger: 'post-commit',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(tempDir, 'my-pipeline');
@@ -227,7 +227,7 @@ describe('installCommand', () => {
         trigger: 'post-commit',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(customPath, 'test-pipeline');
@@ -243,7 +243,7 @@ describe('installCommand', () => {
         trigger: 'post-commit',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(tempDir, 'test-pipeline');
@@ -257,7 +257,7 @@ describe('installCommand', () => {
         trigger: 'pre-push',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(tempDir, 'review-pipeline');
@@ -271,7 +271,7 @@ describe('installCommand', () => {
         trigger: 'post-commit',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockRejectedValue(new Error('Failed to write hook file'));
 
       await expect(
@@ -285,7 +285,7 @@ describe('installCommand', () => {
         trigger: 'post-commit',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockRejectedValue(new Error('EACCES: permission denied'));
 
       await expect(
@@ -304,7 +304,7 @@ describe('installCommand', () => {
           trigger,
           agents: [],
         };
-        mockLoader.loadPipeline.mockResolvedValue(config);
+        mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
         mockInstaller.install.mockResolvedValue(undefined);
 
         await installCommand(tempDir, 'test-pipeline');
@@ -320,7 +320,7 @@ describe('installCommand', () => {
         trigger: 'pre-push',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(tempDir, 'test-pipeline');
@@ -336,7 +336,7 @@ describe('installCommand', () => {
         trigger: 'post-commit',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(tempDir, 'pipeline_with-special.chars');
@@ -352,7 +352,7 @@ describe('installCommand', () => {
         trigger: 'post-commit',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(tempDir, longName);
@@ -366,7 +366,7 @@ describe('installCommand', () => {
         trigger: 'post-commit',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await expect(installCommand(tempDir, 'test-pipeline')).resolves.not.toThrow();
@@ -381,7 +381,7 @@ describe('installCommand', () => {
           agent: `.claude/agents/agent-${i}.md`,
         })),
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(tempDir, 'test-pipeline');
@@ -395,7 +395,7 @@ describe('installCommand', () => {
         trigger: 'post-commit',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockRejectedValue(new Error('.git directory not found'));
 
       await expect(
@@ -413,7 +413,7 @@ describe('installCommand', () => {
           { name: 'reviewer', agent: '.claude/agents/reviewer.md' },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(tempDir, 'full-pipeline');
@@ -430,7 +430,7 @@ describe('installCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
 
       try {
         await installCommand(tempDir, 'manual-pipeline');
@@ -451,7 +451,7 @@ describe('installCommand', () => {
         trigger: 'pre-commit',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(config);
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockResolvedValue(undefined);
 
       await installCommand(customPath, 'test-pipeline');
@@ -468,13 +468,13 @@ describe('installCommand', () => {
 
       // Scenario 2: Manual trigger (validation fails)
       const manualConfig = { name: 'test', trigger: 'manual', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(manualConfig);
+      mockLoader.loadPipeline.mockResolvedValue({ config: manualConfig, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       await expect(installCommand(tempDir, 'test')).rejects.toThrow('process.exit(1)');
       vi.clearAllMocks();
 
       // Scenario 3: Install fails
       const validConfig = { name: 'test', trigger: 'post-commit', agents: [] };
-      mockLoader.loadPipeline.mockResolvedValue(validConfig);
+      mockLoader.loadPipeline.mockResolvedValue({ config: validConfig, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockRejectedValue(new Error('Install error'));
       await expect(installCommand(tempDir, 'test')).rejects.toThrow('Install error');
     });

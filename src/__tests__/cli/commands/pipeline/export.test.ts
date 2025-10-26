@@ -50,7 +50,14 @@ describe('exportPipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
 
       await exportPipelineCommand(tempDir, 'test-pipeline');
 
@@ -64,7 +71,14 @@ describe('exportPipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
 
       await exportPipelineCommand(tempDir, 'test-pipeline');
 
@@ -90,7 +104,14 @@ describe('exportPipelineCommand', () => {
           { name: 'agent1', agent: 'agent1.md' },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
 
       await exportPipelineCommand(tempDir, 'test-pipeline');
 
@@ -112,7 +133,14 @@ describe('exportPipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
       const outputPath = '/tmp/exported-pipeline.yml';
@@ -131,7 +159,14 @@ describe('exportPipelineCommand', () => {
         trigger: 'manual',
         agents: [{ name: 'agent1', agent: 'agent1.md' }],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
       const outputPath = '/tmp/my-export.yml';
@@ -149,7 +184,14 @@ describe('exportPipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
       const outputPath = '/tmp/exported.yml';
@@ -170,7 +212,14 @@ describe('exportPipelineCommand', () => {
           { name: 'agent1', agent: 'agents/agent1.md' },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.readFile).mockResolvedValue('# Agent 1\n\nThis is agent 1 content');
 
       await exportPipelineCommand(tempDir, 'test-pipeline', { includeAgents: true });
@@ -194,7 +243,14 @@ describe('exportPipelineCommand', () => {
           { name: 'agent3', agent: 'agents/agent3.md' },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.readFile)
         .mockResolvedValueOnce('# Agent 1 content')
         .mockResolvedValueOnce('# Agent 2 content')
@@ -225,7 +281,14 @@ describe('exportPipelineCommand', () => {
           { name: 'test-agent', agent: 'test.md' },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.readFile).mockResolvedValue('# Test Agent\n\nAgent content here');
 
       await exportPipelineCommand(tempDir, 'test-pipeline', { includeAgents: true });
@@ -249,7 +312,14 @@ describe('exportPipelineCommand', () => {
           { name: 'agent3', agent: 'agent3.md' },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.readFile).mockResolvedValue('agent content');
       vi.mocked(fs.writeFile).mockResolvedValue(undefined);
 
@@ -273,7 +343,14 @@ describe('exportPipelineCommand', () => {
           { name: 'agent2', agent: 'agents/missing.md' },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.readFile)
         .mockResolvedValueOnce('# Agent 1 content')
         .mockRejectedValueOnce(new Error('ENOENT: file not found'));
@@ -312,7 +389,14 @@ describe('exportPipelineCommand', () => {
         trigger: 'manual',
         agents: [],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.writeFile).mockRejectedValue(new Error('EACCES: permission denied'));
 
       await expect(
@@ -348,7 +432,14 @@ describe('exportPipelineCommand', () => {
           agent: `agents/agent-${i}.md`,
         })),
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.readFile).mockResolvedValue('# Agent content');
 
       await exportPipelineCommand(tempDir, 'large-pipeline', { includeAgents: true });
@@ -371,7 +462,14 @@ describe('exportPipelineCommand', () => {
           { name: 'missing2', agent: 'agents/missing2.md' },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.readFile)
         .mockResolvedValueOnce('# Content 1')
         .mockRejectedValueOnce(new Error('ENOENT'))
@@ -404,7 +502,14 @@ describe('exportPipelineCommand', () => {
           { name: 'agent1', agent: 'agent1.md' },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
 
       await exportPipelineCommand(tempDir, 'integration-test');
 
@@ -430,7 +535,14 @@ describe('exportPipelineCommand', () => {
           { name: 'agent2', agent: 'agents/agent2.md' },
         ],
       };
-      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+      mockLoader.loadPipeline.mockResolvedValue({
+        config: mockConfig,
+        metadata: {
+          sourcePath: "/test/path.yml",
+          sourceType: "library" as const,
+          loadedAt: new Date().toISOString()
+        }
+      });
       vi.mocked(fs.readFile)
         .mockResolvedValueOnce('# Agent 1 content')
         .mockResolvedValueOnce('# Agent 2 content');

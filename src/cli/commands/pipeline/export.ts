@@ -17,7 +17,7 @@ export async function exportPipelineCommand(
 ): Promise<void> {
   try {
     const loader = new PipelineLoader(repoPath);
-    const config = await loader.loadPipeline(pipelineName);
+    const { config } = await loader.loadPipeline(pipelineName);
 
     let output = YAML.stringify(config);
 

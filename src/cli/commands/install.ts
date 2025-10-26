@@ -9,7 +9,7 @@ export async function installCommand(
 ): Promise<void> {
   // Load pipeline config to get trigger type
   const loader = new PipelineLoader(repoPath);
-  const config = await loader.loadPipeline(pipelineName);
+  const { config } = await loader.loadPipeline(pipelineName);
 
   // Validate that the trigger is not 'manual'
   if (config.trigger === 'manual') {
