@@ -56,11 +56,18 @@ async function main() {
         const prDraft = args.includes('--pr-draft');
         const prWeb = args.includes('--pr-web');
         const noNotifications = args.includes('--no-notifications');
+        const loop = args.includes('--loop');
 
         let baseBranch: string | undefined;
         const baseBranchIndex = args.indexOf('--base-branch');
         if (baseBranchIndex !== -1 && args[baseBranchIndex + 1]) {
           baseBranch = args[baseBranchIndex + 1];
+        }
+
+        let maxLoopIterations: number | undefined;
+        const maxLoopIndex = args.indexOf('--max-loop-iterations');
+        if (maxLoopIndex !== -1 && args[maxLoopIndex + 1]) {
+          maxLoopIterations = parseInt(args[maxLoopIndex + 1], 10);
         }
 
         await runCommand(repoPath, subCommand, {
@@ -70,7 +77,9 @@ async function main() {
           baseBranch,
           prDraft,
           prWeb,
-          noNotifications
+          noNotifications,
+          loop,
+          maxLoopIterations
         });
         break;
       }
@@ -330,6 +339,8 @@ Run Options:
   --base-branch <branch>       Override base branch for PR
   --pr-draft                   Create PR as draft
   --pr-web                     Open PR in browser for editing
+  --loop                       Enable pipeline looping mode
+  --max-loop-iterations <n>    Override maximum loop iterations (default: 100)
 
 Delete/Cleanup Options:
   --force                      Delete without confirmation

@@ -133,7 +133,9 @@ describe('runCommand', () => {
         // Expected
       }
 
-      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, { interactive: true });
+      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, expect.objectContaining({
+        interactive: true
+      }));
     });
   });
 
@@ -358,7 +360,9 @@ describe('runCommand', () => {
       }
 
       expect(mockRender).toHaveBeenCalled();
-      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, { interactive: true });
+      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, expect.objectContaining({
+        interactive: true
+      }));
     });
 
     it('should disable interactive mode when --no-interactive flag set', async () => {
@@ -374,7 +378,9 @@ describe('runCommand', () => {
       }
 
       expect(mockRender).not.toHaveBeenCalled();
-      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, { interactive: false });
+      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, expect.objectContaining({
+        interactive: false
+      }));
     });
 
     it('should render UI when interactive mode is enabled', async () => {
@@ -637,6 +643,155 @@ describe('runCommand', () => {
     });
   });
 
+  describe('Loop Options', () => {
+    it('should pass loop flag to runner when --loop provided', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
+
+      try {
+        await runCommand(tempDir, 'test-pipeline', { loop: true });
+      } catch (error) {
+        // Expected
+      }
+
+      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, {
+        interactive: true,
+        loop: true,
+        loopMetadata: metadata,
+        maxLoopIterations: undefined
+      });
+    });
+
+    it('should pass maxLoopIterations to runner when provided', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
+
+      try {
+        await runCommand(tempDir, 'test-pipeline', { loop: true, maxLoopIterations: 50 });
+      } catch (error) {
+        // Expected
+      }
+
+      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, {
+        interactive: true,
+        loop: true,
+        loopMetadata: metadata,
+        maxLoopIterations: 50
+      });
+    });
+
+    it('should use metadata from loader as loopMetadata when not provided', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
+
+      try {
+        await runCommand(tempDir, 'test-pipeline', { loop: true });
+      } catch (error) {
+        // Expected
+      }
+
+      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config,
+        expect.objectContaining({
+          loopMetadata: metadata
+        })
+      );
+    });
+
+    it('should override loopMetadata when explicitly provided', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      const loaderMetadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
+      const customMetadata = { sourcePath: "/custom/path.yml", sourceType: "loop-pending" as const, loadedAt: new Date().toISOString() };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: loaderMetadata });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
+
+      try {
+        await runCommand(tempDir, 'test-pipeline', {
+          loop: true,
+          loopMetadata: customMetadata
+        });
+      } catch (error) {
+        // Expected
+      }
+
+      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config,
+        expect.objectContaining({
+          loopMetadata: customMetadata
+        })
+      );
+    });
+
+    it('should work without loop flag (default behavior)', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
+
+      try {
+        await runCommand(tempDir, 'test-pipeline');
+      } catch (error) {
+        // Expected
+      }
+
+      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, {
+        interactive: true,
+        loop: undefined,
+        loopMetadata: metadata,
+        maxLoopIterations: undefined
+      });
+    });
+
+    it('should combine loop options with other flags', async () => {
+      const config = {
+        name: 'test-pipeline',
+        trigger: 'manual',
+        agents: [],
+        git: { baseBranch: 'main' }
+      };
+      const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
+
+      try {
+        await runCommand(tempDir, 'test-pipeline', {
+          loop: true,
+          maxLoopIterations: 10,
+          dryRun: true,
+          interactive: false,
+          baseBranch: 'develop'
+        });
+      } catch (error) {
+        // Expected
+      }
+
+      expect(PipelineRunner).toHaveBeenCalledWith(tempDir, true);
+      expect(mockRunner.runPipeline).toHaveBeenCalledWith(
+        expect.objectContaining({
+          git: expect.objectContaining({
+            baseBranch: 'develop'
+          })
+        }),
+        {
+          interactive: false,
+          loop: true,
+          loopMetadata: metadata,
+          maxLoopIterations: 10
+        }
+      );
+    });
+  });
+
   describe('Integration', () => {
     it('should complete full workflow successfully', async () => {
       const config = {
@@ -666,7 +821,9 @@ describe('runCommand', () => {
       expect(mockLoader.loadPipeline).toHaveBeenCalledWith('full-pipeline');
       expect(mockValidator.validateAndReport).toHaveBeenCalledWith(config, tempDir);
       expect(PipelineRunner).toHaveBeenCalledWith(tempDir, undefined);
-      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, { interactive: true });
+      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, expect.objectContaining({
+        interactive: true
+      }));
       expect(processExitSpy).toHaveBeenCalledWith(0);
     });
 
@@ -730,7 +887,9 @@ describe('runCommand', () => {
           }),
           notifications: { enabled: false },
         }),
-        { interactive: false }
+        expect.objectContaining({
+          interactive: false
+        })
       );
     });
   });

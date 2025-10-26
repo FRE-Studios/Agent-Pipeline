@@ -8,9 +8,13 @@ import { DAGPlanner } from './dag-planner.js';
 import { PipelineInitializer } from './pipeline-initializer.js';
 import { GroupExecutionOrchestrator } from './group-execution-orchestrator.js';
 import { PipelineFinalizer } from './pipeline-finalizer.js';
-import { PipelineConfig, PipelineState } from '../config/schema.js';
+import { PipelineConfig, PipelineState, PipelineMetadata, LoopingConfig } from '../config/schema.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
+import { ProjectConfigLoader } from '../config/project-config-loader.js';
+import { PipelineLoader } from '../config/pipeline-loader.js';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 export class PipelineRunner {
   private gitManager: GitManager;
@@ -25,6 +29,7 @@ export class PipelineRunner {
   private dryRun: boolean;
   private repoPath: string;
   private stateUpdateCallbacks: Array<(state: PipelineState) => void> = [];
+  private projectConfigLoader: ProjectConfigLoader;
 
   constructor(repoPath: string, dryRun: boolean = false) {
     this.repoPath = repoPath;
@@ -34,6 +39,7 @@ export class PipelineRunner {
     this.prCreator = new PRCreator();
     this.stateManager = new StateManager(repoPath);
     this.dagPlanner = new DAGPlanner();
+    this.projectConfigLoader = new ProjectConfigLoader(repoPath);
 
     // Initialize orchestration components
     this.initializer = new PipelineInitializer(
@@ -91,12 +97,264 @@ export class PipelineRunner {
 
   async runPipeline(
     config: PipelineConfig,
-    options: { interactive?: boolean } = {}
+    options: {
+      interactive?: boolean;
+      loop?: boolean;
+      loopMetadata?: PipelineMetadata;
+      maxLoopIterations?: number;
+    } = {}
   ): Promise<PipelineState> {
     const interactive = options.interactive || false;
-    this.notificationManager = config.notifications
+    const notificationManager = config.notifications
       ? new NotificationManager(config.notifications)
       : undefined;
+
+    // Load and validate looping config
+    const loopingConfig = await this.projectConfigLoader.loadLoopingConfig();
+
+    // Short-circuit if --loop set but config disables it
+    let loopEnabled = options.loop || false;
+    if (loopEnabled && !loopingConfig.enabled) {
+      console.warn('⚠️  Loop mode requested but looping is disabled in config');
+      loopEnabled = false;
+    }
+
+    // Set up loop tracking variables
+    const maxIterations = options.maxLoopIterations ?? loopingConfig.maxIterations ?? 100;
+    let iterationCount = 0;
+    let lastState: PipelineState | undefined;
+    let currentConfig = config;
+    let currentMetadata = options.loopMetadata;
+
+    // Main loop
+    while (true) {
+      iterationCount++;
+
+      // Check iteration limit
+      if (iterationCount > maxIterations) {
+        console.log(`⚠️ Loop limit reached (${maxIterations} iterations). Use --max-loop-iterations to override.`);
+        break;
+      }
+
+      // Log iteration in non-interactive mode
+      if (this.shouldLog(interactive) && loopEnabled && iterationCount > 1) {
+        const pipelineName = currentMetadata?.sourcePath
+          ? path.basename(currentMetadata.sourcePath, '.yml')
+          : currentConfig.name;
+        console.log(`🔁 Loop iteration ${iterationCount}: Running pipeline '${pipelineName}'...`);
+      }
+
+      // Execute single pipeline
+      lastState = await this._executeSinglePipeline(
+        currentConfig,
+        currentMetadata,
+        { interactive, notificationManager }
+      );
+
+      // Emit state update for UI
+      this.notifyStateChange(lastState);
+
+      // File transitions for queued pipelines only (not seed pipeline)
+      if (currentMetadata?.sourceType === 'loop-pending') {
+        try {
+          const destDir = lastState.status === 'completed'
+            ? loopingConfig.directories.finished
+            : loopingConfig.directories.failed;
+          const fileName = path.basename(currentMetadata.sourcePath);
+          await this._moveFile(currentMetadata.sourcePath, destDir, fileName);
+
+          if (this.shouldLog(interactive)) {
+            const statusEmoji = lastState.status === 'completed' ? '✅' : '❌';
+            console.log(`${statusEmoji} Moved ${fileName} to ${path.basename(destDir)}/`);
+          }
+        } catch (error) {
+          console.error(`⚠️  Failed to move pipeline file: ${error}`);
+          // Continue anyway - file management errors shouldn't crash the loop
+        }
+      }
+
+      // Handle failures (after file movement)
+      if (lastState.status === 'failed') {
+        const pipelineName = currentMetadata?.sourcePath
+          ? path.basename(currentMetadata.sourcePath, '.yml')
+          : currentConfig.name;
+        if (this.shouldLog(interactive)) {
+          console.log(`Loop: terminating after failure of ${pipelineName}`);
+        }
+        break;
+      }
+
+      // Exit loop if --loop not enabled
+      if (!loopEnabled) {
+        break;
+      }
+
+      // Find next pipeline
+      const nextFile = await this._findNextPipelineFile(loopingConfig);
+      if (!nextFile) {
+        if (this.shouldLog(interactive)) {
+          console.log('Loop: no pending pipelines, exiting.');
+        }
+        break;
+      }
+
+      // Move next file to running directory
+      const fileName = path.basename(nextFile);
+      let runningPath: string;
+      try {
+        runningPath = await this._moveFile(
+          nextFile,
+          loopingConfig.directories.running,
+          fileName
+        );
+      } catch (error) {
+        console.error(`❌ Failed to move ${fileName} to running directory: ${error}`);
+        break;
+      }
+
+      // Load next pipeline
+      try {
+        const loader = new PipelineLoader(this.repoPath);
+        const result = await loader.loadPipelineFromPath(runningPath);
+        currentConfig = result.config;
+        currentMetadata = result.metadata;
+      } catch (error) {
+        console.error(`❌ Failed to load pipeline ${fileName}: ${error}`);
+        // Move to failed directory
+        try {
+          await this._moveFile(
+            runningPath,
+            loopingConfig.directories.failed,
+            fileName
+          );
+        } catch (moveError) {
+          console.error(`⚠️  Failed to move ${fileName} to failed directory: ${moveError}`);
+        }
+        break;
+      }
+    }
+
+    // This should never happen, but satisfy TypeScript
+    if (!lastState) {
+      throw new Error('Pipeline execution completed without a final state');
+    }
+
+    return lastState;
+  }
+
+  private notifyStateChange(state: PipelineState): void {
+    for (const callback of this.stateUpdateCallbacks) {
+      callback(state);
+    }
+  }
+
+  private async notify(context: NotificationContext): Promise<void> {
+    if (!this.notificationManager) {
+      return;
+    }
+
+    try {
+      const results = await this.notificationManager.notify(context);
+
+      // Log failed notifications (but don't fail the pipeline)
+      const failures = results.filter((r) => !r.success);
+      if (failures.length > 0) {
+        console.warn('⚠️  Some notifications failed:');
+        failures.forEach((f) => console.warn(`   ${f.channel}: ${f.error}`));
+      }
+    } catch (error) {
+      // Never let notifications crash the pipeline
+      console.warn('⚠️  Notification error:', error);
+    }
+  }
+
+  onStateChange(callback: (state: PipelineState) => void): void {
+    this.stateUpdateCallbacks.push(callback);
+  }
+
+  /**
+   * Finds the next pipeline file in the pending directory.
+   * Returns the oldest file by modification time, or undefined if directory is empty.
+   */
+  private async _findNextPipelineFile(loopingConfig: LoopingConfig): Promise<string | undefined> {
+    try {
+      const pendingDir = loopingConfig.directories.pending;
+      const files = await fs.readdir(pendingDir);
+
+      // Filter for YAML files only
+      const yamlFiles = files.filter(f => f.endsWith('.yml') || f.endsWith('.yaml'));
+
+      if (yamlFiles.length === 0) {
+        return undefined;
+      }
+
+      // Get file stats and sort by mtime (oldest first)
+      const filesWithStats = await Promise.all(
+        yamlFiles.map(async (fileName) => {
+          const filePath = path.join(pendingDir, fileName);
+          const stats = await fs.stat(filePath);
+          return { fileName, filePath, mtime: stats.mtime };
+        })
+      );
+
+      filesWithStats.sort((a, b) => a.mtime.getTime() - b.mtime.getTime());
+
+      return filesWithStats[0].filePath;
+    } catch (error) {
+      // If directory doesn't exist or can't be read, return undefined
+      return undefined;
+    }
+  }
+
+  /**
+   * Generates a unique file path by appending timestamps if file already exists.
+   * Example: task.yml -> task-1698765432.yml
+   */
+  private async _getUniqueFilePath(destDir: string, fileName: string): Promise<string> {
+    const basePath = path.join(destDir, fileName);
+
+    try {
+      await fs.access(basePath);
+      // File exists, append timestamp
+      const ext = path.extname(fileName);
+      const nameWithoutExt = path.basename(fileName, ext);
+      const timestamp = Date.now();
+      const uniqueName = `${nameWithoutExt}-${timestamp}${ext}`;
+      return path.join(destDir, uniqueName);
+    } catch {
+      // File doesn't exist, use original path
+      return basePath;
+    }
+  }
+
+  /**
+   * Atomically moves a file from source to destination directory.
+   * Handles name collisions by appending timestamps.
+   */
+  private async _moveFile(
+    sourcePath: string,
+    destDir: string,
+    fileName: string
+  ): Promise<string> {
+    const destPath = await this._getUniqueFilePath(destDir, fileName);
+    await fs.rename(sourcePath, destPath);
+    return destPath;
+  }
+
+  /**
+   * Executes a single pipeline run (one iteration).
+   * This method contains the core execution logic extracted for reuse in loop mode.
+   */
+  private async _executeSinglePipeline(
+    config: PipelineConfig,
+    _metadata: PipelineMetadata | undefined, // Reserved for Part D (agent context injection)
+    options: {
+      interactive: boolean;
+      notificationManager?: NotificationManager;
+    }
+  ): Promise<PipelineState> {
+    const { interactive } = options;
+    this.notificationManager = options.notificationManager;
 
     // Phase 1: Initialize pipeline
     const initResult = await this.initializer.initialize(
@@ -169,35 +427,5 @@ export class PipelineRunner {
     );
 
     return state;
-  }
-
-  private notifyStateChange(state: PipelineState): void {
-    for (const callback of this.stateUpdateCallbacks) {
-      callback(state);
-    }
-  }
-
-  private async notify(context: NotificationContext): Promise<void> {
-    if (!this.notificationManager) {
-      return;
-    }
-
-    try {
-      const results = await this.notificationManager.notify(context);
-
-      // Log failed notifications (but don't fail the pipeline)
-      const failures = results.filter((r) => !r.success);
-      if (failures.length > 0) {
-        console.warn('⚠️  Some notifications failed:');
-        failures.forEach((f) => console.warn(`   ${f.channel}: ${f.error}`));
-      }
-    } catch (error) {
-      // Never let notifications crash the pipeline
-      console.warn('⚠️  Notification error:', error);
-    }
-  }
-
-  onStateChange(callback: (state: PipelineState) => void): void {
-    this.stateUpdateCallbacks.push(callback);
   }
 }

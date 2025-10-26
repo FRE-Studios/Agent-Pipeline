@@ -6,6 +6,7 @@ import { PipelineRunner } from '../../core/pipeline-runner.js';
 import { PipelineLoader } from '../../config/pipeline-loader.js';
 import { PipelineValidator } from '../../validators/pipeline-validator.js';
 import { PipelineUI } from '../../ui/pipeline-ui.js';
+import { PipelineMetadata } from '../../config/schema.js';
 
 export interface RunOptions {
   dryRun?: boolean;
@@ -15,6 +16,9 @@ export interface RunOptions {
   prDraft?: boolean;
   prWeb?: boolean;
   noNotifications?: boolean;
+  loop?: boolean;
+  loopMetadata?: PipelineMetadata;
+  maxLoopIterations?: number;
 }
 
 export async function runCommand(
@@ -23,7 +27,7 @@ export async function runCommand(
   options: RunOptions = {}
 ): Promise<void> {
   const loader = new PipelineLoader(repoPath);
-  const { config } = await loader.loadPipeline(pipelineName);
+  const { config, metadata } = await loader.loadPipeline(pipelineName);
 
   // Apply CLI flag overrides
   if (options.noNotifications) {
@@ -55,6 +59,9 @@ export async function runCommand(
   const runner = new PipelineRunner(repoPath, options.dryRun);
   const interactive = options.interactive ?? true;
 
+  // Compute loop metadata (use explicit metadata or default from loader)
+  const loopMetadata = options.loopMetadata ?? metadata;
+
   // Render UI if interactive
   let uiInstance;
   if (interactive) {
@@ -68,7 +75,12 @@ export async function runCommand(
   }
 
   try {
-    const result = await runner.runPipeline(config, { interactive });
+    const result = await runner.runPipeline(config, {
+      interactive,
+      loop: options.loop,
+      loopMetadata,
+      maxLoopIterations: options.maxLoopIterations
+    });
 
     if (uiInstance) {
       uiInstance.unmount();
