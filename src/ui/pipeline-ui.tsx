@@ -83,6 +83,18 @@ export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange }) => {
           <Text bold color="cyan">
             🤖 Agent Pipeline: {state.pipelineConfig.name}
           </Text>
+          {/* Loop context indicator */}
+          {state.loopContext && (
+            <SummaryLine
+              label="Loop"
+              value={
+                state.loopContext.maxIterations
+                  ? `${state.loopContext.currentIteration}/${state.loopContext.maxIterations}`
+                  : `${state.loopContext.currentIteration}`
+              }
+              color="magenta"
+            />
+          )}
           <SummaryLine label="Run ID" value={state.runId.substring(0, 8)} />
           <SummaryLine label="Branch" value={state.artifacts.pullRequest?.branch} />
         </Box>
@@ -105,6 +117,7 @@ export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange }) => {
       {!isFinished && (
         <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
           <Text>
+            {state.loopContext && <Text color="magenta">🔁 Loop {state.loopContext.currentIteration} | </Text>}
             Status: <StatusBadge status={state.status} /> | Duration:{' '}
             {state.artifacts.totalDuration.toFixed(1)}s | Commits:{' '}
             {state.stages.filter((s) => s.commitSha).length}

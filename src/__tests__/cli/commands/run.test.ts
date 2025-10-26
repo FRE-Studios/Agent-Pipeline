@@ -790,6 +790,104 @@ describe('runCommand', () => {
         }
       );
     });
+
+    // Part E: UI Lifecycle and Exit Code Tests
+    it('should keep UI mounted and only unmount in finally block', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
+
+      const mockUnmount = vi.fn();
+      mockRender.mockReturnValue({ unmount: mockUnmount });
+
+      try {
+        await runCommand(tempDir, 'test-pipeline', { interactive: true, loop: true });
+      } catch (error) {
+        // Expected - process.exit throws
+      }
+
+      // UI should be rendered
+      expect(mockRender).toHaveBeenCalled();
+
+      // Unmount should be called exactly once (in finally block)
+      expect(mockUnmount).toHaveBeenCalledTimes(1);
+    });
+
+    it('should exit with code 1 when loop limit is reached', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      // Simulate loop limit reached by returning failed status
+      mockRunner.runPipeline.mockResolvedValue({ status: 'failed' });
+
+      try {
+        await runCommand(tempDir, 'test-pipeline', { loop: true, maxLoopIterations: 2 });
+      } catch (error: any) {
+        expect(error.message).toBe('process.exit(1)');
+      }
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should exit with code 0 on natural loop completion', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
+
+      try {
+        await runCommand(tempDir, 'test-pipeline', { loop: true });
+      } catch (error: any) {
+        expect(error.message).toBe('process.exit(0)');
+      }
+
+      expect(processExitSpy).toHaveBeenCalledWith(0);
+    });
+
+    it('should unmount UI even when runner throws error', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockRejectedValue(new Error('Pipeline execution failed'));
+
+      const mockUnmount = vi.fn();
+      mockRender.mockReturnValue({ unmount: mockUnmount });
+
+      try {
+        await runCommand(tempDir, 'test-pipeline', { interactive: true });
+      } catch (error) {
+        // Expected - error from runner
+      }
+
+      // UI should still be unmounted in finally block
+      expect(mockUnmount).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not attempt to unmount UI in non-interactive mode', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
+
+      const mockUnmount = vi.fn();
+      mockRender.mockReturnValue({ unmount: mockUnmount });
+
+      try {
+        await runCommand(tempDir, 'test-pipeline', { interactive: false });
+      } catch (error) {
+        // Expected - process.exit throws
+      }
+
+      // UI should not be rendered in non-interactive mode
+      expect(mockRender).not.toHaveBeenCalled();
+      expect(mockUnmount).not.toHaveBeenCalled();
+    });
   });
 
   describe('Integration', () => {

@@ -82,15 +82,13 @@ export async function runCommand(
       maxLoopIterations: options.maxLoopIterations
     });
 
-    if (uiInstance) {
-      uiInstance.unmount();
-    }
-
     process.exit(result.status === 'completed' ? 0 : 1);
   } catch (error) {
+    throw error;
+  } finally {
+    // Only unmount UI after entire loop completes (or on error)
     if (uiInstance) {
       uiInstance.unmount();
     }
-    throw error;
   }
 }

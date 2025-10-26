@@ -125,6 +125,7 @@ export class PipelineRunner {
     let lastState: PipelineState | undefined;
     let currentConfig = config;
     let currentMetadata = options.loopMetadata;
+    let loopTerminationReason: 'natural' | 'limit-reached' | 'failure' = 'natural';
 
     // Main loop
     while (true) {
@@ -133,6 +134,7 @@ export class PipelineRunner {
       // Check iteration limit
       if (iterationCount > maxIterations) {
         console.log(`⚠️ Loop limit reached (${maxIterations} iterations). Use --max-loop-iterations to override.`);
+        loopTerminationReason = 'limit-reached';
         break;
       }
 
@@ -161,8 +163,13 @@ export class PipelineRunner {
         { interactive, notificationManager, loopContext }
       );
 
-      // Emit state update for UI
+      // Emit state update for UI (this resets the UI for next iteration)
       this.notifyStateChange(lastState);
+
+      // Log iteration completion in non-interactive mode
+      if (this.shouldLog(interactive) && loopEnabled && lastState.status === 'completed') {
+        console.log(`✅ Completed iteration ${iterationCount}`);
+      }
 
       // File transitions for queued pipelines only (not seed pipeline)
       if (currentMetadata?.sourceType === 'loop-pending') {
@@ -185,6 +192,7 @@ export class PipelineRunner {
 
       // Handle failures (after file movement)
       if (lastState.status === 'failed') {
+        loopTerminationReason = 'failure';
         const pipelineName = currentMetadata?.sourcePath
           ? path.basename(currentMetadata.sourcePath, '.yml')
           : currentConfig.name;
@@ -247,6 +255,11 @@ export class PipelineRunner {
     // This should never happen, but satisfy TypeScript
     if (!lastState) {
       throw new Error('Pipeline execution completed without a final state');
+    }
+
+    // Mark state as failed if loop limit was reached (treat as error condition)
+    if (loopTerminationReason === 'limit-reached') {
+      lastState.status = 'failed';
     }
 
     return lastState;
