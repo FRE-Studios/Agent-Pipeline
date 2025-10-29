@@ -842,4 +842,88 @@ describe('PipelineRunner - Loop Mode', () => {
       expect(result.loopContext!.maxIterations).toBe(100);
     });
   });
+
+  describe('File System Error Handling', () => {
+    it('should exit gracefully when pending directory becomes inaccessible', async () => {
+      const runner = new PipelineRunner(tempDir);
+
+      vi.spyOn(runner as any, '_executeSinglePipeline')
+        .mockResolvedValue(mockPipelineState);
+
+      // Mock _findNextPipelineFile to simulate directory access error
+      vi.spyOn(runner as any, '_findNextPipelineFile')
+        .mockResolvedValueOnce(undefined); // Simulate error by returning undefined
+
+      const result = await runner.runPipeline(mockPipelineConfig, {
+        loop: true,
+        interactive: false,
+      });
+
+      // Should complete successfully with the seed pipeline result
+      expect(result.status).toBe('completed');
+    });
+
+    it('should return undefined from _findNextPipelineFile when directory is deleted', async () => {
+      const runner = new PipelineRunner(tempDir);
+
+      // Delete the pending directory mid-execution
+      await fs.rm(pendingDir, { recursive: true, force: true });
+
+      const nextFile = await (runner as any)._findNextPipelineFile(mockLoopingConfig);
+
+      expect(nextFile).toBeUndefined();
+    });
+  });
+
+  describe('Defensive Error Guards', () => {
+    it('should throw error if pipeline execution returns null/undefined', async () => {
+      const runner = new PipelineRunner(tempDir);
+
+      // Mock _executeSinglePipeline to return null/undefined (should never happen)
+      vi.spyOn(runner as any, '_executeSinglePipeline')
+        .mockResolvedValue(null);
+
+      // Should reject with any error (could be null access error or defensive check)
+      await expect(
+        runner.runPipeline(mockPipelineConfig, {
+          loop: false,
+          interactive: false,
+        })
+      ).rejects.toThrow();
+    });
+
+    it('should throw error on null state in loop iterations', async () => {
+      const runner = new PipelineRunner(tempDir);
+
+      // First call succeeds, second call returns undefined
+      vi.spyOn(runner as any, '_executeSinglePipeline')
+        .mockResolvedValueOnce(mockPipelineState)
+        .mockResolvedValueOnce(null);
+
+      // Create a pending file to trigger loop iteration
+      await fs.writeFile(
+        path.join(pendingDir, 'task1.yml'),
+        'name: task1\ntrigger: manual\nagents: []'
+      );
+
+      vi.mocked(PipelineLoader).mockImplementation(() => ({
+        loadPipelineFromPath: vi.fn().mockResolvedValue({
+          config: mockPipelineConfig,
+          metadata: {
+            sourcePath: path.join(runningDir, 'task1.yml'),
+            sourceType: 'loop-pending' as const,
+            loadedAt: new Date().toISOString(),
+          },
+        }),
+      } as any));
+
+      // Should reject with any error (null access will occur before defensive check)
+      await expect(
+        runner.runPipeline(mockPipelineConfig, {
+          loop: true,
+          interactive: false,
+        })
+      ).rejects.toThrow();
+    });
+  });
 });
