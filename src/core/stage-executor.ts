@@ -79,6 +79,36 @@ export class StageExecutor {
         };
       }
 
+      // Validate outputs
+      const contextReductionConfig = pipelineState.pipelineConfig.settings?.contextReduction;
+      const requireSummary = contextReductionConfig?.requireSummary ?? true;
+
+      if (execution.extractedData) {
+        // Warn if summary is missing when required
+        if (requireSummary && !execution.extractedData.summary) {
+          console.warn(
+            `⚠️  Stage '${stageConfig.name}' did not provide 'summary' field. ` +
+            `Context reduction may be less effective for downstream stages.`
+          );
+        }
+
+        // Warn if expected outputs are missing
+        if (stageConfig.outputs && stageConfig.outputs.length > 0) {
+          const missing = stageConfig.outputs.filter(key => !(key in execution.extractedData!));
+          if (missing.length > 0) {
+            console.warn(
+              `⚠️  Stage '${stageConfig.name}' did not provide expected outputs: ${missing.join(', ')}`
+            );
+          }
+        }
+      } else if (stageConfig.outputs && stageConfig.outputs.length > 0) {
+        // Agent didn't call report_outputs and regex extraction also failed
+        console.warn(
+          `⚠️  Stage '${stageConfig.name}' did not call report_outputs tool. ` +
+          `Expected outputs: ${stageConfig.outputs.join(', ')}`
+        );
+      }
+
       // Save outputs to files (if enabled)
       if (pipelineState.pipelineConfig.settings?.contextReduction?.saveVerboseOutputs !== false) {
         const outputFiles = await this.outputStorageManager.saveStageOutputs(

@@ -1724,4 +1724,409 @@ describe('StageExecutor', () => {
       expect(result.tokenUsage?.cache_read).toBeUndefined();
     });
   });
+
+  describe('Output Validation Warnings', () => {
+    let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+    });
+
+    afterEach(() => {
+      consoleWarnSpy.mockRestore();
+    });
+
+    describe('Missing summary field', () => {
+      it('should warn when summary is missing and requireSummary is true (default)', async () => {
+        const toolUseQuery = vi.fn().mockImplementation(async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              content: [{
+                type: 'tool_use',
+                name: 'report_outputs',
+                input: {
+                  outputs: {
+                    issues_found: 5,
+                    severity: 'high'
+                    // No summary field
+                  }
+                }
+              }]
+            }
+          };
+        });
+
+        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
+
+        const config = { ...basicStageConfig, outputs: ['issues_found', 'severity'] };
+        await executor.executeStage(config, runningPipelineState);
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(`⚠️  Stage '${config.name}' did not provide 'summary' field`)
+        );
+      });
+
+      it('should not warn when summary is present', async () => {
+        const toolUseQuery = vi.fn().mockImplementation(async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              content: [{
+                type: 'tool_use',
+                name: 'report_outputs',
+                input: {
+                  outputs: {
+                    summary: 'Review completed successfully',
+                    issues_found: 5,
+                    severity: 'high'
+                  }
+                }
+              }]
+            }
+          };
+        });
+
+        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
+
+        const config = { ...basicStageConfig, outputs: ['issues_found', 'severity'] };
+        await executor.executeStage(config, runningPipelineState);
+
+        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining('did not provide \'summary\' field')
+        );
+      });
+
+      it('should not warn when requireSummary is false', async () => {
+        const toolUseQuery = vi.fn().mockImplementation(async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              content: [{
+                type: 'tool_use',
+                name: 'report_outputs',
+                input: {
+                  outputs: {
+                    issues_found: 5
+                    // No summary
+                  }
+                }
+              }]
+            }
+          };
+        });
+
+        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
+
+        const stateWithNoSummaryRequirement: PipelineState = {
+          ...runningPipelineState,
+          pipelineConfig: {
+            ...runningPipelineState.pipelineConfig,
+            settings: {
+              ...runningPipelineState.pipelineConfig.settings,
+              contextReduction: {
+                enabled: true,
+                maxTokens: 50000,
+                strategy: 'summary-based',
+                requireSummary: false
+              }
+            }
+          }
+        };
+
+        await executor.executeStage(basicStageConfig, stateWithNoSummaryRequirement);
+
+        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining('did not provide \'summary\' field')
+        );
+      });
+    });
+
+    describe('Missing expected outputs', () => {
+      it('should warn when some expected outputs are missing', async () => {
+        const toolUseQuery = vi.fn().mockImplementation(async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              content: [{
+                type: 'tool_use',
+                name: 'report_outputs',
+                input: {
+                  outputs: {
+                    summary: 'Review complete',
+                    issues_found: 5
+                    // Missing: severity, needs_refactor
+                  }
+                }
+              }]
+            }
+          };
+        });
+
+        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
+
+        const config = {
+          ...basicStageConfig,
+          outputs: ['issues_found', 'severity', 'needs_refactor']
+        };
+        await executor.executeStage(config, runningPipelineState);
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(`⚠️  Stage '${config.name}' did not provide expected outputs: severity, needs_refactor`)
+        );
+      });
+
+      it('should warn when all expected outputs are missing', async () => {
+        const toolUseQuery = vi.fn().mockImplementation(async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              content: [{
+                type: 'tool_use',
+                name: 'report_outputs',
+                input: {
+                  outputs: {
+                    summary: 'Task complete',
+                    other_field: 'value'
+                    // Missing all expected outputs
+                  }
+                }
+              }]
+            }
+          };
+        });
+
+        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
+
+        const config = {
+          ...basicStageConfig,
+          outputs: ['issues_found', 'severity']
+        };
+        await executor.executeStage(config, runningPipelineState);
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('did not provide expected outputs: issues_found, severity')
+        );
+      });
+
+      it('should not warn when all expected outputs are present', async () => {
+        const toolUseQuery = vi.fn().mockImplementation(async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              content: [{
+                type: 'tool_use',
+                name: 'report_outputs',
+                input: {
+                  outputs: {
+                    summary: 'Review complete',
+                    issues_found: 5,
+                    severity: 'high',
+                    extra_field: 'allowed'  // Extra fields are fine
+                  }
+                }
+              }]
+            }
+          };
+        });
+
+        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
+
+        const config = {
+          ...basicStageConfig,
+          outputs: ['issues_found', 'severity']
+        };
+        await executor.executeStage(config, runningPipelineState);
+
+        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining('did not provide expected outputs')
+        );
+      });
+
+      it('should not warn when no outputs are configured', async () => {
+        const toolUseQuery = vi.fn().mockImplementation(async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              content: [{
+                type: 'tool_use',
+                name: 'report_outputs',
+                input: {
+                  outputs: {
+                    arbitrary_field: 'value'
+                  }
+                }
+              }]
+            }
+          };
+        });
+
+        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
+
+        await executor.executeStage(basicStageConfig, runningPipelineState);
+
+        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining('did not provide expected outputs')
+        );
+      });
+    });
+
+    describe('Tool not called', () => {
+      it('should warn when agent does not call report_outputs and outputs are expected', async () => {
+        const textOnlyQuery = vi.fn().mockImplementation(async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              content: [{
+                type: 'text',
+                text: 'Analysis complete. Found some issues.'
+              }]
+            }
+          };
+        });
+
+        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = textOnlyQuery;
+
+        const config = {
+          ...basicStageConfig,
+          outputs: ['issues_found', 'severity']
+        };
+        await executor.executeStage(config, runningPipelineState);
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(`⚠️  Stage '${config.name}' did not call report_outputs tool`)
+        );
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Expected outputs: issues_found, severity')
+        );
+      });
+
+      it('should not warn when agent does not call tool but no outputs expected', async () => {
+        const textOnlyQuery = vi.fn().mockImplementation(async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              content: [{
+                type: 'text',
+                text: 'Task completed successfully.'
+              }]
+            }
+          };
+        });
+
+        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = textOnlyQuery;
+
+        await executor.executeStage(basicStageConfig, runningPipelineState);
+
+        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining('did not call report_outputs tool')
+        );
+      });
+
+      it('should use regex fallback when tool not called but warn about missing summary', async () => {
+        const textWithOutputsQuery = vi.fn().mockImplementation(async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              content: [{
+                type: 'text',
+                text: 'Analysis complete.\nissues_found: 5\nseverity: high'
+              }]
+            }
+          };
+        });
+
+        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = textWithOutputsQuery;
+
+        const config = {
+          ...basicStageConfig,
+          outputs: ['issues_found', 'severity']
+        };
+        const result = await executor.executeStage(config, runningPipelineState);
+
+        // Should extract via regex
+        expect(result.extractedData?.issues_found).toBe('5');
+        expect(result.extractedData?.severity).toBe('high');
+
+        // Should warn about missing summary (regex extraction succeeded, so no "tool not called" warning)
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('did not provide \'summary\' field')
+        );
+      });
+    });
+
+    describe('Combined warnings', () => {
+      it('should show both summary and missing outputs warnings', async () => {
+        const toolUseQuery = vi.fn().mockImplementation(async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              content: [{
+                type: 'tool_use',
+                name: 'report_outputs',
+                input: {
+                  outputs: {
+                    issues_found: 5
+                    // Missing: summary, severity
+                  }
+                }
+              }]
+            }
+          };
+        });
+
+        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
+
+        const config = {
+          ...basicStageConfig,
+          outputs: ['issues_found', 'severity']
+        };
+        await executor.executeStage(config, runningPipelineState);
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('did not provide \'summary\' field')
+        );
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('did not provide expected outputs: severity')
+        );
+      });
+
+      it('should not show any warnings when everything is provided correctly', async () => {
+        const toolUseQuery = vi.fn().mockImplementation(async function* () {
+          yield {
+            type: 'assistant',
+            message: {
+              content: [{
+                type: 'tool_use',
+                name: 'report_outputs',
+                input: {
+                  outputs: {
+                    summary: 'Review completed successfully',
+                    issues_found: 5,
+                    severity: 'high'
+                  }
+                }
+              }]
+            }
+          };
+        });
+
+        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
+
+        const config = {
+          ...basicStageConfig,
+          outputs: ['issues_found', 'severity']
+        };
+        await executor.executeStage(config, runningPipelineState);
+
+        // Should have no warnings about outputs
+        const warningCalls = consoleWarnSpy.mock.calls.filter(call =>
+          call[0].includes('did not provide')
+        );
+        expect(warningCalls.length).toBe(0);
+      });
+    });
+  });
 });
