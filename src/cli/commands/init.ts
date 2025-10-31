@@ -3,13 +3,20 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import * as YAML from 'yaml';
 import { AgentImporter } from '../utils/agent-importer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Available example templates (excluding test-pipeline)
+const AVAILABLE_EXAMPLES = ['post-commit', 'pre-commit', 'pre-push', 'post-merge'] as const;
+type ExampleName = typeof AVAILABLE_EXAMPLES[number];
+
 export async function initCommand(
   repoPath: string,
   options?: {
+    exampleName?: string;
+    all?: boolean;
     importPluginAgents?: boolean;
     interactive?: boolean;
   }
@@ -29,50 +36,69 @@ export async function initCommand(
     console.log(`   - .claude/agents/\n`);
 
     // Import plugin agents (default to true)
+    let importSummary;
     if (options?.importPluginAgents !== false) {
-      await AgentImporter.importPluginAgents(agentsDir);
+      importSummary = await AgentImporter.importPluginAgents(agentsDir);
     }
 
-    // Copy example pipeline templates to pipelines directory
-    const templatesDir = path.join(__dirname, '../templates/pipelines');
-    const templateFiles = [
-      'post-commit-example.yml',
-      'pre-commit-example.yml',
-      'pre-push-example.yml',
-      'post-merge-example.yml'
-    ];
+    // Determine which pipelines to create
+    const pipelinesToCreate: string[] = ['test-pipeline'];
 
-    console.log('✅ Creating example pipelines:');
-    for (const templateFile of templateFiles) {
-      const templatePath = path.join(templatesDir, templateFile);
-      const targetPath = path.join(pipelinesDir, templateFile);
+    // Validate example name if provided
+    if (options?.exampleName) {
+      if (!AVAILABLE_EXAMPLES.includes(options.exampleName as ExampleName)) {
+        throw new Error(
+          `Invalid example name: ${options.exampleName}. Available: ${AVAILABLE_EXAMPLES.join(', ')}`
+        );
+      }
+      pipelinesToCreate.push(`${options.exampleName}-example`);
+    }
 
+    // Add all examples if --all flag is set
+    if (options?.all) {
+      for (const example of AVAILABLE_EXAMPLES) {
+        const pipelineName = `${example}-example`;
+        if (!pipelinesToCreate.includes(pipelineName)) {
+          pipelinesToCreate.push(pipelineName);
+        }
+      }
+    }
+
+    // Copy pipeline templates
+    console.log('✅ Creating pipelines:');
+    for (const pipelineName of pipelinesToCreate) {
       try {
-        const templateContent = await fs.readFile(templatePath, 'utf-8');
-        await fs.writeFile(targetPath, templateContent, 'utf-8');
-        console.log(`   - .agent-pipeline/pipelines/${templateFile}`);
+        await copyPipelineTemplate(pipelineName, pipelinesDir);
+        console.log(`   - .agent-pipeline/pipelines/${pipelineName}.yml`);
       } catch (error) {
-        console.log(`   ⚠️  Could not create ${templateFile}: ${(error as Error).message}`);
+        console.log(`   ⚠️  Could not create ${pipelineName}.yml: ${(error as Error).message}`);
       }
     }
     console.log('');
 
-    //FIXME: UPDATE: TODO: 
-    //ensure we pacakge agents in the dir and review these fallback agents 
+    // Determine which agents are required by the selected pipelines
+    const requiredAgents = await getRequiredAgents(pipelinesToCreate);
 
-    // Create minimal example agents if no agents were imported
+    // Check which agents already exist (from plugin import or previous runs)
     const existingAgents = await fs.readdir(agentsDir);
-    const mdAgents = existingAgents.filter(f => f.endsWith('.md') && !f.startsWith('.'));
+    const existingMdAgents = new Set(
+      existingAgents.filter(f => f.endsWith('.md') && !f.startsWith('.'))
+    );
 
-    if (mdAgents.length === 0) {
-      await createDefaultAgents(agentsDir);
-      console.log('✅ Created example agents:');
-      console.log(`   - .claude/agents/code-reviewer.md`);
-      console.log(`   - .claude/agents/doc-updater.md`);
-      console.log(`   - .claude/agents/quality-checker.md`);
-      console.log(`   - .claude/agents/security-auditor.md`);
-      console.log(`   - .claude/agents/summary.md`);
-      console.log(`   - .claude/agents/context-reducer.md\n`);
+    // Determine which agents need to be created
+    const agentsToCreate = requiredAgents.filter(agent => !existingMdAgents.has(agent));
+
+    // Create required agents that don't already exist
+    if (agentsToCreate.length > 0) {
+      const createdAgents = await createRequiredAgents(agentsDir, agentsToCreate);
+
+      if (createdAgents.length > 0) {
+        console.log(`✅ Created ${createdAgents.length} fallback agent(s) required by your pipelines:`);
+        for (const agent of createdAgents) {
+          console.log(`   - .claude/agents/${agent}`);
+        }
+        console.log('');
+      }
     }
 
     // Update .gitignore
@@ -82,22 +108,29 @@ export async function initCommand(
     console.log(`${'='.repeat(60)}`);
     console.log('\n✨ Agent Pipeline initialized successfully!\n');
 
-    if (mdAgents.length > 0) {
-      console.log(`📦 Imported ${mdAgents.length} agent(s) from Claude Code plugins:`);
-      mdAgents.slice(0, 5).forEach(agent => {
-        console.log(`   - ${agent}`);
-      });
-      if (mdAgents.length > 5) {
-        console.log(`   ... and ${mdAgents.length - 5} more`);
+    // Show what was created
+    console.log(`📁 Created ${pipelinesToCreate.length} pipeline(s):`);
+    for (const pipeline of pipelinesToCreate) {
+      console.log(`   - ${pipeline}.yml`);
+    }
+    console.log('');
+
+    // Show agent import summary
+    if (importSummary && importSummary.imported > 0) {
+      console.log(`📦 Imported ${importSummary.imported} agent(s) from Claude Code plugins`);
+      if (importSummary.skipped > 0) {
+        console.log(`   (${importSummary.skipped} skipped - already exist)`);
       }
       console.log('');
     }
 
     console.log('Next steps:');
-    console.log('  1. Review the example pipelines in .agent-pipeline/pipelines/');
-    console.log('  2. Customize or use imported agents in .claude/agents/');
-    console.log('  3. Run your first pipeline: agent-pipeline run post-commit-example');
-    console.log('  4. Install git hooks (optional): agent-pipeline install post-commit-example');
+    console.log('  1. Review your pipeline in .agent-pipeline/pipelines/test-pipeline.yml');
+    console.log('  2. Customize agents in .claude/agents/');
+    console.log('  3. Run your first pipeline: agent-pipeline run test-pipeline');
+    if (pipelinesToCreate.includes('post-commit-example')) {
+      console.log('  4. Install git hooks (optional): agent-pipeline install post-commit-example');
+    }
     console.log(`\n${'='.repeat(60)}\n`);
 
   } catch (error) {
@@ -108,10 +141,55 @@ export async function initCommand(
 }
 
 /**
- * Create minimal default agents for first-time users
+ * Copy a pipeline template to the target directory
  */
-async function createDefaultAgents(agentsDir: string): Promise<void> {
-  const agents = {
+async function copyPipelineTemplate(
+  templateName: string,
+  targetDir: string
+): Promise<void> {
+  const templatesDir = path.join(__dirname, '../templates/pipelines');
+  const templatePath = path.join(templatesDir, `${templateName}.yml`);
+  const targetPath = path.join(targetDir, `${templateName}.yml`);
+
+  const templateContent = await fs.readFile(templatePath, 'utf-8');
+  await fs.writeFile(targetPath, templateContent, 'utf-8');
+}
+
+/**
+ * Parse pipeline YAML and extract required agent file names
+ */
+async function getRequiredAgents(pipelineNames: string[]): Promise<string[]> {
+  const templatesDir = path.join(__dirname, '../templates/pipelines');
+  const agentSet = new Set<string>();
+
+  for (const pipelineName of pipelineNames) {
+    const templatePath = path.join(templatesDir, `${pipelineName}.yml`);
+
+    try {
+      const content = await fs.readFile(templatePath, 'utf-8');
+      const parsed = YAML.parse(content);
+
+      if (parsed.agents && Array.isArray(parsed.agents)) {
+        for (const agent of parsed.agents) {
+          if (agent.agent && typeof agent.agent === 'string') {
+            // Extract filename from path like ".claude/agents/code-reviewer.md"
+            const filename = path.basename(agent.agent);
+            agentSet.add(filename);
+          }
+        }
+      }
+    } catch (error) {
+      console.log(`   ⚠️  Could not parse ${pipelineName}.yml: ${(error as Error).message}`);
+    }
+  }
+
+  return Array.from(agentSet);
+}
+
+/**
+ * Default agent templates
+ */
+const DEFAULT_AGENTS: Record<string, string> = {
     'code-reviewer.md': `# Code Review Agent
 
 You are a code review agent in an automated pipeline.
@@ -377,11 +455,34 @@ report_outputs({
 
 After analyzing all previous stages and the upcoming agent's requirements, provide your optimized summary using the \`report_outputs\` tool.
 `
-  };
+};
 
-  for (const [filename, content] of Object.entries(agents)) {
-    await fs.writeFile(path.join(agentsDir, filename), content, 'utf-8');
+/**
+ * Create only the required agents that are in the DEFAULT_AGENTS map
+ */
+async function createRequiredAgents(
+  agentsDir: string,
+  requiredAgents: string[]
+): Promise<string[]> {
+  const createdAgents: string[] = [];
+
+  for (const agentFilename of requiredAgents) {
+    // Check if we have a template for this agent
+    if (DEFAULT_AGENTS[agentFilename]) {
+      await fs.writeFile(
+        path.join(agentsDir, agentFilename),
+        DEFAULT_AGENTS[agentFilename],
+        'utf-8'
+      );
+      createdAgents.push(agentFilename);
+    } else {
+      // Agent is required but we don't have a template - skip it
+      // User will need to import it from plugins or create manually
+      console.log(`   ⚠️  Agent ${agentFilename} is required but no template available (import from plugins or create manually)`);
+    }
   }
+
+  return createdAgents;
 }
 
 /**

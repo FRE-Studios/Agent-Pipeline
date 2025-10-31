@@ -1,0 +1,25 @@
+name: test-pipeline
+trigger: manual
+
+# Minimal test pipeline for getting started
+settings:
+  autoCommit: true
+  commitPrefix: "[pipeline:{{stage}}]"
+  failureStrategy: continue
+  preserveWorkingTree: false
+  executionMode: sequential
+
+# Simple two-stage pipeline
+agents:
+  - name: code-review
+    agent: .claude/agents/code-reviewer.md
+    timeout: 120
+    outputs:
+      - issues_found
+      - severity_level
+
+  - name: summary
+    agent: .claude/agents/summary.md
+    dependsOn:
+      - code-review
+    timeout: 60

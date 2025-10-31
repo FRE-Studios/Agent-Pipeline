@@ -1,14 +1,16 @@
 # Example Pipelines
 
-Agent Pipeline ships with ready-to-run examples under `.agent-pipeline/pipelines/`. Use them as references or templates for your own workflows.
+Agent Pipeline ships with ready-to-run examples. Use `agent-pipeline init [example-name]` to create specific examples, or `agent-pipeline init --all` to create all examples.
 
 ## Test Pipeline (`test-pipeline.yml`)
 
+**Created by**: `agent-pipeline init` (default)
+
 - Trigger: `manual`
-- Purpose: Minimal smoke test with two sequential stages.
+- Purpose: Minimal starter pipeline to get you up and running quickly.
 - Stages:
-  - `hello-world`: basic agent invocation.
-  - `file-creator`: creates a sample file and commits it with a custom message.
+  - `code-review`: Reviews changes using the code-reviewer agent.
+  - `summary`: Generates a summary of the review findings.
 
 Run it with:
 
@@ -16,45 +18,51 @@ Run it with:
 agent-pipeline run test-pipeline
 ```
 
-## Parallel Execution (`parallel-example.yml`)
+## Post-Commit Example (`post-commit-example.yml`)
 
-Demonstrates DAG execution and retry handling:
+**Created by**: `agent-pipeline init post-commit` or `agent-pipeline init --all`
 
-- Three review stages (`code-review`, `security-scan`, `performance-check`) run simultaneously.
-- `security-scan` includes a retry policy with exponential backoff.
-- `summary-report` waits for all prior stages and can use their outputs via `inputs`.
+Demonstrates parallel execution and context reduction:
 
-## Conditional Execution (`conditional-example.yml`)
+- Three stages run in parallel: `code-review`, `quality-check`, and then `doc-updater` after both complete.
+- Includes context reduction settings for managing token usage in multi-stage pipelines.
+- Stages automatically commit changes with customizable commit messages.
 
-Highlights conditional branches and stage-level overrides:
+## Pre-Commit Example (`pre-commit-example.yml`)
 
-- `auto-fix` runs only when `issues_found > 0`.
-- `celebrate` triggers when no issues are detected.
-- `emergency-fix` requires either a critical severity or discovered vulnerabilities.
-- `update-docs` always runs after `code-review` and `security-scan`.
+**Created by**: `agent-pipeline init pre-commit` or `agent-pipeline init --all`
 
-These examples exercise `ConditionEvaluator`, stage retries, and selective `onFail` behavior.
+Fast validation checks before commits:
 
-## Git Workflow (`git-workflow-example.yml`)
+- Runs `lint-check` and `security-scan` in parallel with fail-fast behavior.
+- Uses `preserveWorkingTree: true` to maintain uncommitted changes.
+- Generates a validation summary only if all checks pass.
 
-Showcases branch isolation and automated PR creation:
+## Pre-Push Example (`pre-push-example.yml`)
 
-- Configures `git.pullRequest.autoCreate` with a custom title and body.
-- Runs two stages (`code-review`, `quality-check`) with automatic commits.
-- Pair with `agent-pipeline run git-workflow-example --no-pr` if you want to skip PR creation during experiments.
+**Created by**: `agent-pipeline init pre-push` or `agent-pipeline init --all`
 
-## Post-Merge Cleanup (`post-merge-cleanup.yml`)
+Comprehensive checks before pushing:
 
-Designed for `post-merge` hooks:
+- Parallel execution of `security-audit`, `code-quality`, and `dependency-check`.
+- Conditional `push-approval` stage that only runs if no vulnerabilities are found.
+- Demonstrates conditional logic with template expressions.
+
+## Post-Merge Example (`post-merge-example.yml`)
+
+**Created by**: `agent-pipeline init post-merge` or `agent-pipeline init --all`
+
+Showcases git workflow automation with PR creation:
 
 - Runs cleanup-related agents (`doc-sync`, `dependency-audit`, `code-consolidation`) in parallel.
-- Sends local notifications on completion or failure.
+- Configures automated PR creation with custom title and labels.
+- Sends desktop notifications on completion or failure.
 - Final `summary-report` stage aggregates results and commits a summary.
 
 Install it as a git hook:
 
 ```bash
-agent-pipeline install post-merge-cleanup
+agent-pipeline install post-merge-example
 ```
 
 For more inspiration, explore the agent definitions in `.claude/agents/`. They pair with these pipelines to demonstrate structured outputs and downstream dependencies.

@@ -64,44 +64,94 @@ describe('initCommand', () => {
   });
 
   describe('Example Pipeline Creation', () => {
-    it('should create 4 example pipeline template files', async () => {
+    it('should create only test-pipeline.yml by default', async () => {
       await initCommand(tempDir);
 
-      const templateNames = [
-        'post-commit-example.yml',
-        'pre-commit-example.yml',
-        'pre-push-example.yml',
-        'post-merge-example.yml'
-      ];
+      const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
+      const files = await fs.readdir(pipelinesDir);
+      const ymlFiles = files.filter(f => f.endsWith('.yml'));
 
-      for (const templateName of templateNames) {
-        const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', templateName);
-        const exists = await fs.stat(pipelinePath).then(() => true, () => false);
-        expect(exists).toBe(true);
-      }
+      expect(ymlFiles).toEqual(['test-pipeline.yml']);
     });
 
-    it('should create valid YAML in all template pipelines', async () => {
-      await initCommand(tempDir);
+    it('should create test-pipeline + specific example when exampleName is provided', async () => {
+      await initCommand(tempDir, { exampleName: 'post-commit' });
 
-      const templateNames = [
+      const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
+      const files = await fs.readdir(pipelinesDir);
+      const ymlFiles = files.filter(f => f.endsWith('.yml')).sort();
+
+      expect(ymlFiles).toEqual(['post-commit-example.yml', 'test-pipeline.yml']);
+    });
+
+    it('should create all pipelines when --all flag is set', async () => {
+      await initCommand(tempDir, { all: true });
+
+      const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
+      const files = await fs.readdir(pipelinesDir);
+      const ymlFiles = files.filter(f => f.endsWith('.yml')).sort();
+
+      expect(ymlFiles).toEqual([
         'post-commit-example.yml',
+        'post-merge-example.yml',
         'pre-commit-example.yml',
         'pre-push-example.yml',
-        'post-merge-example.yml'
-      ];
+        'test-pipeline.yml'
+      ]);
+    });
 
-      for (const templateName of templateNames) {
-        const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', templateName);
+    it('should throw error for invalid example name', async () => {
+      await expect(
+        initCommand(tempDir, { exampleName: 'invalid-example' })
+      ).rejects.toThrow('Invalid example name');
+    });
+
+    it('should create valid YAML in test-pipeline', async () => {
+      await initCommand(tempDir);
+
+      const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'test-pipeline.yml');
+      const content = await fs.readFile(pipelinePath, 'utf-8');
+      const parsed = YAML.parse(content);
+
+      expect(parsed).toBeDefined();
+      expect(parsed.name).toBe('test-pipeline');
+      expect(parsed.trigger).toBe('manual');
+    });
+
+    describe('test-pipeline.yml', () => {
+      it('should have correct pipeline configuration', async () => {
+        await initCommand(tempDir);
+
+        const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'test-pipeline.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
         const parsed = YAML.parse(content);
-        expect(parsed).toBeDefined();
-      }
+
+        expect(parsed.name).toBe('test-pipeline');
+        expect(parsed.trigger).toBe('manual');
+        expect(parsed.settings.executionMode).toBe('sequential');
+        expect(parsed.agents).toHaveLength(2);
+      });
+
+      it('should include code-review and summary agents', async () => {
+        await initCommand(tempDir);
+
+        const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'test-pipeline.yml');
+        const content = await fs.readFile(pipelinePath, 'utf-8');
+        const parsed = YAML.parse(content);
+
+        const codeReviewAgent = parsed.agents.find((a: any) => a.name === 'code-review');
+        const summaryAgent = parsed.agents.find((a: any) => a.name === 'summary');
+
+        expect(codeReviewAgent).toBeDefined();
+        expect(codeReviewAgent.agent).toBe('.claude/agents/code-reviewer.md');
+        expect(summaryAgent).toBeDefined();
+        expect(summaryAgent.agent).toBe('.claude/agents/summary.md');
+      });
     });
 
     describe('post-commit-example.yml', () => {
       it('should have correct pipeline configuration', async () => {
-        await initCommand(tempDir);
+        await initCommand(tempDir, { exampleName: 'post-commit' });
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-commit-example.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
@@ -115,7 +165,7 @@ describe('initCommand', () => {
       });
 
       it('should include code-review agent', async () => {
-        await initCommand(tempDir);
+        await initCommand(tempDir, { exampleName: 'post-commit' });
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-commit-example.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
@@ -131,7 +181,7 @@ describe('initCommand', () => {
 
     describe('pre-commit-example.yml', () => {
       it('should have correct pipeline configuration', async () => {
-        await initCommand(tempDir);
+        await initCommand(tempDir, { exampleName: 'pre-commit' });
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'pre-commit-example.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
@@ -146,7 +196,7 @@ describe('initCommand', () => {
       });
 
       it('should include lint-check and security-scan agents', async () => {
-        await initCommand(tempDir);
+        await initCommand(tempDir, { exampleName: 'pre-commit' });
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'pre-commit-example.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
@@ -164,7 +214,7 @@ describe('initCommand', () => {
 
     describe('pre-push-example.yml', () => {
       it('should have correct pipeline configuration', async () => {
-        await initCommand(tempDir);
+        await initCommand(tempDir, { exampleName: 'pre-push' });
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'pre-push-example.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
@@ -178,7 +228,7 @@ describe('initCommand', () => {
       });
 
       it('should include conditional push-approval agent', async () => {
-        await initCommand(tempDir);
+        await initCommand(tempDir, { exampleName: 'pre-push' });
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'pre-push-example.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
@@ -193,7 +243,7 @@ describe('initCommand', () => {
 
     describe('post-merge-example.yml', () => {
       it('should have correct pipeline configuration with git workflow', async () => {
-        await initCommand(tempDir);
+        await initCommand(tempDir, { exampleName: 'post-merge' });
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-merge-example.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
@@ -209,7 +259,7 @@ describe('initCommand', () => {
       });
 
       it('should include cleanup agents with dependencies', async () => {
-        await initCommand(tempDir);
+        await initCommand(tempDir, { exampleName: 'post-merge' });
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-merge-example.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
@@ -223,11 +273,43 @@ describe('initCommand', () => {
   });
 
   describe('Example Agent Creation', () => {
-    it('should create 5 default agent files when plugin import is disabled', async () => {
-      // Disable plugin import to ensure default agents are created
+    it('should create only agents required by test-pipeline by default', async () => {
       await initCommand(tempDir, { importPluginAgents: false });
 
-      const agentNames = [
+      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      const files = await fs.readdir(agentsDir);
+      const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
+
+      // test-pipeline uses code-reviewer.md and summary.md
+      expect(mdFiles.sort()).toEqual(['code-reviewer.md', 'summary.md']);
+    });
+
+    it('should create agents required by post-commit-example when specified', async () => {
+      await initCommand(tempDir, { exampleName: 'post-commit', importPluginAgents: false });
+
+      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      const files = await fs.readdir(agentsDir);
+      const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
+
+      // test-pipeline + post-commit-example use: code-reviewer, summary, quality-checker, doc-updater
+      expect(mdFiles.sort()).toEqual([
+        'code-reviewer.md',
+        'doc-updater.md',
+        'quality-checker.md',
+        'summary.md'
+      ]);
+    });
+
+    it('should create all required agents when --all flag is set', async () => {
+      await initCommand(tempDir, { all: true, importPluginAgents: false });
+
+      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      const files = await fs.readdir(agentsDir);
+      const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
+
+      // Should include all agents that have templates and are used by any pipeline
+      // Note: context-reducer, dependency-auditor, code-reducer, cleanup-reporter are NOT in DEFAULT_AGENTS
+      const expectedAgents = [
         'code-reviewer.md',
         'doc-updater.md',
         'quality-checker.md',
@@ -235,11 +317,7 @@ describe('initCommand', () => {
         'summary.md'
       ];
 
-      for (const agentName of agentNames) {
-        const agentPath = path.join(tempDir, '.claude', 'agents', agentName);
-        const exists = await fs.stat(agentPath).then(() => true, () => false);
-        expect(exists).toBe(true);
-      }
+      expect(mdFiles.sort()).toEqual(expectedAgents);
     });
 
     it('should include valid markdown in code-reviewer agent', async () => {
@@ -255,7 +333,7 @@ describe('initCommand', () => {
     });
 
     it('should include valid markdown in doc-updater agent', async () => {
-      await initCommand(tempDir, { importPluginAgents: false });
+      await initCommand(tempDir, { all: true, importPluginAgents: false });
 
       const agentPath = path.join(tempDir, '.claude', 'agents', 'doc-updater.md');
       const content = await fs.readFile(agentPath, 'utf-8');
@@ -267,7 +345,7 @@ describe('initCommand', () => {
     });
 
     it('should include valid markdown in quality-checker agent', async () => {
-      await initCommand(tempDir, { importPluginAgents: false });
+      await initCommand(tempDir, { all: true, importPluginAgents: false });
 
       const agentPath = path.join(tempDir, '.claude', 'agents', 'quality-checker.md');
       const content = await fs.readFile(agentPath, 'utf-8');
@@ -279,7 +357,7 @@ describe('initCommand', () => {
     });
 
     it('should include valid markdown in security-auditor agent', async () => {
-      await initCommand(tempDir, { importPluginAgents: false });
+      await initCommand(tempDir, { all: true, importPluginAgents: false });
 
       const agentPath = path.join(tempDir, '.claude', 'agents', 'security-auditor.md');
       const content = await fs.readFile(agentPath, 'utf-8');
@@ -300,29 +378,38 @@ describe('initCommand', () => {
       expect(content).toContain('## Your Task');
     });
 
-    it('should not create default agents if plugin agents already exist', async () => {
-      // Pre-create an agent file to simulate plugin agent import
+    it('should not create agents that already exist', async () => {
+      // Pre-create code-reviewer.md to simulate existing agent
       const agentsDir = path.join(tempDir, '.claude', 'agents');
       await fs.mkdir(agentsDir, { recursive: true });
-      await fs.writeFile(path.join(agentsDir, 'existing-agent.md'), '# Existing Agent', 'utf-8');
+      await fs.writeFile(path.join(agentsDir, 'code-reviewer.md'), '# Existing Code Reviewer', 'utf-8');
 
       await initCommand(tempDir, { importPluginAgents: false });
 
-      // Should not create default agents since an agent already exists
-      const codeReviewerPath = path.join(agentsDir, 'code-reviewer.md');
-      const exists = await fs.stat(codeReviewerPath).then(() => true, () => false);
-      expect(exists).toBe(false);
+      // Should create summary.md (needed by test-pipeline) but not code-reviewer.md (already exists)
+      const files = await fs.readdir(agentsDir);
+      const mdFiles = files.filter(f => f.endsWith('.md'));
+
+      expect(mdFiles.sort()).toEqual(['code-reviewer.md', 'summary.md']);
+
+      // Verify code-reviewer.md was NOT overwritten
+      const content = await fs.readFile(path.join(agentsDir, 'code-reviewer.md'), 'utf-8');
+      expect(content).toContain('# Existing Code Reviewer');
     });
 
     it('should create agents with proper output format instructions', async () => {
-      await initCommand(tempDir, { importPluginAgents: false });
+      await initCommand(tempDir, { all: true, importPluginAgents: false });
 
+      // Test agents that should have report_outputs
       const agentsWithOutputs = ['code-reviewer.md', 'doc-updater.md', 'quality-checker.md', 'security-auditor.md'];
 
       for (const agentName of agentsWithOutputs) {
         const agentPath = path.join(tempDir, '.claude', 'agents', agentName);
-        const content = await fs.readFile(agentPath, 'utf-8');
-        expect(content).toContain('report_outputs');
+        const exists = await fs.stat(agentPath).then(() => true, () => false);
+        if (exists) {
+          const content = await fs.readFile(agentPath, 'utf-8');
+          expect(content).toContain('report_outputs');
+        }
       }
     });
   });
@@ -414,25 +501,20 @@ describe('initCommand', () => {
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('.claude/agents/'));
     });
 
-    it('should log pipeline creation confirmation with 4 templates', async () => {
+    it('should log pipeline creation confirmation', async () => {
       await initCommand(tempDir);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Creating example pipelines:'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('post-commit-example.yml'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('pre-commit-example.yml'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('pre-push-example.yml'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('post-merge-example.yml'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Creating pipelines:'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('test-pipeline.yml'));
     });
 
-    it('should log agent creation confirmation with 5 agents', async () => {
-      // Disable plugin import to ensure default agents are created
+    it('should log agent creation confirmation', async () => {
+      // Disable plugin import to ensure fallback agents are created
       await initCommand(tempDir, { importPluginAgents: false });
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Created example agents:'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Created'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('fallback agent'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('code-reviewer.md'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('doc-updater.md'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('quality-checker.md'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('security-auditor.md'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('summary.md'));
     });
 
@@ -446,7 +528,12 @@ describe('initCommand', () => {
       await initCommand(tempDir);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Next steps:'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline run post-commit-example'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline run test-pipeline'));
+    });
+
+    it('should log install command when post-commit example is created', async () => {
+      await initCommand(tempDir, { exampleName: 'post-commit' });
+
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline install post-commit-example'));
     });
 
@@ -478,16 +565,13 @@ describe('initCommand', () => {
       expect(hasPluginMessage).toBe(false);
     });
 
-    it('should create default agents if no plugin agents exist', async () => {
-      // Disable plugin import to force default agent creation
+    it('should create required agents if no plugin agents exist', async () => {
+      // Disable plugin import to force fallback agent creation
       await initCommand(tempDir, { importPluginAgents: false });
 
-      // Default agents should be created
+      // Required agents for test-pipeline should be created
       const agentNames = [
         'code-reviewer.md',
-        'doc-updater.md',
-        'quality-checker.md',
-        'security-auditor.md',
         'summary.md'
       ];
 
@@ -498,20 +582,19 @@ describe('initCommand', () => {
       }
     });
 
-    it('should not create default agents if plugin agents were imported', async () => {
-      // Pre-create an agent to simulate existing agents
+    it('should not create agents that already exist from plugins', async () => {
+      // Pre-create code-reviewer.md to simulate plugin import
       const agentsDir = path.join(tempDir, '.claude', 'agents');
       await fs.mkdir(agentsDir, { recursive: true });
-      await fs.writeFile(path.join(agentsDir, 'plugin-agent.md'), '# Plugin Agent', 'utf-8');
+      await fs.writeFile(path.join(agentsDir, 'code-reviewer.md'), '# Plugin Agent', 'utf-8');
 
       await initCommand(tempDir, { importPluginAgents: false });
 
-      // Check that we don't have default agents (because existing agents were found)
-      const codeReviewerPath = path.join(agentsDir, 'code-reviewer.md');
-      const exists = await fs.stat(codeReviewerPath).then(() => true, () => false);
+      // Should create summary.md but not code-reviewer.md
+      const files = await fs.readdir(agentsDir);
+      const mdFiles = files.filter(f => f.endsWith('.md'));
 
-      // Should not create default agents
-      expect(exists).toBe(false);
+      expect(mdFiles.sort()).toEqual(['code-reviewer.md', 'summary.md']);
     });
 
     it('should show imported agent count in success message when agents imported', async () => {
@@ -595,60 +678,49 @@ describe('initCommand', () => {
       expect(await fs.stat(pipelinesDir).then(() => true, () => false)).toBe(true);
       expect(await fs.stat(agentsDir).then(() => true, () => false)).toBe(true);
 
-      // Verify all 4 pipeline template files
-      const templateNames = [
-        'post-commit-example.yml',
-        'pre-commit-example.yml',
-        'pre-push-example.yml',
-        'post-merge-example.yml'
-      ];
+      // Verify only test-pipeline is created by default
+      const pipelineFiles = await fs.readdir(pipelinesDir);
+      const ymlFiles = pipelineFiles.filter(f => f.endsWith('.yml'));
+      expect(ymlFiles).toEqual(['test-pipeline.yml']);
 
-      for (const templateName of templateNames) {
-        const pipelinePath = path.join(pipelinesDir, templateName);
-        expect(await fs.stat(pipelinePath).then(() => true, () => false)).toBe(true);
-      }
-
-      // Verify all 5 default agent files
-      const agentNames = [
-        'code-reviewer.md',
-        'doc-updater.md',
-        'quality-checker.md',
-        'security-auditor.md',
-        'summary.md'
-      ];
-
-      for (const agentName of agentNames) {
-        const agentPath = path.join(agentsDir, agentName);
-        expect(await fs.stat(agentPath).then(() => true, () => false)).toBe(true);
-      }
+      // Verify only required agents are created (code-reviewer.md, summary.md)
+      const agentFiles = await fs.readdir(agentsDir);
+      const mdFiles = agentFiles.filter(f => f.endsWith('.md') && !f.startsWith('.'));
+      expect(mdFiles.sort()).toEqual(['code-reviewer.md', 'summary.md']);
 
       // Verify .gitignore
       const gitignorePath = path.join(tempDir, '.gitignore');
       expect(await fs.stat(gitignorePath).then(() => true, () => false)).toBe(true);
     });
 
-    it('should create valid pipeline configurations readable by system', async () => {
+    it('should create valid pipeline configuration readable by system', async () => {
       await initCommand(tempDir);
 
-      const templateNames = [
-        'post-commit-example.yml',
-        'pre-commit-example.yml',
-        'pre-push-example.yml',
-        'post-merge-example.yml'
-      ];
+      const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'test-pipeline.yml');
+      const content = await fs.readFile(pipelinePath, 'utf-8');
+      const parsed = YAML.parse(content);
 
-      for (const templateName of templateNames) {
-        const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', templateName);
-        const content = await fs.readFile(pipelinePath, 'utf-8');
-        const parsed = YAML.parse(content);
+      // Verify it's a valid pipeline config structure
+      expect(parsed.name).toBeDefined();
+      expect(parsed.trigger).toBeDefined();
+      expect(parsed.agents).toBeDefined();
+      expect(Array.isArray(parsed.agents)).toBe(true);
+      expect(parsed.settings).toBeDefined();
+    });
 
-        // Verify it's a valid pipeline config structure
-        expect(parsed.name).toBeDefined();
-        expect(parsed.trigger).toBeDefined();
-        expect(parsed.agents).toBeDefined();
-        expect(Array.isArray(parsed.agents)).toBe(true);
-        expect(parsed.settings).toBeDefined();
-      }
+    it('should create all pipelines when --all flag is used', async () => {
+      await initCommand(tempDir, { all: true, importPluginAgents: false });
+
+      const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
+      const files = await fs.readdir(pipelinesDir);
+      const ymlFiles = files.filter(f => f.endsWith('.yml'));
+
+      expect(ymlFiles.length).toBe(5); // test + 4 examples
+      expect(ymlFiles).toContain('test-pipeline.yml');
+      expect(ymlFiles).toContain('post-commit-example.yml');
+      expect(ymlFiles).toContain('pre-commit-example.yml');
+      expect(ymlFiles).toContain('pre-push-example.yml');
+      expect(ymlFiles).toContain('post-merge-example.yml');
     });
 
     it('should be idempotent (safe to run multiple times)', async () => {
@@ -656,38 +728,29 @@ describe('initCommand', () => {
       await initCommand(tempDir);
       await initCommand(tempDir);
 
-      // Verify template files still exist and have correct content
-      const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-commit-example.yml');
+      // Verify template file still exists and has correct content
+      const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'test-pipeline.yml');
       const content = await fs.readFile(pipelinePath, 'utf-8');
       const parsed = YAML.parse(content);
 
-      expect(parsed.name).toBe('post-commit-example');
-      expect(parsed.agents).toHaveLength(3);
+      expect(parsed.name).toBe('test-pipeline');
+      expect(parsed.agents).toHaveLength(2);
 
-      // Verify all 4 templates exist
-      const templateNames = [
-        'post-commit-example.yml',
-        'pre-commit-example.yml',
-        'pre-push-example.yml',
-        'post-merge-example.yml'
-      ];
-
+      // Verify test-pipeline exists
       const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
-      for (const templateName of templateNames) {
-        const templatePath = path.join(pipelinesDir, templateName);
-        expect(await fs.stat(templatePath).then(() => true, () => false)).toBe(true);
-      }
+      const templatePath = path.join(pipelinesDir, 'test-pipeline.yml');
+      expect(await fs.stat(templatePath).then(() => true, () => false)).toBe(true);
     });
 
     it('should create files with correct encoding', async () => {
       await initCommand(tempDir);
 
-      const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-commit-example.yml');
+      const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'test-pipeline.yml');
       const buffer = await fs.readFile(pipelinePath);
 
       // Should be readable as UTF-8
       const content = buffer.toString('utf-8');
-      expect(content).toContain('post-commit-example');
+      expect(content).toContain('test-pipeline');
     });
 
     it('should create agents with proper markdown structure', async () => {
@@ -696,9 +759,6 @@ describe('initCommand', () => {
 
       const agentNames = [
         'code-reviewer.md',
-        'doc-updater.md',
-        'quality-checker.md',
-        'security-auditor.md',
         'summary.md'
       ];
 
@@ -710,6 +770,39 @@ describe('initCommand', () => {
         expect(content).toMatch(/^# /m);
         expect(content).toMatch(/^## /m);
       }
+    });
+  });
+
+  describe('Helper Functions', () => {
+    describe('getRequiredAgents', () => {
+      it('should extract agents from test-pipeline', async () => {
+        await initCommand(tempDir);
+
+        // Use a simple test by checking what files were created
+        const agentsDir = path.join(tempDir, '.claude', 'agents');
+        const files = await fs.readdir(agentsDir);
+        const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
+
+        // test-pipeline should require code-reviewer.md and summary.md
+        expect(mdFiles).toContain('code-reviewer.md');
+        expect(mdFiles).toContain('summary.md');
+      });
+
+      it('should extract unique agents from multiple pipelines', async () => {
+        await initCommand(tempDir, { exampleName: 'post-commit', importPluginAgents: false });
+
+        const agentsDir = path.join(tempDir, '.claude', 'agents');
+        const files = await fs.readdir(agentsDir);
+        const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
+
+        // Both pipelines combined should create these agents
+        expect(mdFiles.sort()).toEqual([
+          'code-reviewer.md',
+          'doc-updater.md',
+          'quality-checker.md',
+          'summary.md'
+        ]);
+      });
     });
   });
 });

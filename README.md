@@ -47,17 +47,23 @@ npm link
 ### 1. Initialize New Project
 
 ```bash
-# Initialize with example pipelines and agents
+# Initialize with minimal test pipeline
 agent-pipeline init
+
+# Initialize with a specific example
+agent-pipeline init post-commit
+
+# Initialize with all examples
+agent-pipeline init --all
 ```
 
-This scaffolds example pipelines (`test-pipeline`, `parallel-example`, etc.), sample agent definitions, and the directory structure (`.agent-pipeline/`, `.claude/agents/`).
+This scaffolds the `test-pipeline`, optional example pipelines, required agent definitions, and the directory structure (`.agent-pipeline/`, `.claude/agents/`). Agents from installed Claude Code plugins are automatically imported.
 
 ### 2. Run Your First Pipeline
 
 ```bash
 # Run with interactive live UI (default)
-agent-pipeline run example-pipeline
+agent-pipeline run test-pipeline
 ```
 
 **What you'll see:** live terminal UI with status badges, real-time agent output streaming, atomic commits per stage, and a pipeline summary with timing and results.

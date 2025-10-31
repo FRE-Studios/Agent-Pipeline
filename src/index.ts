@@ -122,7 +122,13 @@ async function main() {
       }
 
       case 'init': {
-        await initCommand(repoPath);
+        const exampleName = args[1]; // positional argument
+        const all = args.includes('--all');
+
+        await initCommand(repoPath, {
+          exampleName,
+          all
+        });
         break;
       }
 
