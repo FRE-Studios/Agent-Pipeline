@@ -2,7 +2,7 @@
 
 > Intelligent agent orchestration with parallel execution, conditional logic, git workflow automation, and multi-channel notifications for Claude Code
 
-Last update: 2025-10-21
+Last update: 2025-10-28
 
 Agent Pipeline delivers an agent-driven CI/CD workflow with full visibility. Execute Claude agents with DAG-planned parallelism, conditional logic, retries, and automated git hygiene. Branch isolation, GitHub PR creation, local/Slack notifications, and a live terminal UI keep humans in the loop.
 
@@ -135,6 +135,7 @@ agent-pipeline run my-pipeline
 - `docs/configuration.md` – Pipeline settings, git workflow, notifications, and context reduction details.
 - `docs/examples.md` – Ready-to-run sample pipelines shipped with the CLI.
 - `docs/cli.md` – Command reference for pipeline, agent, and git integration workflows.
+- `docs/data-flow-map.md` – Visual data flow diagrams showing how data moves through the system.
 - `docs/dev/` – Historical design notes and roadmap snapshots.
 
 ## Architecture Overview
