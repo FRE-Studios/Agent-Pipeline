@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Documentation Philosophy**: Keep all documentation minimal and scannable. Write only essential information in 1-2 sentences per concept. Avoid verbose explanations, extensive examples, or redundant details. Users can explore code/examples if they need more depth.
+
 See @README.md for comprehensive feature documentation and usage examples. Deep dives now live under:
 - `docs/configuration.md` – pipeline settings, git workflow, notifications
 - `docs/examples.md` – shipped pipeline templates

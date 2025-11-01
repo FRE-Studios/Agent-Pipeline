@@ -136,6 +136,7 @@ Each entry in `agents:` maps to a stage executed by `StageExecutor`:
 - `inputs`: adds ad-hoc values to the agent prompt payload.
 - `outputs`: keys extracted from agent responses via `report_outputs` or legacy text parsing. Extracted values feed downstream stages.
 - `autoCommit` and `commitMessage`: override global commit behavior for the stage.
+- `timeout`: maximum execution time in seconds. Default is 900s (15 minutes) with non-blocking warnings at 5, 10, and 13 minutes. Customize for quick tasks (`timeout: 60`) or complex operations (`timeout: 600`).
 
 ### Reporting Structured Outputs
 
