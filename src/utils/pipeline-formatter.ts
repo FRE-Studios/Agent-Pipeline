@@ -88,7 +88,7 @@ export class PipelineFormatter {
 
   /**
    * Format token usage information
-   * Example: "Estimated input: ~23k tokens | Actual input: 25.2k | Output: 13.1k"
+   * Example: "Input: 25.2k tokens | Output: 13.1k | Turns: 3/10 | Thinking: 2.5k"
    */
   static formatTokenUsage(tokenUsage: StageExecution['tokenUsage']): string {
     if (!tokenUsage) return '';
@@ -107,6 +107,16 @@ export class PipelineFormatter {
 
     // Output tokens
     parts.push(`Output: ${this.formatTokenCount(tokenUsage.output)}`);
+
+    // Thinking tokens if present (extended thinking models)
+    if (tokenUsage.thinking_tokens && tokenUsage.thinking_tokens > 0) {
+      parts.push(`Thinking: ${this.formatTokenCount(tokenUsage.thinking_tokens)}`);
+    }
+
+    // Conversation turns if present
+    if (tokenUsage.num_turns !== undefined) {
+      parts.push(`Turns: ${tokenUsage.num_turns}`);
+    }
 
     // Cache tokens if present
     if (tokenUsage.cache_creation) {

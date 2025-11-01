@@ -210,6 +210,8 @@ export interface StageExecution {
     output: number;                    // Output tokens (from SDK)
     cache_creation?: number;           // Cache creation tokens (from SDK)
     cache_read?: number;               // Cache read tokens (from SDK)
+    num_turns?: number;                // Actual conversation turns used (from SDK)
+    thinking_tokens?: number;          // Extended thinking tokens used (from SDK, if available)
   };
 
   // Retry tracking

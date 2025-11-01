@@ -115,7 +115,9 @@ export class StageExecutor {
           actual_input: result.tokenUsage.input_tokens,
           output: result.tokenUsage.output_tokens,
           cache_creation: result.tokenUsage.cache_creation_input_tokens,
-          cache_read: result.tokenUsage.cache_read_input_tokens
+          cache_read: result.tokenUsage.cache_read_input_tokens,
+          num_turns: result.numTurns,
+          thinking_tokens: result.tokenUsage.thinking_tokens
         };
       }
 
@@ -440,7 +442,9 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
       output_tokens: number;
       cache_creation_input_tokens?: number;
       cache_read_input_tokens?: number;
+      thinking_tokens?: number;
     };
+    numTurns?: number;
   }> {
     const timeout = (timeoutSeconds || 300) * 1000; // Default 5 minutes
 
@@ -472,7 +476,9 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
         output_tokens: number;
         cache_creation_input_tokens?: number;
         cache_read_input_tokens?: number;
+        thinking_tokens?: number;
       } | undefined;
+      let numTurns: number | undefined;
 
       for await (const message of q) {
         if (message.type === 'assistant') {
@@ -493,12 +499,15 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
             }
           }
         } else if (message.type === 'result' && message.subtype === 'success') {
-          // Capture token usage from SDK result message
+          // Capture token usage and turns from SDK result message
+          numTurns = message.num_turns;
           tokenUsage = {
             input_tokens: message.usage.input_tokens,
             output_tokens: message.usage.output_tokens,
             cache_creation_input_tokens: message.usage.cache_creation_input_tokens,
-            cache_read_input_tokens: message.usage.cache_read_input_tokens
+            cache_read_input_tokens: message.usage.cache_read_input_tokens,
+            // Check if thinking_tokens exists in usage (extended thinking models)
+            thinking_tokens: (message.usage as any).thinking_tokens
           };
         }
       }
@@ -509,7 +518,7 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
         extractedData = this.extractOutputs(textOutput, outputKeys);
       }
 
-      return { textOutput, extractedData, tokenUsage };
+      return { textOutput, extractedData, tokenUsage, numTurns };
     };
 
     return Promise.race([
@@ -522,7 +531,9 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
           output_tokens: number;
           cache_creation_input_tokens?: number;
           cache_read_input_tokens?: number;
+          thinking_tokens?: number;
         };
+        numTurns?: number;
       }>((_, reject) =>
         setTimeout(() => reject(new Error('Agent timeout')), timeout)
       )
