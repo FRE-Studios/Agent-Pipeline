@@ -34,6 +34,7 @@ settings:
   failureStrategy: continue
   preserveWorkingTree: false
   executionMode: parallel
+  # permissionMode: acceptEdits  # default: auto-accept file edits (respects .claude/settings.json rules)
 
 agents:
   # Run these cleanup tasks in parallel after merge

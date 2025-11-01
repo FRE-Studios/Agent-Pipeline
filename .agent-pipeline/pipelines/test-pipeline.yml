@@ -6,6 +6,7 @@ settings:
   commitPrefix: "[pipeline:{{stage}}]"
   failureStrategy: continue
   preserveWorkingTree: false
+  # permissionMode: acceptEdits  # default: auto-accept file edits (respects .claude/settings.json rules)
 
 agents:
   - name: hello-world

@@ -6,6 +6,7 @@ settings:
   commitPrefix: "[pipeline:{{stage}}]"
   failureStrategy: stop
   executionMode: parallel  # Enable parallel execution
+  # permissionMode: acceptEdits  # default: auto-accept file edits (respects .claude/settings.json rules)
 
 agents:
   # These three stages run in parallel (no dependencies)

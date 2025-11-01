@@ -69,6 +69,13 @@ agents:
 - `preserveWorkingTree`: stashes uncommitted changes before the run and restores them after completion.
 - `executionMode`: `parallel` (default) uses the DAG planner to execute independent groups simultaneously; `sequential` forces one stage at a time.
 - `contextReduction`: enables the context optimizer backed by `ContextReducer` and `TokenEstimator`. When enabled, summaries and file references are persisted under `.agent-pipeline/outputs/<runId>/`.
+- `permissionMode`: controls how agents handle file operations and permissions. Options:
+  - `default`: Prompts for permission based on `.claude/settings.json` rules (interactive workflows)
+  - `acceptEdits` (default): Auto-accepts file edits (Write, Edit tools) while respecting allow/deny rules (automated workflows)
+  - `bypassPermissions`: Bypasses all permission checks (use with extreme caution)
+  - `plan`: Read-only mode, no actual execution (dry-run scenarios)
+
+  **Note:** When using `acceptEdits` (default), agents can create/edit files without prompts, but `.claude/settings.json` allow/deny patterns are still enforced. This is ideal for automated CI/CD pipelines where you trust the workflow but want basic safeguards.
 
 ### Git Workflow
 

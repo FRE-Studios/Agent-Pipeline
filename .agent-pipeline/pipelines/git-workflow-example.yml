@@ -29,6 +29,7 @@ settings:
   commitPrefix: "[pipeline:{{stage}}]"
   failureStrategy: stop
   preserveWorkingTree: false
+  # permissionMode: acceptEdits  # default: auto-accept file edits (respects .claude/settings.json rules)
 
 agents:
   - name: code-review

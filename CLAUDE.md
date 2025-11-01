@@ -49,6 +49,8 @@ The pipeline executes in this order:
 
 **UI Architecture**: Dual-mode operation - Interactive mode uses Ink/React terminal UI (`src/ui/pipeline-ui.tsx`) with real-time updates. Non-interactive mode uses simple console logging.
 
+**Permission Control**: Agents default to `acceptEdits` mode for automated workflows, allowing file operations without prompts while respecting `.claude/settings.json` allow/deny rules. Configurable per pipeline via `settings.permissionMode`.
+
 ### Critical Files
 
 - `src/config/schema.ts` - TypeScript interfaces for all configuration and state types

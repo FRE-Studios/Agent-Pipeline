@@ -2,6 +2,17 @@
 
 import { NotificationConfig } from '../notifications/types.js';
 
+/**
+ * Permission mode for agent execution
+ * - default: Prompts for permission based on .claude/settings.json rules
+ * - acceptEdits: Auto-accepts file edits (Write, Edit tools) while respecting allow/deny rules
+ * - bypassPermissions: Bypasses all permission checks (use with caution)
+ * - plan: Read-only mode, no actual execution
+ *
+ * @default 'acceptEdits' - Optimized for automated workflows
+ */
+export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+
 export interface LoopingConfig {
   enabled: boolean;
   maxIterations?: number;  // Default: 100
@@ -63,6 +74,7 @@ export interface PipelineConfig {
     preserveWorkingTree: boolean;      // Stash/restore uncommitted changes
     executionMode?: 'sequential' | 'parallel'; // Execution strategy (default: parallel with DAG)
     contextReduction?: ContextReductionConfig; // Context reduction settings
+    permissionMode?: PermissionMode;   // Permission mode for agents (default: 'acceptEdits')
   };
 
   agents: AgentStageConfig[];

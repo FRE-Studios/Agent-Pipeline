@@ -6,6 +6,7 @@ settings:
   commitPrefix: "[pipeline:{{stage}}]"
   failureStrategy: continue
   executionMode: parallel
+  # permissionMode: acceptEdits  # default: auto-accept file edits (respects .claude/settings.json rules)
 
 agents:
   # Initial code review

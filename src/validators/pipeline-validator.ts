@@ -105,6 +105,27 @@ export class PipelineValidator {
       });
     }
 
+    // Validate permission mode
+    if (config.settings.permissionMode) {
+      const validModes = ['default', 'acceptEdits', 'bypassPermissions', 'plan'];
+      if (!validModes.includes(config.settings.permissionMode)) {
+        this.errors.push({
+          field: 'settings.permissionMode',
+          message: `Invalid permission mode: ${config.settings.permissionMode}. Must be one of: ${validModes.join(', ')}`,
+          severity: 'error'
+        });
+      }
+
+      // Warn about unsafe modes
+      if (config.settings.permissionMode === 'bypassPermissions') {
+        this.errors.push({
+          field: 'settings.permissionMode',
+          message: 'bypassPermissions mode bypasses all permission checks. Use with caution in production.',
+          severity: 'warning'
+        });
+      }
+    }
+
     // Validate context reduction configuration
     if (config.settings.contextReduction) {
       const cr = config.settings.contextReduction;

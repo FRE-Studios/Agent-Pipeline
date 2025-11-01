@@ -2129,4 +2129,100 @@ describe('StageExecutor', () => {
       });
     });
   });
+
+  describe('Permission Mode', () => {
+    it('should use acceptEdits permission mode by default when not specified', async () => {
+      const { query } = await import('@anthropic-ai/claude-agent-sdk');
+      const mockQuery = query as any;
+
+      const state = { ...runningPipelineState };
+      await executor.executeStage(basicStageConfig, state);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            permissionMode: 'acceptEdits'
+          })
+        })
+      );
+    });
+
+    it('should use configured permission mode from pipeline settings', async () => {
+      const { query } = await import('@anthropic-ai/claude-agent-sdk');
+      const mockQuery = query as any;
+
+      const state = {
+        ...runningPipelineState,
+        pipelineConfig: {
+          ...runningPipelineState.pipelineConfig,
+          settings: {
+            ...runningPipelineState.pipelineConfig.settings,
+            permissionMode: 'default' as const
+          }
+        }
+      };
+
+      await executor.executeStage(basicStageConfig, state);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            permissionMode: 'default'
+          })
+        })
+      );
+    });
+
+    it('should support plan permission mode', async () => {
+      const { query } = await import('@anthropic-ai/claude-agent-sdk');
+      const mockQuery = query as any;
+
+      const state = {
+        ...runningPipelineState,
+        pipelineConfig: {
+          ...runningPipelineState.pipelineConfig,
+          settings: {
+            ...runningPipelineState.pipelineConfig.settings,
+            permissionMode: 'plan' as const
+          }
+        }
+      };
+
+      await executor.executeStage(basicStageConfig, state);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            permissionMode: 'plan'
+          })
+        })
+      );
+    });
+
+    it('should support bypassPermissions mode', async () => {
+      const { query } = await import('@anthropic-ai/claude-agent-sdk');
+      const mockQuery = query as any;
+
+      const state = {
+        ...runningPipelineState,
+        pipelineConfig: {
+          ...runningPipelineState.pipelineConfig,
+          settings: {
+            ...runningPipelineState.pipelineConfig.settings,
+            permissionMode: 'bypassPermissions' as const
+          }
+        }
+      };
+
+      await executor.executeStage(basicStageConfig, state);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            permissionMode: 'bypassPermissions'
+          })
+        })
+      );
+    });
+  });
 });

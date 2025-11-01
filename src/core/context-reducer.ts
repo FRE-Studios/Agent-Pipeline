@@ -50,7 +50,11 @@ export class ContextReducer {
       // Run reducer agent
       console.log(`🤖 Running context-reducer agent...`);
 
-      const result = await this.runReducerAgent(reducerContext, systemPrompt);
+      const result = await this.runReducerAgent(
+        reducerContext,
+        systemPrompt,
+        pipelineState.pipelineConfig.settings?.permissionMode || 'acceptEdits'
+      );
 
       execution.agentOutput = result.textOutput;
       execution.extractedData = result.extractedData;
@@ -230,7 +234,8 @@ Focus on what the **upcoming agent needs to know**, not what previous agents did
    */
   private async runReducerAgent(
     userPrompt: string,
-    systemPrompt: string
+    systemPrompt: string,
+    permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' = 'acceptEdits'
   ): Promise<{
     textOutput: string;
     extractedData?: Record<string, unknown>;
@@ -251,10 +256,12 @@ Focus on what the **upcoming agent needs to know**, not what previous agents did
       const options: {
         systemPrompt: string;
         settingSources: SettingSource[];
+        permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
         mcpServers?: Record<string, McpServerInstance>;
       } = {
         systemPrompt,
-        settingSources: ['project']
+        settingSources: ['project'],
+        permissionMode
       };
 
       if (mcpServer) {

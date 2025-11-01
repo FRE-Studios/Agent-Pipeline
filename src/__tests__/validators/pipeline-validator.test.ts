@@ -568,4 +568,94 @@ describe('PipelineValidator', () => {
       expect(results[2]).toHaveLength(0);
     });
   });
+
+  describe('permissionMode validation', () => {
+    it('should accept valid permission modes', async () => {
+      const validModes: Array<'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'> = [
+        'default',
+        'acceptEdits',
+        'bypassPermissions',
+        'plan'
+      ];
+
+      for (const mode of validModes) {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            ...simplePipelineConfig.settings,
+            permissionMode: mode
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const permErrors = errors.filter(e => e.field === 'settings.permissionMode' && e.severity === 'error');
+        expect(permErrors).toHaveLength(0);
+      }
+    });
+
+    it('should reject invalid permission mode', async () => {
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        settings: {
+          ...simplePipelineConfig.settings,
+          permissionMode: 'invalid-mode' as any
+        }
+      };
+
+      const errors = await validator.validate(config, tempDir);
+      expect(errors.some(e => e.field === 'settings.permissionMode' && e.severity === 'error')).toBe(true);
+      expect(errors.some(e => e.message.includes('Invalid permission mode'))).toBe(true);
+    });
+
+    it('should warn about bypassPermissions mode', async () => {
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        settings: {
+          ...simplePipelineConfig.settings,
+          permissionMode: 'bypassPermissions'
+        }
+      };
+
+      const errors = await validator.validate(config, tempDir);
+      expect(errors.some(e =>
+        e.field === 'settings.permissionMode' &&
+        e.severity === 'warning' &&
+        e.message.includes('bypassPermissions')
+      )).toBe(true);
+    });
+
+    it('should not warn about other permission modes', async () => {
+      const safeModes: Array<'default' | 'acceptEdits' | 'plan'> = ['default', 'acceptEdits', 'plan'];
+
+      for (const mode of safeModes) {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            ...simplePipelineConfig.settings,
+            permissionMode: mode
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const permWarnings = errors.filter(e =>
+          e.field === 'settings.permissionMode' && e.severity === 'warning'
+        );
+        expect(permWarnings).toHaveLength(0);
+      }
+    });
+
+    it('should allow omitting permissionMode (optional field)', async () => {
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        settings: {
+          ...simplePipelineConfig.settings
+          // permissionMode is omitted
+        }
+      };
+
+      const errors = await validator.validate(config, tempDir);
+      const permErrors = errors.filter(e => e.field === 'settings.permissionMode');
+      expect(permErrors).toHaveLength(0);
+    });
+  });
 });

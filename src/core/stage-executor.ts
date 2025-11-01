@@ -62,6 +62,7 @@ export class StageExecutor {
         systemPrompt,
         stageConfig.timeout,
         stageConfig.outputs,
+        pipelineState.pipelineConfig.settings?.permissionMode || 'acceptEdits',
         onOutputUpdate
       );
 
@@ -385,6 +386,7 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
     systemPrompt: string,
     timeoutSeconds?: number,
     outputKeys?: string[],
+    permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' = 'acceptEdits',
     onOutputUpdate?: (output: string) => void
   ): Promise<{
     textOutput: string;
@@ -407,6 +409,7 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
         options: {
           systemPrompt,
           settingSources: ['project'],
+          permissionMode,
           mcpServers: {
             'pipeline-outputs': mcpServer
           }
