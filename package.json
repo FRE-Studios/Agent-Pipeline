@@ -12,7 +12,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/cli/templates dist/cli/",
     "dev": "tsc --watch",
     "test": "vitest",
     "start": "node dist/index.js",
@@ -23,6 +23,8 @@
     "dist/**/*.d.ts",
     "dist/**/*.d.ts.map",
     "dist/**/*.js.map",
+    "dist/**/*.yml",
+    "dist/**/*.md",
     "!dist/**/*.test.*",
     "!dist/__tests__",
     "README.md",

@@ -1,25 +1,90 @@
 name: test-pipeline
 trigger: manual
 
-# Minimal test pipeline for getting started
+# Game-based pipeline showcasing inter-agent file communication
 settings:
-  autoCommit: true
-  commitPrefix: "[pipeline:{{stage}}]"
-  failureStrategy: continue
-  preserveWorkingTree: false
-  executionMode: sequential
+  autoCommit: false                    # No git commits for this demo
+  commitPrefix: "[pipeline:{{stage}}]" # Not used but required
+  failureStrategy: continue            # Continue even if agents fail
+  preserveWorkingTree: true            # Don't touch working tree
+  executionMode: parallel              # Enable DAG-based parallelism
 
-# Simple two-stage pipeline
 agents:
-  - name: code-review
-    agent: .claude/agents/code-reviewer.md
-    timeout: 120
-    outputs:
-      - issues_found
-      - severity_level
-
-  - name: summary
-    agent: .claude/agents/summary.md
-    dependsOn:
-      - code-review
+  # STAGE 1: Storyteller creates the statements
+  - name: storyteller
+    agent: .claude/agents/storyteller.md
     timeout: 60
+    outputs:
+      - statement_count
+      - lie_index
+
+  # STAGE 2: Five detectives analyze in parallel
+  - name: logician
+    agent: .claude/agents/detective-logician.md
+    dependsOn:
+      - storyteller
+    timeout: 60
+    outputs:
+      - guess
+      - confidence
+
+  - name: empath
+    agent: .claude/agents/detective-empath.md
+    dependsOn:
+      - storyteller
+    timeout: 60
+    outputs:
+      - guess
+      - confidence
+
+  - name: statistician
+    agent: .claude/agents/detective-statistician.md
+    dependsOn:
+      - storyteller
+    timeout: 60
+    outputs:
+      - guess
+      - confidence
+
+  - name: linguist
+    agent: .claude/agents/detective-linguist.md
+    dependsOn:
+      - storyteller
+    timeout: 60
+    outputs:
+      - guess
+      - confidence
+
+  - name: skeptic
+    agent: .claude/agents/detective-skeptic.md
+    dependsOn:
+      - storyteller
+    timeout: 60
+    outputs:
+      - guess
+      - confidence
+
+  # STAGE 3: Synthesizer combines detective reasoning
+  - name: synthesizer
+    agent: .claude/agents/synthesizer.md
+    dependsOn:
+      - logician
+      - empath
+      - statistician
+      - linguist
+      - skeptic
+    timeout: 60
+    outputs:
+      - final_guess
+      - reasoning_summary
+
+  # STAGE 4: Judge reveals truth and scores
+  - name: judge
+    agent: .claude/agents/judge.md
+    dependsOn:
+      - synthesizer
+    timeout: 60
+    outputs:
+      - correct_detectives
+      - incorrect_detectives
+      - winner

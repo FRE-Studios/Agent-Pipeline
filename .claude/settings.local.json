@@ -6,7 +6,9 @@
       "Bash(xargs:*)",
       "Bash(npm run build:*)",
       "Bash(cat:*)",
-      "Bash(git show:*)"
+      "Bash(git show:*)",
+      "Bash(node dist/index.js:*)",
+      "Bash(sed:*)"
     ],
     "deny": [],
     "ask": []
