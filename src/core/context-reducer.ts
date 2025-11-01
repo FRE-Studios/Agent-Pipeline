@@ -47,13 +47,26 @@ export class ContextReducer {
       // Load reducer agent system prompt
       const systemPrompt = await fs.readFile(reducerAgentPath, 'utf-8');
 
+      // Build Claude Agent SDK options from global settings
+      const claudeAgentOptions: Partial<{
+        model: 'haiku' | 'sonnet' | 'opus';
+        maxTurns: number;
+        maxThinkingTokens: number;
+      }> = {};
+
+      const globalSettings = pipelineState.pipelineConfig.settings?.claudeAgent;
+      if (globalSettings?.model) claudeAgentOptions.model = globalSettings.model;
+      if (globalSettings?.maxTurns !== undefined) claudeAgentOptions.maxTurns = globalSettings.maxTurns;
+      if (globalSettings?.maxThinkingTokens !== undefined) claudeAgentOptions.maxThinkingTokens = globalSettings.maxThinkingTokens;
+
       // Run reducer agent
       console.log(`🤖 Running context-reducer agent...`);
 
       const result = await this.runReducerAgent(
         reducerContext,
         systemPrompt,
-        pipelineState.pipelineConfig.settings?.permissionMode || 'acceptEdits'
+        pipelineState.pipelineConfig.settings?.permissionMode || 'acceptEdits',
+        claudeAgentOptions
       );
 
       execution.agentOutput = result.textOutput;
@@ -235,7 +248,12 @@ Focus on what the **upcoming agent needs to know**, not what previous agents did
   private async runReducerAgent(
     userPrompt: string,
     systemPrompt: string,
-    permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' = 'acceptEdits'
+    permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' = 'acceptEdits',
+    claudeAgentOptions?: Partial<{
+      model: 'haiku' | 'sonnet' | 'opus';
+      maxTurns: number;
+      maxThinkingTokens: number;
+    }>
   ): Promise<{
     textOutput: string;
     extractedData?: Record<string, unknown>;
@@ -257,12 +275,26 @@ Focus on what the **upcoming agent needs to know**, not what previous agents did
         systemPrompt: string;
         settingSources: SettingSource[];
         permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+        model?: 'haiku' | 'sonnet' | 'opus';
+        maxTurns?: number;
+        maxThinkingTokens?: number;
         mcpServers?: Record<string, McpServerInstance>;
       } = {
         systemPrompt,
         settingSources: ['project'],
         permissionMode
       };
+
+      // Add Claude Agent SDK options if configured
+      if (claudeAgentOptions?.model) {
+        options.model = claudeAgentOptions.model;
+      }
+      if (claudeAgentOptions?.maxTurns !== undefined) {
+        options.maxTurns = claudeAgentOptions.maxTurns;
+      }
+      if (claudeAgentOptions?.maxThinkingTokens !== undefined) {
+        options.maxThinkingTokens = claudeAgentOptions.maxThinkingTokens;
+      }
 
       if (mcpServer) {
         options.mcpServers = {

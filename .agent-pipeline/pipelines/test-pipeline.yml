@@ -8,10 +8,18 @@ settings:
   preserveWorkingTree: false
   # permissionMode: acceptEdits  # default: auto-accept file edits (respects .claude/settings.json rules)
 
+  # claudeAgent:                 # Optional: Claude Agent SDK settings
+  #   model: sonnet              # haiku (fast/cheap) | sonnet (balanced) | opus (powerful)
+  #   maxTurns: 10               # Max conversation turns (prevents runaway agents)
+  #   maxThinkingTokens: 5000    # Extended thinking budget (for complex tasks)
+
 agents:
   - name: hello-world
     agent: .claude/agents/hello-world.md
     timeout: 60
+    # claudeAgent:               # Optional: Per-stage override
+    #   model: haiku             # Override global model for this stage
+    #   maxTurns: 5              # Simple task needs fewer turns
 
   - name: file-creator
     agent: .claude/agents/file-creator.md

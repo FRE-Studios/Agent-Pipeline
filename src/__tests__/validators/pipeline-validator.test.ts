@@ -658,4 +658,274 @@ describe('PipelineValidator', () => {
       expect(permErrors).toHaveLength(0);
     });
   });
+
+  describe('Claude Agent SDK settings validation', () => {
+    describe('global settings.claudeAgent', () => {
+      it('should validate valid model selection', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            ...simplePipelineConfig.settings,
+            claudeAgent: {
+              model: 'haiku'
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const modelErrors = errors.filter(e => e.field === 'settings.claudeAgent.model');
+        expect(modelErrors).toHaveLength(0);
+      });
+
+      it('should reject invalid model name', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            ...simplePipelineConfig.settings,
+            claudeAgent: {
+              model: 'invalid-model' as any
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const modelErrors = errors.filter(e =>
+          e.field === 'settings.claudeAgent.model' && e.severity === 'error'
+        );
+        expect(modelErrors.length).toBeGreaterThan(0);
+        expect(modelErrors[0].message).toContain('Invalid model');
+      });
+
+      it('should validate maxTurns as positive number', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            ...simplePipelineConfig.settings,
+            claudeAgent: {
+              maxTurns: 10
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const turnErrors = errors.filter(e => e.field === 'settings.claudeAgent.maxTurns');
+        expect(turnErrors).toHaveLength(0);
+      });
+
+      it('should reject negative maxTurns', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            ...simplePipelineConfig.settings,
+            claudeAgent: {
+              maxTurns: -5
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const turnErrors = errors.filter(e =>
+          e.field === 'settings.claudeAgent.maxTurns' && e.severity === 'error'
+        );
+        expect(turnErrors.length).toBeGreaterThan(0);
+        expect(turnErrors[0].message).toContain('must be a positive number');
+      });
+
+      it('should warn when maxTurns exceeds 100', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            ...simplePipelineConfig.settings,
+            claudeAgent: {
+              maxTurns: 150
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const turnWarnings = errors.filter(e =>
+          e.field === 'settings.claudeAgent.maxTurns' && e.severity === 'warning'
+        );
+        expect(turnWarnings.length).toBeGreaterThan(0);
+        expect(turnWarnings[0].message).toContain('exceeds recommended maximum of 100');
+      });
+
+      it('should validate maxThinkingTokens as positive number', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            ...simplePipelineConfig.settings,
+            claudeAgent: {
+              maxThinkingTokens: 5000
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const tokenErrors = errors.filter(e => e.field === 'settings.claudeAgent.maxThinkingTokens');
+        expect(tokenErrors).toHaveLength(0);
+      });
+
+      it('should reject negative maxThinkingTokens', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            ...simplePipelineConfig.settings,
+            claudeAgent: {
+              maxThinkingTokens: -1000
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const tokenErrors = errors.filter(e =>
+          e.field === 'settings.claudeAgent.maxThinkingTokens' && e.severity === 'error'
+        );
+        expect(tokenErrors.length).toBeGreaterThan(0);
+        expect(tokenErrors[0].message).toContain('must be a positive number');
+      });
+
+      it('should warn when maxThinkingTokens exceeds 50000', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            ...simplePipelineConfig.settings,
+            claudeAgent: {
+              maxThinkingTokens: 60000
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const tokenWarnings = errors.filter(e =>
+          e.field === 'settings.claudeAgent.maxThinkingTokens' && e.severity === 'warning'
+        );
+        expect(tokenWarnings.length).toBeGreaterThan(0);
+        expect(tokenWarnings[0].message).toContain('exceeds recommended maximum of 50000');
+      });
+
+      it('should allow omitting claudeAgent entirely (optional)', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            ...simplePipelineConfig.settings
+            // claudeAgent is omitted
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const caErrors = errors.filter(e => e.field.startsWith('settings.claudeAgent'));
+        expect(caErrors).toHaveLength(0);
+      });
+    });
+
+    describe('per-stage agents[].claudeAgent', () => {
+      it('should validate valid per-stage model override', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              ...simplePipelineConfig.agents[0],
+              claudeAgent: {
+                model: 'opus'
+              }
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const modelErrors = errors.filter(e =>
+          e.field.includes('.claudeAgent.model')
+        );
+        expect(modelErrors).toHaveLength(0);
+      });
+
+      it('should reject invalid per-stage model', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              ...simplePipelineConfig.agents[0],
+              claudeAgent: {
+                model: 'invalid' as any
+              }
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const modelErrors = errors.filter(e =>
+          e.field.includes('.claudeAgent.model') && e.severity === 'error'
+        );
+        expect(modelErrors.length).toBeGreaterThan(0);
+      });
+
+      it('should validate per-stage maxTurns and maxThinkingTokens', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              ...simplePipelineConfig.agents[0],
+              claudeAgent: {
+                maxTurns: 5,
+                maxThinkingTokens: 10000
+              }
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const caErrors = errors.filter(e =>
+          e.field.includes('.claudeAgent') && e.severity === 'error'
+        );
+        expect(caErrors).toHaveLength(0);
+      });
+
+      it('should allow omitting per-stage claudeAgent (optional)', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              ...simplePipelineConfig.agents[0]
+              // claudeAgent is omitted
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const caErrors = errors.filter(e => e.field.includes('.claudeAgent'));
+        expect(caErrors).toHaveLength(0);
+      });
+    });
+
+    describe('combined global and per-stage settings', () => {
+      it('should validate both global and per-stage claudeAgent settings', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            ...simplePipelineConfig.settings,
+            claudeAgent: {
+              model: 'sonnet',
+              maxTurns: 10
+            }
+          },
+          agents: [
+            {
+              ...simplePipelineConfig.agents[0],
+              claudeAgent: {
+                model: 'haiku',
+                maxTurns: 5
+              }
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+        const caErrors = errors.filter(e =>
+          e.field.includes('claudeAgent') && e.severity === 'error'
+        );
+        expect(caErrors).toHaveLength(0);
+      });
+    });
+  });
 });

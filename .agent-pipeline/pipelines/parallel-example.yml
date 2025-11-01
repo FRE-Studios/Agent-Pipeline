@@ -8,6 +8,11 @@ settings:
   executionMode: parallel  # Enable parallel execution
   # permissionMode: acceptEdits  # default: auto-accept file edits (respects .claude/settings.json rules)
 
+  # claudeAgent:                 # Optional: Claude Agent SDK settings
+  #   model: sonnet              # haiku (fast/cheap) | sonnet (balanced) | opus (powerful)
+  #   maxTurns: 15               # Max conversation turns
+  #   maxThinkingTokens: 5000    # Extended thinking budget
+
 agents:
   # These three stages run in parallel (no dependencies)
   - name: code-review
@@ -17,6 +22,9 @@ agents:
       - issues_found
       - severity
       - recommendations
+    # claudeAgent:               # Optional: Per-stage override
+    #   model: haiku             # Use fast, cheap model for simple reviews
+    #   maxTurns: 10
 
   - name: security-scan
     agent: .claude/agents/security-auditor.md
@@ -28,6 +36,9 @@ agents:
       maxAttempts: 3
       backoff: exponential
       initialDelay: 1000
+    # claudeAgent:               # Optional: Per-stage override
+    #   model: opus              # Use powerful model for security analysis
+    #   maxThinkingTokens: 10000
 
   - name: performance-check
     agent: .claude/agents/quality-checker.md

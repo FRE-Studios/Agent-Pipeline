@@ -126,6 +126,57 @@ export class PipelineValidator {
       }
     }
 
+    // Validate Claude Agent SDK settings
+    if (config.settings.claudeAgent) {
+      const ca = config.settings.claudeAgent;
+
+      // Validate model
+      if (ca.model) {
+        const validModels = ['haiku', 'sonnet', 'opus'];
+        if (!validModels.includes(ca.model)) {
+          this.errors.push({
+            field: 'settings.claudeAgent.model',
+            message: `Invalid model: ${ca.model}. Must be one of: ${validModels.join(', ')}`,
+            severity: 'error'
+          });
+        }
+      }
+
+      // Validate maxTurns
+      if (ca.maxTurns !== undefined) {
+        if (typeof ca.maxTurns !== 'number' || ca.maxTurns <= 0) {
+          this.errors.push({
+            field: 'settings.claudeAgent.maxTurns',
+            message: 'maxTurns must be a positive number',
+            severity: 'error'
+          });
+        } else if (ca.maxTurns > 100) {
+          this.errors.push({
+            field: 'settings.claudeAgent.maxTurns',
+            message: 'maxTurns exceeds recommended maximum of 100',
+            severity: 'warning'
+          });
+        }
+      }
+
+      // Validate maxThinkingTokens
+      if (ca.maxThinkingTokens !== undefined) {
+        if (typeof ca.maxThinkingTokens !== 'number' || ca.maxThinkingTokens <= 0) {
+          this.errors.push({
+            field: 'settings.claudeAgent.maxThinkingTokens',
+            message: 'maxThinkingTokens must be a positive number',
+            severity: 'error'
+          });
+        } else if (ca.maxThinkingTokens > 50000) {
+          this.errors.push({
+            field: 'settings.claudeAgent.maxThinkingTokens',
+            message: 'maxThinkingTokens exceeds recommended maximum of 50000',
+            severity: 'warning'
+          });
+        }
+      }
+    }
+
     // Validate context reduction configuration
     if (config.settings.contextReduction) {
       const cr = config.settings.contextReduction;
@@ -245,6 +296,57 @@ export class PipelineValidator {
             message: 'Timeout exceeds recommended maximum of 600 seconds',
             severity: 'warning'
           });
+        }
+      }
+
+      // Validate per-stage Claude Agent SDK settings
+      if (agent.claudeAgent) {
+        const ca = agent.claudeAgent;
+
+        // Validate model
+        if (ca.model) {
+          const validModels = ['haiku', 'sonnet', 'opus'];
+          if (!validModels.includes(ca.model)) {
+            this.errors.push({
+              field: `agents.${agent.name}.claudeAgent.model`,
+              message: `Invalid model: ${ca.model}. Must be one of: ${validModels.join(', ')}`,
+              severity: 'error'
+            });
+          }
+        }
+
+        // Validate maxTurns
+        if (ca.maxTurns !== undefined) {
+          if (typeof ca.maxTurns !== 'number' || ca.maxTurns <= 0) {
+            this.errors.push({
+              field: `agents.${agent.name}.claudeAgent.maxTurns`,
+              message: 'maxTurns must be a positive number',
+              severity: 'error'
+            });
+          } else if (ca.maxTurns > 100) {
+            this.errors.push({
+              field: `agents.${agent.name}.claudeAgent.maxTurns`,
+              message: 'maxTurns exceeds recommended maximum of 100',
+              severity: 'warning'
+            });
+          }
+        }
+
+        // Validate maxThinkingTokens
+        if (ca.maxThinkingTokens !== undefined) {
+          if (typeof ca.maxThinkingTokens !== 'number' || ca.maxThinkingTokens <= 0) {
+            this.errors.push({
+              field: `agents.${agent.name}.claudeAgent.maxThinkingTokens`,
+              message: 'maxThinkingTokens must be a positive number',
+              severity: 'error'
+            });
+          } else if (ca.maxThinkingTokens > 50000) {
+            this.errors.push({
+              field: `agents.${agent.name}.claudeAgent.maxThinkingTokens`,
+              message: 'maxThinkingTokens exceeds recommended maximum of 50000',
+              severity: 'warning'
+            });
+          }
         }
       }
     }

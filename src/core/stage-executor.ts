@@ -26,6 +26,41 @@ export class StageExecutor {
     this.outputStorageManager = new OutputStorageManager(repoPath, runId);
   }
 
+  /**
+   * Build Claude Agent SDK options by merging per-stage and global settings.
+   * Only includes properties that are explicitly configured.
+   * Returns empty object if no settings configured (trusts SDK defaults).
+   */
+  private buildClaudeAgentOptions(
+    stageConfig: AgentStageConfig,
+    pipelineState: PipelineState
+  ): Partial<{
+    model: 'haiku' | 'sonnet' | 'opus';
+    maxTurns: number;
+    maxThinkingTokens: number;
+  }> {
+    const stageSettings = stageConfig.claudeAgent;
+    const globalSettings = pipelineState.pipelineConfig.settings?.claudeAgent;
+
+    const options: Partial<{
+      model: 'haiku' | 'sonnet' | 'opus';
+      maxTurns: number;
+      maxThinkingTokens: number;
+    }> = {};
+
+    // Only add properties if explicitly configured (per-stage overrides global)
+    const model = stageSettings?.model || globalSettings?.model;
+    if (model) options.model = model;
+
+    const maxTurns = stageSettings?.maxTurns ?? globalSettings?.maxTurns;
+    if (maxTurns !== undefined) options.maxTurns = maxTurns;
+
+    const maxThinkingTokens = stageSettings?.maxThinkingTokens ?? globalSettings?.maxThinkingTokens;
+    if (maxThinkingTokens !== undefined) options.maxThinkingTokens = maxThinkingTokens;
+
+    return options;
+  }
+
   async executeStage(
     stageConfig: AgentStageConfig,
     pipelineState: PipelineState,
@@ -52,6 +87,9 @@ export class StageExecutor {
       const estimatedTokens = tokenEstimator.estimateTokens(agentContext + systemPrompt);
       tokenEstimator.dispose();
 
+      // Build Claude Agent SDK options (model, maxTurns, maxThinkingTokens)
+      const claudeAgentOptions = this.buildClaudeAgentOptions(stageConfig, pipelineState);
+
       // Run agent using SDK query
       const retryInfo = PipelineFormatter.formatRetryInfo(execution.retryAttempt, execution.maxRetries);
       console.log(`🤖 Running stage: ${stageConfig.name}${retryInfo}...`);
@@ -63,6 +101,7 @@ export class StageExecutor {
         stageConfig.timeout,
         stageConfig.outputs,
         pipelineState.pipelineConfig.settings?.permissionMode || 'acceptEdits',
+        claudeAgentOptions,
         onOutputUpdate
       );
 
@@ -387,6 +426,11 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
     timeoutSeconds?: number,
     outputKeys?: string[],
     permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' = 'acceptEdits',
+    claudeAgentOptions?: Partial<{
+      model: 'haiku' | 'sonnet' | 'opus';
+      maxTurns: number;
+      maxThinkingTokens: number;
+    }>,
     onOutputUpdate?: (output: string) => void
   ): Promise<{
     textOutput: string;
@@ -410,6 +454,10 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
           systemPrompt,
           settingSources: ['project'],
           permissionMode,
+          // Only include Claude Agent SDK options if explicitly configured
+          ...(claudeAgentOptions?.model && { model: claudeAgentOptions.model }),
+          ...(claudeAgentOptions?.maxTurns !== undefined && { maxTurns: claudeAgentOptions.maxTurns }),
+          ...(claudeAgentOptions?.maxThinkingTokens !== undefined && { maxThinkingTokens: claudeAgentOptions.maxThinkingTokens }),
           mcpServers: {
             'pipeline-outputs': mcpServer
           }

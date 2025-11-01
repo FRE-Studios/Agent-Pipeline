@@ -13,6 +13,21 @@ import { NotificationConfig } from '../notifications/types.js';
  */
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
 
+/**
+ * Claude Agent SDK model types
+ */
+export type ClaudeModelName = 'haiku' | 'sonnet' | 'opus';
+
+/**
+ * Claude Agent SDK specific settings (optional)
+ * If omitted, the SDK uses its own defaults
+ */
+export interface ClaudeAgentSettings {
+  model?: ClaudeModelName;        // Model selection for cost/performance optimization
+  maxTurns?: number;              // Maximum conversation turns (prevents runaway agents)
+  maxThinkingTokens?: number;     // Extended thinking budget for complex reasoning
+}
+
 export interface LoopingConfig {
   enabled: boolean;
   maxIterations?: number;  // Default: 100
@@ -75,6 +90,7 @@ export interface PipelineConfig {
     executionMode?: 'sequential' | 'parallel'; // Execution strategy (default: parallel with DAG)
     contextReduction?: ContextReductionConfig; // Context reduction settings
     permissionMode?: PermissionMode;   // Permission mode for agents (default: 'acceptEdits')
+    claudeAgent?: ClaudeAgentSettings; // Claude Agent SDK specific settings (optional)
   };
 
   agents: AgentStageConfig[];
@@ -126,6 +142,9 @@ export interface AgentStageConfig {
   // Context passing
   inputs?: Record<string, string>;     // Additional context for agent
   outputs?: string[];                  // Keys to extract from agent response
+
+  // Claude Agent SDK settings (per-stage overrides)
+  claudeAgent?: ClaudeAgentSettings;   // Override global Claude SDK settings for this stage
 }
 
 export interface PipelineState {

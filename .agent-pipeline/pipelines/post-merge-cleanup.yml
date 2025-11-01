@@ -36,6 +36,11 @@ settings:
   executionMode: parallel
   # permissionMode: acceptEdits  # default: auto-accept file edits (respects .claude/settings.json rules)
 
+  # claudeAgent:                 # Optional: Claude Agent SDK settings
+  #   model: sonnet              # haiku (fast/cheap) | sonnet (balanced) | opus (powerful)
+  #   maxTurns: 12               # Max conversation turns
+  #   maxThinkingTokens: 5000    # Extended thinking budget
+
 agents:
   # Run these cleanup tasks in parallel after merge
   - name: doc-sync

@@ -40,6 +40,11 @@ settings:
   preserveWorkingTree: false
   # permissionMode: acceptEdits  # default: auto-accept file edits (respects .claude/settings.json rules)
 
+  # claudeAgent:                 # Optional: Claude Agent SDK settings
+  #   model: sonnet              # haiku (fast/cheap) | sonnet (balanced) | opus (powerful)
+  #   maxTurns: 15               # Max conversation turns
+  #   maxThinkingTokens: 5000    # Extended thinking budget
+
 agents:
   - name: code-review
     agent: .claude/agents/code-reviewer.md

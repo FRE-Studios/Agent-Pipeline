@@ -19,6 +19,10 @@ settings:
     maxTokens: 50000
     strategy: summary-based
     contextWindow: 3
+  claudeAgent:                       # Optional: Claude Agent SDK settings
+    model: sonnet                    # haiku, sonnet, or opus
+    maxTurns: 10                     # Prevent runaway agents
+    maxThinkingTokens: 5000          # Extended thinking budget
 
 git:
   baseBranch: main
@@ -76,6 +80,34 @@ agents:
   - `plan`: Read-only mode, no actual execution (dry-run scenarios)
 
   **Note:** When using `acceptEdits` (default), agents can create/edit files without prompts, but `.claude/settings.json` allow/deny patterns are still enforced. This is ideal for automated CI/CD pipelines where you trust the workflow but want basic safeguards.
+
+- `claudeAgent`: Claude Agent SDK specific settings (optional). If omitted, the SDK uses its own defaults.
+  - `model`: Select Claude model for cost/performance optimization (`haiku`, `sonnet`, or `opus`)
+  - `maxTurns`: Maximum conversation turns (prevents runaway agents)
+  - `maxThinkingTokens`: Extended thinking budget for complex reasoning tasks
+
+  **Cost Optimization:** Use `haiku` for simple tasks (linting, formatting) to reduce costs by up to 90%. Reserve `opus` for complex reasoning (architecture, design decisions). Per-stage overrides allow mixing models within a pipeline.
+
+  **Example:**
+  ```yaml
+  settings:
+    claudeAgent:
+      model: sonnet           # Global default
+      maxTurns: 10            # Safety limit
+
+  agents:
+    - name: quick-lint
+      agent: .claude/agents/linter.md
+      claudeAgent:
+        model: haiku          # Override: fast, cheap
+        maxTurns: 5
+
+    - name: architecture-review
+      agent: .claude/agents/architect.md
+      claudeAgent:
+        model: opus           # Override: powerful reasoning
+        maxThinkingTokens: 15000
+  ```
 
 ### Git Workflow
 
