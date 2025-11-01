@@ -12,6 +12,15 @@ export const successfulStageExecution: StageExecution = {
     issues_found: 0,
     severity: 'low',
   },
+  tokenUsage: {
+    estimated_input: 10000,
+    actual_input: 10500,
+    output: 3500,
+    cache_creation: 1000,
+    cache_read: 500,
+    num_turns: 3,
+    thinking_tokens: 5000,
+  },
 };
 
 export const failedStageExecution: StageExecution = {

@@ -1725,6 +1725,240 @@ describe('StageExecutor', () => {
     });
   });
 
+  describe('Token Usage with num_turns and thinking_tokens', () => {
+    it('should capture num_turns from SDK result', async () => {
+      const queryWithNumTurns = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Mock response' }],
+          },
+        };
+        // Yield SDK result message with num_turns
+        yield {
+          type: 'result',
+          subtype: 'success',
+          num_turns: 3,
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 500,
+          },
+        };
+      });
+
+      // Update the mock query before executing
+      const sdk = await import('@anthropic-ai/claude-agent-sdk');
+      mockQuery = vi.mocked(sdk.query);
+      mockQuery.mockImplementation(queryWithNumTurns);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.tokenUsage).toBeDefined();
+      expect(result.tokenUsage?.num_turns).toBe(3);
+      expect(result.tokenUsage?.actual_input).toBe(1000);
+      expect(result.tokenUsage?.output).toBe(500);
+    });
+
+    it('should capture thinking_tokens from SDK result', async () => {
+      const queryWithThinkingTokens = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Mock response' }],
+          },
+        };
+        // Yield SDK result message with thinking_tokens
+        yield {
+          type: 'result',
+          subtype: 'success',
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 500,
+            thinking_tokens: 15000,
+          },
+        };
+      });
+
+      // Update the mock query before executing
+      const sdk = await import('@anthropic-ai/claude-agent-sdk');
+      mockQuery = vi.mocked(sdk.query);
+      mockQuery.mockImplementation(queryWithThinkingTokens);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.tokenUsage).toBeDefined();
+      expect(result.tokenUsage?.thinking_tokens).toBe(15000);
+      expect(result.tokenUsage?.actual_input).toBe(1000);
+      expect(result.tokenUsage?.output).toBe(500);
+    });
+
+    it('should capture both num_turns and thinking_tokens together with all fields', async () => {
+      const queryWithAllFields = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Mock response' }],
+          },
+        };
+        // Yield SDK result with all 7 token usage fields
+        yield {
+          type: 'result',
+          subtype: 'success',
+          num_turns: 4,
+          usage: {
+            input_tokens: 25000,
+            output_tokens: 13000,
+            cache_creation_input_tokens: 5000,
+            cache_read_input_tokens: 2000,
+            thinking_tokens: 8000,
+          },
+        };
+      });
+
+      // Update the mock query before executing
+      const sdk = await import('@anthropic-ai/claude-agent-sdk');
+      mockQuery = vi.mocked(sdk.query);
+      mockQuery.mockImplementation(queryWithAllFields);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.tokenUsage).toBeDefined();
+      expect(result.tokenUsage?.actual_input).toBe(25000);
+      expect(result.tokenUsage?.output).toBe(13000);
+      expect(result.tokenUsage?.cache_creation).toBe(5000);
+      expect(result.tokenUsage?.cache_read).toBe(2000);
+      expect(result.tokenUsage?.num_turns).toBe(4);
+      expect(result.tokenUsage?.thinking_tokens).toBe(8000);
+    });
+
+    it('should handle missing num_turns gracefully (backward compatibility)', async () => {
+      const queryWithoutNumTurns = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Mock response' }],
+          },
+        };
+        // Yield SDK result without num_turns
+        yield {
+          type: 'result',
+          subtype: 'success',
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 500,
+            thinking_tokens: 2000,
+          },
+        };
+      });
+
+      // Update the mock query before executing
+      const sdk = await import('@anthropic-ai/claude-agent-sdk');
+      mockQuery = vi.mocked(sdk.query);
+      mockQuery.mockImplementation(queryWithoutNumTurns);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.tokenUsage).toBeDefined();
+      expect(result.tokenUsage?.num_turns).toBeUndefined();
+      expect(result.tokenUsage?.thinking_tokens).toBe(2000);
+      expect(result.tokenUsage?.actual_input).toBe(1000);
+      expect(result.tokenUsage?.output).toBe(500);
+    });
+
+    it('should handle missing thinking_tokens gracefully (backward compatibility)', async () => {
+      const queryWithoutThinkingTokens = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Mock response' }],
+          },
+        };
+        // Yield SDK result without thinking_tokens
+        yield {
+          type: 'result',
+          subtype: 'success',
+          num_turns: 2,
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 500,
+          },
+        };
+      });
+
+      // Update the mock query before executing
+      const sdk = await import('@anthropic-ai/claude-agent-sdk');
+      mockQuery = vi.mocked(sdk.query);
+      mockQuery.mockImplementation(queryWithoutThinkingTokens);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.tokenUsage).toBeDefined();
+      expect(result.tokenUsage?.num_turns).toBe(2);
+      expect(result.tokenUsage?.thinking_tokens).toBeUndefined();
+      expect(result.tokenUsage?.actual_input).toBe(1000);
+      expect(result.tokenUsage?.output).toBe(500);
+    });
+
+    it('should handle zero values for new fields', async () => {
+      const queryWithZeroValues = vi.fn().mockImplementation(async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Mock response' }],
+          },
+        };
+        // Yield SDK result with zero values for new fields
+        yield {
+          type: 'result',
+          subtype: 'success',
+          num_turns: 0,
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 500,
+            thinking_tokens: 0,
+          },
+        };
+      });
+
+      // Update the mock query before executing
+      const sdk = await import('@anthropic-ai/claude-agent-sdk');
+      mockQuery = vi.mocked(sdk.query);
+      mockQuery.mockImplementation(queryWithZeroValues);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.tokenUsage).toBeDefined();
+      expect(result.tokenUsage?.num_turns).toBe(0);
+      expect(result.tokenUsage?.thinking_tokens).toBe(0);
+      expect(result.tokenUsage?.actual_input).toBe(1000);
+      expect(result.tokenUsage?.output).toBe(500);
+    });
+  });
+
   describe('Output Validation Warnings', () => {
     let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 

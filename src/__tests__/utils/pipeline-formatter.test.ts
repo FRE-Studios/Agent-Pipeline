@@ -582,6 +582,122 @@ describe('PipelineFormatter', () => {
       });
     });
 
+    describe('num_turns and thinking_tokens Fields', () => {
+      it('should display num_turns when present', () => {
+        const tokenUsage = {
+          estimated_input: 25000,
+          actual_input: 25000,
+          output: 13000,
+          num_turns: 3
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Turns: 3');
+      });
+
+      it('should display thinking_tokens when present and > 0', () => {
+        const tokenUsage = {
+          estimated_input: 25000,
+          actual_input: 25000,
+          output: 13000,
+          thinking_tokens: 12500
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Thinking: 12.5k');
+      });
+
+      it('should not display thinking_tokens when zero', () => {
+        const tokenUsage = {
+          estimated_input: 25000,
+          actual_input: 25000,
+          output: 13000,
+          thinking_tokens: 0
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).not.toContain('Thinking:');
+      });
+
+      it('should display all fields including num_turns and thinking_tokens', () => {
+        const tokenUsage = {
+          estimated_input: 23000,
+          actual_input: 25000,
+          output: 13000,
+          cache_creation: 5000,
+          cache_read: 2000,
+          num_turns: 4,
+          thinking_tokens: 8000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Input: 25k tokens');
+        expect(result).toContain('Output: 13k');
+        expect(result).toContain('Thinking: 8k');
+        expect(result).toContain('Turns: 4');
+        expect(result).toContain('Cache created: 5k');
+        expect(result).toContain('Cache read: 2k');
+      });
+
+      it('should not display num_turns when missing', () => {
+        const tokenUsage = {
+          estimated_input: 25000,
+          actual_input: 25000,
+          output: 13000,
+          thinking_tokens: 5000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).not.toContain('Turns:');
+        expect(result).toContain('Thinking: 5k');
+      });
+
+      it('should not display thinking_tokens when missing', () => {
+        const tokenUsage = {
+          estimated_input: 25000,
+          actual_input: 25000,
+          output: 13000,
+          num_turns: 2
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Turns: 2');
+        expect(result).not.toContain('Thinking:');
+      });
+
+      it('should display zero num_turns', () => {
+        const tokenUsage = {
+          estimated_input: 25000,
+          actual_input: 25000,
+          output: 13000,
+          num_turns: 0
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Turns: 0');
+      });
+
+      it('should format large thinking_tokens values correctly', () => {
+        const tokenUsage = {
+          estimated_input: 25000,
+          actual_input: 25000,
+          output: 13000,
+          thinking_tokens: 125000  // 125k
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        expect(result).toContain('Thinking: 125k');
+      });
+    });
+
     describe('Edge Cases', () => {
       it('should return empty string for undefined token usage', () => {
         const result = PipelineFormatter.formatTokenUsage(undefined);
