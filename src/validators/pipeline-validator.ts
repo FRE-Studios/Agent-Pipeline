@@ -290,10 +290,10 @@ export class PipelineValidator {
             message: 'Timeout must be a positive number',
             severity: 'error'
           });
-        } else if (agent.timeout > 600) {
+        } else if (agent.timeout > 900) {
           this.errors.push({
             field: `agents.${agent.name}.timeout`,
-            message: 'Timeout exceeds recommended maximum of 600 seconds',
+            message: 'Timeout exceeds recommended maximum of 900 seconds (15 minutes)',
             severity: 'warning'
           });
         }

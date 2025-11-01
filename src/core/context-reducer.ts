@@ -258,7 +258,7 @@ Focus on what the **upcoming agent needs to know**, not what previous agents did
     textOutput: string;
     extractedData?: Record<string, unknown>;
   }> {
-    const timeout = 300000; // 5 minutes
+    const timeout = 900000; // 15 minutes
 
     const runQuery = async () => {
       let mcpServer: ReturnType<typeof OutputToolBuilder.getMcpServer> | undefined;

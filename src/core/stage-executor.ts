@@ -446,9 +446,28 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
     };
     numTurns?: number;
   }> {
-    const timeout = (timeoutSeconds || 300) * 1000; // Default 5 minutes
+    const timeout = (timeoutSeconds || 900) * 1000; // Default 15 minutes
+
+    // Tiered warning thresholds (non-blocking)
+    const warningThresholds = [
+      { time: 300 * 1000, label: '5 minutes' },   // 5 minutes
+      { time: 600 * 1000, label: '10 minutes' },  // 10 minutes
+      { time: 780 * 1000, label: '13 minutes' }   // 13 minutes (final warning)
+    ];
+
+    const warningTimers: NodeJS.Timeout[] = [];
 
     const runQuery = async () => {
+      // Set up tiered warning system
+      warningThresholds.forEach(({ time, label }) => {
+        if (time < timeout) {
+          const timer = setTimeout(() => {
+            console.warn(`⚠️  Agent still running after ${label}. Hard timeout at ${(timeout / 1000 / 60).toFixed(0)} minutes.`);
+          }, time);
+          warningTimers.push(timer);
+        }
+      });
+
       // Get MCP server with report_outputs tool
       const mcpServer = OutputToolBuilder.getMcpServer();
 
@@ -518,26 +537,32 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
         extractedData = this.extractOutputs(textOutput, outputKeys);
       }
 
+      // Clean up warning timers on successful completion
+      warningTimers.forEach(timer => clearTimeout(timer));
+
       return { textOutput, extractedData, tokenUsage, numTurns };
     };
 
-    return Promise.race([
-      runQuery(),
-      new Promise<{
-        textOutput: string;
-        extractedData?: Record<string, unknown>;
-        tokenUsage?: {
-          input_tokens: number;
-          output_tokens: number;
-          cache_creation_input_tokens?: number;
-          cache_read_input_tokens?: number;
-          thinking_tokens?: number;
-        };
-        numTurns?: number;
-      }>((_, reject) =>
-        setTimeout(() => reject(new Error('Agent timeout')), timeout)
-      )
-    ]);
+    const timeoutPromise = new Promise<{
+      textOutput: string;
+      extractedData?: Record<string, unknown>;
+      tokenUsage?: {
+        input_tokens: number;
+        output_tokens: number;
+        cache_creation_input_tokens?: number;
+        cache_read_input_tokens?: number;
+        thinking_tokens?: number;
+      };
+      numTurns?: number;
+    }>((_, reject) =>
+      setTimeout(() => {
+        // Clean up warning timers on timeout
+        warningTimers.forEach(timer => clearTimeout(timer));
+        reject(new Error('Agent timeout'));
+      }, timeout)
+    );
+
+    return Promise.race([runQuery(), timeoutPromise]);
   }
 
   private escapeRegex(string: string): string {

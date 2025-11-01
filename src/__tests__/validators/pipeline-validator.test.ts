@@ -206,7 +206,7 @@ describe('PipelineValidator', () => {
           {
             name: 'test-stage',
             agent: '.claude/agents/test-agent.md',
-            timeout: 700,
+            timeout: 1000, // Exceeds 900s threshold
           },
         ],
       };
@@ -214,6 +214,7 @@ describe('PipelineValidator', () => {
       const errors = await validator.validate(warningConfig, tempDir);
 
       expect(errors.some(e => e.severity === 'warning' && e.message.includes('Timeout exceeds'))).toBe(true);
+      expect(errors.some(e => e.severity === 'warning' && e.message.includes('900'))).toBe(true);
     });
 
     it('should validate context reduction configuration (summary-based)', async () => {
@@ -534,7 +535,7 @@ describe('PipelineValidator', () => {
     });
 
     it('should handle valid timeout values', async () => {
-      const validTimeouts = [1, 60, 120, 300, 600];
+      const validTimeouts = [1, 60, 120, 300, 600, 900];
 
       for (const timeout of validTimeouts) {
         const config: PipelineConfig = {

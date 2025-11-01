@@ -63,3 +63,9 @@ export const stageWithCondition: AgentStageConfig = {
   dependsOn: ['previous'],
   timeout: 120,
 };
+
+export const stageWithMaxTimeout: AgentStageConfig = {
+  name: 'max-timeout-stage',
+  agent: '.claude/agents/intensive.md',
+  timeout: 900, // 15 minutes (default maximum)
+};

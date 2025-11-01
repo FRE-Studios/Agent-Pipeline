@@ -55,7 +55,7 @@ export class ErrorFactory {
     }
 
     if (message.includes('timeout') || message.includes('Agent timeout')) {
-      return 'Agent exceeded timeout. Consider increasing timeout in pipeline config.';
+      return 'Agent exceeded timeout (default: 15 minutes). Consider increasing timeout in pipeline config or optimizing agent complexity.';
     }
 
     if (message.includes('API') || message.includes('401') || message.includes('403')) {

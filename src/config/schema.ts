@@ -126,7 +126,7 @@ export interface AgentStageConfig {
   // Stage-specific behavior
   enabled?: boolean;                   // Skip if false
   onFail?: 'stop' | 'continue' | 'warn';
-  timeout?: number;                    // Max execution time (seconds)
+  timeout?: number;                    // Max execution time (seconds). Default: 900 (15 min). Warnings at 5, 10, 13 min.
 
   // Dependencies and conditions
   dependsOn?: string[];                // Stage names this stage depends on
