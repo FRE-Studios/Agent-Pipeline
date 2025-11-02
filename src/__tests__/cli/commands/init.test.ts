@@ -186,6 +186,23 @@ describe('initCommand', () => {
         expect(agent.timeout).toBe(120);
         expect(agent.outputs).toEqual(['issues_found', 'severity_level']);
       });
+
+      it('should have sequential execution with correct dependencies', async () => {
+        await initCommand(tempDir, { exampleName: 'post-commit' });
+
+        const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-commit-example.yml');
+        const content = await fs.readFile(pipelinePath, 'utf-8');
+        const parsed = YAML.parse(content);
+
+        const codeReview = parsed.agents.find((a: any) => a.name === 'code-review');
+        const qualityCheck = parsed.agents.find((a: any) => a.name === 'quality-check');
+        const docUpdater = parsed.agents.find((a: any) => a.name === 'doc-updater');
+
+        // Verify sequential chain: code-review → quality-check → doc-updater
+        expect(codeReview.dependsOn).toBeUndefined();
+        expect(qualityCheck.dependsOn).toEqual(['code-review']);
+        expect(docUpdater.dependsOn).toEqual(['quality-check']);
+      });
     });
 
     describe('pre-commit-example.yml', () => {
@@ -332,10 +349,14 @@ describe('initCommand', () => {
       const files = await fs.readdir(agentsDir);
       const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 
-      // Should include all agents that have templates and are used by any pipeline
-      // test-pipeline (8 game agents) + all example pipelines (code-reviewer, doc-updater, quality-checker, security-auditor, summary)
+      // Should include all agents that have templates and are used by pipelines when --all is set
+      // test-pipeline (8 game agents) + all AVAILABLE_EXAMPLES (post-commit, pre-commit, pre-push, post-merge)
+      // Note: memory-updater is NOT included because large-pipeline-example is not in AVAILABLE_EXAMPLES
       const expectedAgents = [
+        'cleanup-reporter.md',
+        'code-reducer.md',
         'code-reviewer.md',
+        'dependency-auditor.md',
         'detective-empath.md',
         'detective-linguist.md',
         'detective-logician.md',
