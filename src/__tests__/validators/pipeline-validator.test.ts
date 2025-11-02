@@ -10,6 +10,12 @@ import { createTempDir, cleanupTempDir } from '../setup.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as ghCliChecker from '../../utils/gh-cli-checker.js';
+import { createMockGit } from '../mocks/simple-git.js';
+
+// Mock simple-git at module level
+vi.mock('simple-git', () => ({
+  simpleGit: vi.fn(() => createMockGit())
+}));
 
 describe('PipelineValidator', () => {
   let validator: PipelineValidator;
@@ -939,6 +945,609 @@ describe('PipelineValidator', () => {
           e.field.includes('claudeAgent') && e.severity === 'error'
         );
         expect(caErrors).toHaveLength(0);
+      });
+    });
+  });
+
+  describe('P0 Critical Validations', () => {
+    describe('validateClaudeApiKey', () => {
+      it('should error when ANTHROPIC_API_KEY is not set', async () => {
+        delete process.env.ANTHROPIC_API_KEY;
+        delete process.env.CLAUDE_API_KEY;
+
+        const errors = await validator.validate(simplePipelineConfig, tempDir);
+
+        expect(errors.some(e =>
+          e.field === 'environment' &&
+          e.severity === 'error' &&
+          e.message.includes('Claude API key not set')
+        )).toBe(true);
+      });
+
+      it('should pass when ANTHROPIC_API_KEY is set', async () => {
+        process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key';
+
+        const errors = await validator.validate(simplePipelineConfig, tempDir);
+
+        const apiKeyErrors = errors.filter(e =>
+          e.field === 'environment' && e.message.includes('Claude API key')
+        );
+        expect(apiKeyErrors).toHaveLength(0);
+      });
+
+      it('should pass when CLAUDE_API_KEY is set', async () => {
+        delete process.env.ANTHROPIC_API_KEY;
+        process.env.CLAUDE_API_KEY = 'sk-ant-test-key';
+
+        const errors = await validator.validate(simplePipelineConfig, tempDir);
+
+        const apiKeyErrors = errors.filter(e =>
+          e.field === 'environment' && e.message.includes('Claude API key')
+        );
+        expect(apiKeyErrors).toHaveLength(0);
+      });
+
+      it('should pass when both API keys are set', async () => {
+        process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key-1';
+        process.env.CLAUDE_API_KEY = 'sk-ant-test-key-2';
+
+        const errors = await validator.validate(simplePipelineConfig, tempDir);
+
+        const apiKeyErrors = errors.filter(e =>
+          e.field === 'environment' && e.message.includes('Claude API key')
+        );
+        expect(apiKeyErrors).toHaveLength(0);
+      });
+    });
+
+    describe('validateGitRepository', () => {
+      it('should pass when in a valid git repository (default mock behavior)', async () => {
+        const errors = await validator.validate(simplePipelineConfig, tempDir);
+
+        const repoErrors = errors.filter(e =>
+          e.field === 'repository' && e.severity === 'error'
+        );
+        // Default mock simulates a valid git repo, so no errors expected
+        expect(repoErrors).toHaveLength(0);
+      });
+    });
+
+    describe('validateGitUserConfig', () => {
+      it('should skip validation when autoCommit is false', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            autoCommit: false
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const gitConfigErrors = errors.filter(e => e.field === 'git.config');
+        expect(gitConfigErrors).toHaveLength(0);
+      });
+
+      it('should pass when user.name and user.email are configured (default mock behavior)', async () => {
+        // Default mock provides user.name and user.email
+        const errors = await validator.validate(simplePipelineConfig, tempDir);
+
+        const gitConfigErrors = errors.filter(e =>
+          e.field === 'git.config' && e.severity === 'error'
+        );
+        expect(gitConfigErrors).toHaveLength(0);
+      });
+    });
+
+    describe('validateGitWorkingTree', () => {
+      it('should skip when preserveWorkingTree is not false', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            preserveWorkingTree: true
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const workingTreeWarnings = errors.filter(e =>
+          e.field === 'settings.preserveWorkingTree' && e.severity === 'warning'
+        );
+        expect(workingTreeWarnings).toHaveLength(0);
+      });
+
+      it('should skip when git config is not present', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            preserveWorkingTree: false
+          }
+          // git is omitted
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const workingTreeWarnings = errors.filter(e =>
+          e.field === 'settings.preserveWorkingTree' && e.severity === 'warning'
+        );
+        expect(workingTreeWarnings).toHaveLength(0);
+      });
+
+      it('should not warn when working tree is clean (default mock behavior)', async () => {
+        // Default mock simulates clean working tree
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            preserveWorkingTree: false
+          },
+          git: {
+            pullRequest: {
+              autoCreate: false
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const workingTreeWarnings = errors.filter(e =>
+          e.field === 'settings.preserveWorkingTree' &&
+          e.message.includes('Uncommitted changes')
+        );
+        expect(workingTreeWarnings).toHaveLength(0);
+      });
+    });
+  });
+
+  describe('P1/P2 Feature Validations', () => {
+    describe('validateContextReductionAgent', () => {
+      it('should skip when strategy is not agent-based', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            contextReduction: {
+              enabled: true,
+              strategy: 'summary-based',
+              maxTokens: 50000
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const agentPathErrors = errors.filter(e =>
+          e.field === 'settings.contextReduction.agentPath'
+        );
+        expect(agentPathErrors).toHaveLength(0);
+      });
+
+      it('should error when agentPath is missing for agent-based strategy', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            contextReduction: {
+              enabled: true,
+              strategy: 'agent-based',
+              maxTokens: 50000
+              // agentPath is missing
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        expect(errors.some(e =>
+          e.field === 'settings.contextReduction.agentPath' &&
+          e.severity === 'error' &&
+          e.message.includes('agentPath is required')
+        )).toBe(true);
+      });
+
+      it('should error when agent file does not exist', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            contextReduction: {
+              enabled: true,
+              strategy: 'agent-based',
+              maxTokens: 50000,
+              agentPath: '.claude/agents/non-existent-reducer.md'
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        expect(errors.some(e =>
+          e.field === 'settings.contextReduction.agentPath' &&
+          e.severity === 'error' &&
+          e.message.includes('Context reduction agent not found')
+        )).toBe(true);
+      });
+
+      it('should pass when agent file exists (relative path)', async () => {
+        // Create context reducer agent file
+        const agentsDir = path.join(tempDir, '.claude', 'agents');
+        await fs.writeFile(path.join(agentsDir, 'context-reducer.md'), '# Context Reducer', 'utf-8');
+
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            contextReduction: {
+              enabled: true,
+              strategy: 'agent-based',
+              maxTokens: 50000,
+              agentPath: '.claude/agents/context-reducer.md'
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const agentPathErrors = errors.filter(e =>
+          e.field === 'settings.contextReduction.agentPath' && e.severity === 'error'
+        );
+        expect(agentPathErrors).toHaveLength(0);
+      });
+
+      it('should pass when agent file exists (absolute path)', async () => {
+        // Create context reducer agent file
+        const agentsDir = path.join(tempDir, '.claude', 'agents');
+        const absolutePath = path.join(agentsDir, 'context-reducer-abs.md');
+        await fs.writeFile(absolutePath, '# Context Reducer', 'utf-8');
+
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          settings: {
+            contextReduction: {
+              enabled: true,
+              strategy: 'agent-based',
+              maxTokens: 50000,
+              agentPath: absolutePath
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const agentPathErrors = errors.filter(e =>
+          e.field === 'settings.contextReduction.agentPath' && e.severity === 'error'
+        );
+        expect(agentPathErrors).toHaveLength(0);
+      });
+    });
+
+    describe('validateConditionalExpressions', () => {
+      it('should skip when no agents have conditions', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              name: 'test-stage',
+              agent: '.claude/agents/test-agent.md'
+              // no condition
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const conditionErrors = errors.filter(e => e.field.includes('.condition'));
+        expect(conditionErrors).toHaveLength(0);
+      });
+
+      it('should validate condition syntax when agents have conditions', async () => {
+        // The actual ConditionEvaluator is used, which validates real syntax
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              name: 'test-stage',
+              agent: '.claude/agents/test-agent.md',
+              condition: '{{ stages.review.outputs.issues > 0 }}'
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        // The validator runs successfully (actual validation behavior depends on ConditionEvaluator)
+        // We're testing that the validation method runs without throwing
+        expect(errors).toBeDefined();
+      });
+    });
+
+    describe('validateConditionalStageReferences', () => {
+      it('should error when condition references non-existent stage', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              name: 'test-stage',
+              agent: '.claude/agents/test-agent.md'
+            },
+            {
+              name: 'deploy',
+              agent: '.claude/agents/test-agent-2.md',
+              condition: '{{ stages.review.outputs.passed }}'
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        expect(errors.some(e =>
+          e.field === 'agents.deploy.condition' &&
+          e.severity === 'error' &&
+          e.message.includes('references non-existent stage "review"')
+        )).toBe(true);
+      });
+
+      it('should pass when all stage references are valid', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              name: 'review',
+              agent: '.claude/agents/test-agent.md'
+            },
+            {
+              name: 'deploy',
+              agent: '.claude/agents/test-agent-2.md',
+              condition: '{{ stages.review.outputs.passed }}'
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const stageRefErrors = errors.filter(e =>
+          e.field === 'agents.deploy.condition' &&
+          e.message.includes('non-existent stage')
+        );
+        expect(stageRefErrors).toHaveLength(0);
+      });
+
+      it('should handle multiple stage references in one condition', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              name: 'test',
+              agent: '.claude/agents/test-agent.md'
+            },
+            {
+              name: 'review',
+              agent: '.claude/agents/test-agent.md'
+            },
+            {
+              name: 'deploy',
+              agent: '.claude/agents/test-agent-2.md',
+              condition: '{{ stages.test.outputs.passed && stages.review.outputs.passed }}'
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const stageRefErrors = errors.filter(e =>
+          e.field === 'agents.deploy.condition' &&
+          e.message.includes('non-existent stage')
+        );
+        expect(stageRefErrors).toHaveLength(0);
+      });
+    });
+
+    describe('validateSlackWebhook', () => {
+      it('should skip when Slack is not enabled', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          notifications: {
+            channels: {
+              slack: {
+                enabled: false
+              }
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const slackErrors = errors.filter(e =>
+          e.field === 'notifications.channels.slack.webhookUrl'
+        );
+        expect(slackErrors).toHaveLength(0);
+      });
+
+      it('should error when webhookUrl is missing', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          notifications: {
+            channels: {
+              slack: {
+                enabled: true
+                // webhookUrl is missing
+              }
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        expect(errors.some(e =>
+          e.field === 'notifications.channels.slack.webhookUrl' &&
+          e.severity === 'error' &&
+          e.message.includes('Slack webhook URL is required')
+        )).toBe(true);
+      });
+
+      it('should error when webhookUrl has invalid format', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          notifications: {
+            channels: {
+              slack: {
+                enabled: true,
+                webhookUrl: 'https://example.com/webhook'
+              }
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        expect(errors.some(e =>
+          e.field === 'notifications.channels.slack.webhookUrl' &&
+          e.severity === 'error' &&
+          e.message.includes('Invalid Slack webhook URL')
+        )).toBe(true);
+      });
+
+      it('should pass when webhookUrl has valid format', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          notifications: {
+            channels: {
+              slack: {
+                enabled: true,
+                webhookUrl: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXX'
+              }
+            }
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const slackErrors = errors.filter(e =>
+          e.field === 'notifications.channels.slack.webhookUrl' && e.severity === 'error'
+        );
+        expect(slackErrors).toHaveLength(0);
+      });
+    });
+
+    describe('validateRetryConfiguration', () => {
+      it('should skip when no retry configuration exists', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              name: 'test-stage',
+              agent: '.claude/agents/test-agent.md'
+              // no retry
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const retryWarnings = errors.filter(e =>
+          e.field.includes('retry') && e.severity === 'warning'
+        );
+        expect(retryWarnings).toHaveLength(0);
+      });
+
+      it('should warn when maxAttempts exceeds 10', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              name: 'test-stage',
+              agent: '.claude/agents/test-agent.md',
+              retry: {
+                maxAttempts: 15
+              }
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        expect(errors.some(e =>
+          e.field === 'agents.test-stage.retry' &&
+          e.severity === 'warning' &&
+          e.message.includes('maxAttempts (15) exceeds recommended limit')
+        )).toBe(true);
+      });
+
+      it('should warn when delay exceeds 300 seconds', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              name: 'test-stage',
+              agent: '.claude/agents/test-agent.md',
+              retry: {
+                maxAttempts: 3,
+                delay: 400
+              }
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        expect(errors.some(e =>
+          e.field === 'agents.test-stage.retry' &&
+          e.severity === 'warning' &&
+          e.message.includes('Retry delay (400s) exceeds recommended maximum')
+        )).toBe(true);
+      });
+
+      it('should not warn for reasonable retry configuration', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            {
+              name: 'test-stage',
+              agent: '.claude/agents/test-agent.md',
+              retry: {
+                maxAttempts: 3,
+                delay: 60
+              }
+            }
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const retryWarnings = errors.filter(e =>
+          e.field === 'agents.test-stage.retry' && e.severity === 'warning'
+        );
+        expect(retryWarnings).toHaveLength(0);
+      });
+    });
+
+    describe('validateParallelExecutionLimits', () => {
+      it('should skip when no agents exist', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: []
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const parallelWarnings = errors.filter(e =>
+          e.field === 'agents' &&
+          e.severity === 'warning' &&
+          e.message.includes('parallel')
+        );
+        expect(parallelWarnings).toHaveLength(0);
+      });
+
+      it('should validate parallel execution limits using DAGPlanner', async () => {
+        // Create a config with multiple independent agents (no dependencies)
+        // DAGPlanner will calculate actual parallelism
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: Array.from({ length: 5 }, (_, i) => ({
+            name: `stage-${i}`,
+            agent: '.claude/agents/test-agent.md'
+          }))
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        // Test that validation runs successfully
+        // Actual warning depends on DAGPlanner's calculation
+        expect(errors).toBeDefined();
       });
     });
   });

@@ -24,6 +24,11 @@ export function createMockGit(response: MockGitResponse = {}) {
 
   return {
     checkIsRepo: vi.fn().mockResolvedValue(true),
+    getConfig: vi.fn().mockImplementation(async (key: string) => {
+      if (key === 'user.name') return { value: 'Test User' };
+      if (key === 'user.email') return { value: 'test@example.com' };
+      return { value: null };
+    }),
     status: vi.fn().mockResolvedValue({
       current: response.current || 'main',
       tracking: null,
