@@ -24,7 +24,7 @@ agents:
   # Run comprehensive checks in parallel
   - name: security-audit
     agent: .claude/agents/security-auditor.md
-    timeout: 180
+    timeout: 300
     onFail: stop
     outputs:
       - vulnerabilities
@@ -32,12 +32,12 @@ agents:
 
   - name: code-quality
     agent: .claude/agents/quality-checker.md
-    timeout: 120
+    timeout: 300
     onFail: stop
 
   - name: dependency-check
     agent: .claude/agents/dependency-auditor.md
-    timeout: 120
+    timeout: 300
     onFail: warn
 
   # Only proceed with push if critical checks pass
@@ -48,4 +48,4 @@ agents:
       - code-quality
       - dependency-check
     condition: "{{ stages.security-audit.outputs.vulnerabilities == 0 }}"
-    timeout: 30
+    timeout: 180

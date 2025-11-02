@@ -24,12 +24,12 @@ agents:
   # Run validation checks in parallel for speed
   - name: lint-check
     agent: .claude/agents/quality-checker.md
-    timeout: 60
+    timeout: 180
     onFail: stop
 
   - name: security-scan
     agent: .claude/agents/security-auditor.md
-    timeout: 60
+    timeout: 180
     onFail: stop
 
   # Generate summary only if all checks pass
@@ -38,4 +38,4 @@ agents:
     dependsOn:
       - lint-check
       - security-scan
-    timeout: 30
+    timeout: 120

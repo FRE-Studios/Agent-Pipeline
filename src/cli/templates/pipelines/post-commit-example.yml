@@ -48,7 +48,7 @@ agents:
   # Each stage builds on the previous stage's results
   - name: code-review
     agent: .claude/agents/code-reviewer.md
-    timeout: 120
+    timeout: 300
     outputs:
       - issues_found
       - severity_level
@@ -57,11 +57,11 @@ agents:
     agent: .claude/agents/quality-checker.md
     dependsOn:
       - code-review
-    timeout: 120
+    timeout: 300
     onFail: warn
 
   - name: doc-updater
     agent: .claude/agents/doc-updater.md
     dependsOn:
       - quality-check
-    timeout: 180
+    timeout: 300

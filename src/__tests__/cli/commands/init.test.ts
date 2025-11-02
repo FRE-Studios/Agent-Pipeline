@@ -183,7 +183,7 @@ describe('initCommand', () => {
         const agent = parsed.agents.find((a: any) => a.name === 'code-review');
         expect(agent).toBeDefined();
         expect(agent.agent).toBe('.claude/agents/code-reviewer.md');
-        expect(agent.timeout).toBe(120);
+        expect(agent.timeout).toBe(300);
         expect(agent.outputs).toEqual(['issues_found', 'severity_level']);
       });
 
@@ -233,8 +233,8 @@ describe('initCommand', () => {
 
         expect(lintAgent).toBeDefined();
         expect(securityAgent).toBeDefined();
-        expect(lintAgent.timeout).toBe(60);
-        expect(securityAgent.timeout).toBe(60);
+        expect(lintAgent.timeout).toBe(180);
+        expect(securityAgent.timeout).toBe(180);
       });
     });
 

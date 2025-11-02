@@ -48,21 +48,21 @@ agents:
   # Run cleanup tasks in parallel after merge
   - name: doc-sync
     agent: .claude/agents/doc-updater.md
-    timeout: 180
+    timeout: 300
     outputs:
       - files_updated
       - sections_added
 
   - name: dependency-audit
     agent: .claude/agents/dependency-auditor.md
-    timeout: 120
+    timeout: 300
     outputs:
       - outdated_count
       - security_issues
 
   - name: code-consolidation
     agent: .claude/agents/code-reducer.md
-    timeout: 180
+    timeout: 300
     outputs:
       - duplicates_found
       - files_merged
@@ -74,4 +74,5 @@ agents:
       - doc-sync
       - dependency-audit
       - code-consolidation
+    timeout: 300
     commitMessage: "Add post-merge cleanup summary"
