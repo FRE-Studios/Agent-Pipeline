@@ -2,6 +2,16 @@
 
 // src/index.ts - Clean CLI router
 
+// Check Node.js version before any imports
+const nodeVersion = process.version;
+const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0]);
+if (majorVersion < 18) {
+  console.error(`❌ Node.js 18+ required. Current: ${nodeVersion}`);
+  console.error(`   Upgrade: https://nodejs.org/`);
+  console.error(`   Or with nvm: nvm install 18`);
+  process.exit(1);
+}
+
 import React from 'react';
 import { render } from 'ink';
 import { Logger } from './utils/logger.js';

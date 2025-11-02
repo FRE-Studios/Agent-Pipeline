@@ -14,10 +14,15 @@ import * as ghCliChecker from '../../utils/gh-cli-checker.js';
 describe('PipelineValidator', () => {
   let validator: PipelineValidator;
   let tempDir: string;
+  let originalApiKey: string | undefined;
 
   beforeEach(async () => {
     validator = new PipelineValidator();
     tempDir = await createTempDir('validator-test-');
+
+    // Mock Claude API key for tests
+    originalApiKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key-12345';
 
     // Create agent files that are referenced in configs
     const agentsDir = path.join(tempDir, '.claude', 'agents');
@@ -33,6 +38,13 @@ describe('PipelineValidator', () => {
   });
 
   afterEach(async () => {
+    // Restore original API key
+    if (originalApiKey) {
+      process.env.ANTHROPIC_API_KEY = originalApiKey;
+    } else {
+      delete process.env.ANTHROPIC_API_KEY;
+    }
+
     await cleanupTempDir(tempDir);
   });
 
