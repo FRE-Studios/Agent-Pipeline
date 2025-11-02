@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Documentation Philosophy**: Keep all documentation minimal and scannable. Write only essential information in 1-2 sentences per concept. Avoid verbose explanations, extensive examples, or redundant details. Users can explore code/examples if they need more depth.
 
-**Agent Pipeline Philosophy**: Less is more. Break up all tasks to the smallest fully coherent unit and use one agent per small task. This micro multi agent approach is how to get the most use of Agent Pipeline. 
+**Agent Pipeline Philosophy**: Less is more. Break up all tasks to the smallest fully coherent unit and use one agent per small task. This micro multi agent approach is how to get the most use of Agent Pipeline. Using the same agent with different inputs is perfectly fine as long as the agent itself is focused. The anti-pattern would be having a Swiss Army knife agent that does completely different things based on inputs.
 
 See @README.md for comprehensive feature documentation and usage examples. Deep dives now live under:
 - `docs/configuration.md` – pipeline settings, git workflow, notifications
