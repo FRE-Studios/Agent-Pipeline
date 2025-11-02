@@ -128,24 +128,32 @@ describe('initCommand', () => {
 
         expect(parsed.name).toBe('test-pipeline');
         expect(parsed.trigger).toBe('manual');
-        expect(parsed.settings.executionMode).toBe('sequential');
-        expect(parsed.agents).toHaveLength(2);
+        expect(parsed.settings.executionMode).toBe('parallel');
+        expect(parsed.settings.autoCommit).toBe(false);
+        expect(parsed.settings.preserveWorkingTree).toBe(true);
+        expect(parsed.agents).toHaveLength(8);
       });
 
-      it('should include code-review and summary agents', async () => {
+      it('should include game agents (storyteller, detectives, synthesizer, judge)', async () => {
         await initCommand(tempDir);
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'test-pipeline.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
         const parsed = YAML.parse(content);
 
-        const codeReviewAgent = parsed.agents.find((a: any) => a.name === 'code-review');
-        const summaryAgent = parsed.agents.find((a: any) => a.name === 'summary');
+        const storyteller = parsed.agents.find((a: any) => a.name === 'storyteller');
+        const logician = parsed.agents.find((a: any) => a.name === 'logician');
+        const synthesizer = parsed.agents.find((a: any) => a.name === 'synthesizer');
+        const judge = parsed.agents.find((a: any) => a.name === 'judge');
 
-        expect(codeReviewAgent).toBeDefined();
-        expect(codeReviewAgent.agent).toBe('.claude/agents/code-reviewer.md');
-        expect(summaryAgent).toBeDefined();
-        expect(summaryAgent.agent).toBe('.claude/agents/summary.md');
+        expect(storyteller).toBeDefined();
+        expect(storyteller.agent).toBe('.claude/agents/storyteller.md');
+        expect(logician).toBeDefined();
+        expect(logician.agent).toBe('.claude/agents/detective-logician.md');
+        expect(synthesizer).toBeDefined();
+        expect(synthesizer.agent).toBe('.claude/agents/synthesizer.md');
+        expect(judge).toBeDefined();
+        expect(judge.agent).toBe('.claude/agents/judge.md');
       });
     });
 
@@ -280,8 +288,17 @@ describe('initCommand', () => {
       const files = await fs.readdir(agentsDir);
       const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 
-      // test-pipeline uses code-reviewer.md and summary.md
-      expect(mdFiles.sort()).toEqual(['code-reviewer.md', 'summary.md']);
+      // test-pipeline uses 8 game agents
+      expect(mdFiles.sort()).toEqual([
+        'detective-empath.md',
+        'detective-linguist.md',
+        'detective-logician.md',
+        'detective-skeptic.md',
+        'detective-statistician.md',
+        'judge.md',
+        'storyteller.md',
+        'synthesizer.md'
+      ]);
     });
 
     it('should create agents required by post-commit-example when specified', async () => {
@@ -291,12 +308,19 @@ describe('initCommand', () => {
       const files = await fs.readdir(agentsDir);
       const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 
-      // test-pipeline + post-commit-example use: code-reviewer, summary, quality-checker, doc-updater
+      // test-pipeline (8 game agents) + post-commit-example (code-reviewer, quality-checker, doc-updater)
       expect(mdFiles.sort()).toEqual([
         'code-reviewer.md',
+        'detective-empath.md',
+        'detective-linguist.md',
+        'detective-logician.md',
+        'detective-skeptic.md',
+        'detective-statistician.md',
         'doc-updater.md',
+        'judge.md',
         'quality-checker.md',
-        'summary.md'
+        'storyteller.md',
+        'synthesizer.md'
       ]);
     });
 
@@ -308,25 +332,33 @@ describe('initCommand', () => {
       const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 
       // Should include all agents that have templates and are used by any pipeline
-      // Note: context-reducer, dependency-auditor, code-reducer, cleanup-reporter are NOT in DEFAULT_AGENTS
+      // test-pipeline (8 game agents) + all example pipelines (code-reviewer, doc-updater, quality-checker, security-auditor, summary)
       const expectedAgents = [
         'code-reviewer.md',
+        'detective-empath.md',
+        'detective-linguist.md',
+        'detective-logician.md',
+        'detective-skeptic.md',
+        'detective-statistician.md',
         'doc-updater.md',
+        'judge.md',
         'quality-checker.md',
         'security-auditor.md',
-        'summary.md'
+        'storyteller.md',
+        'summary.md',
+        'synthesizer.md'
       ];
 
       expect(mdFiles.sort()).toEqual(expectedAgents);
     });
 
-    it('should include valid markdown in code-reviewer agent', async () => {
+    it('should include valid markdown in storyteller agent', async () => {
       await initCommand(tempDir, { importPluginAgents: false });
 
-      const agentPath = path.join(tempDir, '.claude', 'agents', 'code-reviewer.md');
+      const agentPath = path.join(tempDir, '.claude', 'agents', 'storyteller.md');
       const content = await fs.readFile(agentPath, 'utf-8');
 
-      expect(content).toContain('# Code Review Agent');
+      expect(content).toContain('# Storyteller Agent');
       expect(content).toContain('## Your Task');
       expect(content).toContain('## Output Format');
       expect(content).toContain('report_outputs');
@@ -368,33 +400,42 @@ describe('initCommand', () => {
       expect(content).toContain('report_outputs');
     });
 
-    it('should include valid markdown in summary agent', async () => {
+    it('should include valid markdown in judge agent', async () => {
       await initCommand(tempDir, { importPluginAgents: false });
 
-      const agentPath = path.join(tempDir, '.claude', 'agents', 'summary.md');
+      const agentPath = path.join(tempDir, '.claude', 'agents', 'judge.md');
       const content = await fs.readFile(agentPath, 'utf-8');
 
-      expect(content).toContain('# Summary Agent');
+      expect(content).toContain('# Judge Agent');
       expect(content).toContain('## Your Task');
     });
 
     it('should not create agents that already exist', async () => {
-      // Pre-create code-reviewer.md to simulate existing agent
+      // Pre-create storyteller.md to simulate existing agent
       const agentsDir = path.join(tempDir, '.claude', 'agents');
       await fs.mkdir(agentsDir, { recursive: true });
-      await fs.writeFile(path.join(agentsDir, 'code-reviewer.md'), '# Existing Code Reviewer', 'utf-8');
+      await fs.writeFile(path.join(agentsDir, 'storyteller.md'), '# Existing Storyteller', 'utf-8');
 
       await initCommand(tempDir, { importPluginAgents: false });
 
-      // Should create summary.md (needed by test-pipeline) but not code-reviewer.md (already exists)
+      // Should create other 7 game agents but not storyteller.md (already exists)
       const files = await fs.readdir(agentsDir);
       const mdFiles = files.filter(f => f.endsWith('.md'));
 
-      expect(mdFiles.sort()).toEqual(['code-reviewer.md', 'summary.md']);
+      expect(mdFiles.sort()).toEqual([
+        'detective-empath.md',
+        'detective-linguist.md',
+        'detective-logician.md',
+        'detective-skeptic.md',
+        'detective-statistician.md',
+        'judge.md',
+        'storyteller.md',
+        'synthesizer.md'
+      ]);
 
-      // Verify code-reviewer.md was NOT overwritten
-      const content = await fs.readFile(path.join(agentsDir, 'code-reviewer.md'), 'utf-8');
-      expect(content).toContain('# Existing Code Reviewer');
+      // Verify storyteller.md was NOT overwritten
+      const content = await fs.readFile(path.join(agentsDir, 'storyteller.md'), 'utf-8');
+      expect(content).toContain('# Existing Storyteller');
     });
 
     it('should create agents with proper output format instructions', async () => {
@@ -514,8 +555,8 @@ describe('initCommand', () => {
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Created'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('fallback agent'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('code-reviewer.md'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('summary.md'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('storyteller.md'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('judge.md'));
     });
 
     it('should log success message', async () => {
@@ -569,10 +610,16 @@ describe('initCommand', () => {
       // Disable plugin import to force fallback agent creation
       await initCommand(tempDir, { importPluginAgents: false });
 
-      // Required agents for test-pipeline should be created
+      // Required agents for test-pipeline (8 game agents) should be created
       const agentNames = [
-        'code-reviewer.md',
-        'summary.md'
+        'storyteller.md',
+        'detective-logician.md',
+        'detective-empath.md',
+        'detective-statistician.md',
+        'detective-linguist.md',
+        'detective-skeptic.md',
+        'synthesizer.md',
+        'judge.md'
       ];
 
       for (const agentName of agentNames) {
@@ -586,15 +633,24 @@ describe('initCommand', () => {
       // Pre-create code-reviewer.md to simulate plugin import
       const agentsDir = path.join(tempDir, '.claude', 'agents');
       await fs.mkdir(agentsDir, { recursive: true });
-      await fs.writeFile(path.join(agentsDir, 'code-reviewer.md'), '# Plugin Agent', 'utf-8');
+      await fs.writeFile(path.join(agentsDir, 'storyteller.md'), '# Plugin Agent', 'utf-8');
 
       await initCommand(tempDir, { importPluginAgents: false });
 
-      // Should create summary.md but not code-reviewer.md
+      // Should create the other 7 game agents but not storyteller.md (already exists)
       const files = await fs.readdir(agentsDir);
       const mdFiles = files.filter(f => f.endsWith('.md'));
 
-      expect(mdFiles.sort()).toEqual(['code-reviewer.md', 'summary.md']);
+      expect(mdFiles.sort()).toEqual([
+        'detective-empath.md',
+        'detective-linguist.md',
+        'detective-logician.md',
+        'detective-skeptic.md',
+        'detective-statistician.md',
+        'judge.md',
+        'storyteller.md',
+        'synthesizer.md'
+      ]);
     });
 
     it('should show imported agent count in success message when agents imported', async () => {
@@ -683,10 +739,19 @@ describe('initCommand', () => {
       const ymlFiles = pipelineFiles.filter(f => f.endsWith('.yml'));
       expect(ymlFiles).toEqual(['test-pipeline.yml']);
 
-      // Verify only required agents are created (code-reviewer.md, summary.md)
+      // Verify only required agents are created (8 game agents)
       const agentFiles = await fs.readdir(agentsDir);
       const mdFiles = agentFiles.filter(f => f.endsWith('.md') && !f.startsWith('.'));
-      expect(mdFiles.sort()).toEqual(['code-reviewer.md', 'summary.md']);
+      expect(mdFiles.sort()).toEqual([
+        'detective-empath.md',
+        'detective-linguist.md',
+        'detective-logician.md',
+        'detective-skeptic.md',
+        'detective-statistician.md',
+        'judge.md',
+        'storyteller.md',
+        'synthesizer.md'
+      ]);
 
       // Verify .gitignore
       const gitignorePath = path.join(tempDir, '.gitignore');
@@ -734,7 +799,7 @@ describe('initCommand', () => {
       const parsed = YAML.parse(content);
 
       expect(parsed.name).toBe('test-pipeline');
-      expect(parsed.agents).toHaveLength(2);
+      expect(parsed.agents).toHaveLength(8);
 
       // Verify test-pipeline exists
       const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
@@ -758,8 +823,10 @@ describe('initCommand', () => {
       await initCommand(tempDir, { importPluginAgents: false });
 
       const agentNames = [
-        'code-reviewer.md',
-        'summary.md'
+        'storyteller.md',
+        'detective-logician.md',
+        'synthesizer.md',
+        'judge.md'
       ];
 
       for (const agentName of agentNames) {
@@ -776,16 +843,19 @@ describe('initCommand', () => {
   describe('Helper Functions', () => {
     describe('getRequiredAgents', () => {
       it('should extract agents from test-pipeline', async () => {
-        await initCommand(tempDir);
+        await initCommand(tempDir, { importPluginAgents: false });
 
         // Use a simple test by checking what files were created
         const agentsDir = path.join(tempDir, '.claude', 'agents');
         const files = await fs.readdir(agentsDir);
         const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 
-        // test-pipeline should require code-reviewer.md and summary.md
-        expect(mdFiles).toContain('code-reviewer.md');
-        expect(mdFiles).toContain('summary.md');
+        // test-pipeline should require 8 game agents
+        expect(mdFiles).toContain('storyteller.md');
+        expect(mdFiles).toContain('detective-logician.md');
+        expect(mdFiles).toContain('synthesizer.md');
+        expect(mdFiles).toContain('judge.md');
+        expect(mdFiles).toHaveLength(8);
       });
 
       it('should extract unique agents from multiple pipelines', async () => {
@@ -795,12 +865,19 @@ describe('initCommand', () => {
         const files = await fs.readdir(agentsDir);
         const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 
-        // Both pipelines combined should create these agents
+        // test-pipeline (8 game agents) + post-commit (code-reviewer, doc-updater, quality-checker)
         expect(mdFiles.sort()).toEqual([
           'code-reviewer.md',
+          'detective-empath.md',
+          'detective-linguist.md',
+          'detective-logician.md',
+          'detective-skeptic.md',
+          'detective-statistician.md',
           'doc-updater.md',
+          'judge.md',
           'quality-checker.md',
-          'summary.md'
+          'storyteller.md',
+          'synthesizer.md'
         ]);
       });
     });
