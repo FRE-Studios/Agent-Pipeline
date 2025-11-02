@@ -3,6 +3,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { PipelineConfig } from '../config/schema.js';
+import { checkGHCLI } from '../utils/gh-cli-checker.js';
 
 export interface ValidationError {
   field: string;
@@ -24,6 +25,11 @@ export class PipelineValidator {
 
     // Validate settings
     this.validateSettings(config);
+
+    // Validate GitHub CLI availability when PR creation is enabled
+    if (config.git?.pullRequest?.autoCreate === true) {
+      await this.validateGitHubCLI();
+    }
 
     // Validate agents configuration
     this.validateAgents(config);
@@ -233,6 +239,31 @@ export class PipelineValidator {
           });
         }
       }
+    }
+
+  }
+
+  /**
+   * Validate GitHub CLI availability for PR creation.
+   * Checks if gh CLI is installed and authenticated when autoCreate is enabled.
+   */
+  private async validateGitHubCLI(): Promise<void> {
+    const ghStatus = await checkGHCLI();
+
+    if (!ghStatus.installed) {
+      this.errors.push({
+        field: 'git.pullRequest.autoCreate',
+        message:
+          'GitHub CLI (gh) is not installed. Install from https://cli.github.com/ or set autoCreate to false',
+        severity: 'error'
+      });
+    } else if (!ghStatus.authenticated) {
+      this.errors.push({
+        field: 'git.pullRequest.autoCreate',
+        message:
+          "GitHub CLI is not authenticated. Run 'gh auth login' or set autoCreate to false",
+        severity: 'error'
+      });
     }
   }
 

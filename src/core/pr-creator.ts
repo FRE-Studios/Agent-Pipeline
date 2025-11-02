@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { PipelineState } from '../config/schema.js';
+import { checkGHCLI } from '../utils/gh-cli-checker.js';
 
 export interface PRConfig {
   autoCreate?: boolean;
@@ -55,26 +56,6 @@ export class PRCreator {
   }
 
   /**
-   * Check if GitHub CLI is installed and authenticated.
-   */
-  async checkGHCLI(): Promise<{ installed: boolean; authenticated: boolean }> {
-    try {
-      // Check if gh is installed
-      await this.executeGhCommand(['--version']);
-
-      // Check if authenticated
-      try {
-        await this.executeGhCommand(['auth', 'status']);
-        return { installed: true, authenticated: true };
-      } catch {
-        return { installed: true, authenticated: false };
-      }
-    } catch {
-      return { installed: false, authenticated: false };
-    }
-  }
-
-  /**
    * Create a pull request using GitHub CLI.
    */
   async createPR(
@@ -84,7 +65,7 @@ export class PRCreator {
     pipelineState: PipelineState
   ): Promise<{ url: string; number: number }> {
     // Check prerequisites
-    const ghStatus = await this.checkGHCLI();
+    const ghStatus = await checkGHCLI();
 
     if (!ghStatus.installed) {
       throw new Error(

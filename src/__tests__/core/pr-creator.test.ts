@@ -34,6 +34,7 @@ vi.mock('child_process', () => ({
 
 // Import after mocks
 import { PRCreator } from '../../core/pr-creator.js';
+import { checkGHCLI } from '../../utils/gh-cli-checker.js';
 
 class MockProcess extends EventEmitter {
   stdout = new EventEmitter();
@@ -105,9 +106,9 @@ describe('PRCreator', () => {
     consoleLogSpy.mockRestore();
   });
 
-  describe('checkGHCLI', () => {
+  describe('checkGHCLI (shared utility)', () => {
     it('should return installed and authenticated when both succeed', async () => {
-      const result = await prCreator.checkGHCLI();
+      const result = await checkGHCLI();
       expect(result).toEqual({ installed: true, authenticated: true });
       expect(mockSpawn.spawn).toHaveBeenCalledWith('gh', ['--version']);
       expect(mockSpawn.spawn).toHaveBeenCalledWith('gh', ['auth', 'status']);
@@ -118,13 +119,13 @@ describe('PRCreator', () => {
         version: ghVersionOutput,
         auth: ghAuthStatusNotAuthenticated,
       });
-      const result = await prCreator.checkGHCLI();
+      const result = await checkGHCLI();
       expect(result).toEqual({ installed: true, authenticated: false });
     });
 
     it('should return not installed when gh --version fails', async () => {
       configureMockSpawn({ version: ghVersionNotInstalled });
-      const result = await prCreator.checkGHCLI();
+      const result = await checkGHCLI();
       expect(result).toEqual({ installed: false, authenticated: false });
     });
   });

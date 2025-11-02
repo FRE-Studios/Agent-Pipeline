@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PipelineValidator } from '../../validators/pipeline-validator.js';
 import {
   simplePipelineConfig,
@@ -9,6 +9,7 @@ import { PipelineConfig } from '../../config/schema.js';
 import { createTempDir, cleanupTempDir } from '../setup.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as ghCliChecker from '../../utils/gh-cli-checker.js';
 
 describe('PipelineValidator', () => {
   let validator: PipelineValidator;
@@ -927,6 +928,140 @@ describe('PipelineValidator', () => {
         );
         expect(caErrors).toHaveLength(0);
       });
+    });
+  });
+
+  describe('GitHub CLI validation', () => {
+    beforeEach(() => {
+      // Reset all mocks before each test
+      vi.restoreAllMocks();
+    });
+
+    it('should not validate GitHub CLI when autoCreate is false', async () => {
+      const checkGHCLISpy = vi.spyOn(ghCliChecker, 'checkGHCLI');
+
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        git: {
+          pullRequest: {
+            autoCreate: false
+          }
+        }
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      // checkGHCLI should not be called when autoCreate is false
+      expect(checkGHCLISpy).not.toHaveBeenCalled();
+      const ghErrors = errors.filter(e => e.field === 'git.pullRequest.autoCreate');
+      expect(ghErrors).toHaveLength(0);
+    });
+
+    it('should not validate GitHub CLI when autoCreate is undefined', async () => {
+      const checkGHCLISpy = vi.spyOn(ghCliChecker, 'checkGHCLI');
+
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        git: {
+          pullRequest: {
+            // autoCreate is undefined
+          }
+        }
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      // checkGHCLI should not be called when autoCreate is undefined
+      expect(checkGHCLISpy).not.toHaveBeenCalled();
+      const ghErrors = errors.filter(e => e.field === 'git.pullRequest.autoCreate');
+      expect(ghErrors).toHaveLength(0);
+    });
+
+    it('should not validate GitHub CLI when git config is omitted', async () => {
+      const checkGHCLISpy = vi.spyOn(ghCliChecker, 'checkGHCLI');
+
+      const config: PipelineConfig = {
+        ...simplePipelineConfig
+        // git is omitted entirely
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      // checkGHCLI should not be called when git config is omitted
+      expect(checkGHCLISpy).not.toHaveBeenCalled();
+      const ghErrors = errors.filter(e => e.field === 'git.pullRequest.autoCreate');
+      expect(ghErrors).toHaveLength(0);
+    });
+
+    it('should error when autoCreate is true but gh not installed', async () => {
+      vi.spyOn(ghCliChecker, 'checkGHCLI').mockResolvedValue({
+        installed: false,
+        authenticated: false
+      });
+
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        git: {
+          pullRequest: {
+            autoCreate: true
+          }
+        }
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      const ghErrors = errors.filter(e =>
+        e.field === 'git.pullRequest.autoCreate' && e.severity === 'error'
+      );
+      expect(ghErrors.length).toBeGreaterThan(0);
+      expect(ghErrors[0].message).toContain('GitHub CLI (gh) is not installed');
+      expect(ghErrors[0].message).toContain('https://cli.github.com/');
+    });
+
+    it('should error when autoCreate is true but gh not authenticated', async () => {
+      vi.spyOn(ghCliChecker, 'checkGHCLI').mockResolvedValue({
+        installed: true,
+        authenticated: false
+      });
+
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        git: {
+          pullRequest: {
+            autoCreate: true
+          }
+        }
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      const ghErrors = errors.filter(e =>
+        e.field === 'git.pullRequest.autoCreate' && e.severity === 'error'
+      );
+      expect(ghErrors.length).toBeGreaterThan(0);
+      expect(ghErrors[0].message).toContain('GitHub CLI is not authenticated');
+      expect(ghErrors[0].message).toContain('gh auth login');
+    });
+
+    it('should pass when autoCreate is true and gh is installed and authenticated', async () => {
+      vi.spyOn(ghCliChecker, 'checkGHCLI').mockResolvedValue({
+        installed: true,
+        authenticated: true
+      });
+
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        git: {
+          pullRequest: {
+            autoCreate: true
+          }
+        }
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      const ghErrors = errors.filter(e => e.field === 'git.pullRequest.autoCreate');
+      expect(ghErrors).toHaveLength(0);
     });
   });
 });
