@@ -12,7 +12,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc && cp -r src/cli/templates dist/cli/",
+    "build": "tsc && node scripts/copy-templates.mjs",
     "dev": "tsc --watch",
     "test": "vitest",
     "start": "node dist/index.js",

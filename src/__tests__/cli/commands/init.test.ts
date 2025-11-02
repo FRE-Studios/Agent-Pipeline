@@ -4,6 +4,7 @@ import { createTempDir, cleanupTempDir } from '../../setup.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as YAML from 'yaml';
+import { AgentImporter } from '../../../cli/utils/agent-importer.js';
 
 describe('initCommand', () => {
   let tempDir: string;
@@ -653,18 +654,22 @@ describe('initCommand', () => {
       ]);
     });
 
-    it('should show imported agent count in success message when agents imported', async () => {
-      // This test checks console output when plugin agents ARE imported
+    it('should show fallback agent summary when no plugin agents are imported', async () => {
+      vi.spyOn(AgentImporter, 'importPluginAgents').mockResolvedValue({
+        total: 0,
+        imported: 0,
+        skipped: 0,
+        agents: []
+      });
+
       await initCommand(tempDir);
 
       const calls = (console.log as any).mock.calls;
-
-      // Should show either "Imported X agent(s)" or "Created example agents:"
-      const hasImportedOrCreatedMessage = calls.some((call: any[]) =>
-        (call[0]?.includes('📦 Imported') && call[0]?.includes('agent(s)')) ||
-        call[0]?.includes('✅ Created example agents:')
+      const hasFallbackMessage = calls.some((call: any[]) =>
+        call[0]?.includes('fallback agent(s) required by your pipelines')
       );
-      expect(hasImportedOrCreatedMessage).toBe(true);
+
+      expect(hasFallbackMessage).toBe(true);
     });
   });
 
