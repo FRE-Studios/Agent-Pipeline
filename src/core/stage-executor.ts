@@ -1,9 +1,9 @@
 // src/core/stage-executor.ts
 
-import { query } from '@anthropic-ai/claude-agent-sdk';
 import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
 import { RetryHandler } from './retry-handler.js';
+import { AgentQueryRunner } from './agent-query-runner.js';
 import { OutputToolBuilder } from './output-tool-builder.js';
 import { OutputStorageManager } from './output-storage-manager.js';
 import { AgentStageConfig, StageExecution, PipelineState, LoopContext } from '../config/schema.js';
@@ -14,6 +14,7 @@ import { TokenEstimator } from '../utils/token-estimator.js';
 export class StageExecutor {
   private retryHandler: RetryHandler;
   private outputStorageManager: OutputStorageManager;
+  private queryRunner: AgentQueryRunner;
 
   constructor(
     private gitManager: GitManager,
@@ -24,6 +25,7 @@ export class StageExecutor {
   ) {
     this.retryHandler = new RetryHandler();
     this.outputStorageManager = new OutputStorageManager(repoPath, runId);
+    this.queryRunner = new AgentQueryRunner();
   }
 
   /**
@@ -468,79 +470,32 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
         }
       });
 
-      // Get MCP server with report_outputs tool
-      const mcpServer = OutputToolBuilder.getMcpServer();
-
-      const q = query({
-        prompt: userPrompt,
-        options: {
-          systemPrompt,
-          settingSources: ['project'],
-          permissionMode,
-          // Only include Claude Agent SDK options if explicitly configured
-          ...(claudeAgentOptions?.model && { model: claudeAgentOptions.model }),
-          ...(claudeAgentOptions?.maxTurns !== undefined && { maxTurns: claudeAgentOptions.maxTurns }),
-          ...(claudeAgentOptions?.maxThinkingTokens !== undefined && { maxThinkingTokens: claudeAgentOptions.maxThinkingTokens }),
-          mcpServers: {
-            'pipeline-outputs': mcpServer
-          }
-        }
+      // Execute query using AgentQueryRunner
+      const result = await this.queryRunner.runSDKQuery(userPrompt, {
+        systemPrompt,
+        permissionMode,
+        model: claudeAgentOptions?.model,
+        maxTurns: claudeAgentOptions?.maxTurns,
+        maxThinkingTokens: claudeAgentOptions?.maxThinkingTokens,
+        onOutputUpdate,
+        captureTokenUsage: true
       });
 
-      // Collect assistant messages, tool calls, and token usage
-      let textOutput = '';
-      let toolExtractedData: Record<string, unknown> | undefined;
-      let tokenUsage: {
-        input_tokens: number;
-        output_tokens: number;
-        cache_creation_input_tokens?: number;
-        cache_read_input_tokens?: number;
-        thinking_tokens?: number;
-      } | undefined;
-      let numTurns: number | undefined;
-
-      for await (const message of q) {
-        if (message.type === 'assistant') {
-          // Extract both text and tool calls from assistant message content
-          for (const content of message.message.content) {
-            if (content.type === 'text') {
-              textOutput += content.text;
-              // Stream output to callback if provided
-              if (onOutputUpdate) {
-                onOutputUpdate(textOutput);
-              }
-            } else if (content.type === 'tool_use' && content.name === 'report_outputs') {
-              // Capture tool call arguments as extracted data
-              const toolInput = content.input as { outputs?: Record<string, unknown> };
-              if (toolInput.outputs) {
-                toolExtractedData = toolInput.outputs;
-              }
-            }
-          }
-        } else if (message.type === 'result' && message.subtype === 'success') {
-          // Capture token usage and turns from SDK result message
-          numTurns = message.num_turns;
-          tokenUsage = {
-            input_tokens: message.usage.input_tokens,
-            output_tokens: message.usage.output_tokens,
-            cache_creation_input_tokens: message.usage.cache_creation_input_tokens,
-            cache_read_input_tokens: message.usage.cache_read_input_tokens,
-            // Check if thinking_tokens exists in usage (extended thinking models)
-            thinking_tokens: (message.usage as any).thinking_tokens
-          };
-        }
-      }
-
       // If no tool call was made, fall back to regex extraction
-      let extractedData = toolExtractedData;
+      let extractedData = result.extractedData;
       if (!extractedData && outputKeys && outputKeys.length > 0) {
-        extractedData = this.extractOutputs(textOutput, outputKeys);
+        extractedData = this.extractOutputs(result.textOutput, outputKeys);
       }
 
       // Clean up warning timers on successful completion
       warningTimers.forEach(timer => clearTimeout(timer));
 
-      return { textOutput, extractedData, tokenUsage, numTurns };
+      return {
+        textOutput: result.textOutput,
+        extractedData,
+        tokenUsage: result.tokenUsage,
+        numTurns: result.numTurns
+      };
     };
 
     const timeoutPromise = new Promise<{

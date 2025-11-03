@@ -1,17 +1,20 @@
 // src/core/context-reducer.ts
 
-import { query, type SettingSource } from '@anthropic-ai/claude-agent-sdk';
 import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
-import { OutputToolBuilder } from './output-tool-builder.js';
+import { AgentQueryRunner } from './agent-query-runner.js';
 import { PipelineState, AgentStageConfig, StageExecution, ContextReductionConfig } from '../config/schema.js';
 
 export class ContextReducer {
+  private queryRunner: AgentQueryRunner;
+
   constructor(
     _gitManager: GitManager,
     private repoPath: string,
     _runId: string
-  ) {}
+  ) {
+    this.queryRunner = new AgentQueryRunner();
+  }
 
   /**
    * Check if context reduction is needed based on token count
@@ -261,71 +264,20 @@ Focus on what the **upcoming agent needs to know**, not what previous agents did
     const timeout = 900000; // 15 minutes
 
     const runQuery = async () => {
-      let mcpServer: ReturnType<typeof OutputToolBuilder.getMcpServer> | undefined;
-      try {
-        mcpServer = OutputToolBuilder.getMcpServer();
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.warn(`⚠️  Failed to initialize output tool server: ${message}`);
-      }
-
-      type McpServerInstance = ReturnType<typeof OutputToolBuilder.getMcpServer>;
-
-      const options: {
-        systemPrompt: string;
-        settingSources: SettingSource[];
-        permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
-        model?: 'haiku' | 'sonnet' | 'opus';
-        maxTurns?: number;
-        maxThinkingTokens?: number;
-        mcpServers?: Record<string, McpServerInstance>;
-      } = {
+      // Execute query using AgentQueryRunner
+      const result = await this.queryRunner.runSDKQuery(userPrompt, {
         systemPrompt,
-        settingSources: ['project'],
-        permissionMode
-      };
-
-      // Add Claude Agent SDK options if configured
-      if (claudeAgentOptions?.model) {
-        options.model = claudeAgentOptions.model;
-      }
-      if (claudeAgentOptions?.maxTurns !== undefined) {
-        options.maxTurns = claudeAgentOptions.maxTurns;
-      }
-      if (claudeAgentOptions?.maxThinkingTokens !== undefined) {
-        options.maxThinkingTokens = claudeAgentOptions.maxThinkingTokens;
-      }
-
-      if (mcpServer) {
-        options.mcpServers = {
-          'pipeline-outputs': mcpServer
-        };
-      }
-
-      const q = query({
-        prompt: userPrompt,
-        options
+        permissionMode,
+        model: claudeAgentOptions?.model,
+        maxTurns: claudeAgentOptions?.maxTurns,
+        maxThinkingTokens: claudeAgentOptions?.maxThinkingTokens,
+        captureTokenUsage: false // Context reducer doesn't need token tracking
       });
 
-      let textOutput = '';
-      let toolExtractedData: Record<string, unknown> | undefined;
-
-      for await (const message of q) {
-        if (message.type === 'assistant') {
-          for (const content of message.message.content) {
-            if (content.type === 'text') {
-              textOutput += content.text;
-            } else if (content.type === 'tool_use' && content.name === 'report_outputs') {
-              const toolInput = content.input as { outputs?: Record<string, unknown> };
-              if (toolInput.outputs) {
-                toolExtractedData = toolInput.outputs;
-              }
-            }
-          }
-        }
-      }
-
-      return { textOutput, extractedData: toolExtractedData };
+      return {
+        textOutput: result.textOutput,
+        extractedData: result.extractedData
+      };
     };
 
     return Promise.race([
