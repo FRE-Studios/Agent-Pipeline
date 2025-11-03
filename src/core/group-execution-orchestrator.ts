@@ -6,6 +6,7 @@ import { ParallelExecutor } from './parallel-executor.js';
 import { StateManager } from './state-manager.js';
 import { ConditionEvaluator } from './condition-evaluator.js';
 import { ContextReducer } from './context-reducer.js';
+import { AgentRuntime } from './types/agent-runtime.js';
 import { TokenEstimator } from '../utils/token-estimator.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import {
@@ -30,6 +31,7 @@ export class GroupExecutionOrchestrator {
     private stateManager: StateManager,
     private repoPath: string,
     private dryRun: boolean,
+    private runtime: AgentRuntime,
     private shouldLog: (interactive: boolean) => boolean,
     private stateChangeCallback: (state: PipelineState) => void,
     private notifyStageResultsCallback: (
@@ -269,7 +271,8 @@ export class GroupExecutionOrchestrator {
     const contextReducer = new ContextReducer(
       this.gitManager,
       this.repoPath,
-      state.runId
+      state.runId,
+      this.runtime
     );
 
     // Check if reduction needed
@@ -421,6 +424,7 @@ export class GroupExecutionOrchestrator {
   ): Promise<number> {
     const stageExecutor = new StageExecutor(
       this.gitManager,
+      this.runtime,
       this.dryRun,
       state.runId,
       this.repoPath

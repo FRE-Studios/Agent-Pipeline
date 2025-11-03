@@ -14,6 +14,8 @@ import { NotificationContext } from '../notifications/types.js';
 import { ProjectConfigLoader } from '../config/project-config-loader.js';
 import { PipelineLoader } from '../config/pipeline-loader.js';
 import { LoopStateManager, LoopSession } from './loop-state-manager.js';
+import { AgentRuntimeRegistry } from './agent-runtime-registry.js';
+import { AgentRuntime } from './types/agent-runtime.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -29,6 +31,7 @@ export class PipelineRunner {
   private notificationManager?: NotificationManager;
   private dryRun: boolean;
   private repoPath: string;
+  private runtime: AgentRuntime;
   private stateUpdateCallbacks: Array<(state: PipelineState) => void> = [];
   private projectConfigLoader: ProjectConfigLoader;
   private loopStateManager: LoopStateManager;
@@ -44,12 +47,16 @@ export class PipelineRunner {
     this.projectConfigLoader = new ProjectConfigLoader(repoPath);
     this.loopStateManager = new LoopStateManager(repoPath);
 
+    // Get Claude SDK runtime from registry (default runtime)
+    this.runtime = AgentRuntimeRegistry.getRuntime('claude-sdk');
+
     // Initialize orchestration components
     this.initializer = new PipelineInitializer(
       this.gitManager,
       this.branchManager,
       this.repoPath,
-      this.dryRun
+      this.dryRun,
+      this.runtime
     );
 
     this.groupOrchestrator = new GroupExecutionOrchestrator(
@@ -57,6 +64,7 @@ export class PipelineRunner {
       this.stateManager,
       this.repoPath,
       this.dryRun,
+      this.runtime,
       this.shouldLog.bind(this),
       this.notifyStateChange.bind(this),
       this.notifyStageResults.bind(this)

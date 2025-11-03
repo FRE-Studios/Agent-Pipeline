@@ -5,6 +5,7 @@ import { GitManager } from './git-manager.js';
 import { BranchManager } from './branch-manager.js';
 import { StageExecutor } from './stage-executor.js';
 import { ParallelExecutor } from './parallel-executor.js';
+import { AgentRuntime } from './types/agent-runtime.js';
 import { PipelineConfig, PipelineState, LoopContext, PipelineMetadata } from '../config/schema.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
@@ -24,7 +25,8 @@ export class PipelineInitializer {
     private gitManager: GitManager,
     private branchManager: BranchManager,
     private repoPath: string,
-    private dryRun: boolean
+    private dryRun: boolean,
+    private runtime: AgentRuntime
   ) {}
 
   /**
@@ -79,6 +81,7 @@ export class PipelineInitializer {
     // Create executors
     const stageExecutor = new StageExecutor(
       this.gitManager,
+      this.runtime,
       this.dryRun,
       state.runId,
       this.repoPath,

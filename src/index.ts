@@ -16,6 +16,10 @@ import React from 'react';
 import { render } from 'ink';
 import { Logger } from './utils/logger.js';
 
+// Runtime registration
+import { AgentRuntimeRegistry } from './core/agent-runtime-registry.js';
+import { ClaudeSDKRuntime } from './core/agent-runtimes/claude-sdk-runtime.js';
+
 // Command imports
 import { runCommand } from './cli/commands/run.js';
 import { listCommand } from './cli/commands/list.js';
@@ -50,6 +54,19 @@ async function main() {
   const subCommand = args[1];
 
   const repoPath = process.cwd();
+
+  // Register Claude SDK runtime on startup
+  try {
+    const sdkRuntime = new ClaudeSDKRuntime();
+    AgentRuntimeRegistry.register(sdkRuntime);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    Logger.error(`Failed to register Claude SDK runtime: ${message}`);
+    if (process.env.DEBUG) {
+      console.error(err);
+    }
+    // Continue execution - runtime registration failure shouldn't block CLI commands
+  }
 
   try {
     switch (command) {

@@ -3,7 +3,7 @@
 import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
 import { RetryHandler } from './retry-handler.js';
-import { AgentQueryRunner } from './agent-query-runner.js';
+import { AgentRuntime, AgentExecutionRequest } from './types/agent-runtime.js';
 import { OutputToolBuilder } from './output-tool-builder.js';
 import { OutputStorageManager } from './output-storage-manager.js';
 import { AgentStageConfig, StageExecution, PipelineState, LoopContext } from '../config/schema.js';
@@ -14,10 +14,10 @@ import { TokenEstimator } from '../utils/token-estimator.js';
 export class StageExecutor {
   private retryHandler: RetryHandler;
   private outputStorageManager: OutputStorageManager;
-  private queryRunner: AgentQueryRunner;
 
   constructor(
     private gitManager: GitManager,
+    private runtime: AgentRuntime,
     private dryRun: boolean = false,
     runId: string,
     repoPath: string,
@@ -25,7 +25,6 @@ export class StageExecutor {
   ) {
     this.retryHandler = new RetryHandler();
     this.outputStorageManager = new OutputStorageManager(repoPath, runId);
-    this.queryRunner = new AgentQueryRunner();
   }
 
   /**
@@ -110,16 +109,16 @@ export class StageExecutor {
       execution.agentOutput = result.textOutput;
       execution.extractedData = result.extractedData;
 
-      // Store token usage
+      // Store token usage (normalized from runtime)
       if (result.tokenUsage) {
         execution.tokenUsage = {
           estimated_input: estimatedTokens,
-          actual_input: result.tokenUsage.input_tokens,
-          output: result.tokenUsage.output_tokens,
-          cache_creation: result.tokenUsage.cache_creation_input_tokens,
-          cache_read: result.tokenUsage.cache_read_input_tokens,
+          actual_input: result.tokenUsage.inputTokens,
+          output: result.tokenUsage.outputTokens,
+          cache_creation: result.tokenUsage.cacheCreationTokens,
+          cache_read: result.tokenUsage.cacheReadTokens,
           num_turns: result.numTurns,
-          thinking_tokens: result.tokenUsage.thinking_tokens
+          thinking_tokens: result.tokenUsage.thinkingTokens
         };
       }
 
@@ -440,11 +439,11 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
     textOutput: string;
     extractedData?: Record<string, unknown>;
     tokenUsage?: {
-      input_tokens: number;
-      output_tokens: number;
-      cache_creation_input_tokens?: number;
-      cache_read_input_tokens?: number;
-      thinking_tokens?: number;
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationTokens?: number;
+      cacheReadTokens?: number;
+      thinkingTokens?: number;
     };
     numTurns?: number;
   }> {
@@ -470,43 +469,39 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
         }
       });
 
-      // Execute query using AgentQueryRunner
-      const result = await this.queryRunner.runSDKQuery(userPrompt, {
+      // Build agent execution request using runtime abstraction
+      const request: AgentExecutionRequest = {
         systemPrompt,
-        permissionMode,
-        model: claudeAgentOptions?.model,
-        maxTurns: claudeAgentOptions?.maxTurns,
-        maxThinkingTokens: claudeAgentOptions?.maxThinkingTokens,
-        onOutputUpdate,
-        captureTokenUsage: true
-      });
+        userPrompt,
+        options: {
+          timeout: timeoutSeconds,
+          outputKeys,
+          permissionMode,
+          model: claudeAgentOptions?.model,
+          maxTurns: claudeAgentOptions?.maxTurns,
+          maxThinkingTokens: claudeAgentOptions?.maxThinkingTokens,
+          onOutputUpdate
+        }
+      };
 
-      // If no tool call was made, fall back to regex extraction
-      let extractedData = result.extractedData;
-      if (!extractedData && outputKeys && outputKeys.length > 0) {
-        extractedData = this.extractOutputs(result.textOutput, outputKeys);
-      }
+      // Execute using runtime (SDK runtime handles MCP tools and regex fallback)
+      const result = await this.runtime.execute(request);
 
       // Clean up warning timers on successful completion
       warningTimers.forEach(timer => clearTimeout(timer));
 
-      return {
-        textOutput: result.textOutput,
-        extractedData,
-        tokenUsage: result.tokenUsage,
-        numTurns: result.numTurns
-      };
+      return result;
     };
 
     const timeoutPromise = new Promise<{
       textOutput: string;
       extractedData?: Record<string, unknown>;
       tokenUsage?: {
-        input_tokens: number;
-        output_tokens: number;
-        cache_creation_input_tokens?: number;
-        cache_read_input_tokens?: number;
-        thinking_tokens?: number;
+        inputTokens: number;
+        outputTokens: number;
+        cacheCreationTokens?: number;
+        cacheReadTokens?: number;
+        thinkingTokens?: number;
       };
       numTurns?: number;
     }>((_, reject) =>
@@ -518,30 +513,6 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
     );
 
     return Promise.race([runQuery(), timeoutPromise]);
-  }
-
-  private escapeRegex(string: string): string {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
-  }
-
-  private extractOutputs(
-    agentOutput: string,
-    outputKeys?: string[]
-  ): Record<string, unknown> | undefined {
-    if (!outputKeys || outputKeys.length === 0) return undefined;
-
-    const extracted: Record<string, unknown> = {};
-
-    for (const key of outputKeys) {
-      const escapedKey = this.escapeRegex(key);
-      const regex = new RegExp(`${escapedKey}:\\s*(.+)`, 'i');
-      const match = agentOutput.match(regex);
-      if (match) {
-        extracted[key] = match[1].trim();
-      }
-    }
-
-    return Object.keys(extracted).length > 0 ? extracted : undefined;
   }
 
   private calculateDuration(execution: StageExecution): number {

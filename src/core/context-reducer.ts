@@ -2,19 +2,16 @@
 
 import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
-import { AgentQueryRunner } from './agent-query-runner.js';
+import { AgentRuntime, AgentExecutionRequest } from './types/agent-runtime.js';
 import { PipelineState, AgentStageConfig, StageExecution, ContextReductionConfig } from '../config/schema.js';
 
 export class ContextReducer {
-  private queryRunner: AgentQueryRunner;
-
   constructor(
     _gitManager: GitManager,
     private repoPath: string,
-    _runId: string
-  ) {
-    this.queryRunner = new AgentQueryRunner();
-  }
+    _runId: string,
+    private runtime: AgentRuntime
+  ) {}
 
   /**
    * Check if context reduction is needed based on token count
@@ -264,15 +261,21 @@ Focus on what the **upcoming agent needs to know**, not what previous agents did
     const timeout = 900000; // 15 minutes
 
     const runQuery = async () => {
-      // Execute query using AgentQueryRunner
-      const result = await this.queryRunner.runSDKQuery(userPrompt, {
+      // Build agent execution request using runtime abstraction
+      const request: AgentExecutionRequest = {
         systemPrompt,
-        permissionMode,
-        model: claudeAgentOptions?.model,
-        maxTurns: claudeAgentOptions?.maxTurns,
-        maxThinkingTokens: claudeAgentOptions?.maxThinkingTokens,
-        captureTokenUsage: false // Context reducer doesn't need token tracking
-      });
+        userPrompt,
+        options: {
+          timeout: timeout / 1000, // Convert to seconds
+          permissionMode,
+          model: claudeAgentOptions?.model,
+          maxTurns: claudeAgentOptions?.maxTurns,
+          maxThinkingTokens: claudeAgentOptions?.maxThinkingTokens
+        }
+      };
+
+      // Execute using runtime
+      const result = await this.runtime.execute(request);
 
       return {
         textOutput: result.textOutput,
