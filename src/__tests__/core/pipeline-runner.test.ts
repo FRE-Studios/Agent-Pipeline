@@ -110,7 +110,7 @@ vi.mock('../../core/pipeline-initializer.js', () => ({
 }));
 
 vi.mock('../../core/group-execution-orchestrator.js', () => ({
-  GroupExecutionOrchestrator: vi.fn((gitManager, stateManager, repoPath, dryRun, shouldLog, stateChangeCallback, notifyStageResultsCallback) => {
+  GroupExecutionOrchestrator: vi.fn((gitManager, stateManager, repoPath, dryRun, runtime, shouldLog, stateChangeCallback, notifyStageResultsCallback) => {
     // Capture callbacks for use in mock implementation
     if (mocks.mockGroupOrchestrator) {
       (mocks.mockGroupOrchestrator as any)._callbacks = {
@@ -417,9 +417,12 @@ describe('PipelineRunner', () => {
           status: newStatus
         };
 
-        // Call notification callback for stage results (if available)
-        if (mockGroupOrchestrator._callbacks?.notifyStageResults) {
-          await mockGroupOrchestrator._callbacks.notifyStageResults(newStages, newState);
+        // Call notification callback for stage results
+        // Note: _callbacks is set by the mock factory in the constructor
+        // Access via mocks reference since 'this' isn't the mock object in mockImplementation
+        const callbacks = mocks.mockGroupOrchestrator?._callbacks;
+        if (callbacks?.notifyStageResults) {
+          await callbacks.notifyStageResults(newStages, newState);
         }
 
         return {
