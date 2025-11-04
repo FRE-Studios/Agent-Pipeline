@@ -6,7 +6,7 @@ import { RetryHandler } from './retry-handler.js';
 import { AgentRuntime, AgentExecutionRequest } from './types/agent-runtime.js';
 import { OutputToolBuilder } from './output-tool-builder.js';
 import { OutputStorageManager } from './output-storage-manager.js';
-import { AgentStageConfig, StageExecution, PipelineState, LoopContext } from '../config/schema.js';
+import { AgentStageConfig, StageExecution, PipelineState, LoopContext, ClaudeAgentSettings } from '../config/schema.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { ErrorFactory } from '../utils/error-factory.js';
 import { TokenEstimator } from '../utils/token-estimator.js';
@@ -40,8 +40,8 @@ export class StageExecutor {
     maxTurns: number;
     maxThinkingTokens: number;
   }> {
-    const stageSettings = stageConfig.claudeAgent;
-    const globalSettings = pipelineState.pipelineConfig.settings?.claudeAgent;
+    const stageSettings = stageConfig.runtime?.options as Partial<ClaudeAgentSettings> | undefined;
+    const globalSettings = pipelineState.pipelineConfig.runtime?.options as Partial<ClaudeAgentSettings> | undefined;
 
     const options: Partial<{
       model: 'haiku' | 'sonnet' | 'opus';

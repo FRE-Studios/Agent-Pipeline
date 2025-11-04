@@ -3,7 +3,7 @@
 import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
 import { AgentRuntime, AgentExecutionRequest } from './types/agent-runtime.js';
-import { PipelineState, AgentStageConfig, StageExecution, ContextReductionConfig } from '../config/schema.js';
+import { PipelineState, AgentStageConfig, StageExecution, ContextReductionConfig, ClaudeAgentSettings } from '../config/schema.js';
 
 export class ContextReducer {
   constructor(
@@ -54,7 +54,7 @@ export class ContextReducer {
         maxThinkingTokens: number;
       }> = {};
 
-      const globalSettings = pipelineState.pipelineConfig.settings?.claudeAgent;
+      const globalSettings = pipelineState.pipelineConfig.runtime?.options as Partial<ClaudeAgentSettings> | undefined;
       if (globalSettings?.model) claudeAgentOptions.model = globalSettings.model;
       if (globalSettings?.maxTurns !== undefined) claudeAgentOptions.maxTurns = globalSettings.maxTurns;
       if (globalSettings?.maxThinkingTokens !== undefined) claudeAgentOptions.maxThinkingTokens = globalSettings.maxThinkingTokens;
