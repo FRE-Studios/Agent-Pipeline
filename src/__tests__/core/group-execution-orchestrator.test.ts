@@ -2,6 +2,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GroupExecutionOrchestrator } from '../../core/group-execution-orchestrator.js';
+import { AgentRuntimeRegistry } from '../../core/agent-runtime-registry.js';
+import { ClaudeSDKRuntime } from '../../core/agent-runtimes/claude-sdk-runtime.js';
 import { GitManager } from '../../core/git-manager.js';
 import { StateManager } from '../../core/state-manager.js';
 import { ParallelExecutor } from '../../core/parallel-executor.js';
@@ -80,6 +82,9 @@ describe('GroupExecutionOrchestrator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    // Register runtime for tests
+    AgentRuntimeRegistry.register(new ClaudeSDKRuntime());
+
     // Reset mockState to fresh state
     mockState.stages = [];
     mockState.status = 'running';
@@ -97,11 +102,14 @@ describe('GroupExecutionOrchestrator', () => {
 
     vi.spyOn(mockStateManager, 'saveState').mockResolvedValue();
 
+    const mockRuntime = AgentRuntimeRegistry.getRuntime('claude-sdk');
+
     orchestrator = new GroupExecutionOrchestrator(
       mockGitManager,
       mockStateManager,
       '/test/repo',
       false,
+      mockRuntime,
       mockShouldLog,
       mockStateChangeCallback,
       mockNotifyStageResultsCallback

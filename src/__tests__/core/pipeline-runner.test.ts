@@ -13,6 +13,8 @@ import { ConditionEvaluator } from '../../core/condition-evaluator.js';
 import { NotificationManager } from '../../notifications/notification-manager.js';
 import { PipelineState, StageExecution } from '../../config/schema.js';
 import { PipelineFormatter } from '../../utils/pipeline-formatter.js';
+import { AgentRuntimeRegistry } from '../../core/agent-runtime-registry.js';
+import { ClaudeSDKRuntime } from '../../core/agent-runtimes/claude-sdk-runtime.js';
 import { createMockGitManager } from '../mocks/git-manager.js';
 import { createMockNotificationManager } from '../mocks/notification-manager.js';
 import { createMockDAGPlanner } from '../mocks/dag-planner.js';
@@ -150,6 +152,9 @@ describe('PipelineRunner', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     repoPath = await createTempDir('pipeline-runner-test');
+
+    // Register runtime for tests
+    AgentRuntimeRegistry.register(new ClaudeSDKRuntime());
 
     // Create mocks and assign to hoisted mock references
     mockGitManager = createMockGitManager({ commitSha: 'abc1234def5678901234567890abcdef12345678' });

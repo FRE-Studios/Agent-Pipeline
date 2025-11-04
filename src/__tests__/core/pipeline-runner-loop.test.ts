@@ -2,6 +2,8 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PipelineRunner } from '../../core/pipeline-runner.js';
+import { AgentRuntimeRegistry } from '../../core/agent-runtime-registry.js';
+import { ClaudeSDKRuntime } from '../../core/agent-runtimes/claude-sdk-runtime.js';
 import { ProjectConfigLoader } from '../../config/project-config-loader.js';
 import { PipelineLoader } from '../../config/pipeline-loader.js';
 import { PipelineConfig, PipelineState, LoopingConfig } from '../../config/schema.js';
@@ -32,6 +34,9 @@ describe('PipelineRunner - Loop Mode', () => {
   let mockPipelineState: PipelineState;
 
   beforeEach(async () => {
+    // Register runtime for tests
+    AgentRuntimeRegistry.register(new ClaudeSDKRuntime());
+
     // Create temp directories
     tempDir = await fs.mkdtemp(path.join(tmpdir(), 'loop-test-'));
     pendingDir = path.join(tempDir, 'pending');

@@ -81,7 +81,36 @@ agents:
 
   **Note:** When using `acceptEdits` (default), agents can create/edit files without prompts, but `.claude/settings.json` allow/deny patterns are still enforced. This is ideal for automated CI/CD pipelines where you trust the workflow but want basic safeguards.
 
-- `claudeAgent`: Claude Agent SDK specific settings (optional). If omitted, the SDK uses its own defaults.
+### Runtime Configuration
+
+Agent Pipeline supports multiple agent execution backends via the `runtime` field. The default is `claude-code-headless` (Claude Code CLI), which provides the full Claude Code tool suite (Bash, Read, Write, etc.) and local execution. Alternatively, use `claude-sdk` (Claude Agent SDK) for library-based execution with MCP tools.
+
+**Pipeline-level runtime** (applies to all stages unless overridden):
+```yaml
+runtime:
+  type: claude-code-headless    # Default if omitted
+  options:
+    model: sonnet               # Optional model selection
+```
+
+**Stage-level runtime override:**
+```yaml
+agents:
+  - name: quick-check
+    agent: .claude/agents/quick.md
+    runtime:
+      type: claude-sdk          # Override for this stage
+      options:
+        model: haiku
+```
+
+**Comparison:**
+- `claude-code-headless`: Full Claude Code tools, local execution, session continuation support
+- `claude-sdk`: Library-based, MCP tools only, used internally for context reduction
+
+**Migration:** To use the Claude Agent SDK explicitly (previous default), add `runtime: { type: 'claude-sdk' }` to your pipeline config.
+
+- `claudeAgent`: Claude Agent SDK specific settings (optional, deprecated in favor of `runtime.options`). If omitted, the SDK uses its own defaults.
   - `model`: Select Claude model for cost/performance optimization (`haiku`, `sonnet`, or `opus`)
   - `maxTurns`: Maximum conversation turns (prevents runaway agents)
   - `maxThinkingTokens`: Extended thinking budget for complex reasoning tasks

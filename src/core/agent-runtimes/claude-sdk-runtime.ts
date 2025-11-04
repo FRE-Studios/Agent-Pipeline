@@ -16,8 +16,11 @@ import { AgentQueryRunner } from '../agent-query-runner.js';
  * Wraps the official Claude Agent SDK (@anthropic-ai/claude-agent-sdk) to provide
  * agent execution via the AgentRuntime interface.
  *
- * This is the default runtime for Agent Pipeline, leveraging the SDK's built-in
- * features like MCP tools, streaming, token tracking, and permission modes.
+ * This runtime is used for internal operations (like context reduction) and can be
+ * explicitly configured in pipelines. It leverages the SDK's built-in features like
+ * MCP tools, streaming, token tracking, and permission modes.
+ *
+ * Note: The default runtime for pipeline stages is now claude-code-headless.
  */
 export class ClaudeSDKRuntime implements AgentRuntime {
   readonly type = 'claude-sdk';

@@ -643,14 +643,19 @@ agents:
   });
 
   describe('runtime configuration', () => {
-    it('should set default runtime to claude-sdk when not specified', async () => {
+    it('should set default runtime to claude-code-headless when not specified', async () => {
+      const configWithoutRuntime = {
+        name: 'no-runtime-test',
+        trigger: 'manual',
+        agents: [{ name: 'stage-1', agent: 'agent.md' }],
+      };
       const configPath = path.join(pipelinesDir, 'no-runtime.yml');
-      await fs.writeFile(configPath, YAML.stringify(simplePipelineConfig), 'utf-8');
+      await fs.writeFile(configPath, YAML.stringify(configWithoutRuntime), 'utf-8');
 
       const { config } = await loader.loadPipeline('no-runtime');
 
       expect(config.runtime).toBeDefined();
-      expect(config.runtime?.type).toBe('claude-sdk');
+      expect(config.runtime?.type).toBe('claude-code-headless');
     });
 
     it('should load pipeline with runtime configuration', async () => {

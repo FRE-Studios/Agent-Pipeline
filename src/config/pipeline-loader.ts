@@ -69,7 +69,7 @@ export class PipelineLoader {
 
     // Set default runtime if not specified
     if (!config.runtime) {
-      config.runtime = { type: 'claude-sdk' };
+      config.runtime = { type: 'claude-code-headless' };
     }
 
     return config;
