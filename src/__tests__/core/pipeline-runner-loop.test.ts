@@ -34,6 +34,9 @@ describe('PipelineRunner - Loop Mode', () => {
   let mockPipelineState: PipelineState;
 
   beforeEach(async () => {
+    // Clear registry to prevent duplicate registration errors
+    AgentRuntimeRegistry.clear();
+
     // Register runtime for tests
     AgentRuntimeRegistry.register(new ClaudeSDKRuntime());
 
@@ -117,6 +120,8 @@ describe('PipelineRunner - Loop Mode', () => {
     // Cleanup temp directories
     await fs.rm(tempDir, { recursive: true, force: true });
     vi.restoreAllMocks();
+    // Clean up registry after each test
+    AgentRuntimeRegistry.clear();
   });
 
   describe('Backward Compatibility (Non-Loop Mode)', () => {

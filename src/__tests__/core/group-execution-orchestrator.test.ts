@@ -82,6 +82,9 @@ describe('GroupExecutionOrchestrator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    // Clear registry to prevent duplicate registration errors
+    AgentRuntimeRegistry.clear();
+
     // Register runtime for tests
     AgentRuntimeRegistry.register(new ClaudeSDKRuntime());
 
@@ -121,6 +124,11 @@ describe('GroupExecutionOrchestrator', () => {
       executeSequentialGroup: vi.fn(),
       aggregateResults: vi.fn().mockReturnValue('All stages completed')
     } as any;
+  });
+
+  afterEach(() => {
+    // Clean up registry after each test
+    AgentRuntimeRegistry.clear();
   });
 
   describe('processGroup', () => {

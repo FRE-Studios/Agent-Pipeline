@@ -153,6 +153,9 @@ describe('PipelineRunner', () => {
     vi.clearAllMocks();
     repoPath = await createTempDir('pipeline-runner-test');
 
+    // Clear registry to prevent duplicate registration errors
+    AgentRuntimeRegistry.clear();
+
     // Register runtime for tests
     AgentRuntimeRegistry.register(new ClaudeSDKRuntime());
 
@@ -492,6 +495,8 @@ describe('PipelineRunner', () => {
   afterEach(async () => {
     await cleanupTempDir(repoPath);
     vi.restoreAllMocks();
+    // Clean up registry after each test
+    AgentRuntimeRegistry.clear();
   });
 
   describe('Constructor & Initialization', () => {
