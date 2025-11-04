@@ -262,3 +262,176 @@ export const notificationConfig: PipelineConfig = {
     },
   ],
 };
+
+// Phase 7.3: Multi-Runtime Integration Test Fixtures
+
+export const sdkOnlyPipelineConfig: PipelineConfig = {
+  name: 'sdk-only-test',
+  trigger: 'manual',
+  runtime: {
+    type: 'claude-sdk',
+  },
+  settings: {
+    autoCommit: true,
+    commitPrefix: '[pipeline:{{stage}}]',
+    failureStrategy: 'stop',
+    preserveWorkingTree: false,
+  },
+  agents: [
+    {
+      name: 'sdk-stage-1',
+      agent: '.claude/agents/stage1.md',
+      timeout: 60,
+      outputs: ['result'],
+    },
+    {
+      name: 'sdk-stage-2',
+      agent: '.claude/agents/stage2.md',
+      timeout: 60,
+      dependsOn: ['sdk-stage-1'],
+      outputs: ['analysis'],
+    },
+    {
+      name: 'sdk-stage-3',
+      agent: '.claude/agents/stage3.md',
+      timeout: 60,
+      dependsOn: ['sdk-stage-2'],
+      outputs: ['summary'],
+    },
+  ],
+};
+
+export const headlessOnlyPipelineConfig: PipelineConfig = {
+  name: 'headless-only-test',
+  trigger: 'manual',
+  runtime: {
+    type: 'claude-code-headless',
+  },
+  settings: {
+    autoCommit: true,
+    commitPrefix: '[pipeline:{{stage}}]',
+    failureStrategy: 'stop',
+    preserveWorkingTree: false,
+  },
+  agents: [
+    {
+      name: 'headless-stage-1',
+      agent: '.claude/agents/stage1.md',
+      timeout: 60,
+      outputs: ['result'],
+    },
+    {
+      name: 'headless-stage-2',
+      agent: '.claude/agents/stage2.md',
+      timeout: 60,
+      dependsOn: ['headless-stage-1'],
+      outputs: ['analysis'],
+    },
+    {
+      name: 'headless-stage-3',
+      agent: '.claude/agents/stage3.md',
+      timeout: 60,
+      dependsOn: ['headless-stage-2'],
+      outputs: ['summary'],
+    },
+  ],
+};
+
+export const mixedRuntimePipelineConfig: PipelineConfig = {
+  name: 'mixed-runtime-test',
+  trigger: 'manual',
+  runtime: {
+    type: 'claude-code-headless', // Global default
+  },
+  settings: {
+    autoCommit: true,
+    commitPrefix: '[pipeline:{{stage}}]',
+    failureStrategy: 'stop',
+    preserveWorkingTree: false,
+  },
+  agents: [
+    {
+      name: 'mixed-stage-1',
+      agent: '.claude/agents/stage1.md',
+      timeout: 60,
+      runtime: {
+        type: 'claude-sdk', // Override to SDK
+        options: { model: 'haiku' },
+      },
+      outputs: ['sdk_result'],
+    },
+    {
+      name: 'mixed-stage-2',
+      agent: '.claude/agents/stage2.md',
+      timeout: 60,
+      dependsOn: ['mixed-stage-1'],
+      // Uses global default (headless)
+      outputs: ['headless_analysis'],
+    },
+    {
+      name: 'mixed-stage-3',
+      agent: '.claude/agents/stage3.md',
+      timeout: 60,
+      dependsOn: ['mixed-stage-2'],
+      runtime: {
+        type: 'claude-sdk', // Override back to SDK
+        options: { model: 'sonnet' },
+      },
+      outputs: ['sdk_summary'],
+    },
+  ],
+};
+
+export const parallelMixedPipelineConfig: PipelineConfig = {
+  name: 'parallel-mixed-test',
+  trigger: 'manual',
+  settings: {
+    autoCommit: true,
+    commitPrefix: '[pipeline:{{stage}}]',
+    executionMode: 'parallel',
+    failureStrategy: 'stop',
+    preserveWorkingTree: false,
+  },
+  agents: [
+    {
+      name: 'initial-stage',
+      agent: '.claude/agents/initial.md',
+      timeout: 60,
+      runtime: {
+        type: 'claude-sdk',
+      },
+      outputs: ['initial_data'],
+    },
+    {
+      name: 'parallel-sdk',
+      agent: '.claude/agents/parallel-sdk.md',
+      timeout: 60,
+      dependsOn: ['initial-stage'],
+      runtime: {
+        type: 'claude-sdk',
+        options: { model: 'haiku' },
+      },
+      outputs: ['sdk_analysis'],
+    },
+    {
+      name: 'parallel-headless',
+      agent: '.claude/agents/parallel-headless.md',
+      timeout: 60,
+      dependsOn: ['initial-stage'],
+      runtime: {
+        type: 'claude-code-headless',
+      },
+      outputs: ['headless_check'],
+    },
+    {
+      name: 'final-stage',
+      agent: '.claude/agents/final.md',
+      timeout: 60,
+      dependsOn: ['parallel-sdk', 'parallel-headless'],
+      runtime: {
+        type: 'claude-code-headless',
+      },
+      outputs: ['combined_result'],
+    },
+  ],
+};

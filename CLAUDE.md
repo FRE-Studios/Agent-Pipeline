@@ -127,5 +127,8 @@ Tests use Vitest with extensive mocking:
 
 **Dry Run Mode**: When enabled, skip all git commits but execute agents. Useful for testing pipelines.
 
-## Development Flow
+### Development Flow
 When planning new features or fixes, if you notice the changes will require a large refactoring, only do a detailed plan of the first phase of required changes and ask user for review before the next phases. 
+
+### Testing Style
+Spawn tasks or agents whenver you identify large patterned changes required in tests (eg. replace all instances of mockQuery(...) with mockRuntime.execute(...))
