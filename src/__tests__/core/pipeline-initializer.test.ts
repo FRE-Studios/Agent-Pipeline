@@ -15,10 +15,29 @@ vi.mock('../../core/stage-executor.js');
 vi.mock('../../core/parallel-executor.js');
 vi.mock('../../notifications/notification-manager.js');
 
+// Helper to create mock runtime
+function createMockRuntime() {
+  return {
+    type: 'mock-runtime',
+    name: 'Mock Runtime',
+    execute: vi.fn(),
+    getCapabilities: vi.fn().mockReturnValue({
+      supportsStreaming: true,
+      supportsTokenTracking: true,
+      supportsMCP: true,
+      supportsContextReduction: true,
+      availableModels: ['haiku', 'sonnet', 'opus'],
+      permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan']
+    }),
+    validate: vi.fn().mockResolvedValue({ valid: true, errors: [], warnings: [] })
+  };
+}
+
 describe('PipelineInitializer', () => {
   let initializer: PipelineInitializer;
   let mockGitManager: GitManager;
   let mockBranchManager: BranchManager;
+  let mockRuntime: ReturnType<typeof createMockRuntime>;
   let mockNotifyCallback: ReturnType<typeof vi.fn>;
   let mockStateChangeCallback: ReturnType<typeof vi.fn>;
 
@@ -36,6 +55,7 @@ describe('PipelineInitializer', () => {
   beforeEach(() => {
     mockGitManager = new GitManager('/test/repo');
     mockBranchManager = new BranchManager('/test/repo');
+    mockRuntime = createMockRuntime();
     mockNotifyCallback = vi.fn().mockResolvedValue(undefined);
     mockStateChangeCallback = vi.fn();
 
@@ -48,7 +68,8 @@ describe('PipelineInitializer', () => {
       mockGitManager,
       mockBranchManager,
       '/test/repo',
-      false
+      false,
+      mockRuntime as any
     );
   });
 
@@ -183,7 +204,8 @@ describe('PipelineInitializer', () => {
         mockGitManager,
         mockBranchManager,
         '/test/repo',
-        true // dryRun = true
+        true, // dryRun = true
+        mockRuntime as any
       );
 
       const configWithGit = {
@@ -203,8 +225,7 @@ describe('PipelineInitializer', () => {
       expect(result.pipelineBranch).toBeUndefined();
     });
 
-    // DEFERRED TO PHASE 7: Requires PipelineInitializer to get runtime from registry
-    it.skip('should create stage executor and parallel executor with correct arguments', async () => {
+    it('should create stage executor and parallel executor with correct arguments', async () => {
       const stageExecutorMock = StageExecutor as unknown as vi.Mock;
       const parallelExecutorMock = ParallelExecutor as unknown as vi.Mock;
       stageExecutorMock.mockClear();
@@ -217,12 +238,13 @@ describe('PipelineInitializer', () => {
         mockStateChangeCallback
       );
 
+      // StageExecutor constructor: (gitManager, dryRun, runId, repoPath, defaultRuntime?, loopContext?)
       expect(stageExecutorMock).toHaveBeenCalledWith(
         mockGitManager,
-        expect.any(Object),  // runtime parameter
-        false,
+        false,  // dryRun
         result.state.runId,
         '/test/repo',
+        expect.any(Object),  // defaultRuntime (the runtime passed to PipelineInitializer)
         undefined  // loopContext (not provided in this test)
       );
       expect(result.stageExecutor).toBe(stageExecutorMock.mock.instances[0]);
@@ -318,7 +340,8 @@ describe('PipelineInitializer', () => {
         mockGitManager,
         mockBranchManager,
         '/test/repo',
-        true
+        true,
+        mockRuntime as any
       );
 
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
