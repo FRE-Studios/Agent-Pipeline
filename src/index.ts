@@ -19,6 +19,7 @@ import { Logger } from './utils/logger.js';
 // Runtime registration
 import { AgentRuntimeRegistry } from './core/agent-runtime-registry.js';
 import { ClaudeSDKRuntime } from './core/agent-runtimes/claude-sdk-runtime.js';
+import { ClaudeCodeHeadlessRuntime } from './core/agent-runtimes/claude-code-headless-runtime.js';
 
 // Command imports
 import { runCommand } from './cli/commands/run.js';
@@ -62,6 +63,26 @@ async function main() {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     Logger.error(`Failed to register Claude SDK runtime: ${message}`);
+    if (process.env.DEBUG) {
+      console.error(err);
+    }
+    // Continue execution - runtime registration failure shouldn't block CLI commands
+  }
+
+  // Register Claude Code Headless runtime on startup
+  try {
+    const headlessRuntime = new ClaudeCodeHeadlessRuntime();
+    AgentRuntimeRegistry.register(headlessRuntime);
+
+    // Validate runtime availability (warn if CLI not installed, but don't block)
+    const validation = await headlessRuntime.validate();
+    if (!validation.valid && process.env.DEBUG) {
+      Logger.warn('Claude Code Headless runtime registered but CLI not available');
+      validation.warnings.forEach((warning) => Logger.warn(`  ${warning}`));
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    Logger.error(`Failed to register Claude Code Headless runtime: ${message}`);
     if (process.env.DEBUG) {
       console.error(err);
     }
