@@ -4,6 +4,7 @@ import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
 import { RetryHandler } from './retry-handler.js';
 import { AgentRuntime, AgentExecutionRequest } from './types/agent-runtime.js';
+import { AgentRuntimeRegistry } from './agent-runtime-registry.js';
 import { OutputToolBuilder } from './output-tool-builder.js';
 import { OutputStorageManager } from './output-storage-manager.js';
 import { AgentStageConfig, StageExecution, PipelineState, LoopContext, ClaudeAgentSettings } from '../config/schema.js';
@@ -17,10 +18,10 @@ export class StageExecutor {
 
   constructor(
     private gitManager: GitManager,
-    private runtime: AgentRuntime,
-    private dryRun: boolean = false,
+    private dryRun: boolean,
     runId: string,
     repoPath: string,
+    private defaultRuntime?: AgentRuntime,
     private loopContext?: LoopContext
   ) {
     this.retryHandler = new RetryHandler();
@@ -62,6 +63,84 @@ export class StageExecutor {
     return options;
   }
 
+  /**
+   * Resolve runtime for a stage based on priority:
+   * 1. Stage-level runtime config (highest priority)
+   * 2. Pipeline-level runtime config
+   * 3. Default runtime (if provided via constructor)
+   * 4. Global default: claude-code-headless
+   *
+   * @param stageConfig - Configuration for the current stage
+   * @param pipelineState - Current pipeline state with pipeline-level config
+   * @returns Resolved AgentRuntime instance
+   * @throws Error if runtime type is invalid or unavailable
+   */
+  private resolveStageRuntime(
+    stageConfig: AgentStageConfig,
+    pipelineState: PipelineState
+  ): AgentRuntime {
+    try {
+      // Priority 1: Stage-level runtime
+      const stageRuntimeType = stageConfig.runtime?.type;
+      if (stageRuntimeType) {
+        console.log(`   Using stage-level runtime: ${stageRuntimeType}`);
+        return AgentRuntimeRegistry.getRuntime(stageRuntimeType);
+      }
+
+      // Priority 2: Pipeline-level runtime
+      const pipelineRuntimeType = pipelineState.pipelineConfig.runtime?.type;
+      if (pipelineRuntimeType) {
+        console.log(`   Using pipeline-level runtime: ${pipelineRuntimeType}`);
+        return AgentRuntimeRegistry.getRuntime(pipelineRuntimeType);
+      }
+
+      // Priority 3: Use default runtime if provided (from constructor)
+      if (this.defaultRuntime) {
+        console.log(`   Using injected default runtime`);
+        return this.defaultRuntime;
+      }
+
+      // Priority 4: Global default (claude-code-headless)
+      console.log(`   Using global default runtime: claude-code-headless`);
+      return AgentRuntimeRegistry.getRuntime('claude-code-headless');
+    } catch (error) {
+      const runtimeType = stageConfig.runtime?.type ||
+                          pipelineState.pipelineConfig.runtime?.type ||
+                          'claude-code-headless';
+      throw new Error(
+        `Failed to resolve runtime '${runtimeType}': ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Load system prompt from agent file
+   * @param agentPath - Path to the agent prompt file
+   * @returns System prompt content
+   */
+  private async loadSystemPrompt(agentPath: string): Promise<string> {
+    try {
+      return await fs.readFile(agentPath, 'utf-8');
+    } catch (error) {
+      throw new Error(
+        `Failed to load agent prompt from '${agentPath}': ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Build user prompt with pipeline context
+   * @param stageConfig - Current stage configuration
+   * @param pipelineState - Current pipeline state
+   * @returns User prompt with full context
+   */
+  private async buildUserPrompt(
+    stageConfig: AgentStageConfig,
+    pipelineState: PipelineState
+  ): Promise<string> {
+    return this.buildAgentContext(stageConfig, pipelineState);
+  }
+
   async executeStage(
     stageConfig: AgentStageConfig,
     pipelineState: PipelineState,
@@ -75,29 +154,31 @@ export class StageExecutor {
       maxRetries: stageConfig.retry?.maxAttempts || 0
     };
 
+    // Resolve runtime for this stage (stage → pipeline → default)
+    const runtime = this.resolveStageRuntime(stageConfig, pipelineState);
+
     // Define the core execution logic
     const executeAttempt = async (): Promise<void> => {
-      // Build context for agent
-      const agentContext = await this.buildAgentContext(stageConfig, pipelineState);
-
-      // Load agent system prompt
-      const systemPrompt = await fs.readFile(stageConfig.agent, 'utf-8');
+      // Load agent prompts
+      const systemPrompt = await this.loadSystemPrompt(stageConfig.agent);
+      const userPrompt = await this.buildUserPrompt(stageConfig, pipelineState);
 
       // Estimate input tokens before execution
       const tokenEstimator = new TokenEstimator();
-      const estimatedTokens = tokenEstimator.estimateTokens(agentContext + systemPrompt);
+      const estimatedTokens = tokenEstimator.estimateTokens(userPrompt + systemPrompt);
       tokenEstimator.dispose();
 
       // Build Claude Agent SDK options (model, maxTurns, maxThinkingTokens)
       const claudeAgentOptions = this.buildClaudeAgentOptions(stageConfig, pipelineState);
 
-      // Run agent using SDK query
+      // Run agent using resolved runtime
       const retryInfo = PipelineFormatter.formatRetryInfo(execution.retryAttempt, execution.maxRetries);
       console.log(`🤖 Running stage: ${stageConfig.name}${retryInfo}...`);
       console.log(`   Estimated input: ~${PipelineFormatter.formatTokenCount(estimatedTokens)} tokens`);
 
       const result = await this.runAgentWithTimeout(
-        agentContext,
+        runtime,
+        userPrompt,
         systemPrompt,
         stageConfig.timeout,
         stageConfig.outputs,
@@ -424,6 +505,7 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
   }
 
   private async runAgentWithTimeout(
+    runtime: AgentRuntime,
     userPrompt: string,
     systemPrompt: string,
     timeoutSeconds?: number,
@@ -484,8 +566,8 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
         }
       };
 
-      // Execute using runtime (SDK runtime handles MCP tools and regex fallback)
-      const result = await this.runtime.execute(request);
+      // Execute using resolved runtime (handles MCP tools and/or CLI execution based on runtime type)
+      const result = await runtime.execute(request);
 
       // Clean up warning timers on successful completion
       warningTimers.forEach(timer => clearTimeout(timer));

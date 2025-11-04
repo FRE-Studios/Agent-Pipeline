@@ -424,10 +424,10 @@ export class GroupExecutionOrchestrator {
   ): Promise<number> {
     const stageExecutor = new StageExecutor(
       this.gitManager,
-      this.runtime,
       this.dryRun,
       state.runId,
-      this.repoPath
+      this.repoPath,
+      this.runtime  // Optional: used for context estimation
     );
 
     try {

@@ -81,10 +81,10 @@ export class PipelineInitializer {
     // Create executors
     const stageExecutor = new StageExecutor(
       this.gitManager,
-      this.runtime,
       this.dryRun,
       state.runId,
       this.repoPath,
+      this.runtime,  // Optional: used as fallback if no runtime config specified
       options.loopContext
     );
     const parallelExecutor = new ParallelExecutor(

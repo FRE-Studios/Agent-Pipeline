@@ -3,15 +3,34 @@
 import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
 import { AgentRuntime, AgentExecutionRequest } from './types/agent-runtime.js';
+import { AgentRuntimeRegistry } from './agent-runtime-registry.js';
 import { PipelineState, AgentStageConfig, StageExecution, ContextReductionConfig, ClaudeAgentSettings } from '../config/schema.js';
 
 export class ContextReducer {
+  private runtime: AgentRuntime;
+
   constructor(
     _gitManager: GitManager,
     private repoPath: string,
     _runId: string,
-    private runtime: AgentRuntime
-  ) {}
+    providedRuntime?: AgentRuntime
+  ) {
+    // Default to claude-code-headless for context reduction (fast and cost-effective)
+    // Fallback to SDK if headless unavailable
+    if (providedRuntime) {
+      this.runtime = providedRuntime;
+      console.log(`   Context reducer using provided runtime: ${providedRuntime.type}`);
+    } else {
+      try {
+        this.runtime = AgentRuntimeRegistry.getRuntime('claude-code-headless');
+        console.log(`   Context reducer using default runtime: claude-code-headless`);
+      } catch (error) {
+        // Fallback to SDK if headless not available
+        console.warn(`   ⚠️  claude-code-headless not available, falling back to claude-sdk`);
+        this.runtime = AgentRuntimeRegistry.getRuntime('claude-sdk');
+      }
+    }
+  }
 
   /**
    * Check if context reduction is needed based on token count
@@ -243,7 +262,7 @@ Focus on what the **upcoming agent needs to know**, not what previous agents did
   }
 
   /**
-   * Run reducer agent with timeout
+   * Run reducer agent with timeout and graceful error handling
    */
   private async runReducerAgent(
     userPrompt: string,
@@ -261,26 +280,35 @@ Focus on what the **upcoming agent needs to know**, not what previous agents did
     const timeout = 900000; // 15 minutes
 
     const runQuery = async () => {
-      // Build agent execution request using runtime abstraction
-      const request: AgentExecutionRequest = {
-        systemPrompt,
-        userPrompt,
-        options: {
-          timeout: timeout / 1000, // Convert to seconds
-          permissionMode,
-          model: claudeAgentOptions?.model,
-          maxTurns: claudeAgentOptions?.maxTurns,
-          maxThinkingTokens: claudeAgentOptions?.maxThinkingTokens
-        }
-      };
+      try {
+        // Build agent execution request using runtime abstraction
+        const request: AgentExecutionRequest = {
+          systemPrompt,
+          userPrompt,
+          options: {
+            timeout: timeout / 1000, // Convert to seconds
+            permissionMode,
+            model: claudeAgentOptions?.model || 'haiku', // Use haiku for cost efficiency
+            maxTurns: claudeAgentOptions?.maxTurns,
+            maxThinkingTokens: claudeAgentOptions?.maxThinkingTokens
+          }
+        };
 
-      // Execute using runtime
-      const result = await this.runtime.execute(request);
+        // Execute using runtime (claude-code-headless by default)
+        const result = await this.runtime.execute(request);
 
-      return {
-        textOutput: result.textOutput,
-        extractedData: result.extractedData
-      };
+        return {
+          textOutput: result.textOutput,
+          extractedData: result.extractedData
+        };
+      } catch (error) {
+        // Gracefully handle runtime execution failures
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.warn(`   ⚠️  Context reducer runtime failed: ${errorMsg}`);
+
+        // Re-throw to be caught by outer try-catch in runReduction()
+        throw new Error(`Runtime execution failed: ${errorMsg}`);
+      }
     };
 
     return Promise.race([

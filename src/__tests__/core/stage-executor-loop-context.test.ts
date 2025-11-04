@@ -75,6 +75,7 @@ describe('StageExecutor - Loop Context Injection', () => {
         false,
         'test-run-123',
         '/test/repo',
+        undefined,  // No default runtime
         loopContext
       );
 
@@ -95,6 +96,7 @@ describe('StageExecutor - Loop Context Injection', () => {
         false,
         'test-run-123',
         '/test/repo',
+        undefined,  // No default runtime
         undefined  // No loop context
       );
 
@@ -121,6 +123,7 @@ describe('StageExecutor - Loop Context Injection', () => {
         false,
         'test-run-123',
         '/test/repo',
+        undefined,  // No default runtime
         loopContext
       );
 
@@ -150,6 +153,7 @@ describe('StageExecutor - Loop Context Injection', () => {
         false,
         'test-run-123',
         '/test/repo',
+        undefined,  // No default runtime
         loopContext
       );
 
@@ -176,6 +180,7 @@ describe('StageExecutor - Loop Context Injection', () => {
         false,
         'test-run-123',
         '/test/repo',
+        undefined,  // No default runtime
         loopContext
       );
 
@@ -205,6 +210,7 @@ describe('StageExecutor - Loop Context Injection', () => {
         false,
         'test-run-123',
         '/test/repo',
+        undefined,  // No default runtime
         loopContext
       );
 
@@ -237,6 +243,7 @@ describe('StageExecutor - Loop Context Injection', () => {
         false,
         'test-run-123',
         '/test/repo',
+        undefined,  // No default runtime
         loopContext
       );
 
@@ -282,6 +289,7 @@ describe('StageExecutor - Loop Context Injection', () => {
         false,
         'test-run-123',
         '/test/repo',
+        undefined,  // No default runtime
         loopContext
       );
 
@@ -307,6 +315,7 @@ describe('StageExecutor - Loop Context Injection', () => {
         false,
         'test-run-123',
         '/test/repo',
+        undefined,  // No default runtime
         loopContext
       );
 
