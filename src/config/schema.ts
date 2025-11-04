@@ -28,6 +28,15 @@ export interface ClaudeAgentSettings {
   maxThinkingTokens?: number;     // Extended thinking budget for complex reasoning
 }
 
+/**
+ * Runtime configuration for agent execution
+ * Supports multiple runtime types: 'claude-sdk', 'claude-code-headless', etc.
+ */
+export interface RuntimeConfig {
+  type: string;                   // Runtime type identifier (e.g., 'claude-sdk', 'claude-code-headless')
+  options?: Record<string, unknown>; // Runtime-specific options (model, maxTurns, etc.)
+}
+
 export interface LoopingConfig {
   enabled: boolean;
   maxIterations?: number;  // Default: 100
@@ -81,6 +90,9 @@ export interface PipelineConfig {
   // Notification settings (optional)
   notifications?: NotificationConfig;
 
+  // Runtime configuration (optional, defaults to claude-sdk)
+  runtime?: RuntimeConfig;
+
   // Global settings
   settings?: {
     autoCommit: boolean;              // Auto-commit agent changes
@@ -90,7 +102,6 @@ export interface PipelineConfig {
     executionMode?: 'sequential' | 'parallel'; // Execution strategy (default: parallel with DAG)
     contextReduction?: ContextReductionConfig; // Context reduction settings
     permissionMode?: PermissionMode;   // Permission mode for agents (default: 'acceptEdits')
-    claudeAgent?: ClaudeAgentSettings; // Claude Agent SDK specific settings (optional)
   };
 
   agents: AgentStageConfig[];
@@ -123,6 +134,9 @@ export interface AgentStageConfig {
   name: string;                        // Stage identifier
   agent: string;                       // Path to .claude/agents/xyz.md
 
+  // Runtime configuration (per-stage override)
+  runtime?: RuntimeConfig;             // Override pipeline-level runtime for this stage
+
   // Stage-specific behavior
   enabled?: boolean;                   // Skip if false
   onFail?: 'stop' | 'continue' | 'warn';
@@ -142,9 +156,6 @@ export interface AgentStageConfig {
   // Context passing
   inputs?: Record<string, string>;     // Additional context for agent
   outputs?: string[];                  // Keys to extract from agent response
-
-  // Claude Agent SDK settings (per-stage overrides)
-  claudeAgent?: ClaudeAgentSettings;   // Override global Claude SDK settings for this stage
 }
 
 export interface PipelineState {

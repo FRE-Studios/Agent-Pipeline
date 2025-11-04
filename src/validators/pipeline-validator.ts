@@ -7,6 +7,7 @@ import { PipelineConfig } from '../config/schema.js';
 import { checkGHCLI } from '../utils/gh-cli-checker.js';
 import { ConditionEvaluator } from '../core/condition-evaluator.js';
 import { DAGPlanner } from '../core/dag-planner.js';
+import { AgentRuntimeRegistry } from '../core/agent-runtime-registry.js';
 
 export interface ValidationError {
   field: string;
@@ -26,6 +27,9 @@ export class PipelineValidator {
 
     // Validate basic structure
     this.validateBasicStructure(config);
+
+    // Validate runtime configuration
+    await this.validateRuntime(config);
 
     // Validate agent files exist
     await this.validateAgentFiles(config, repoPath);
@@ -109,6 +113,112 @@ export class PipelineValidator {
     }
   }
 
+  /**
+   * Validate runtime configuration at pipeline and stage levels.
+   * Checks runtime type registration, availability, model selection, and permission modes.
+   */
+  private async validateRuntime(config: PipelineConfig): Promise<void> {
+    // Validate pipeline-level runtime
+    if (config.runtime) {
+      await this.validateRuntimeConfig('runtime', config.runtime, config.settings?.permissionMode);
+    }
+
+    // Validate stage-level runtime overrides
+    if (config.agents) {
+      for (const agent of config.agents) {
+        if (agent.runtime) {
+          await this.validateRuntimeConfig(
+            `agents.${agent.name}.runtime`,
+            agent.runtime,
+            config.settings?.permissionMode
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Helper to validate a specific runtime configuration.
+   */
+  private async validateRuntimeConfig(
+    field: string,
+    runtime: { type: string; options?: Record<string, unknown> },
+    permissionMode?: string
+  ): Promise<void> {
+    // Check if runtime type is registered
+    if (!AgentRuntimeRegistry.hasRuntime(runtime.type)) {
+      const availableRuntimes = AgentRuntimeRegistry.getAvailableTypes().join(', ');
+      this.errors.push({
+        field,
+        message: `Unknown runtime type: ${runtime.type}. Available runtimes: [${availableRuntimes}]`,
+        severity: 'error'
+      });
+      return; // Skip further validation if runtime doesn't exist
+    }
+
+    // Get runtime instance
+    const runtimeInstance = AgentRuntimeRegistry.getRuntime(runtime.type);
+    const capabilities = runtimeInstance.getCapabilities();
+
+    // Validate runtime availability (warnings only at load time)
+    try {
+      const validation = await runtimeInstance.validate();
+
+      // Add errors as warnings (we'll fail at execution time if still unavailable)
+      for (const error of validation.errors) {
+        this.errors.push({
+          field,
+          message: `Runtime availability: ${error}`,
+          severity: 'warning'
+        });
+      }
+
+      // Add validation warnings
+      for (const warning of validation.warnings) {
+        this.errors.push({
+          field,
+          message: warning,
+          severity: 'warning'
+        });
+      }
+    } catch (error) {
+      // Runtime validation failed unexpectedly
+      this.errors.push({
+        field,
+        message: `Runtime validation failed: ${error instanceof Error ? error.message : String(error)}`,
+        severity: 'warning'
+      });
+    }
+
+    // Validate model selection
+    const model = runtime.options?.model;
+    if (model && typeof model === 'string') {
+      if (!capabilities.availableModels.includes(model)) {
+        const availableModels = capabilities.availableModels.join(', ');
+        this.errors.push({
+          field: `${field}.options.model`,
+          message: `Model "${model}" not available for runtime "${runtime.type}". Available models: [${availableModels}]`,
+          severity: 'error'
+        });
+      }
+    }
+
+    // Validate permission mode (if specified in runtime options or at pipeline level)
+    const runtimePermissionMode = runtime.options?.permissionMode as string | undefined;
+    const effectivePermissionMode = runtimePermissionMode || permissionMode;
+
+    if (effectivePermissionMode) {
+      if (!capabilities.permissionModes.includes(effectivePermissionMode)) {
+        const availableModes = capabilities.permissionModes.join(', ');
+        this.errors.push({
+          field: `${field}.options.permissionMode`,
+          message: `Permission mode "${effectivePermissionMode}" not supported by runtime "${runtime.type}". Supported modes: [${availableModes}]`,
+          severity: 'error'
+        });
+      }
+    }
+  }
+
   private async validateAgentFiles(config: PipelineConfig, repoPath: string): Promise<void> {
     if (!config.agents) return;
 
@@ -169,57 +279,6 @@ export class PipelineValidator {
           message: 'bypassPermissions mode bypasses all permission checks. Use with caution in production.',
           severity: 'warning'
         });
-      }
-    }
-
-    // Validate Claude Agent SDK settings
-    if (config.settings.claudeAgent) {
-      const ca = config.settings.claudeAgent;
-
-      // Validate model
-      if (ca.model) {
-        const validModels = ['haiku', 'sonnet', 'opus'];
-        if (!validModels.includes(ca.model)) {
-          this.errors.push({
-            field: 'settings.claudeAgent.model',
-            message: `Invalid model: ${ca.model}. Must be one of: ${validModels.join(', ')}`,
-            severity: 'error'
-          });
-        }
-      }
-
-      // Validate maxTurns
-      if (ca.maxTurns !== undefined) {
-        if (typeof ca.maxTurns !== 'number' || ca.maxTurns <= 0) {
-          this.errors.push({
-            field: 'settings.claudeAgent.maxTurns',
-            message: 'maxTurns must be a positive number',
-            severity: 'error'
-          });
-        } else if (ca.maxTurns > 100) {
-          this.errors.push({
-            field: 'settings.claudeAgent.maxTurns',
-            message: 'maxTurns exceeds recommended maximum of 100',
-            severity: 'warning'
-          });
-        }
-      }
-
-      // Validate maxThinkingTokens
-      if (ca.maxThinkingTokens !== undefined) {
-        if (typeof ca.maxThinkingTokens !== 'number' || ca.maxThinkingTokens <= 0) {
-          this.errors.push({
-            field: 'settings.claudeAgent.maxThinkingTokens',
-            message: 'maxThinkingTokens must be a positive number',
-            severity: 'error'
-          });
-        } else if (ca.maxThinkingTokens > 50000) {
-          this.errors.push({
-            field: 'settings.claudeAgent.maxThinkingTokens',
-            message: 'maxThinkingTokens exceeds recommended maximum of 50000',
-            severity: 'warning'
-          });
-        }
       }
     }
 
@@ -634,57 +693,6 @@ export class PipelineValidator {
             message: 'Timeout exceeds recommended maximum of 900 seconds (15 minutes)',
             severity: 'warning'
           });
-        }
-      }
-
-      // Validate per-stage Claude Agent SDK settings
-      if (agent.claudeAgent) {
-        const ca = agent.claudeAgent;
-
-        // Validate model
-        if (ca.model) {
-          const validModels = ['haiku', 'sonnet', 'opus'];
-          if (!validModels.includes(ca.model)) {
-            this.errors.push({
-              field: `agents.${agent.name}.claudeAgent.model`,
-              message: `Invalid model: ${ca.model}. Must be one of: ${validModels.join(', ')}`,
-              severity: 'error'
-            });
-          }
-        }
-
-        // Validate maxTurns
-        if (ca.maxTurns !== undefined) {
-          if (typeof ca.maxTurns !== 'number' || ca.maxTurns <= 0) {
-            this.errors.push({
-              field: `agents.${agent.name}.claudeAgent.maxTurns`,
-              message: 'maxTurns must be a positive number',
-              severity: 'error'
-            });
-          } else if (ca.maxTurns > 100) {
-            this.errors.push({
-              field: `agents.${agent.name}.claudeAgent.maxTurns`,
-              message: 'maxTurns exceeds recommended maximum of 100',
-              severity: 'warning'
-            });
-          }
-        }
-
-        // Validate maxThinkingTokens
-        if (ca.maxThinkingTokens !== undefined) {
-          if (typeof ca.maxThinkingTokens !== 'number' || ca.maxThinkingTokens <= 0) {
-            this.errors.push({
-              field: `agents.${agent.name}.claudeAgent.maxThinkingTokens`,
-              message: 'maxThinkingTokens must be a positive number',
-              severity: 'error'
-            });
-          } else if (ca.maxThinkingTokens > 50000) {
-            this.errors.push({
-              field: `agents.${agent.name}.claudeAgent.maxThinkingTokens`,
-              message: 'maxThinkingTokens exceeds recommended maximum of 50000',
-              severity: 'warning'
-            });
-          }
         }
       }
     }

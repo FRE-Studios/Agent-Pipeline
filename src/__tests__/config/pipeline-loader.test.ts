@@ -641,4 +641,192 @@ agents:
       expect(metadata.sourceType).toBe('loop-pending');
     });
   });
+
+  describe('runtime configuration', () => {
+    it('should set default runtime to claude-sdk when not specified', async () => {
+      const configPath = path.join(pipelinesDir, 'no-runtime.yml');
+      await fs.writeFile(configPath, YAML.stringify(simplePipelineConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('no-runtime');
+
+      expect(config.runtime).toBeDefined();
+      expect(config.runtime?.type).toBe('claude-sdk');
+    });
+
+    it('should load pipeline with runtime configuration', async () => {
+      const runtimeConfig = {
+        name: 'with-runtime',
+        trigger: 'manual',
+        runtime: {
+          type: 'claude-code-headless',
+          options: {
+            model: 'sonnet',
+            maxTurns: 10,
+          },
+        },
+        agents: [
+          { name: 'stage-1', agent: 'agent.md' },
+        ],
+      };
+
+      const configPath = path.join(pipelinesDir, 'with-runtime.yml');
+      await fs.writeFile(configPath, YAML.stringify(runtimeConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('with-runtime');
+
+      expect(config.runtime).toBeDefined();
+      expect(config.runtime?.type).toBe('claude-code-headless');
+      expect(config.runtime?.options?.model).toBe('sonnet');
+      expect(config.runtime?.options?.maxTurns).toBe(10);
+    });
+
+    it('should load pipeline with stage-level runtime override', async () => {
+      const stageRuntimeConfig = {
+        name: 'stage-runtime',
+        trigger: 'manual',
+        runtime: {
+          type: 'claude-code-headless',
+        },
+        agents: [
+          {
+            name: 'stage-1',
+            agent: 'agent1.md',
+            runtime: {
+              type: 'claude-sdk',
+              options: {
+                model: 'haiku',
+              },
+            },
+          },
+          {
+            name: 'stage-2',
+            agent: 'agent2.md',
+            // Uses pipeline-level runtime
+          },
+        ],
+      };
+
+      const configPath = path.join(pipelinesDir, 'stage-runtime.yml');
+      await fs.writeFile(configPath, YAML.stringify(stageRuntimeConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('stage-runtime');
+
+      expect(config.runtime?.type).toBe('claude-code-headless');
+      expect(config.agents[0].runtime?.type).toBe('claude-sdk');
+      expect(config.agents[0].runtime?.options?.model).toBe('haiku');
+      expect(config.agents[1].runtime).toBeUndefined(); // Uses pipeline-level
+    });
+
+    it('should load runtime with minimal configuration', async () => {
+      const minimalRuntimeConfig = {
+        name: 'minimal-runtime',
+        trigger: 'manual',
+        runtime: {
+          type: 'claude-sdk',
+        },
+        agents: [
+          { name: 'stage-1', agent: 'agent.md' },
+        ],
+      };
+
+      const configPath = path.join(pipelinesDir, 'minimal-runtime.yml');
+      await fs.writeFile(configPath, YAML.stringify(minimalRuntimeConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('minimal-runtime');
+
+      expect(config.runtime).toBeDefined();
+      expect(config.runtime?.type).toBe('claude-sdk');
+      expect(config.runtime?.options).toBeUndefined();
+    });
+
+    it('should load runtime with complex options', async () => {
+      const complexRuntimeConfig = {
+        name: 'complex-runtime',
+        trigger: 'manual',
+        runtime: {
+          type: 'claude-code-headless',
+          options: {
+            model: 'opus',
+            maxTurns: 20,
+            maxThinkingTokens: 10000,
+            permissionMode: 'acceptEdits',
+            customOption: 'customValue',
+          },
+        },
+        agents: [
+          { name: 'stage-1', agent: 'agent.md' },
+        ],
+      };
+
+      const configPath = path.join(pipelinesDir, 'complex-runtime.yml');
+      await fs.writeFile(configPath, YAML.stringify(complexRuntimeConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('complex-runtime');
+
+      expect(config.runtime?.type).toBe('claude-code-headless');
+      expect(config.runtime?.options?.model).toBe('opus');
+      expect(config.runtime?.options?.maxTurns).toBe(20);
+      expect(config.runtime?.options?.maxThinkingTokens).toBe(10000);
+      expect(config.runtime?.options?.permissionMode).toBe('acceptEdits');
+      expect(config.runtime?.options?.customOption).toBe('customValue');
+    });
+
+    it('should handle mixed runtime configuration across stages', async () => {
+      const mixedRuntimeConfig = {
+        name: 'mixed-runtime',
+        trigger: 'manual',
+        runtime: {
+          type: 'claude-code-headless',
+          options: {
+            model: 'sonnet',
+          },
+        },
+        agents: [
+          {
+            name: 'quick-check',
+            agent: 'quick.md',
+            runtime: {
+              type: 'claude-sdk',
+              options: {
+                model: 'haiku',
+              },
+            },
+          },
+          {
+            name: 'normal-stage',
+            agent: 'normal.md',
+            // Uses pipeline-level runtime (claude-code-headless with sonnet)
+          },
+          {
+            name: 'deep-analysis',
+            agent: 'deep.md',
+            runtime: {
+              type: 'claude-sdk',
+              options: {
+                model: 'opus',
+                maxTurns: 30,
+              },
+            },
+          },
+        ],
+      };
+
+      const configPath = path.join(pipelinesDir, 'mixed-runtime.yml');
+      await fs.writeFile(configPath, YAML.stringify(mixedRuntimeConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('mixed-runtime');
+
+      expect(config.runtime?.type).toBe('claude-code-headless');
+      expect(config.runtime?.options?.model).toBe('sonnet');
+
+      expect(config.agents[0].runtime?.type).toBe('claude-sdk');
+      expect(config.agents[0].runtime?.options?.model).toBe('haiku');
+
+      expect(config.agents[1].runtime).toBeUndefined();
+
+      expect(config.agents[2].runtime?.type).toBe('claude-sdk');
+      expect(config.agents[2].runtime?.options?.model).toBe('opus');
+      expect(config.agents[2].runtime?.options?.maxTurns).toBe(30);
+    });
+  });
 });

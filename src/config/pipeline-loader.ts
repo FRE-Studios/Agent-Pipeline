@@ -67,6 +67,11 @@ export class PipelineLoader {
       throw new Error('Invalid pipeline configuration: missing required fields');
     }
 
+    // Set default runtime if not specified
+    if (!config.runtime) {
+      config.runtime = { type: 'claude-sdk' };
+    }
+
     return config;
   }
 

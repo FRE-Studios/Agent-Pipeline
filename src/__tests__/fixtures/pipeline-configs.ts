@@ -3,6 +3,9 @@ import { PipelineConfig } from '../../config/schema.js';
 export const simplePipelineConfig: PipelineConfig = {
   name: 'simple-test',
   trigger: 'manual',
+  runtime: {
+    type: 'claude-sdk',
+  },
   settings: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
@@ -26,6 +29,9 @@ export const simplePipelineConfig: PipelineConfig = {
 export const parallelPipelineConfig: PipelineConfig = {
   name: 'parallel-test',
   trigger: 'manual',
+  runtime: {
+    type: 'claude-sdk',
+  },
   settings: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
@@ -60,6 +66,9 @@ export const parallelPipelineConfig: PipelineConfig = {
 export const conditionalPipelineConfig: PipelineConfig = {
   name: 'conditional-test',
   trigger: 'manual',
+  runtime: {
+    type: 'claude-sdk',
+  },
   settings: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
@@ -91,6 +100,9 @@ export const conditionalPipelineConfig: PipelineConfig = {
 export const retryPipelineConfig: PipelineConfig = {
   name: 'retry-test',
   trigger: 'manual',
+  runtime: {
+    type: 'claude-sdk',
+  },
   settings: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
@@ -120,6 +132,9 @@ export const invalidPipelineConfig = {
 export const cyclicDependencyConfig: PipelineConfig = {
   name: 'cyclic-test',
   trigger: 'manual',
+  runtime: {
+    type: 'claude-sdk',
+  },
   agents: [
     {
       name: 'stage-a',
@@ -142,6 +157,9 @@ export const cyclicDependencyConfig: PipelineConfig = {
 export const duplicateNamesConfig: PipelineConfig = {
   name: 'duplicate-test',
   trigger: 'manual',
+  runtime: {
+    type: 'claude-sdk',
+  },
   agents: [
     {
       name: 'duplicate',
@@ -157,6 +175,9 @@ export const duplicateNamesConfig: PipelineConfig = {
 export const missingDependencyConfig: PipelineConfig = {
   name: 'missing-dep-test',
   trigger: 'manual',
+  runtime: {
+    type: 'claude-sdk',
+  },
   agents: [
     {
       name: 'stage-a',
@@ -169,6 +190,9 @@ export const missingDependencyConfig: PipelineConfig = {
 export const gitWorkflowConfig: PipelineConfig = {
   name: 'git-workflow-test',
   trigger: 'manual',
+  runtime: {
+    type: 'claude-sdk',
+  },
   settings: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
@@ -205,6 +229,9 @@ export const gitWorkflowConfig: PipelineConfig = {
 export const notificationConfig: PipelineConfig = {
   name: 'notification-test',
   trigger: 'manual',
+  runtime: {
+    type: 'claude-sdk',
+  },
   settings: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
