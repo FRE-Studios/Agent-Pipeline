@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContextReducer } from '../../core/context-reducer.js';
 import { GitManager } from '../../core/git-manager.js';
+import { AgentRuntimeRegistry } from '../../core/agent-runtime-registry.js';
 import { PipelineState, AgentStageConfig, ContextReductionConfig } from '../../config/schema.js';
 import * as fs from 'fs/promises';
 
@@ -377,6 +378,90 @@ describe('ContextReducer', () => {
         metrics: { 'code-review': { issues_found: 5 } }
       });
       expect(result.agentOutput).toContain('Context has been reduced');
+    });
+
+    it('should handle reducer agent with no extracted data', async () => {
+      // Mock runtime to return only text output, no extractedData
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: 'Context has been reduced (no structured output)',
+        extractedData: undefined,
+        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        numTurns: 1
+      });
+
+      const reducerAgentPath = '.claude/agents/context-reducer.md';
+      vi.mocked(fs.readFile).mockResolvedValue('# Context Reducer\nReduce context...');
+
+      const result = await contextReducer.runReduction(mockState, mockUpcomingStage, reducerAgentPath);
+
+      expect(result.status).toBe('success');
+      expect(result.extractedData).toBeUndefined();
+      expect(result.agentOutput).toContain('Context has been reduced');
+    });
+
+    it('should resolve absolute agent path correctly', async () => {
+      // Mock runtime to succeed
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: 'Context has been reduced',
+        extractedData: { summary: 'Test' },
+        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        numTurns: 1
+      });
+
+      // Use absolute path for upcoming stage agent
+      const absoluteAgentPath = '/absolute/path/to/agent.md';
+      const upcomingStageWithAbsolutePath: AgentStageConfig = {
+        name: 'security-scan',
+        agent: absoluteAgentPath
+      };
+
+      // Mock readFile to succeed for absolute path
+      vi.mocked(fs.readFile).mockImplementation((path) => {
+        if (path === absoluteAgentPath) {
+          return Promise.resolve('# Absolute Agent\nAgent content...');
+        }
+        return Promise.resolve('# Context Reducer\nReduce context...');
+      });
+
+      const reducerAgentPath = '.claude/agents/context-reducer.md';
+      const result = await contextReducer.runReduction(
+        mockState,
+        upcomingStageWithAbsolutePath,
+        reducerAgentPath
+      );
+
+      expect(result.status).toBe('success');
+      // Verify that fs.readFile was called with the absolute path
+      expect(vi.mocked(fs.readFile)).toHaveBeenCalledWith(absoluteAgentPath, 'utf-8');
+    });
+  });
+
+  describe('runtime fallback', () => {
+    it('should fallback to claude-sdk when headless runtime unavailable', () => {
+      // Clear registry and only register SDK runtime (no headless)
+      AgentRuntimeRegistry.clear();
+
+      const mockSDKRuntime = createMockRuntime();
+      mockSDKRuntime.type = 'claude-sdk';
+      AgentRuntimeRegistry.register(mockSDKRuntime);
+
+      // Track console.warn calls
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      // Create new ContextReducer without providing runtime (triggers auto-selection)
+      // Should try headless, fail, then fallback to SDK
+      const contextReducer = new ContextReducer(mockGitManager, repoPath, runId);
+
+      // Verify warning was logged about fallback
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('⚠️  claude-code-headless not available, falling back to claude-sdk')
+      );
+
+      // Cleanup
+      warnSpy.mockRestore();
+      logSpy.mockRestore();
+      AgentRuntimeRegistry.clear();
     });
   });
 

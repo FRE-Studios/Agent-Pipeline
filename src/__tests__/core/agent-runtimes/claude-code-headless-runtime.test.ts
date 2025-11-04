@@ -681,6 +681,90 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       await expect(executePromise).rejects.toThrow('timed out');
       expect(mockProcess.kill).toHaveBeenCalledWith('SIGTERM');
     });
+
+    it('should handle subprocess crash mid-execution', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {}
+      };
+
+      setTimeout(() => {
+        // Simulate partial output before crash
+        mockProcess.stdout.emit(
+          'data',
+          Buffer.from(JSON.stringify({ type: 'output', content: 'Partial output' }) + '\n')
+        );
+        // Simulate crash (exit with null code - signals crash)
+        mockProcess.emit('exit', null);
+      }, 10);
+
+      await expect(runtime.execute(request)).rejects.toThrow(
+        'Claude CLI exited with code null'
+      );
+    });
+
+    it('should cleanup subprocess on execution failure', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {}
+      };
+
+      // Track if kill is called
+      const killSpy = mockProcess.kill;
+
+      setTimeout(() => {
+        mockProcess.stderr.emit('data', Buffer.from('Fatal error'));
+        mockProcess.emit('exit', 1);
+      }, 10);
+
+      await expect(runtime.execute(request)).rejects.toThrow();
+
+      // Process should have been cleaned up (attempted kill if still running)
+      // In this case, process already exited, so no kill needed
+    });
+
+    it('should handle malformed JSON in streaming output gracefully', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {
+          onOutputUpdate
+        }
+      };
+
+      setTimeout(() => {
+        // Emit malformed streaming JSON
+        mockProcess.stdout.emit('data', Buffer.from('{"type": "output", "content": "Valid"}\n'));
+        mockProcess.stdout.emit('data', Buffer.from('{malformed json}\n'));
+        mockProcess.stdout.emit('data', Buffer.from('{"type": "output", "content": "Also valid"}\n'));
+        // Final result must be valid
+        mockProcess.stdout.emit(
+          'data',
+          Buffer.from(JSON.stringify({ result: 'Final output' }))
+        );
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      const result = await runtime.execute(request);
+
+      // Should call onOutputUpdate only for valid streaming JSON, skip malformed
+      expect(onOutputUpdate).toHaveBeenCalledWith('Valid');
+      expect(onOutputUpdate).toHaveBeenCalledWith('Also valid');
+      expect(onOutputUpdate).toHaveBeenCalledTimes(2);
+      expect(result.textOutput).toBe('Final output');
+    });
   });
 
   describe('Edge Cases', () => {

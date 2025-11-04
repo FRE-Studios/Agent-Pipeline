@@ -1290,6 +1290,83 @@ describe('PipelineValidator', () => {
         // Actual warning depends on DAGPlanner's calculation
         expect(errors).toBeDefined();
       });
+
+      it('should warn when excessive parallelism detected (>10 stages)', async () => {
+        // Create config with 15 independent stages (no dependencies)
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: Array.from({ length: 15 }, (_, i) => ({
+            name: `stage-${i}`,
+            agent: '.claude/agents/test-agent.md'
+          }))
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        // Should have warning about excessive parallelism
+        const parallelWarnings = errors.filter(e =>
+          e.field === 'agents' &&
+          e.severity === 'warning' &&
+          e.message.includes('parallel')
+        );
+        expect(parallelWarnings.length).toBeGreaterThan(0);
+        expect(parallelWarnings[0].message).toContain('15 stages running in parallel');
+        expect(parallelWarnings[0].message).toContain('Consider adding dependencies');
+      });
+
+      it('should not warn when parallelism is reasonable (≤10 stages)', async () => {
+        // Create config with 8 independent stages
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: Array.from({ length: 8 }, (_, i) => ({
+            name: `stage-${i}`,
+            agent: '.claude/agents/test-agent.md'
+          }))
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        // Should NOT have parallelism warning
+        const parallelWarnings = errors.filter(e =>
+          e.field === 'agents' &&
+          e.severity === 'warning' &&
+          e.message.includes('parallel')
+        );
+        expect(parallelWarnings).toHaveLength(0);
+      });
+
+      it('should correctly calculate parallelism with dependencies', async () => {
+        // Create config where stages have dependencies, limiting parallelism
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          agents: [
+            // First level: 3 parallel stages
+            { name: 'stage-1', agent: '.claude/agents/test-agent.md' },
+            { name: 'stage-2', agent: '.claude/agents/test-agent.md' },
+            { name: 'stage-3', agent: '.claude/agents/test-agent.md' },
+            // Second level: depends on first level
+            { name: 'stage-4', agent: '.claude/agents/test-agent.md', dependsOn: ['stage-1', 'stage-2'] },
+            { name: 'stage-5', agent: '.claude/agents/test-agent.md', dependsOn: ['stage-3'] },
+            // Third level: 12 parallel stages (should trigger warning if not for dependencies)
+            ...Array.from({ length: 12 }, (_, i) => ({
+              name: `stage-${i + 6}`,
+              agent: '.claude/agents/test-agent.md',
+              dependsOn: ['stage-4', 'stage-5']
+            }))
+          ]
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        // Should warn because third level has 12 parallel stages
+        const parallelWarnings = errors.filter(e =>
+          e.field === 'agents' &&
+          e.severity === 'warning' &&
+          e.message.includes('parallel')
+        );
+        expect(parallelWarnings.length).toBeGreaterThan(0);
+        expect(parallelWarnings[0].message).toContain('12 stages running in parallel');
+      });
     });
   });
 
@@ -1641,6 +1718,56 @@ describe('PipelineValidator', () => {
         e => e.field === 'runtime' && e.severity === 'error'
       );
       expect(runtimeErrors).toHaveLength(0);
+    });
+
+    it('should warn when specified runtime is unavailable but not error', async () => {
+      // Mock AgentRuntimeRegistry to return a runtime that fails validation
+      const mockRuntime = {
+        type: 'mock-unavailable-runtime',
+        name: 'Mock Unavailable Runtime',
+        execute: vi.fn(),
+        getCapabilities: vi.fn().mockReturnValue({
+          supportsStreaming: true,
+          supportsTokenTracking: true,
+          supportsMCP: false,
+          supportsContextReduction: false,
+          availableModels: ['haiku'],
+          permissionModes: ['default', 'acceptEdits']
+        }),
+        validate: vi.fn().mockResolvedValue({
+          valid: false,
+          errors: ['Runtime CLI not found'],
+          warnings: ['Install the CLI to use this runtime']
+        })
+      };
+
+      // Register the mock runtime
+      AgentRuntimeRegistry.register(mockRuntime as any);
+
+      const config: PipelineConfig = {
+        ...simplePipelineConfig,
+        runtime: {
+          type: 'mock-unavailable-runtime',
+        },
+      };
+
+      const errors = await validator.validate(config, tempDir);
+
+      // Should have warnings, not errors
+      const runtimeWarnings = errors.filter(
+        e => e.field === 'runtime' && e.severity === 'warning'
+      );
+      expect(runtimeWarnings.length).toBeGreaterThan(0);
+      expect(runtimeWarnings.some(w => w.message.includes('Runtime availability'))).toBe(true);
+
+      // Should NOT have errors (availability issues are warnings)
+      const runtimeErrors = errors.filter(
+        e => e.field === 'runtime' && e.severity === 'error'
+      );
+      expect(runtimeErrors).toHaveLength(0);
+
+      // Cleanup
+      AgentRuntimeRegistry.clear();
     });
 
     it('should validate runtime without options', async () => {
