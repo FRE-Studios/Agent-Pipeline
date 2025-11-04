@@ -114,6 +114,10 @@ describe('StageExecutor', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
+    // Reset fs.readFile mock (cleared by clearAllMocks)
+    const fs = await import('fs/promises');
+    vi.mocked(fs.readFile).mockResolvedValue('Mock agent system prompt');
+
     // Create mock runtime
     mockRuntime = createMockRuntime();
     mockRuntime.execute.mockResolvedValue({
@@ -227,9 +231,8 @@ describe('StageExecutor', () => {
     });
 
     it('should handle agent execution failure without retry', async () => {
-      mockQuery.mockImplementation(async function* () {
-        throw new Error('Agent execution failed');
-      });
+      // Use runtime abstraction for errors
+      mockRuntime.execute.mockRejectedValue(new Error('Agent execution failed'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
@@ -243,13 +246,13 @@ describe('StageExecutor', () => {
     });
 
     it('should calculate duration in seconds accurately', async () => {
-      mockQuery.mockImplementation(async function* () {
+      // Mock runtime execution with delay
+      mockRuntime.execute.mockImplementation(async () => {
         await new Promise(resolve => setTimeout(resolve, 1000));
-        yield {
-          type: 'assistant',
-          message: {
-            content: [{ type: 'text', text: 'Mock agent response' }],
-          },
+        return {
+          textOutput: 'Mock agent response',
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         };
       });
 
@@ -279,15 +282,16 @@ describe('StageExecutor', () => {
     });
 
     it('should execute stage with extracted data outputs', async () => {
-      mockQuery.mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [
-              { type: 'text', text: 'Analysis complete. issues_found: 3\nseverity: high\nscore: 85' },
-            ],
-          },
-        };
+      // Mock runtime with extracted data
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: 'Analysis complete. issues_found: 3\nseverity: high\nscore: 85',
+        extractedData: {
+          issues_found: '3',
+          severity: 'high',
+          score: '85'
+        },
+        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        numTurns: 1
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
@@ -449,6 +453,20 @@ describe('StageExecutor', () => {
     });
 
     it('should invoke output callback with streaming updates', async () => {
+      // Mock runtime to simulate streaming by calling onOutputUpdate
+      mockRuntime.execute.mockImplementation(async (request) => {
+        // Simulate streaming updates
+        if (request.options?.onOutputUpdate) {
+          request.options.onOutputUpdate('Mock agent');
+          request.options.onOutputUpdate('Mock agent response');
+        }
+        return {
+          textOutput: 'Mock agent response',
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
+        };
+      });
+
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
 
@@ -493,11 +511,24 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(stageWithInputs, runningPipelineState);
 
-      // The query function should be called with context containing inputs
-      expect(mockQuery).toHaveBeenCalled();
-      const callArgs = mockQuery.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('targetFile');
-      expect(callArgs.prompt).toContain('src/main.ts');
+      // The runtime execute should be called with context containing inputs
+      expect(mockRuntime.execute).toHaveBeenCalled();
+
+      // Check that execute was called with proper request structure
+      expect(mockRuntime.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userPrompt: expect.stringContaining('targetFile'),
+          systemPrompt: expect.any(String),
+          options: expect.any(Object)
+        })
+      );
+
+      // Also verify the specific input values are in the context
+      expect(mockRuntime.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userPrompt: expect.stringContaining('src/main.ts')
+        })
+      );
     });
 
     it('should include previous stages in context', async () => {
@@ -506,10 +537,23 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, completedPipelineState);
 
-      expect(mockQuery).toHaveBeenCalled();
-      const callArgs = mockQuery.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('stage-1');
-      expect(callArgs.prompt).toContain('stage-2');
+      expect(mockRuntime.execute).toHaveBeenCalled();
+
+      // Check that execute was called with previous stage context
+      expect(mockRuntime.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userPrompt: expect.stringContaining('stage-1'),
+          systemPrompt: expect.any(String),
+          options: expect.any(Object)
+        })
+      );
+
+      // Also verify second stage is in context
+      expect(mockRuntime.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userPrompt: expect.stringContaining('stage-2')
+        })
+      );
     });
   });
 
@@ -721,9 +765,8 @@ describe('StageExecutor', () => {
     });
   });
 
-  // DEFERRED TO PHASE 7: Tests require runtime-agnostic patterns
-  // See docs/dev/multi-agent-feature-roadmap/multi-agent-architecture-plan.md Phase 7 "Deferred Test Coverage"
-  describe.skip('buildAgentContext', () => {
+  // Phase 7.2: Runtime-agnostic tests for context building
+  describe('buildAgentContext', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
@@ -737,29 +780,26 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, emptyState);
 
-      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
-      const callArgs = mockQueryFn.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('Pipeline Run ID');
-      expect(callArgs.prompt).toContain('test-run-123');
-      expect(callArgs.prompt).not.toContain('stage-1');
+      const callArgs = mockRuntime.execute.mock.calls[0][0];
+      expect(callArgs.userPrompt).toContain('Pipeline Run ID');
+      expect(callArgs.userPrompt).toContain('test-run-123');
+      expect(callArgs.userPrompt).not.toContain('stage-1');
     });
 
     it('should build context with single successful previous stage', async () => {
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
-      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
-      const callArgs = mockQueryFn.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('stage-1');
-      expect(callArgs.prompt).toContain('stage-1-commit');
+      const callArgs = mockRuntime.execute.mock.calls[0][0];
+      expect(callArgs.userPrompt).toContain('stage-1');
+      expect(callArgs.userPrompt).toContain('stage-1-commit');
     });
 
     it('should build context with multiple successful previous stages', async () => {
       await executor.executeStage(basicStageConfig, completedPipelineState);
 
-      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
-      const callArgs = mockQueryFn.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('stage-1');
-      expect(callArgs.prompt).toContain('stage-2');
+      const callArgs = mockRuntime.execute.mock.calls[0][0];
+      expect(callArgs.userPrompt).toContain('stage-1');
+      expect(callArgs.userPrompt).toContain('stage-2');
     });
 
     it('should include earlier-stage summary when exceeding context window', async () => {
@@ -789,10 +829,9 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, extendedState);
 
-      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
-      const callArgs = mockQueryFn.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('Earlier Stages');
-      expect(callArgs.prompt).toContain('.agent-pipeline/outputs/test-run-123/pipeline-summary.json');
+      const callArgs = mockRuntime.execute.mock.calls[0][0];
+      expect(callArgs.userPrompt).toContain('Earlier Stages');
+      expect(callArgs.userPrompt).toContain('.agent-pipeline/outputs/test-run-123/pipeline-summary.json');
     });
 
     it('should filter out non-successful stages from context', async () => {
@@ -820,19 +859,17 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, stateWithFailure);
 
-      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
-      const callArgs = mockQueryFn.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('stage-1');
-      expect(callArgs.prompt).not.toContain('stage-2');
+      const callArgs = mockRuntime.execute.mock.calls[0][0];
+      expect(callArgs.userPrompt).toContain('stage-1');
+      expect(callArgs.userPrompt).not.toContain('stage-2');
     });
 
     it('should include extracted data in context', async () => {
       await executor.executeStage(basicStageConfig, completedPipelineState);
 
-      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
-      const callArgs = mockQueryFn.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('result');
-      expect(callArgs.prompt).toContain('success');
+      const callArgs = mockRuntime.execute.mock.calls[0][0];
+      expect(callArgs.userPrompt).toContain('result');
+      expect(callArgs.userPrompt).toContain('success');
     });
 
     it('should reference stored output files for recent stages', async () => {
@@ -855,64 +892,66 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, stateWithOutputFiles);
 
-      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
-      const callArgs = mockQueryFn.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('Full Output');
-      expect(callArgs.prompt).toContain('path/to/structured.json');
+      const callArgs = mockRuntime.execute.mock.calls[0][0];
+      expect(callArgs.userPrompt).toContain('Full Output');
+      expect(callArgs.userPrompt).toContain('path/to/structured.json');
     });
 
     it('should include output instructions when stage declares outputs', async () => {
       await executor.executeStage(stageWithOutputs, runningPipelineState);
 
-      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
-      const callArgs = mockQueryFn.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('## Reporting Outputs');
-      expect(callArgs.prompt).toContain('report_outputs');
-      expect(callArgs.prompt).toContain('issues_found');
+      const callArgs = mockRuntime.execute.mock.calls[0][0];
+      expect(callArgs.userPrompt).toContain('## Reporting Outputs');
+      expect(callArgs.userPrompt).toContain('report_outputs');
+      expect(callArgs.userPrompt).toContain('issues_found');
     });
 
     it('should include commit SHAs in context', async () => {
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
-      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
-      const callArgs = mockQueryFn.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('Commit:');
-      expect(callArgs.prompt).toContain('stage-1-commit');
+      const callArgs = mockRuntime.execute.mock.calls[0][0];
+      expect(callArgs.userPrompt).toContain('Commit:');
+      expect(callArgs.userPrompt).toContain('stage-1-commit');
     });
 
     it('should include changed files in context', async () => {
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
-      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
-      const callArgs = mockQueryFn.mock.calls[0][0];
+      const callArgs = mockRuntime.execute.mock.calls[0][0];
       // With context reduction enabled, files are compressed
-      expect(callArgs.prompt).toContain('Changed 2 files');
-      expect(callArgs.prompt).toContain('changed-files.txt');
+      expect(callArgs.userPrompt).toContain('Changed 2 files');
+      expect(callArgs.userPrompt).toContain('changed-files.txt');
     });
 
     it('should include stage inputs in context', async () => {
       await executor.executeStage(stageWithInputs, runningPipelineState);
 
-      const mockQueryFn = vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query;
-      const callArgs = mockQueryFn.mock.calls[0][0];
-      expect(callArgs.prompt).toContain('Your Task');
-      expect(callArgs.prompt).toContain('targetFile');
-      expect(callArgs.prompt).toContain('maxIssues');
-      expect(callArgs.prompt).toContain('strictMode');
+      const callArgs = mockRuntime.execute.mock.calls[0][0];
+      expect(callArgs.userPrompt).toContain('Your Task');
+      expect(callArgs.userPrompt).toContain('targetFile');
+      expect(callArgs.userPrompt).toContain('maxIssues');
+      expect(callArgs.userPrompt).toContain('strictMode');
     });
   });
 
-  // DEFERRED TO PHASE 7: Tests SDK-specific streaming and timeout behavior
-  // See docs/dev/multi-agent-feature-roadmap/multi-agent-architecture-plan.md Phase 7 "Deferred Test Coverage"
-  describe.skip('runAgentWithTimeout', () => {
+  // Phase 7.2: Runtime-agnostic tests for agent execution with timeout handling
+  describe('runAgentWithTimeout', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
     });
 
     it('should execute agent query successfully', async () => {
-      const mockQuery = createMockQuery({ output: 'Agent completed successfully' });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: 'Agent completed successfully',
+        extractedData: undefined,
+        tokenUsage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          totalTokens: 150
+        },
+        numTurns: 1
+      });
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -922,15 +961,20 @@ describe('StageExecutor', () => {
     });
 
     it('should timeout after configured seconds', async () => {
-      const longRunningQuery = vi.fn().mockImplementation(async function* () {
+      // Mock a long-running execution that exceeds timeout
+      mockRuntime.execute.mockImplementation(async () => {
         await new Promise((resolve) => setTimeout(resolve, 150000)); // 150s
-        yield {
-          type: 'assistant',
-          message: { content: [{ type: 'text', text: 'Done' }] },
+        return {
+          textOutput: 'Done',
+          extractedData: undefined,
+          tokenUsage: {
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 150
+          },
+          numTurns: 1
         };
       });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = longRunningQuery;
 
       const promise = executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -946,12 +990,16 @@ describe('StageExecutor', () => {
     it('should use default timeout of 900 seconds when not specified', async () => {
       const stageWithoutTimeout = { ...basicStageConfig, timeout: undefined };
 
-      // Create a never-completing query
-      const neverEndingQuery = vi.fn().mockImplementation(async function* () {
+      // Mock a never-completing execution
+      mockRuntime.execute.mockImplementation(async () => {
         await new Promise(() => {}); // Never resolves
+        return {
+          textOutput: 'Never reached',
+          extractedData: undefined,
+          tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          numTurns: 0
+        };
       });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = neverEndingQuery;
 
       const promise = executor.executeStage(stageWithoutTimeout, runningPipelineState);
 
@@ -970,15 +1018,17 @@ describe('StageExecutor', () => {
 
     it('should clean up warning timers on successful completion', async () => {
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const quickQuery = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: { content: [{ type: 'text', text: 'Quick completion' }] },
-        };
-        yield { type: 'result', subtype: 'success', usage: { input_tokens: 100, output_tokens: 50 } };
-      });
 
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = quickQuery;
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: 'Quick completion',
+        extractedData: undefined,
+        tokenUsage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          totalTokens: 150
+        },
+        numTurns: 1
+      });
 
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -991,16 +1041,21 @@ describe('StageExecutor', () => {
 
     it('should clean up warning timers on timeout', async () => {
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const neverCompletingQuery = vi.fn().mockImplementation(async function* () {
-        await new Promise(() => {}); // Never resolves
-      });
 
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = neverCompletingQuery;
+      mockRuntime.execute.mockImplementation(async () => {
+        await new Promise(() => {}); // Never resolves
+        return {
+          textOutput: 'Never reached',
+          extractedData: undefined,
+          tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          numTurns: 0
+        };
+      });
 
       const promise = executor.executeStage(basicStageConfig, runningPipelineState);
 
       // Advance to timeout
-      await vi.advanceTimersByTimeAsync(900001);
+      await vi.advanceTimersByTimeAsync(120001);
 
       const result = await promise;
       expect(result.status).toBe('failed');
@@ -1013,145 +1068,82 @@ describe('StageExecutor', () => {
       consoleWarnSpy.mockRestore();
     });
 
-    it('should stream output to callback', async () => {
-      const mockQuery = createMockQuery({ output: 'Streaming output' });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+    // Note: Streaming and message-level tests are runtime-specific and tested in runtime implementation tests
+    // The stage executor just passes the callback through to the runtime
 
+    it('should handle empty agent response', async () => {
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: '',
+        extractedData: undefined,
+        tokenUsage: {
+          inputTokens: 100,
+          outputTokens: 0,
+          totalTokens: 100
+        },
+        numTurns: 1
+      });
+
+      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(result.agentOutput).toBe('');
+    });
+
+    it('should pass onOutputUpdate callback to runtime', async () => {
       const callback = vi.fn();
+
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: 'Agent output',
+        extractedData: undefined,
+        tokenUsage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          totalTokens: 150
+        },
+        numTurns: 1
+      });
+
       await executor.executeStage(
         basicStageConfig,
         runningPipelineState,
         callback
       );
 
-      expect(callback).toHaveBeenCalledWith(expect.stringContaining('Streaming'));
-    });
-
-    it('should handle multiple assistant messages', async () => {
-      const multiMessageQuery = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: { content: [{ type: 'text', text: 'First message. ' }] },
-        };
-        yield {
-          type: 'assistant',
-          message: { content: [{ type: 'text', text: 'Second message.' }] },
-        };
-      });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = multiMessageQuery;
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.agentOutput).toBe('First message. Second message.');
-    });
-
-    it('should extract text content from messages', async () => {
-      const textContentQuery = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [
-              { type: 'text', text: 'Text content' },
-              { type: 'tool_use', id: '123', name: 'tool' },
-            ],
-          },
-        };
-      });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = textContentQuery;
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.agentOutput).toBe('Text content');
-    });
-
-    it('should handle empty agent response', async () => {
-      const emptyQuery = vi.fn().mockImplementation(async function* () {
-        // Yields nothing
-      });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = emptyQuery;
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.agentOutput).toBe('');
-    });
-
-    it('should handle non-text content gracefully', async () => {
-      const nonTextQuery = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [{ type: 'tool_use', id: '123', name: 'tool' }],
-          },
-        };
-      });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = nonTextQuery;
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.agentOutput).toBe('');
-    });
-
-    it('should provide incremental updates to callback', async () => {
-      const incrementalQuery = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: { content: [{ type: 'text', text: 'Part 1. ' }] },
-        };
-        yield {
-          type: 'assistant',
-          message: { content: [{ type: 'text', text: 'Part 2.' }] },
-        };
-      });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = incrementalQuery;
-
-      const callback = vi.fn();
-      await executor.executeStage(basicStageConfig, runningPipelineState, callback);
-
-      expect(callback).toHaveBeenCalledTimes(2);
-      expect(callback).toHaveBeenNthCalledWith(1, 'Part 1. ');
-      expect(callback).toHaveBeenNthCalledWith(2, 'Part 1. Part 2.');
+      // Verify callback was passed to runtime in options
+      expect(mockRuntime.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({
+            onOutputUpdate: callback
+          })
+        })
+      );
     });
   });
 
-  // DEFERRED TO PHASE 7: Tests SDK-specific MCP tool extraction patterns
-  // See docs/dev/multi-agent-feature-roadmap/multi-agent-architecture-plan.md Phase 7 "Deferred Test Coverage"
-  describe.skip('Tool-based output extraction', () => {
+  // Phase 7.2: Runtime-agnostic tests for MCP tool-based output extraction
+  // NOTE: Regex extraction is runtime-specific functionality tested in individual
+  // runtime implementation test files (claude-sdk-runtime.test.ts, claude-code-headless-runtime.test.ts).
+  // StageExecutor simply passes through whatever extractedData the runtime returns.
+  describe('Tool-based output extraction', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
     });
 
     it('should extract data from report_outputs tool call', async () => {
-      const toolUseQuery = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [
-              { type: 'text', text: 'Analysis complete.' },
-              {
-                type: 'tool_use',
-                id: 'tool123',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    issues_found: 5,
-                    severity: 'high',
-                    details: { critical: 2, warning: 3 }
-                  }
-                }
-              }
-            ]
-          }
-        };
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: 'Analysis complete.',
+        extractedData: {
+          issues_found: 5,
+          severity: 'high',
+          details: { critical: 2, warning: 3 }
+        },
+        tokenUsage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          totalTokens: 150
+        },
+        numTurns: 1
       });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
 
       const config = { ...basicStageConfig, outputs: ['issues_found', 'severity'] };
       const result = await executor.executeStage(config, runningPipelineState);
@@ -1164,30 +1156,22 @@ describe('StageExecutor', () => {
     });
 
     it('should handle complex data types in tool call', async () => {
-      const toolUseQuery = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [
-              {
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    arr: [1, 2, 3],
-                    obj: { nested: { value: true } },
-                    num: 42,
-                    str: 'text',
-                    bool: false
-                  }
-                }
-              }
-            ]
-          }
-        };
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: '',
+        extractedData: {
+          arr: [1, 2, 3],
+          obj: { nested: { value: true } },
+          num: 42,
+          str: 'text',
+          bool: false
+        },
+        tokenUsage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          totalTokens: 150
+        },
+        numTurns: 1
       });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
 
       const config = { ...basicStageConfig, outputs: ['arr', 'obj'] };
       const result = await executor.executeStage(config, runningPipelineState);
@@ -1197,46 +1181,19 @@ describe('StageExecutor', () => {
       expect(result.extractedData?.num).toBe(42);
     });
 
-    it('should fall back to regex extraction when tool not called', async () => {
-      const noToolQuery = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [{ type: 'text', text: 'issues_found: 3\nseverity: medium' }]
-          }
-        };
-      });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = noToolQuery;
-
-      const config = { ...basicStageConfig, outputs: ['issues_found', 'severity'] };
-      const result = await executor.executeStage(config, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.extractedData?.issues_found).toBe('3');
-      expect(result.extractedData?.severity).toBe('medium');
-    });
-
     it('should combine text and tool outputs', async () => {
-      const combinedQuery = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [
-              { type: 'text', text: 'Found several issues in the code.' },
-              {
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: { issues_found: 7 }
-                }
-              }
-            ]
-          }
-        };
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: 'Found several issues in the code.',
+        extractedData: {
+          issues_found: 7
+        },
+        tokenUsage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          totalTokens: 150
+        },
+        numTurns: 1
       });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = combinedQuery;
 
       const config = { ...basicStageConfig, outputs: ['issues_found'] };
       const result = await executor.executeStage(config, runningPipelineState);
@@ -1244,132 +1201,13 @@ describe('StageExecutor', () => {
       expect(result.agentOutput).toContain('Found several issues');
       expect(result.extractedData?.issues_found).toBe(7);
     });
-
-    it('should ignore non-report_outputs tool calls', async () => {
-      const otherToolQuery = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [
-              { type: 'tool_use', name: 'other_tool', input: { data: 'ignore' } },
-              { type: 'text', text: 'count: 5' }
-            ]
-          }
-        };
-      });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = otherToolQuery;
-
-      const config = { ...basicStageConfig, outputs: ['count'] };
-      const result = await executor.executeStage(config, runningPipelineState);
-
-      // Should fall back to regex extraction
-      expect(result.extractedData?.count).toBe('5');
-    });
   });
 
-  // DEFERRED TO PHASE 7: Tests SDK-specific output extraction patterns
-  // See docs/dev/multi-agent-feature-roadmap/multi-agent-architecture-plan.md Phase 7 "Deferred Test Coverage"
-  describe.skip('extractOutputs', () => {
-    beforeEach(() => {
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-    });
-
-    it('should extract single output key', async () => {
-      const mockQuery = createMockQuery({ output: 'Result: issues_found: 5' });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
-
-      const config = { ...basicStageConfig, outputs: ['issues_found'] };
-      const result = await executor.executeStage(config, runningPipelineState);
-
-      expect(result.extractedData).toBeDefined();
-      expect(result.extractedData?.issues_found).toBe('5');
-    });
-
-    it('should extract multiple output keys', async () => {
-      const mockQuery = createMockQuery({
-        output: 'issues_found: 3\nseverity: high\nscore: 85',
-      });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
-
-      const result = await executor.executeStage(stageWithOutputs, runningPipelineState);
-
-      expect(result.extractedData?.issues_found).toBe('3');
-      expect(result.extractedData?.severity).toBe('high');
-      expect(result.extractedData?.score).toBe('85');
-    });
-
-    it('should return undefined when no output keys configured', async () => {
-      const mockQuery = createMockQuery({ output: 'Some output' });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.extractedData).toBeUndefined();
-    });
-
-    it('should return undefined when output keys array is empty', async () => {
-      const mockQuery = createMockQuery({ output: 'Some output' });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
-
-      const config = { ...basicStageConfig, outputs: [] };
-      const result = await executor.executeStage(config, runningPipelineState);
-
-      expect(result.extractedData).toBeUndefined();
-    });
-
-    it('should find output key in agent response', async () => {
-      const mockQuery = createMockQuery({ output: 'Analysis complete.\nstatus: passed' });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
-
-      const config = { ...basicStageConfig, outputs: ['status'] };
-      const result = await executor.executeStage(config, runningPipelineState);
-
-      expect(result.extractedData?.status).toBe('passed');
-    });
-
-    it('should return undefined when output key not found', async () => {
-      const mockQuery = createMockQuery({ output: 'No matching keys here' });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
-
-      const config = { ...basicStageConfig, outputs: ['missing_key'] };
-      const result = await executor.executeStage(config, runningPipelineState);
-
-      expect(result.extractedData).toBeUndefined();
-    });
-
-    it('should perform case-insensitive matching', async () => {
-      const mockQuery = createMockQuery({ output: 'ISSUES_FOUND: 10' });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
-
-      const config = { ...basicStageConfig, outputs: ['issues_found'] };
-      const result = await executor.executeStage(config, runningPipelineState);
-
-      expect(result.extractedData?.issues_found).toBe('10');
-    });
-
-    it('should trim whitespace from extracted values', async () => {
-      const mockQuery = createMockQuery({ output: 'result:   value with spaces   ' });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
-
-      const config = { ...basicStageConfig, outputs: ['result'] };
-      const result = await executor.executeStage(config, runningPipelineState);
-
-      expect(result.extractedData?.result).toBe('value with spaces');
-    });
-
-    it('should handle output keys with special regex characters', async () => {
-      const mockQuery = createMockQuery({ output: 'user.name: John Doe' });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
-
-      const config = { ...basicStageConfig, outputs: ['user.name'] };
-      const result = await executor.executeStage(config, runningPipelineState);
-
-      expect(result.extractedData).toBeDefined();
-      expect(result.extractedData['user.name']).toBe('John Doe');
-    });
-  });
+  // REMOVED: "extractOutputs" describe block
+  // These tests were testing runtime-specific regex extraction functionality that was moved
+  // to runtime implementations during Phase 3 refactoring. This functionality is properly
+  // tested in claude-sdk-runtime.test.ts and claude-code-headless-runtime.test.ts.
+  // StageExecutor simply passes through whatever extractedData the runtime returns.
 
   describe('calculateDuration', () => {
     beforeEach(() => {
@@ -1399,13 +1237,13 @@ describe('StageExecutor', () => {
     });
 
     it('should calculate duration in seconds accurately', async () => {
-      mockQuery.mockImplementation(async function* () {
+      // Mock runtime execution with delay
+      mockRuntime.execute.mockImplementation(async () => {
         await new Promise(resolve => setTimeout(resolve, 1000));
-        yield {
-          type: 'assistant',
-          message: {
-            content: [{ type: 'text', text: 'Mock agent response' }],
-          },
+        return {
+          textOutput: 'Mock agent response',
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         };
       });
 
@@ -1439,12 +1277,15 @@ describe('StageExecutor', () => {
     });
 
     it('should capture timeout error with timeout increase suggestion', async () => {
-      const longQuery = vi.fn().mockImplementation(async function* () {
+      // Mock runtime execution that times out
+      mockRuntime.execute.mockImplementation(async () => {
         await new Promise((resolve) => setTimeout(resolve, 150000));
-        yield { type: 'assistant', message: { content: [] } };
+        return {
+          textOutput: '',
+          tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+          numTurns: 0
+        };
       });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = longQuery;
 
       const promise = executor.executeStage(basicStageConfig, runningPipelineState);
       await vi.advanceTimersByTimeAsync(120001);
@@ -1456,8 +1297,8 @@ describe('StageExecutor', () => {
     });
 
     it('should capture API error with API key suggestion', async () => {
-      const mockQuery = createMockQuery({ error: new Error('API 401: Unauthorized') });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+      // Mock runtime execution failure with API error
+      mockRuntime.execute.mockRejectedValue(new Error('API 401: Unauthorized'));
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -1465,8 +1306,8 @@ describe('StageExecutor', () => {
     });
 
     it('should capture YAML parse error with syntax suggestion', async () => {
-      const mockQuery = createMockQuery({ error: new Error('YAML parse error') });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+      // Mock runtime execution failure with YAML error
+      mockRuntime.execute.mockRejectedValue(new Error('YAML parse error'));
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -1483,8 +1324,8 @@ describe('StageExecutor', () => {
     });
 
     it('should handle Error objects', async () => {
-      const mockQuery = createMockQuery({ error: new Error('Standard error') });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+      // Mock runtime execution failure with standard Error
+      mockRuntime.execute.mockRejectedValue(new Error('Standard error'));
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -1494,11 +1335,8 @@ describe('StageExecutor', () => {
     });
 
     it('should handle non-Error objects (strings)', async () => {
-      const mockQuery = vi.fn().mockImplementation(async function* () {
-        throw 'String error';
-      });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+      // Mock runtime execution failure with string error
+      mockRuntime.execute.mockRejectedValue('String error');
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -1508,8 +1346,8 @@ describe('StageExecutor', () => {
 
     it('should preserve stack trace', async () => {
       const errorWithStack = new Error('Error with stack');
-      const mockQuery = createMockQuery({ error: errorWithStack });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+      // Mock runtime execution failure preserving stack
+      mockRuntime.execute.mockRejectedValue(errorWithStack);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -1520,18 +1358,18 @@ describe('StageExecutor', () => {
   describe('Integration & Edge Cases', () => {
     it('should integrate with RetryHandler callbacks', async () => {
       let callCount = 0;
-      const retryingQuery = vi.fn().mockImplementation(async function* () {
+      // Mock runtime with stateful retries
+      mockRuntime.execute.mockImplementation(async () => {
         callCount++;
         if (callCount <= 2) {
           throw new Error('Retry test');
         }
-        yield {
-          type: 'assistant',
-          message: { content: [{ type: 'text', text: 'Success on retry' }] },
+        return {
+          textOutput: 'Success on retry',
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         };
       });
-
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = retryingQuery;
 
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
@@ -1600,8 +1438,12 @@ describe('StageExecutor', () => {
 
     it('should handle large agent output', async () => {
       const largeOutput = 'A'.repeat(100000); // 100KB output
-      const mockQuery = createMockQuery({ output: largeOutput });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+      // Mock runtime with large output
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: largeOutput,
+        tokenUsage: { inputTokens: 100, outputTokens: 50000, totalTokens: 50100 },
+        numTurns: 1
+      });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
@@ -1735,325 +1577,14 @@ describe('StageExecutor', () => {
     });
   });
 
-  // DEFERRED TO PHASE 7: Tests SDK-specific token usage reporting
-  // See docs/dev/multi-agent-feature-roadmap/multi-agent-architecture-plan.md Phase 7 "Deferred Test Coverage"
-  describe.skip('Token Usage with Cache Metrics', () => {
-    it('should capture token usage with cache metrics from SDK result', async () => {
-      const queryWithCacheMetrics = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [{ type: 'text', text: 'Mock response' }],
-          },
-        };
-        // Yield SDK result message with cache metrics
-        yield {
-          type: 'result',
-          subtype: 'success',
-          usage: {
-            input_tokens: 1000,
-            output_tokens: 500,
-            cache_creation_input_tokens: 200,
-            cache_read_input_tokens: 300,
-          },
-        };
-      });
+  // REMOVED: "Token Usage with Cache Metrics" and "Token Usage with num_turns and thinking_tokens" describe blocks
+  // These tests were testing runtime-specific token normalization functionality. Token usage
+  // normalization (mapping SDK token fields to StageResult format) is tested in individual
+  // runtime implementation test files (claude-sdk-runtime.test.ts, claude-code-headless-runtime.test.ts).
+  // StageExecutor simply passes through the normalized tokenUsage from the runtime.
 
-      // Update the mock query before executing
-      const sdk = await import('@anthropic-ai/claude-agent-sdk');
-      mockQuery = vi.mocked(sdk.query);
-      mockQuery.mockImplementation(queryWithCacheMetrics);
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.tokenUsage).toBeDefined();
-      expect(result.tokenUsage?.actual_input).toBe(1000);
-      expect(result.tokenUsage?.output).toBe(500);
-      expect(result.tokenUsage?.cache_creation).toBe(200);
-      expect(result.tokenUsage?.cache_read).toBe(300);
-    });
-
-    it('should handle token usage without cache metrics', async () => {
-      const queryWithoutCacheMetrics = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [{ type: 'text', text: 'Mock response' }],
-          },
-        };
-        // Yield SDK result without cache metrics
-        yield {
-          type: 'result',
-          subtype: 'success',
-          usage: {
-            input_tokens: 1000,
-            output_tokens: 500,
-          },
-        };
-      });
-
-      // Update the mock query before executing
-      const sdk = await import('@anthropic-ai/claude-agent-sdk');
-      mockQuery = vi.mocked(sdk.query);
-      mockQuery.mockImplementation(queryWithoutCacheMetrics);
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.tokenUsage).toBeDefined();
-      expect(result.tokenUsage?.actual_input).toBe(1000);
-      expect(result.tokenUsage?.output).toBe(500);
-      expect(result.tokenUsage?.cache_creation).toBeUndefined();
-      expect(result.tokenUsage?.cache_read).toBeUndefined();
-    });
-  });
-
-  // DEFERRED TO PHASE 7: Tests SDK-specific token usage reporting (num_turns, thinking_tokens)
-  // See docs/dev/multi-agent-feature-roadmap/multi-agent-architecture-plan.md Phase 7 "Deferred Test Coverage"
-  describe.skip('Token Usage with num_turns and thinking_tokens', () => {
-    it('should capture num_turns from SDK result', async () => {
-      const queryWithNumTurns = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [{ type: 'text', text: 'Mock response' }],
-          },
-        };
-        // Yield SDK result message with num_turns
-        yield {
-          type: 'result',
-          subtype: 'success',
-          num_turns: 3,
-          usage: {
-            input_tokens: 1000,
-            output_tokens: 500,
-          },
-        };
-      });
-
-      // Update the mock query before executing
-      const sdk = await import('@anthropic-ai/claude-agent-sdk');
-      mockQuery = vi.mocked(sdk.query);
-      mockQuery.mockImplementation(queryWithNumTurns);
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.tokenUsage).toBeDefined();
-      expect(result.tokenUsage?.num_turns).toBe(3);
-      expect(result.tokenUsage?.actual_input).toBe(1000);
-      expect(result.tokenUsage?.output).toBe(500);
-    });
-
-    it('should capture thinking_tokens from SDK result', async () => {
-      const queryWithThinkingTokens = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [{ type: 'text', text: 'Mock response' }],
-          },
-        };
-        // Yield SDK result message with thinking_tokens
-        yield {
-          type: 'result',
-          subtype: 'success',
-          usage: {
-            input_tokens: 1000,
-            output_tokens: 500,
-            thinking_tokens: 15000,
-          },
-        };
-      });
-
-      // Update the mock query before executing
-      const sdk = await import('@anthropic-ai/claude-agent-sdk');
-      mockQuery = vi.mocked(sdk.query);
-      mockQuery.mockImplementation(queryWithThinkingTokens);
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.tokenUsage).toBeDefined();
-      expect(result.tokenUsage?.thinking_tokens).toBe(15000);
-      expect(result.tokenUsage?.actual_input).toBe(1000);
-      expect(result.tokenUsage?.output).toBe(500);
-    });
-
-    it('should capture both num_turns and thinking_tokens together with all fields', async () => {
-      const queryWithAllFields = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [{ type: 'text', text: 'Mock response' }],
-          },
-        };
-        // Yield SDK result with all 7 token usage fields
-        yield {
-          type: 'result',
-          subtype: 'success',
-          num_turns: 4,
-          usage: {
-            input_tokens: 25000,
-            output_tokens: 13000,
-            cache_creation_input_tokens: 5000,
-            cache_read_input_tokens: 2000,
-            thinking_tokens: 8000,
-          },
-        };
-      });
-
-      // Update the mock query before executing
-      const sdk = await import('@anthropic-ai/claude-agent-sdk');
-      mockQuery = vi.mocked(sdk.query);
-      mockQuery.mockImplementation(queryWithAllFields);
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.tokenUsage).toBeDefined();
-      expect(result.tokenUsage?.actual_input).toBe(25000);
-      expect(result.tokenUsage?.output).toBe(13000);
-      expect(result.tokenUsage?.cache_creation).toBe(5000);
-      expect(result.tokenUsage?.cache_read).toBe(2000);
-      expect(result.tokenUsage?.num_turns).toBe(4);
-      expect(result.tokenUsage?.thinking_tokens).toBe(8000);
-    });
-
-    it('should handle missing num_turns gracefully (backward compatibility)', async () => {
-      const queryWithoutNumTurns = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [{ type: 'text', text: 'Mock response' }],
-          },
-        };
-        // Yield SDK result without num_turns
-        yield {
-          type: 'result',
-          subtype: 'success',
-          usage: {
-            input_tokens: 1000,
-            output_tokens: 500,
-            thinking_tokens: 2000,
-          },
-        };
-      });
-
-      // Update the mock query before executing
-      const sdk = await import('@anthropic-ai/claude-agent-sdk');
-      mockQuery = vi.mocked(sdk.query);
-      mockQuery.mockImplementation(queryWithoutNumTurns);
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.tokenUsage).toBeDefined();
-      expect(result.tokenUsage?.num_turns).toBeUndefined();
-      expect(result.tokenUsage?.thinking_tokens).toBe(2000);
-      expect(result.tokenUsage?.actual_input).toBe(1000);
-      expect(result.tokenUsage?.output).toBe(500);
-    });
-
-    it('should handle missing thinking_tokens gracefully (backward compatibility)', async () => {
-      const queryWithoutThinkingTokens = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [{ type: 'text', text: 'Mock response' }],
-          },
-        };
-        // Yield SDK result without thinking_tokens
-        yield {
-          type: 'result',
-          subtype: 'success',
-          num_turns: 2,
-          usage: {
-            input_tokens: 1000,
-            output_tokens: 500,
-          },
-        };
-      });
-
-      // Update the mock query before executing
-      const sdk = await import('@anthropic-ai/claude-agent-sdk');
-      mockQuery = vi.mocked(sdk.query);
-      mockQuery.mockImplementation(queryWithoutThinkingTokens);
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.tokenUsage).toBeDefined();
-      expect(result.tokenUsage?.num_turns).toBe(2);
-      expect(result.tokenUsage?.thinking_tokens).toBeUndefined();
-      expect(result.tokenUsage?.actual_input).toBe(1000);
-      expect(result.tokenUsage?.output).toBe(500);
-    });
-
-    it('should handle zero values for new fields', async () => {
-      const queryWithZeroValues = vi.fn().mockImplementation(async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [{ type: 'text', text: 'Mock response' }],
-          },
-        };
-        // Yield SDK result with zero values for new fields
-        yield {
-          type: 'result',
-          subtype: 'success',
-          num_turns: 0,
-          usage: {
-            input_tokens: 1000,
-            output_tokens: 500,
-            thinking_tokens: 0,
-          },
-        };
-      });
-
-      // Update the mock query before executing
-      const sdk = await import('@anthropic-ai/claude-agent-sdk');
-      mockQuery = vi.mocked(sdk.query);
-      mockQuery.mockImplementation(queryWithZeroValues);
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.tokenUsage).toBeDefined();
-      expect(result.tokenUsage?.num_turns).toBe(0);
-      expect(result.tokenUsage?.thinking_tokens).toBe(0);
-      expect(result.tokenUsage?.actual_input).toBe(1000);
-      expect(result.tokenUsage?.output).toBe(500);
-    });
-  });
-
-  // DEFERRED TO PHASE 7: Tests SDK-specific output validation warnings
-  // See docs/dev/multi-agent-feature-roadmap/multi-agent-architecture-plan.md Phase 7 "Deferred Test Coverage"
-  describe.skip('Output Validation Warnings', () => {
+  // Phase 7.2: Runtime-agnostic tests for output validation warnings
+  describe('Output Validation Warnings', () => {
     let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
@@ -2068,26 +1599,16 @@ describe('StageExecutor', () => {
 
     describe('Missing summary field', () => {
       it('should warn when summary is missing and requireSummary is true (default)', async () => {
-        const toolUseQuery = vi.fn().mockImplementation(async function* () {
-          yield {
-            type: 'assistant',
-            message: {
-              content: [{
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    issues_found: 5,
-                    severity: 'high'
-                    // No summary field
-                  }
-                }
-              }]
-            }
-          };
+        mockRuntime.execute.mockResolvedValue({
+          textOutput: '',
+          extractedData: {
+            issues_found: 5,
+            severity: 'high'
+            // No summary field
+          },
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         });
-
-        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
 
         const config = { ...basicStageConfig, outputs: ['issues_found', 'severity'] };
         await executor.executeStage(config, runningPipelineState);
@@ -2098,26 +1619,16 @@ describe('StageExecutor', () => {
       });
 
       it('should not warn when summary is present', async () => {
-        const toolUseQuery = vi.fn().mockImplementation(async function* () {
-          yield {
-            type: 'assistant',
-            message: {
-              content: [{
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    summary: 'Review completed successfully',
-                    issues_found: 5,
-                    severity: 'high'
-                  }
-                }
-              }]
-            }
-          };
+        mockRuntime.execute.mockResolvedValue({
+          textOutput: '',
+          extractedData: {
+            summary: 'Review completed successfully',
+            issues_found: 5,
+            severity: 'high'
+          },
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         });
-
-        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
 
         const config = { ...basicStageConfig, outputs: ['issues_found', 'severity'] };
         await executor.executeStage(config, runningPipelineState);
@@ -2128,25 +1639,15 @@ describe('StageExecutor', () => {
       });
 
       it('should not warn when requireSummary is false', async () => {
-        const toolUseQuery = vi.fn().mockImplementation(async function* () {
-          yield {
-            type: 'assistant',
-            message: {
-              content: [{
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    issues_found: 5
-                    // No summary
-                  }
-                }
-              }]
-            }
-          };
+        mockRuntime.execute.mockResolvedValue({
+          textOutput: '',
+          extractedData: {
+            issues_found: 5
+            // No summary
+          },
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         });
-
-        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
 
         const stateWithNoSummaryRequirement: PipelineState = {
           ...runningPipelineState,
@@ -2174,26 +1675,16 @@ describe('StageExecutor', () => {
 
     describe('Missing expected outputs', () => {
       it('should warn when some expected outputs are missing', async () => {
-        const toolUseQuery = vi.fn().mockImplementation(async function* () {
-          yield {
-            type: 'assistant',
-            message: {
-              content: [{
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    summary: 'Review complete',
-                    issues_found: 5
-                    // Missing: severity, needs_refactor
-                  }
-                }
-              }]
-            }
-          };
+        mockRuntime.execute.mockResolvedValue({
+          textOutput: '',
+          extractedData: {
+            summary: 'Review complete',
+            issues_found: 5
+            // Missing: severity, needs_refactor
+          },
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         });
-
-        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
 
         const config = {
           ...basicStageConfig,
@@ -2207,26 +1698,16 @@ describe('StageExecutor', () => {
       });
 
       it('should warn when all expected outputs are missing', async () => {
-        const toolUseQuery = vi.fn().mockImplementation(async function* () {
-          yield {
-            type: 'assistant',
-            message: {
-              content: [{
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    summary: 'Task complete',
-                    other_field: 'value'
-                    // Missing all expected outputs
-                  }
-                }
-              }]
-            }
-          };
+        mockRuntime.execute.mockResolvedValue({
+          textOutput: '',
+          extractedData: {
+            summary: 'Task complete',
+            other_field: 'value'
+            // Missing all expected outputs
+          },
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         });
-
-        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
 
         const config = {
           ...basicStageConfig,
@@ -2240,27 +1721,17 @@ describe('StageExecutor', () => {
       });
 
       it('should not warn when all expected outputs are present', async () => {
-        const toolUseQuery = vi.fn().mockImplementation(async function* () {
-          yield {
-            type: 'assistant',
-            message: {
-              content: [{
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    summary: 'Review complete',
-                    issues_found: 5,
-                    severity: 'high',
-                    extra_field: 'allowed'  // Extra fields are fine
-                  }
-                }
-              }]
-            }
-          };
+        mockRuntime.execute.mockResolvedValue({
+          textOutput: '',
+          extractedData: {
+            summary: 'Review complete',
+            issues_found: 5,
+            severity: 'high',
+            extra_field: 'allowed'  // Extra fields are fine
+          },
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         });
-
-        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
 
         const config = {
           ...basicStageConfig,
@@ -2274,24 +1745,14 @@ describe('StageExecutor', () => {
       });
 
       it('should not warn when no outputs are configured', async () => {
-        const toolUseQuery = vi.fn().mockImplementation(async function* () {
-          yield {
-            type: 'assistant',
-            message: {
-              content: [{
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    arbitrary_field: 'value'
-                  }
-                }
-              }]
-            }
-          };
+        mockRuntime.execute.mockResolvedValue({
+          textOutput: '',
+          extractedData: {
+            arbitrary_field: 'value'
+          },
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         });
-
-        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
 
         await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -2303,19 +1764,12 @@ describe('StageExecutor', () => {
 
     describe('Tool not called', () => {
       it('should warn when agent does not call report_outputs and outputs are expected', async () => {
-        const textOnlyQuery = vi.fn().mockImplementation(async function* () {
-          yield {
-            type: 'assistant',
-            message: {
-              content: [{
-                type: 'text',
-                text: 'Analysis complete. Found some issues.'
-              }]
-            }
-          };
+        mockRuntime.execute.mockResolvedValue({
+          textOutput: 'Analysis complete. Found some issues.',
+          extractedData: undefined,
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         });
-
-        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = textOnlyQuery;
 
         const config = {
           ...basicStageConfig,
@@ -2332,19 +1786,12 @@ describe('StageExecutor', () => {
       });
 
       it('should not warn when agent does not call tool but no outputs expected', async () => {
-        const textOnlyQuery = vi.fn().mockImplementation(async function* () {
-          yield {
-            type: 'assistant',
-            message: {
-              content: [{
-                type: 'text',
-                text: 'Task completed successfully.'
-              }]
-            }
-          };
+        mockRuntime.execute.mockResolvedValue({
+          textOutput: 'Task completed successfully.',
+          extractedData: undefined,
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         });
-
-        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = textOnlyQuery;
 
         await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -2353,59 +1800,23 @@ describe('StageExecutor', () => {
         );
       });
 
-      it('should use regex fallback when tool not called but warn about missing summary', async () => {
-        const textWithOutputsQuery = vi.fn().mockImplementation(async function* () {
-          yield {
-            type: 'assistant',
-            message: {
-              content: [{
-                type: 'text',
-                text: 'Analysis complete.\nissues_found: 5\nseverity: high'
-              }]
-            }
-          };
-        });
-
-        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = textWithOutputsQuery;
-
-        const config = {
-          ...basicStageConfig,
-          outputs: ['issues_found', 'severity']
-        };
-        const result = await executor.executeStage(config, runningPipelineState);
-
-        // Should extract via regex
-        expect(result.extractedData?.issues_found).toBe('5');
-        expect(result.extractedData?.severity).toBe('high');
-
-        // Should warn about missing summary (regex extraction succeeded, so no "tool not called" warning)
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('did not provide \'summary\' field')
-        );
-      });
+      // REMOVED: "should use regex fallback when tool not called but warn about missing summary"
+      // This test was checking runtime-specific regex extraction behavior.
+      // Covered by: src/__tests__/core/agent-runtimes/claude-sdk-runtime.test.ts
+      // Test: "should use regex extraction when no MCP tool call"
     });
 
     describe('Combined warnings', () => {
       it('should show both summary and missing outputs warnings', async () => {
-        const toolUseQuery = vi.fn().mockImplementation(async function* () {
-          yield {
-            type: 'assistant',
-            message: {
-              content: [{
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    issues_found: 5
-                    // Missing: summary, severity
-                  }
-                }
-              }]
-            }
-          };
+        mockRuntime.execute.mockResolvedValue({
+          textOutput: '',
+          extractedData: {
+            issues_found: 5
+            // Missing: summary, severity
+          },
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         });
-
-        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
 
         const config = {
           ...basicStageConfig,
@@ -2422,26 +1833,16 @@ describe('StageExecutor', () => {
       });
 
       it('should not show any warnings when everything is provided correctly', async () => {
-        const toolUseQuery = vi.fn().mockImplementation(async function* () {
-          yield {
-            type: 'assistant',
-            message: {
-              content: [{
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    summary: 'Review completed successfully',
-                    issues_found: 5,
-                    severity: 'high'
-                  }
-                }
-              }]
-            }
-          };
+        mockRuntime.execute.mockResolvedValue({
+          textOutput: '',
+          extractedData: {
+            summary: 'Review completed successfully',
+            issues_found: 5,
+            severity: 'high'
+          },
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         });
-
-        vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = toolUseQuery;
 
         const config = {
           ...basicStageConfig,
@@ -2458,17 +1859,13 @@ describe('StageExecutor', () => {
     });
   });
 
-  // DEFERRED TO PHASE 7: Tests SDK-specific permission mode configuration
-  // See docs/dev/multi-agent-feature-roadmap/multi-agent-architecture-plan.md Phase 7 "Deferred Test Coverage"
-  describe.skip('Permission Mode', () => {
+  // Phase 7.2: Runtime-agnostic tests for permission mode configuration
+  describe('Permission Mode', () => {
     it('should use acceptEdits permission mode by default when not specified', async () => {
-      const { query } = await import('@anthropic-ai/claude-agent-sdk');
-      const mockQuery = query as any;
-
       const state = { ...runningPipelineState };
       await executor.executeStage(basicStageConfig, state);
 
-      expect(mockQuery).toHaveBeenCalledWith(
+      expect(mockRuntime.execute).toHaveBeenCalledWith(
         expect.objectContaining({
           options: expect.objectContaining({
             permissionMode: 'acceptEdits'
@@ -2478,9 +1875,6 @@ describe('StageExecutor', () => {
     });
 
     it('should use configured permission mode from pipeline settings', async () => {
-      const { query } = await import('@anthropic-ai/claude-agent-sdk');
-      const mockQuery = query as any;
-
       const state = {
         ...runningPipelineState,
         pipelineConfig: {
@@ -2494,7 +1888,7 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, state);
 
-      expect(mockQuery).toHaveBeenCalledWith(
+      expect(mockRuntime.execute).toHaveBeenCalledWith(
         expect.objectContaining({
           options: expect.objectContaining({
             permissionMode: 'default'
@@ -2504,9 +1898,6 @@ describe('StageExecutor', () => {
     });
 
     it('should support plan permission mode', async () => {
-      const { query } = await import('@anthropic-ai/claude-agent-sdk');
-      const mockQuery = query as any;
-
       const state = {
         ...runningPipelineState,
         pipelineConfig: {
@@ -2520,7 +1911,7 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, state);
 
-      expect(mockQuery).toHaveBeenCalledWith(
+      expect(mockRuntime.execute).toHaveBeenCalledWith(
         expect.objectContaining({
           options: expect.objectContaining({
             permissionMode: 'plan'
@@ -2530,9 +1921,6 @@ describe('StageExecutor', () => {
     });
 
     it('should support bypassPermissions mode', async () => {
-      const { query } = await import('@anthropic-ai/claude-agent-sdk');
-      const mockQuery = query as any;
-
       const state = {
         ...runningPipelineState,
         pipelineConfig: {
@@ -2546,7 +1934,7 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, state);
 
-      expect(mockQuery).toHaveBeenCalledWith(
+      expect(mockRuntime.execute).toHaveBeenCalledWith(
         expect.objectContaining({
           options: expect.objectContaining({
             permissionMode: 'bypassPermissions'
