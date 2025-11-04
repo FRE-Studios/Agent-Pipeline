@@ -47,8 +47,9 @@ export class PipelineRunner {
     this.projectConfigLoader = new ProjectConfigLoader(repoPath);
     this.loopStateManager = new LoopStateManager(repoPath);
 
-    // Get Claude SDK runtime from registry (for internal operations like context reduction)
-    // Note: Pipeline stages use runtime from pipeline config (default: claude-code-headless)
+    // Get Claude SDK runtime from registry (used as fallback for internal operations)
+    // Note: StageExecutor resolves runtime per-stage (stage → pipeline → default)
+    // Note: ContextReducer defaults to claude-code-headless (or SDK if unavailable)
     this.runtime = AgentRuntimeRegistry.getRuntime('claude-sdk');
 
     // Initialize orchestration components
