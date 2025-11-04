@@ -202,14 +202,15 @@ describe('StageExecutor', () => {
 
     it('should execute successfully after retries (test 1)', async () => {
       let callCount = 0;
-      mockQuery.mockImplementation(async function* () {
+      mockRuntime.execute.mockImplementation(async () => {
         callCount++;
         if (callCount === 1) {
           throw new Error('First attempt failed');
         }
-        yield {
-          type: 'assistant',
-          message: { content: [{ type: 'text', text: 'Success after retry' }] },
+        return {
+          textOutput: 'Success after retry',
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+          numTurns: 1
         };
       });
 
@@ -514,9 +515,7 @@ describe('StageExecutor', () => {
 
   describe('executeStage - Failure Scenarios', () => {
     it('should handle agent execution failure without retry', async () => {
-      mockQuery.mockImplementation(async function* () {
-        throw new Error('Agent execution failed');
-      });
+      mockRuntime.execute.mockRejectedValue(new Error('Agent execution failed'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
@@ -529,9 +528,7 @@ describe('StageExecutor', () => {
     });
 
     it('should handle agent execution failure after max retries', async () => {
-      mockQuery.mockImplementation(async function* () {
-        throw new Error('Persistent failure');
-      });
+      mockRuntime.execute.mockRejectedValue(new Error('Persistent failure'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
@@ -553,14 +550,9 @@ describe('StageExecutor', () => {
     });
 
     it('should handle agent timeout error', async () => {
-      mockQuery.mockImplementation(async function* () {
-        // Simulate a query that takes too long
-        await new Promise((resolve) => setTimeout(resolve, 200000)); // 200 seconds
-        yield {
-          type: 'assistant',
-          message: { content: [{ type: 'text', text: 'Too late' }] },
-        };
-      });
+      mockRuntime.execute.mockImplementation(() =>
+        new Promise((resolve) => setTimeout(resolve, 200000)) // 200 seconds - exceeds timeout
+      );
 
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
@@ -594,8 +586,7 @@ describe('StageExecutor', () => {
     });
 
     it('should handle API authentication error', async () => {
-      const mockQuery = createMockQuery({ error: new Error('API error: 401 Unauthorized') });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+      mockRuntime.execute.mockRejectedValue(new Error('API error: 401 Unauthorized'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
@@ -608,8 +599,7 @@ describe('StageExecutor', () => {
     });
 
     it('should handle YAML parsing error', async () => {
-      const mockQuery = createMockQuery({ error: new Error('YAML parse error: invalid syntax') });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+      mockRuntime.execute.mockRejectedValue(new Error('YAML parse error: invalid syntax'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
@@ -636,8 +626,7 @@ describe('StageExecutor', () => {
     });
 
     it('should handle generic errors', async () => {
-      const mockQuery = createMockQuery({ error: new Error('Unknown error occurred') });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+      mockRuntime.execute.mockRejectedValue(new Error('Unknown error occurred'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
@@ -651,8 +640,7 @@ describe('StageExecutor', () => {
     });
 
     it('should include retry info in error message', async () => {
-      const mockQuery = createMockQuery({ error: new Error('Failed after retries') });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+      mockRuntime.execute.mockRejectedValue(new Error('Failed after retries'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
@@ -672,8 +660,7 @@ describe('StageExecutor', () => {
     });
 
     it('should calculate duration even on failure', async () => {
-      const mockQuery = createMockQuery({ error: new Error('Failed') });
-      vi.mocked(await import('@anthropic-ai/claude-agent-sdk')).query = mockQuery;
+      mockRuntime.execute.mockRejectedValue(new Error('Failed'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
