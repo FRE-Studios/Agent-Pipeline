@@ -9,19 +9,38 @@ import * as fs from 'fs/promises';
 // Mock dependencies
 vi.mock('fs/promises');
 
-// Hoist the mock query function
+// Hoist the mock query function (kept for compatibility but not used)
 const { mockQuery } = vi.hoisted(() => ({
   mockQuery: vi.fn()
 }));
 
-// Mock the Claude SDK globally
+// Mock the Claude SDK globally (kept for compatibility)
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: mockQuery
 }));
 
+// Helper to create mock runtime
+function createMockRuntime() {
+  return {
+    type: 'mock-runtime',
+    name: 'Mock Runtime',
+    execute: vi.fn(),
+    getCapabilities: vi.fn().mockReturnValue({
+      supportsStreaming: true,
+      supportsTokenTracking: true,
+      supportsMCP: true,
+      supportsContextReduction: true,
+      availableModels: ['haiku', 'sonnet', 'opus'],
+      permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan']
+    }),
+    validate: vi.fn().mockResolvedValue({ valid: true, errors: [], warnings: [] })
+  };
+}
+
 describe('ContextReducer', () => {
   let contextReducer: ContextReducer;
   let mockGitManager: GitManager;
+  let mockRuntime: ReturnType<typeof createMockRuntime>;
   const repoPath = '/mock/repo';
   const runId = 'test-run-123';
 
@@ -34,7 +53,9 @@ describe('ContextReducer', () => {
       getChangedFiles: vi.fn().mockResolvedValue([])
     } as any;
 
-    contextReducer = new ContextReducer(mockGitManager, repoPath, runId);
+    mockRuntime = createMockRuntime();
+
+    contextReducer = new ContextReducer(mockGitManager, repoPath, runId, mockRuntime);
   });
 
   describe('shouldReduce', () => {
@@ -297,28 +318,16 @@ describe('ContextReducer', () => {
 
       const reducerAgentPath = '.claude/agents/context-reducer.md';
 
-      // Mock the reducer agent response to succeed
-      const mockAsyncIterator = (async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [
-              {
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    summary: 'Context reduced',
-                    critical_findings: []
-                  }
-                }
-              }
-            ]
-          }
-        };
-      })();
-
-      mockQuery.mockReturnValueOnce(mockAsyncIterator as any);
+      // Mock the runtime response to succeed
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: 'Context has been reduced',
+        extractedData: {
+          summary: 'Context reduced',
+          critical_findings: []
+        },
+        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        numTurns: 1
+      });
 
       const result = await contextReducer.runReduction(mockState, mockUpcomingStage, reducerAgentPath);
 
@@ -327,10 +336,8 @@ describe('ContextReducer', () => {
     });
 
     it('should return failed execution when reducer agent fails', async () => {
-      // Mock query to throw error
-      mockQuery.mockImplementationOnce(() => {
-        throw new Error('Agent execution failed');
-      });
+      // Mock runtime to reject
+      mockRuntime.execute.mockRejectedValue(new Error('Agent execution failed'));
 
       const reducerAgentPath = '.claude/agents/context-reducer.md';
       vi.mocked(fs.readFile).mockResolvedValue('# Context Reducer\nReduce context...');
@@ -343,32 +350,16 @@ describe('ContextReducer', () => {
     });
 
     it('should create execution with correct metadata on success', async () => {
-      const mockAsyncIterator = (async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [
-              {
-                type: 'text',
-                text: 'Context has been reduced'
-              },
-              {
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    summary: 'Reduced context from 5 stages',
-                    critical_findings: ['Finding 1'],
-                    metrics: { 'code-review': { issues_found: 5 } }
-                  }
-                }
-              }
-            ]
-          }
-        };
-      })();
-
-      mockQuery.mockReturnValueOnce(mockAsyncIterator as any);
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: 'Context has been reduced',
+        extractedData: {
+          summary: 'Reduced context from 5 stages',
+          critical_findings: ['Finding 1'],
+          metrics: { 'code-review': { issues_found: 5 } }
+        },
+        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        numTurns: 1
+      });
 
       const reducerAgentPath = '.claude/agents/context-reducer.md';
       vi.mocked(fs.readFile).mockResolvedValue('# Context Reducer\nReduce context...');
@@ -440,30 +431,18 @@ describe('ContextReducer', () => {
       expect(needsReduction).toBe(true);
 
       // 2. Mock reducer execution
-      const mockAsyncIterator = (async function* () {
-        yield {
-          type: 'assistant',
-          message: {
-            content: [
-              {
-                type: 'tool_use',
-                name: 'report_outputs',
-                input: {
-                  outputs: {
-                    summary: 'Context reduced from 8 stages',
-                    stage_summaries: {
-                      'stage-1': 'Summary 1',
-                      'stage-2': 'Summary 2'
-                    }
-                  }
-                }
-              }
-            ]
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: 'Context has been reduced from 8 stages',
+        extractedData: {
+          summary: 'Context reduced from 8 stages',
+          stage_summaries: {
+            'stage-1': 'Summary 1',
+            'stage-2': 'Summary 2'
           }
-        };
-      })();
-
-      mockQuery.mockReturnValueOnce(mockAsyncIterator as any);
+        },
+        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        numTurns: 1
+      });
       vi.mocked(fs.readFile).mockResolvedValue('# Context Reducer');
 
       const upcomingStage: AgentStageConfig = {
