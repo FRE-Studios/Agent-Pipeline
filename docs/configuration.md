@@ -104,13 +104,20 @@ agents:
         model: haiku
 ```
 
-**Comparison:**
-- `claude-code-headless`: Full Claude Code tools, local execution, session continuation support
-- `claude-sdk`: Library-based, MCP tools only, used internally for context reduction
+**Available Runtimes:**
+- `claude-code-headless` (default): Full Claude Code tool suite, local execution, session continuation support
+- `claude-sdk`: Library-based execution, MCP tools, used internally for context reduction
 
-**Migration:** To use the Claude Agent SDK explicitly (previous default), add `runtime: { type: 'claude-sdk' }` to your pipeline config.
+**Using Claude SDK Runtime:**
+To use the SDK runtime instead of the default headless runtime, specify it in your pipeline config:
+```yaml
+runtime:
+  type: claude-sdk
+  options:
+    model: sonnet
+```
 
-- `claudeAgent`: Claude Agent SDK specific settings (optional, deprecated in favor of `runtime.options`). If omitted, the SDK uses its own defaults.
+- `claudeAgent`: Alternative configuration for Claude Agent SDK settings (optional). If omitted, the SDK uses its own defaults.
   - `model`: Select Claude model for cost/performance optimization (`haiku`, `sonnet`, or `opus`)
   - `maxTurns`: Maximum conversation turns (prevents runaway agents)
   - `maxThinkingTokens`: Extended thinking budget for complex reasoning tasks
