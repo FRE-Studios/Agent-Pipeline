@@ -173,7 +173,7 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
 
     // System prompt (if provided)
     if (systemPrompt && systemPrompt.trim()) {
-      args.push('--system-prompt', systemPrompt);
+      args.push('--append-system-prompt', systemPrompt);
     }
 
     // User prompt (main task)

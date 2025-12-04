@@ -129,7 +129,7 @@ describe('ClaudeCodeHeadlessRuntime', () => {
           '--print',
           '--output-format',
           'json',
-          '--system-prompt',
+          '--append-system-prompt',
           'You are a test agent',
           'Do something'
         ],
@@ -176,7 +176,7 @@ describe('ClaudeCodeHeadlessRuntime', () => {
           '10',
           '--max-thinking-tokens',
           '1000',
-          '--system-prompt',
+          '--append-system-prompt',
           'System',
           'User'
         ],
@@ -205,7 +205,7 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       await runtime.execute(request);
 
       const args = mockSpawn.mock.calls[0][1];
-      expect(args).not.toContain('--system-prompt');
+      expect(args).not.toContain('--append-system-prompt');
     });
 
     it('should include runtime-specific options', async () => {
