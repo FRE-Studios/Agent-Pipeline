@@ -131,6 +131,8 @@ describe('ClaudeCodeHeadlessRuntime', () => {
           'json',
           '--append-system-prompt',
           'You are a test agent',
+          '--disallowedTools',
+          'WebSearch',
           'Do something'
         ],
         expect.any(Object)
@@ -178,6 +180,8 @@ describe('ClaudeCodeHeadlessRuntime', () => {
           '1000',
           '--append-system-prompt',
           'System',
+          '--disallowedTools',
+          'WebSearch',
           'User'
         ],
         expect.any(Object)
@@ -240,6 +244,101 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       expect(args).toContain('--verbose');
       expect(args).toContain('--customFlag');
       expect(args).toContain('value');
+    });
+
+    it('should use allowedTools when provided (whitelist takes precedence)', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {
+          runtimeOptions: {
+            allowedTools: 'Bash,Read,Write'
+          }
+        }
+      };
+
+      setTimeout(() => {
+        mockProcess.stdout.emit(
+          'data',
+          Buffer.from(JSON.stringify({ result: 'Output' }))
+        );
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      const args = mockSpawn.mock.calls[0][1];
+      expect(args).toContain('--allowedTools');
+      expect(args).toContain('Bash,Read,Write');
+      // Should NOT have disallowedTools when allowedTools is provided
+      expect(args).not.toContain('--disallowedTools');
+    });
+
+    it('should extend default disallowedTools with user additions', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {
+          runtimeOptions: {
+            disallowedTools: 'Bash,Write'
+          }
+        }
+      };
+
+      setTimeout(() => {
+        mockProcess.stdout.emit(
+          'data',
+          Buffer.from(JSON.stringify({ result: 'Output' }))
+        );
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      const args = mockSpawn.mock.calls[0][1] as string[];
+      const disallowedIndex = args.indexOf('--disallowedTools');
+      expect(disallowedIndex).toBeGreaterThan(-1);
+
+      const disallowedValue = args[disallowedIndex + 1];
+      // Should include both default (WebSearch) and user additions
+      expect(disallowedValue).toContain('WebSearch');
+      expect(disallowedValue).toContain('Bash');
+      expect(disallowedValue).toContain('Write');
+    });
+
+    it('should accept allowedTools as array', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {
+          runtimeOptions: {
+            allowedTools: ['Bash', 'Read', 'Edit']
+          }
+        }
+      };
+
+      setTimeout(() => {
+        mockProcess.stdout.emit(
+          'data',
+          Buffer.from(JSON.stringify({ result: 'Output' }))
+        );
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      const args = mockSpawn.mock.calls[0][1];
+      expect(args).toContain('--allowedTools');
+      expect(args).toContain('Bash,Read,Edit');
     });
   });
 

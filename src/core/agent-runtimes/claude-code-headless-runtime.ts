@@ -138,6 +138,13 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
   }
 
   /**
+   * Default tools to disallow in headless mode.
+   * WebSearch is disabled by default as it can slow down pipelines and may not be needed.
+   * Users can override via runtimeOptions.allowedTools or runtimeOptions.disallowedTools.
+   */
+  private static readonly DEFAULT_DISALLOWED_TOOLS = ['WebSearch'];
+
+  /**
    * Build CLI arguments from execution request
    *
    * @param request - Execution request
@@ -176,12 +183,47 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
       args.push('--append-system-prompt', systemPrompt);
     }
 
+    // Tool access control
+    // If user provides explicit allowedTools, use that (whitelist takes precedence)
+    // Otherwise, apply default disallowedTools (can be extended by user)
+    const runtimeOpts = options.runtimeOptions || {};
+
+    if (runtimeOpts.allowedTools) {
+      // User provided explicit whitelist - use it directly
+      const allowedTools = runtimeOpts.allowedTools;
+      const tools = Array.isArray(allowedTools)
+        ? allowedTools.join(',')
+        : String(allowedTools);
+      args.push('--allowedTools', tools);
+    } else {
+      // No whitelist - apply disallowed tools (default + user additions)
+      const disallowed = new Set(ClaudeCodeHeadlessRuntime.DEFAULT_DISALLOWED_TOOLS);
+
+      // Add user-specified disallowed tools
+      if (runtimeOpts.disallowedTools) {
+        const disallowedTools = runtimeOpts.disallowedTools;
+        const userDisallowed = Array.isArray(disallowedTools)
+          ? disallowedTools
+          : String(disallowedTools).split(',').map((t: string) => t.trim());
+        userDisallowed.forEach((tool: string) => disallowed.add(tool));
+      }
+
+      if (disallowed.size > 0) {
+        args.push('--disallowedTools', Array.from(disallowed).join(','));
+      }
+    }
+
     // User prompt (main task)
     args.push(userPrompt);
 
-    // Runtime-specific options
+    // Runtime-specific options (excluding tool options we already handled)
     if (options.runtimeOptions) {
       for (const [key, value] of Object.entries(options.runtimeOptions)) {
+        // Skip tool options - already handled above
+        if (key === 'allowedTools' || key === 'disallowedTools') {
+          continue;
+        }
+
         if (typeof value === 'string') {
           args.push(`--${key}`, value);
         } else if (typeof value === 'boolean' && value) {
