@@ -12,7 +12,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "npx -p typescript tsc && node scripts/copy-templates.mjs",
+    "build": "node node_modules/typescript/bin/tsc && node scripts/copy-templates.mjs",
     "dev": "tsc --watch",
     "test": "vitest",
     "test:unit": "vitest --exclude '**/smoke/claude-cli-e2e.test.ts'",
