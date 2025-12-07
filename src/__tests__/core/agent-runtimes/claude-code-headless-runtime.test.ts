@@ -126,14 +126,14 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
         [
-          '--print',
+          '-p',
+          'Do something',
           '--output-format',
           'json',
           '--append-system-prompt',
           'You are a test agent',
           '--disallowedTools',
-          'WebSearch',
-          'Do something'
+          'WebSearch'
         ],
         expect.any(Object)
       );
@@ -167,7 +167,8 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
         [
-          '--print',
+          '-p',
+          'User',
           '--output-format',
           'json',
           '--permission-mode',
@@ -181,8 +182,7 @@ describe('ClaudeCodeHeadlessRuntime', () => {
           '--append-system-prompt',
           'System',
           '--disallowedTools',
-          'WebSearch',
-          'User'
+          'WebSearch'
         ],
         expect.any(Object)
       );

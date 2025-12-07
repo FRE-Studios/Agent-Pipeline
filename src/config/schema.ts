@@ -90,7 +90,7 @@ export interface PipelineConfig {
   // Notification settings (optional)
   notifications?: NotificationConfig;
 
-  // Runtime configuration (optional, defaults to claude-sdk)
+  // Runtime configuration (optional, defaults to claude-code-headless)
   runtime?: RuntimeConfig;
 
   // Global settings

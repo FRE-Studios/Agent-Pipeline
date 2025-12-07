@@ -22,7 +22,8 @@ export class PipelineValidator {
     this.errors = [];
 
     // P0: Critical validations (always run)
-    this.validateClaudeApiKey();
+    // Runtime-aware validation: only check API key for claude-sdk, check CLI for claude-code-headless
+    this.validateRuntimeEnvironment(config);
     await this.validateGitRepository(repoPath);
 
     // Validate basic structure
@@ -367,7 +368,45 @@ export class PipelineValidator {
   }
 
   /**
+   * Default runtime type when not specified in pipeline config.
+   * Changed from 'claude-sdk' to 'claude-code-headless' as the primary agent harness.
+   */
+  private static readonly DEFAULT_RUNTIME_TYPE = 'claude-code-headless';
+
+  /**
+   * Validate runtime environment based on which runtimes are used.
+   * - claude-sdk: requires ANTHROPIC_API_KEY environment variable
+   * - claude-code-headless: requires `claude` CLI to be installed and authenticated
+   */
+  private validateRuntimeEnvironment(config: PipelineConfig): void {
+    // Collect all runtime types used in the pipeline
+    const usedRuntimes = new Set<string>();
+
+    // Pipeline-level runtime (or default)
+    const pipelineRuntime = config.runtime?.type ?? PipelineValidator.DEFAULT_RUNTIME_TYPE;
+    usedRuntimes.add(pipelineRuntime);
+
+    // Stage-level runtime overrides
+    if (config.agents) {
+      for (const agent of config.agents) {
+        if (agent.runtime?.type) {
+          usedRuntimes.add(agent.runtime.type);
+        }
+      }
+    }
+
+    // Validate based on which runtimes are used
+    if (usedRuntimes.has('claude-sdk')) {
+      this.validateClaudeApiKey();
+    }
+
+    // Note: claude-code-headless validation happens in validateRuntime() via runtime.validate()
+    // which already checks for CLI availability and shows warnings
+  }
+
+  /**
    * Validate Claude API key is set in environment.
+   * Only called when claude-sdk runtime is being used.
    */
   private validateClaudeApiKey(): void {
     const apiKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;

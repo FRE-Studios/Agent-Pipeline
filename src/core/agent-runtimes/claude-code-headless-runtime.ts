@@ -155,7 +155,8 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
     const args: string[] = [];
 
     // Core command arguments
-    args.push('--print'); // Print final result to stdout
+    // -p/--print takes the prompt as its argument value
+    args.push('-p', userPrompt);
     args.push('--output-format', 'json'); // Request JSON output
 
     // Permission mode
@@ -212,9 +213,6 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
         args.push('--disallowedTools', Array.from(disallowed).join(','));
       }
     }
-
-    // User prompt (main task)
-    args.push(userPrompt);
 
     // Runtime-specific options (excluding tool options we already handled)
     if (options.runtimeOptions) {
