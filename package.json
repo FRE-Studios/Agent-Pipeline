@@ -18,6 +18,7 @@
     "test:unit": "vitest --exclude '**/smoke/claude-cli-e2e.test.ts'",
     "test:e2e": "RUN_E2E_TESTS=true vitest src/__tests__/smoke/claude-cli-e2e.test.ts",
     "start": "node dist/index.js",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build"
   },
   "files": [
