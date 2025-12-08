@@ -54,8 +54,11 @@ export class ErrorFactory {
       return `Agent file not found. Check path: ${agentPath}`;
     }
 
-    if (message.includes('timeout') || message.includes('Agent timeout')) {
-      return 'Agent exceeded timeout (default: 15 minutes). Consider increasing timeout in pipeline config or optimizing agent complexity.';
+    if (message.includes('Agent timeout')) {
+      // Extract timeout from message like "Agent timeout after 5 minutes"
+      const match = message.match(/after (\d+) minutes/);
+      const timeoutStr = match ? match[1] : '15';
+      return `Agent exceeded ${timeoutStr}-minute timeout. Consider increasing timeout in pipeline config or optimizing agent complexity.`;
     }
 
     if (message.includes('API') || message.includes('401') || message.includes('403')) {

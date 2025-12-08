@@ -47,10 +47,10 @@ export class PipelineRunner {
     this.projectConfigLoader = new ProjectConfigLoader(repoPath);
     this.loopStateManager = new LoopStateManager(repoPath);
 
-    // Get Claude SDK runtime from registry (used as fallback for internal operations)
-    // Note: StageExecutor resolves runtime per-stage (stage → pipeline → default)
-    // Note: ContextReducer defaults to claude-code-headless (or SDK if unavailable)
-    this.runtime = AgentRuntimeRegistry.getRuntime('claude-sdk');
+    // Get Claude Code Headless runtime as the default (primary agent harness)
+    // Note: StageExecutor resolves runtime per-stage (stage → pipeline → this default)
+    // Note: Pipelines can override by specifying runtime.type in their config
+    this.runtime = AgentRuntimeRegistry.getRuntime('claude-code-headless');
 
     // Initialize orchestration components
     this.initializer = new PipelineInitializer(
@@ -313,8 +313,14 @@ export class PipelineRunner {
   }
 
   private notifyStateChange(state: PipelineState): void {
+    // Clone state to trigger React re-renders (React uses reference equality)
+    const clonedState = {
+      ...state,
+      stages: [...state.stages],
+      artifacts: { ...state.artifacts }
+    };
     for (const callback of this.stateUpdateCallbacks) {
-      callback(state);
+      callback(clonedState);
     }
   }
 

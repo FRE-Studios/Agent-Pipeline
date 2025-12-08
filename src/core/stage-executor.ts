@@ -575,6 +575,7 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
       return result;
     };
 
+    const timeoutMinutes = Math.round(timeout / 1000 / 60);
     const timeoutPromise = new Promise<{
       textOutput: string;
       extractedData?: Record<string, unknown>;
@@ -590,7 +591,7 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
       setTimeout(() => {
         // Clean up warning timers on timeout
         warningTimers.forEach(timer => clearTimeout(timer));
-        reject(new Error('Agent timeout'));
+        reject(new Error(`Agent timeout after ${timeoutMinutes} minutes`));
       }, timeout)
     );
 
