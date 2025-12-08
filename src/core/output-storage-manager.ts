@@ -79,8 +79,7 @@ export class OutputStorageManager {
       name: s.stageName,
       status: s.status,
       duration: s.duration,
-      commitSha: s.commitSha,
-      extractedData: s.extractedData
+      commitSha: s.commitSha
     }));
 
     const filepath = path.join(this.outputDir, 'pipeline-summary.json');

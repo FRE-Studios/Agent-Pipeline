@@ -26,9 +26,6 @@ agents:
     agent: .claude/agents/security-auditor.md
     timeout: 300
     onFail: stop
-    outputs:
-      - vulnerabilities
-      - severity
 
   - name: code-quality
     agent: .claude/agents/quality-checker.md
@@ -40,12 +37,11 @@ agents:
     timeout: 300
     onFail: warn
 
-  # Only proceed with push if critical checks pass
+  # Summarize all checks
   - name: push-approval
     agent: .claude/agents/summary.md
     dependsOn:
       - security-audit
       - code-quality
       - dependency-check
-    condition: "{{ stages.security-audit.outputs.vulnerabilities == 0 }}"
     timeout: 180

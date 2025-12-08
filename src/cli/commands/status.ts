@@ -45,13 +45,6 @@ export async function statusCommand(repoPath: string): Promise<void> {
       console.log(`   Commit: ${stage.commitSha.substring(0, 7)}`);
     }
 
-    if (stage.extractedData && Object.keys(stage.extractedData).length > 0) {
-      console.log(`   Extracted Data:`);
-      for (const [key, value] of Object.entries(stage.extractedData)) {
-        console.log(`     - ${key}: ${value}`);
-      }
-    }
-
     if (stage.error) {
       console.log(`   Error: ${stage.error.message}`);
       if (stage.error.suggestion) {

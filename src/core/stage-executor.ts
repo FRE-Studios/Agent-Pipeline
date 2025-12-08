@@ -3,10 +3,9 @@
 import * as fs from 'fs/promises';
 import { GitManager } from './git-manager.js';
 import { RetryHandler } from './retry-handler.js';
+import { HandoverManager } from './handover-manager.js';
 import { AgentRuntime, AgentExecutionRequest } from './types/agent-runtime.js';
 import { AgentRuntimeRegistry } from './agent-runtime-registry.js';
-import { OutputToolBuilder } from './output-tool-builder.js';
-import { OutputStorageManager } from './output-storage-manager.js';
 import { AgentStageConfig, StageExecution, PipelineState, LoopContext, ClaudeAgentSettings } from '../config/schema.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { ErrorFactory } from '../utils/error-factory.js';
@@ -14,18 +13,15 @@ import { TokenEstimator } from '../utils/token-estimator.js';
 
 export class StageExecutor {
   private retryHandler: RetryHandler;
-  private outputStorageManager: OutputStorageManager;
 
   constructor(
     private gitManager: GitManager,
     private dryRun: boolean,
-    runId: string,
-    repoPath: string,
+    private handoverManager: HandoverManager,
     private defaultRuntime?: AgentRuntime,
     private loopContext?: LoopContext
   ) {
     this.retryHandler = new RetryHandler();
-    this.outputStorageManager = new OutputStorageManager(repoPath, runId);
   }
 
   /**
@@ -181,14 +177,12 @@ export class StageExecutor {
         userPrompt,
         systemPrompt,
         stageConfig.timeout,
-        stageConfig.outputs,
         pipelineState.pipelineConfig.settings?.permissionMode || 'acceptEdits',
         claudeAgentOptions,
         onOutputUpdate
       );
 
       execution.agentOutput = result.textOutput;
-      execution.extractedData = result.extractedData;
 
       // Store token usage (normalized from runtime)
       if (result.tokenUsage) {
@@ -203,45 +197,11 @@ export class StageExecutor {
         };
       }
 
-      // Validate outputs
-      const contextReductionConfig = pipelineState.pipelineConfig.settings?.contextReduction;
-      const requireSummary = contextReductionConfig?.requireSummary ?? true;
-
-      if (execution.extractedData) {
-        // Warn if summary is missing when required
-        if (requireSummary && !execution.extractedData.summary) {
-          console.warn(
-            `⚠️  Stage '${stageConfig.name}' did not provide 'summary' field. ` +
-            `Context reduction may be less effective for downstream stages.`
-          );
-        }
-
-        // Warn if expected outputs are missing
-        if (stageConfig.outputs && stageConfig.outputs.length > 0) {
-          const missing = stageConfig.outputs.filter(key => !(key in execution.extractedData!));
-          if (missing.length > 0) {
-            console.warn(
-              `⚠️  Stage '${stageConfig.name}' did not provide expected outputs: ${missing.join(', ')}`
-            );
-          }
-        }
-      } else if (stageConfig.outputs && stageConfig.outputs.length > 0) {
-        // Agent didn't call report_outputs and regex extraction also failed
-        console.warn(
-          `⚠️  Stage '${stageConfig.name}' did not call report_outputs tool. ` +
-          `Expected outputs: ${stageConfig.outputs.join(', ')}`
-        );
-      }
-
-      // Save outputs to files (if enabled)
-      if (pipelineState.pipelineConfig.settings?.contextReduction?.saveVerboseOutputs !== false) {
-        const outputFiles = await this.outputStorageManager.saveStageOutputs(
-          stageConfig.name,
-          execution.extractedData,
-          execution.agentOutput || ''
-        );
-        execution.outputFiles = outputFiles;
-      }
+      // Save agent output to handover directory
+      await this.handoverManager.saveAgentOutput(
+        stageConfig.name,
+        execution.agentOutput || ''
+      );
 
       // Auto-commit if enabled
       const globalAutoCommit = pipelineState.pipelineConfig.settings?.autoCommit;
@@ -289,6 +249,14 @@ export class StageExecutor {
       execution.endTime = new Date().toISOString();
       execution.duration = this.calculateDuration(execution);
 
+      // Append to handover log
+      await this.handoverManager.appendToLog(
+        stageConfig.name,
+        'success',
+        execution.duration,
+        `Completed ${stageConfig.name}`
+      );
+
       // Log completion with token usage
       console.log(`✅ Stage completed: ${stageConfig.name}`);
       if (execution.tokenUsage) {
@@ -328,41 +296,25 @@ export class StageExecutor {
     stageConfig: AgentStageConfig,
     pipelineState: PipelineState
   ): Promise<string> {
-    // Load config with sensible defaults
-    const config = pipelineState.pipelineConfig.settings?.contextReduction || {
-      enabled: true,
-      maxTokens: 50000,
-      strategy: 'summary-based' as const,
-      contextWindow: 3,
-      requireSummary: true,
-      saveVerboseOutputs: true,
-      compressFileList: true
-    };
+    // Get previous successful stages
+    const previousStages = await this.handoverManager.getPreviousStages();
 
-    // Filter successful previous stages
-    const previousStages = pipelineState.stages.filter(s => s.status === 'success');
+    // Build handover context message
+    const handoverContext = this.handoverManager.buildContextMessage(
+      stageConfig.name,
+      previousStages
+    );
 
-    // Apply context window
-    const contextWindow = config.contextWindow || 3;
-    const recentStages = previousStages.slice(-contextWindow);
-    const olderStages = previousStages.slice(0, -contextWindow);
-
-    // Build recent stages context (summaries + key metrics)
-    const recentStagesContext = this.buildRecentStagesContext(recentStages, pipelineState.runId);
-
-    // Build older stages summary (file references only)
-    const olderStagesContext = this.buildOlderStagesContext(olderStages, pipelineState.runId);
-
-    // Handle changed files (compressed or full)
-    const changedFilesContext = config.compressFileList
-      ? this.buildCompressedFilesContext(pipelineState)
-      : this.buildFullFilesContext(pipelineState);
-
-    // Build output instructions
-    const outputInstructions = OutputToolBuilder.buildOutputInstructions(stageConfig.outputs);
+    // Build changed files context
+    const changedFilesContext = this.buildChangedFilesContext(pipelineState);
 
     // Build loop context section if enabled
     const loopContextSection = this.buildLoopContextSection();
+
+    // Build inputs section
+    const inputsSection = stageConfig.inputs && Object.keys(stageConfig.inputs).length > 0
+      ? `## Stage Inputs\n${JSON.stringify(stageConfig.inputs, null, 2)}`
+      : '';
 
     // Construct full context
     const context = `
@@ -372,89 +324,36 @@ export class StageExecutor {
 **Current Stage:** ${stageConfig.name}
 **Trigger Commit:** ${pipelineState.trigger.commitSha}
 
-${recentStagesContext}
-
-${olderStagesContext}
+${handoverContext}
 
 ${changedFilesContext}
 
 ${loopContextSection}
 
-## Your Task
-${JSON.stringify(stageConfig.inputs || {}, null, 2)}
-
-${outputInstructions ? `\n${outputInstructions}\n` : ''}
-
----
-**Note:** Use the Read tool to access full outputs if you need detailed information.
+${inputsSection}
     `.trim();
-
-    // Check token count and warn if needed
-    if (config.enabled) {
-      await this.checkContextTokens(context, config);
-    }
 
     return context;
   }
 
-  private buildRecentStagesContext(
-    recentStages: import('../config/schema.js').StageExecution[],
-    _runId: string
-  ): string {
-    if (recentStages.length === 0) return '';
+  private buildChangedFilesContext(pipelineState: PipelineState): string {
+    const files = pipelineState.artifacts.changedFiles;
+    if (files.length === 0) return '';
 
-    const stageContexts = recentStages.map(s => {
-      // Extract summary (if exists)
-      const summary = s.extractedData?.summary
-        ? String(s.extractedData.summary)
-        : 'No summary provided';
+    if (files.length > 20) {
+      // Compress long file lists
+      const byDir: Record<string, number> = {};
+      files.forEach(f => {
+        const dir = f.split('/').slice(0, -1).join('/') || '.';
+        byDir[dir] = (byDir[dir] || 0) + 1;
+      });
+      const summary = Object.entries(byDir)
+        .map(([dir, count]) => `  ${dir}/ (${count} files)`)
+        .join('\n');
+      return `## Changed Files Summary\n${files.length} files changed:\n${summary}`;
+    }
 
-      // Extract key metrics (all outputs except summary)
-      const keyMetrics = Object.entries(s.extractedData || {})
-        .filter(([key]) => key !== 'summary')
-        .map(([key, value]) => `${key}=${value}`)
-        .join(', ');
-
-      // Build file reference (if saved)
-      const fileReference = s.outputFiles?.structured
-        ? `- **Full Output:** ${s.outputFiles.structured}`
-        : '';
-
-      return `
-### ${s.stageName}
-- **Summary:** ${summary}
-${keyMetrics ? `- **Key Metrics:** ${keyMetrics}` : ''}
-- **Commit:** ${s.commitSha || 'No commit'}
-${fileReference}
-      `.trim();
-    }).join('\n\n');
-
-    return `## Previous Stages (Last ${recentStages.length} in context window)\n\n${stageContexts}`;
-  }
-
-  private buildOlderStagesContext(
-    olderStages: import('../config/schema.js').StageExecution[],
-    runId: string
-  ): string {
-    if (olderStages.length === 0) return '';
-
-    const stageNames = olderStages.map(s => s.stageName).join(', ');
-    return `## Earlier Stages\nStages ${stageNames} completed. Full history: .agent-pipeline/outputs/${runId}/pipeline-summary.json\n`;
-  }
-
-  private buildCompressedFilesContext(pipelineState: PipelineState): string {
-    const compressed = this.outputStorageManager.compressFileList(
-      pipelineState.artifacts.changedFiles
-    );
-
-    return `## Changed Files Summary
-${compressed}
-Full list: .agent-pipeline/outputs/${pipelineState.runId}/changed-files.txt`;
-  }
-
-  private buildFullFilesContext(pipelineState: PipelineState): string {
-    const files = pipelineState.artifacts.changedFiles.join('\n');
-    return `## Changed Files\n${files}`;
+    return `## Changed Files\n${files.map(f => `- ${f}`).join('\n')}`;
   }
 
   private buildLoopContextSection(): string {
@@ -480,36 +379,12 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
 `.trim();
   }
 
-  private async checkContextTokens(
-    context: string,
-    config: { enabled: boolean; maxTokens: number }
-  ): Promise<void> {
-    const tokenEstimator = new TokenEstimator();
-    const { tokens, method } = await tokenEstimator.smartCount(context, config.maxTokens);
-    tokenEstimator.dispose();
-
-    const percentage = (tokens / config.maxTokens) * 100;
-
-    if (tokens > config.maxTokens) {
-      console.warn(
-        `⚠️  Context size (${PipelineFormatter.formatTokenCount(tokens)} tokens, ${percentage.toFixed(0)}%) ` +
-        `exceeds limit (${PipelineFormatter.formatTokenCount(config.maxTokens)}). ` +
-        `Consider reducing contextWindow or using agent-based reduction.`
-      );
-    } else if (tokens > config.maxTokens * 0.8) {
-      console.log(
-        `ℹ️  Context size: ${PipelineFormatter.formatTokenCount(tokens)} tokens ` +
-        `(${method}, ${percentage.toFixed(0)}% of limit, approaching threshold)`
-      );
-    }
-  }
 
   private async runAgentWithTimeout(
     runtime: AgentRuntime,
     userPrompt: string,
     systemPrompt: string,
     timeoutSeconds?: number,
-    outputKeys?: string[],
     permissionMode: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' = 'acceptEdits',
     claudeAgentOptions?: Partial<{
       model: 'haiku' | 'sonnet' | 'opus';
@@ -519,7 +394,6 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
     onOutputUpdate?: (output: string) => void
   ): Promise<{
     textOutput: string;
-    extractedData?: Record<string, unknown>;
     tokenUsage?: {
       inputTokens: number;
       outputTokens: number;
@@ -557,7 +431,6 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
         userPrompt,
         options: {
           timeout: timeoutSeconds,
-          outputKeys,
           permissionMode,
           model: claudeAgentOptions?.model,
           maxTurns: claudeAgentOptions?.maxTurns,
@@ -578,7 +451,6 @@ This pipeline is running in LOOP MODE. After completion, the orchestrator will c
     const timeoutMinutes = Math.round(timeout / 1000 / 60);
     const timeoutPromise = new Promise<{
       textOutput: string;
-      extractedData?: Record<string, unknown>;
       tokenUsage?: {
         inputTokens: number;
         outputTokens: number;

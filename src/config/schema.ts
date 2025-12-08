@@ -102,6 +102,9 @@ export interface PipelineConfig {
     executionMode?: 'sequential' | 'parallel'; // Execution strategy (default: parallel with DAG)
     contextReduction?: ContextReductionConfig; // Context reduction settings
     permissionMode?: PermissionMode;   // Permission mode for agents (default: 'acceptEdits')
+    handover?: {
+      directory?: string;             // Handover directory (default: {pipeline-name}-{runId}/)
+    };
   };
 
   agents: AgentStageConfig[];
@@ -142,9 +145,8 @@ export interface AgentStageConfig {
   onFail?: 'stop' | 'continue' | 'warn';
   timeout?: number;                    // Max execution time (seconds). Default: 900 (15 min). Warnings at 5, 10, 13 min.
 
-  // Dependencies and conditions
+  // Dependencies
   dependsOn?: string[];                // Stage names this stage depends on
-  condition?: string;                  // Template expression (e.g., "{{ stages.code-review.outputs.issues > 0 }}")
 
   // Retry behavior
   retry?: RetryConfig;                 // Retry configuration
@@ -155,7 +157,6 @@ export interface AgentStageConfig {
 
   // Context passing
   inputs?: Record<string, string>;     // Additional context for agent
-  outputs?: string[];                  // Keys to extract from agent response
 }
 
 export interface PipelineState {
@@ -176,6 +177,7 @@ export interface PipelineState {
     finalCommit?: string;
     changedFiles: string[];
     totalDuration: number;
+    handoverDir?: string;                 // Path to handover directory
     pullRequest?: {                       // Pull request info (if created)
       url: string;
       number: number;
@@ -206,13 +208,6 @@ export interface StageExecution {
   commitMessage?: string;
 
   agentOutput?: string;                // Raw agent response
-  extractedData?: Record<string, any>; // Parsed outputs
-
-  // Output file paths (for context reduction)
-  outputFiles?: {
-    structured: string;                // Path: .agent-pipeline/outputs/{runId}/{stage}-output.json
-    raw: string;                       // Path: .agent-pipeline/outputs/{runId}/{stage}-raw.md
-  };
 
   // Token usage tracking
   tokenUsage?: {
@@ -228,10 +223,6 @@ export interface StageExecution {
   // Retry tracking
   retryAttempt?: number;               // Current retry attempt (0 = first try)
   maxRetries?: number;                 // Max retry attempts configured
-
-  // Conditional execution
-  conditionEvaluated?: boolean;        // Was a condition evaluated?
-  conditionResult?: boolean;           // Result of condition evaluation
 
   error?: {
     message: string;

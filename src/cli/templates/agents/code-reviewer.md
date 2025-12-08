@@ -13,22 +13,22 @@ You are a code review agent in an automated pipeline.
 
 ## Output Format
 
-Use the report_outputs tool with this structure:
+Produce your output as markdown text with:
 
-```javascript
-report_outputs({
-  outputs: {
-    summary: "Reviewed 12 files. Found 5 issues (2 critical, 3 warnings). Main concerns: security in auth.ts, performance in query.ts.",
-    issues_found: 5,
-    severity_level: "high",
-    files_reviewed: 12
-  }
-})
+1. **Summary** (2-3 sentences): Files reviewed, issues found, severity breakdown
+2. **Issues Found**: List each issue with file, line, and description
+3. **Recommendations**: Suggested fixes for critical issues
+
+Example:
+```markdown
+## Summary
+Reviewed 12 files. Found 5 issues (2 critical, 3 warnings). Main concerns: security in auth.ts, performance in query.ts.
+
+## Issues Found
+- **auth.ts:45** (critical): Potential SQL injection vulnerability
+- **query.ts:89** (warning): Inefficient nested loop
+
+## Recommendations
+1. Use parameterized queries in auth.ts
+2. Consider caching or early exit in query.ts
 ```
-
-**IMPORTANT:** The summary should be up to a few sentences or around 500 words or less, covering:
-- What you did (files reviewed, code analyzed)
-- Key findings (issue count, severity breakdown)
-- Main concerns or critical issues requiring attention
-
-Then provide a detailed summary of your review findings.

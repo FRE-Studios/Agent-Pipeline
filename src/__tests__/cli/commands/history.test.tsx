@@ -40,8 +40,7 @@ describe('HistoryBrowser', () => {
         startTime: '2024-01-15T10:00:00Z',
         endTime: '2024-01-15T10:00:05Z',
         duration: 5.0,
-        commitSha: 'abc1234',
-        extractedData: { test_key: 'test_value' }
+        commitSha: 'abc1234'
       }
     ],
     artifacts: {
@@ -267,9 +266,6 @@ describe('HistoryBrowser', () => {
       expect(output).toContain('test-stage');
       expect(output).toContain('Commit:');
       expect(output).toContain('abc1234');
-      expect(output).toContain('Extracted Data:');
-      expect(output).toContain('test_key');
-      expect(output).toContain('test_value');
     });
 
     it('should exit detail view on q key', async () => {
@@ -672,19 +668,19 @@ describe('HistoryBrowser', () => {
       expect(output).toContain('Check your configuration');
     });
 
-    it('should handle stages without extracted data', async () => {
-      const runWithoutData: PipelineState = {
+    it('should handle stages without commit sha', async () => {
+      const runWithoutCommit: PipelineState = {
         ...mockRun,
         stages: [
           {
             ...mockRun.stages[0],
-            extractedData: undefined
+            commitSha: undefined
           }
         ]
       };
 
       vi.mocked(StateManager).mockImplementation(() => ({
-        getAllRuns: vi.fn().mockResolvedValue([runWithoutData])
+        getAllRuns: vi.fn().mockResolvedValue([runWithoutCommit])
       } as any));
 
       const { lastFrame, stdin } = render(<HistoryBrowser repoPath={mockRepoPath} />);

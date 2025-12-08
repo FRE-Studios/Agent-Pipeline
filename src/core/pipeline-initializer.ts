@@ -5,6 +5,7 @@ import { GitManager } from './git-manager.js';
 import { BranchManager } from './branch-manager.js';
 import { StageExecutor } from './stage-executor.js';
 import { ParallelExecutor } from './parallel-executor.js';
+import { HandoverManager } from './handover-manager.js';
 import { AgentRuntime } from './types/agent-runtime.js';
 import { PipelineConfig, PipelineState, LoopContext, PipelineMetadata } from '../config/schema.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
@@ -14,6 +15,7 @@ export interface InitializationResult {
   state: PipelineState;
   stageExecutor: StageExecutor;
   parallelExecutor: ParallelExecutor;
+  handoverManager: HandoverManager;
   pipelineBranch?: string;
   originalBranch: string;
   notificationManager?: NotificationManager;
@@ -78,12 +80,23 @@ export class PipelineInitializer {
       options.metadata
     );
 
+    // Create and initialize handover manager
+    const handoverManager = new HandoverManager(
+      this.repoPath,
+      config.name,
+      runId,
+      config.settings?.handover
+    );
+    await handoverManager.initialize();
+
+    // Store handover directory in state
+    state.artifacts.handoverDir = handoverManager.getHandoverDir();
+
     // Create executors
     const stageExecutor = new StageExecutor(
       this.gitManager,
       this.dryRun,
-      state.runId,
-      this.repoPath,
+      handoverManager,
       this.runtime,  // Optional: used as fallback if no runtime config specified
       options.loopContext
     );
@@ -110,6 +123,7 @@ export class PipelineInitializer {
       state,
       stageExecutor,
       parallelExecutor,
+      handoverManager,
       pipelineBranch,
       originalBranch,
       notificationManager,

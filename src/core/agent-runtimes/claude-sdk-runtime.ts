@@ -52,12 +52,6 @@ export class ClaudeSDKRuntime implements AgentRuntime {
       captureTokenUsage: true
     });
 
-    // If no tool call was made, fall back to regex extraction
-    let extractedData = result.extractedData;
-    if (!extractedData && options.outputKeys && options.outputKeys.length > 0) {
-      extractedData = this.extractOutputsRegex(result.textOutput, options.outputKeys);
-    }
-
     // Normalize token usage to standard format
     const tokenUsage = result.tokenUsage
       ? this.normalizeTokenUsage(result.tokenUsage)
@@ -65,7 +59,6 @@ export class ClaudeSDKRuntime implements AgentRuntime {
 
     return {
       textOutput: result.textOutput,
-      extractedData,
       tokenUsage,
       numTurns: result.numTurns,
       metadata: {
@@ -146,42 +139,4 @@ export class ClaudeSDKRuntime implements AgentRuntime {
     };
   }
 
-  /**
-   * Extract outputs using regex pattern matching (fallback when no MCP tool call)
-   *
-   * Moved from StageExecutor to centralize extraction logic in the runtime.
-   *
-   * @param agentOutput - Text output from agent
-   * @param outputKeys - Expected output keys to extract
-   * @returns Extracted key-value pairs or undefined if none found
-   */
-  private extractOutputsRegex(
-    agentOutput: string,
-    outputKeys: string[]
-  ): Record<string, unknown> | undefined {
-    if (outputKeys.length === 0) return undefined;
-
-    const extracted: Record<string, unknown> = {};
-
-    for (const key of outputKeys) {
-      const escapedKey = this.escapeRegex(key);
-      const regex = new RegExp(`${escapedKey}:\\s*(.+)`, 'i');
-      const match = agentOutput.match(regex);
-      if (match) {
-        extracted[key] = match[1].trim();
-      }
-    }
-
-    return Object.keys(extracted).length > 0 ? extracted : undefined;
-  }
-
-  /**
-   * Escape special regex characters
-   *
-   * @param string - String to escape
-   * @returns Escaped string safe for regex
-   */
-  private escapeRegex(string: string): string {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
 }

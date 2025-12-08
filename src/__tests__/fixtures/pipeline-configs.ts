@@ -43,17 +43,14 @@ export const parallelPipelineConfig: PipelineConfig = {
     {
       name: 'review',
       agent: '.claude/agents/reviewer.md',
-      outputs: ['issues_found', 'severity'],
     },
     {
       name: 'security',
       agent: '.claude/agents/security.md',
-      outputs: ['vulnerabilities'],
     },
     {
       name: 'quality',
       agent: '.claude/agents/quality.md',
-      outputs: ['score'],
     },
     {
       name: 'summary',
@@ -80,19 +77,16 @@ export const conditionalPipelineConfig: PipelineConfig = {
     {
       name: 'code-review',
       agent: '.claude/agents/reviewer.md',
-      outputs: ['issues_found', 'severity'],
     },
     {
       name: 'auto-fix',
       agent: '.claude/agents/fixer.md',
       dependsOn: ['code-review'],
-      condition: '{{ stages.code-review.outputs.issues_found > 0 }}',
     },
     {
       name: 'celebrate',
       agent: '.claude/agents/celebration.md',
       dependsOn: ['code-review'],
-      condition: '{{ stages.code-review.outputs.issues_found == 0 }}',
     },
   ],
 };
@@ -282,21 +276,18 @@ export const sdkOnlyPipelineConfig: PipelineConfig = {
       name: 'sdk-stage-1',
       agent: '.claude/agents/stage1.md',
       timeout: 60,
-      outputs: ['result'],
     },
     {
       name: 'sdk-stage-2',
       agent: '.claude/agents/stage2.md',
       timeout: 60,
       dependsOn: ['sdk-stage-1'],
-      outputs: ['analysis'],
     },
     {
       name: 'sdk-stage-3',
       agent: '.claude/agents/stage3.md',
       timeout: 60,
       dependsOn: ['sdk-stage-2'],
-      outputs: ['summary'],
     },
   ],
 };
@@ -318,21 +309,18 @@ export const headlessOnlyPipelineConfig: PipelineConfig = {
       name: 'headless-stage-1',
       agent: '.claude/agents/stage1.md',
       timeout: 60,
-      outputs: ['result'],
     },
     {
       name: 'headless-stage-2',
       agent: '.claude/agents/stage2.md',
       timeout: 60,
       dependsOn: ['headless-stage-1'],
-      outputs: ['analysis'],
     },
     {
       name: 'headless-stage-3',
       agent: '.claude/agents/stage3.md',
       timeout: 60,
       dependsOn: ['headless-stage-2'],
-      outputs: ['summary'],
     },
   ],
 };
@@ -358,7 +346,6 @@ export const mixedRuntimePipelineConfig: PipelineConfig = {
         type: 'claude-sdk', // Override to SDK
         options: { model: 'haiku' },
       },
-      outputs: ['sdk_result'],
     },
     {
       name: 'mixed-stage-2',
@@ -366,7 +353,6 @@ export const mixedRuntimePipelineConfig: PipelineConfig = {
       timeout: 60,
       dependsOn: ['mixed-stage-1'],
       // Uses global default (headless)
-      outputs: ['headless_analysis'],
     },
     {
       name: 'mixed-stage-3',
@@ -377,7 +363,6 @@ export const mixedRuntimePipelineConfig: PipelineConfig = {
         type: 'claude-sdk', // Override back to SDK
         options: { model: 'sonnet' },
       },
-      outputs: ['sdk_summary'],
     },
   ],
 };
@@ -400,7 +385,6 @@ export const parallelMixedPipelineConfig: PipelineConfig = {
       runtime: {
         type: 'claude-sdk',
       },
-      outputs: ['initial_data'],
     },
     {
       name: 'parallel-sdk',
@@ -411,7 +395,6 @@ export const parallelMixedPipelineConfig: PipelineConfig = {
         type: 'claude-sdk',
         options: { model: 'haiku' },
       },
-      outputs: ['sdk_analysis'],
     },
     {
       name: 'parallel-headless',
@@ -421,7 +404,6 @@ export const parallelMixedPipelineConfig: PipelineConfig = {
       runtime: {
         type: 'claude-code-headless',
       },
-      outputs: ['headless_check'],
     },
     {
       name: 'final-stage',
@@ -431,7 +413,6 @@ export const parallelMixedPipelineConfig: PipelineConfig = {
       runtime: {
         type: 'claude-code-headless',
       },
-      outputs: ['combined_result'],
     },
   ],
 };

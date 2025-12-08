@@ -14,9 +14,6 @@ agents:
   - name: storyteller
     agent: .claude/agents/storyteller.md
     timeout: 300
-    outputs:
-      - statement_count
-      - lie_index
 
   # STAGE 2: Five detectives analyze in parallel
   - name: logician
@@ -24,45 +21,30 @@ agents:
     dependsOn:
       - storyteller
     timeout: 300
-    outputs:
-      - guess
-      - confidence
 
   - name: empath
     agent: .claude/agents/detective-empath.md
     dependsOn:
       - storyteller
     timeout: 300
-    outputs:
-      - guess
-      - confidence
 
   - name: statistician
     agent: .claude/agents/detective-statistician.md
     dependsOn:
       - storyteller
     timeout: 300
-    outputs:
-      - guess
-      - confidence
 
   - name: linguist
     agent: .claude/agents/detective-linguist.md
     dependsOn:
       - storyteller
     timeout: 300
-    outputs:
-      - guess
-      - confidence
 
   - name: skeptic
     agent: .claude/agents/detective-skeptic.md
     dependsOn:
       - storyteller
     timeout: 300
-    outputs:
-      - guess
-      - confidence
 
   # STAGE 3: Synthesizer combines detective reasoning
   - name: synthesizer
@@ -74,9 +56,6 @@ agents:
       - linguist
       - skeptic
     timeout: 300
-    outputs:
-      - final_guess
-      - reasoning_summary
 
   # STAGE 4: Judge reveals truth and scores
   - name: judge
@@ -84,7 +63,3 @@ agents:
     dependsOn:
       - synthesizer
     timeout: 300
-    outputs:
-      - correct_detectives
-      - incorrect_detectives
-      - winner

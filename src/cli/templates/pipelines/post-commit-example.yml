@@ -49,9 +49,6 @@ agents:
   - name: code-review
     agent: .claude/agents/code-reviewer.md
     timeout: 300
-    outputs:
-      - issues_found
-      - severity_level
 
   - name: quality-check
     agent: .claude/agents/quality-checker.md

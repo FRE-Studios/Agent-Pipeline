@@ -62,11 +62,7 @@ export class PipelineRunner {
     );
 
     this.groupOrchestrator = new GroupExecutionOrchestrator(
-      this.gitManager,
       this.stateManager,
-      this.repoPath,
-      this.dryRun,
-      this.runtime,
       this.shouldLog.bind(this),
       this.notifyStateChange.bind(this),
       this.notifyStageResults.bind(this)
@@ -474,7 +470,6 @@ export class PipelineRunner {
           group,
           state,
           config,
-          executionGraph,
           parallelExecutor,
           interactive
         );

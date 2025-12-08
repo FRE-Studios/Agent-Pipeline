@@ -76,8 +76,6 @@ export const prPipelineStatePartial: PipelineState = {
       stageName: 'deploy',
       status: 'skipped',
       startTime: '2024-01-02T00:01:00.000Z',
-      conditionEvaluated: true,
-      conditionResult: false,
     },
   ],
   status: 'failed',

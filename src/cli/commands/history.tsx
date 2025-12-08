@@ -213,17 +213,6 @@ const PipelineDetailView: React.FC<PipelineDetailViewProps> = ({ state }) => {
             </Box>
           )}
 
-          {stage.extractedData && Object.keys(stage.extractedData).length > 0 && (
-            <Box marginLeft={3} flexDirection="column">
-              <Text dimColor>└─ Extracted Data:</Text>
-              {Object.entries(stage.extractedData).map(([key, value]) => (
-                <Text key={key} dimColor>
-                  {'   '}- {key}: {String(value)}
-                </Text>
-              ))}
-            </Box>
-          )}
-
           {stage.error && (
             <Box marginLeft={3} flexDirection="column">
               <Text color="red">└─ Error: {stage.error.message}</Text>

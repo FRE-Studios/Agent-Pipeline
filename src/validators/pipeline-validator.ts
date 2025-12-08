@@ -5,7 +5,6 @@ import * as path from 'path';
 import { simpleGit } from 'simple-git';
 import { PipelineConfig } from '../config/schema.js';
 import { checkGHCLI } from '../utils/gh-cli-checker.js';
-import { ConditionEvaluator } from '../core/condition-evaluator.js';
 import { DAGPlanner } from '../core/dag-planner.js';
 import { AgentRuntimeRegistry } from '../core/agent-runtime-registry.js';
 
@@ -52,12 +51,6 @@ export class PipelineValidator {
     // P0: Context reduction agent path (conditional - only if agent-based strategy)
     if (config.settings?.contextReduction?.strategy === 'agent-based') {
       await this.validateContextReductionAgent(config, repoPath);
-    }
-
-    // P1: Conditional expression validation (conditional - only if agents have conditions)
-    if (config.agents?.some(a => a.condition)) {
-      this.validateConditionalExpressions(config);
-      this.validateConditionalStageReferences(config);
     }
 
     // P1: Slack webhook (conditional - only if Slack notifications enabled)
@@ -498,71 +491,6 @@ export class PipelineValidator {
         severity: 'error'
       });
     }
-  }
-
-  /**
-   * Validate conditional expression syntax for all agents with conditions.
-   */
-  private validateConditionalExpressions(config: PipelineConfig): void {
-    if (!config.agents) return;
-
-    const evaluator = new ConditionEvaluator();
-
-    for (const agent of config.agents) {
-      if (!agent.condition) continue;
-
-      const result = evaluator.validateSyntax(agent.condition);
-      if (!result.valid) {
-        this.errors.push({
-          field: `agents.${agent.name}.condition`,
-          message: `Invalid condition syntax: ${result.error}. Fix syntax in pipeline config`,
-          severity: 'error'
-        });
-      }
-    }
-  }
-
-  /**
-   * Validate that conditional expressions reference valid stage names.
-   */
-  private validateConditionalStageReferences(config: PipelineConfig): void {
-    if (!config.agents) return;
-
-    const stageNames = new Set(config.agents.map(a => a.name));
-
-    for (const agent of config.agents) {
-      if (!agent.condition) continue;
-
-      // Extract stage references from condition (e.g., stages.review.outputs.passed)
-      const stageReferences = this.extractStageReferences(agent.condition);
-
-      for (const ref of stageReferences) {
-        if (!stageNames.has(ref)) {
-          const availableStages = Array.from(stageNames).join(', ');
-          this.errors.push({
-            field: `agents.${agent.name}.condition`,
-            message: `Condition references non-existent stage "${ref}". Available stages: [${availableStages}]`,
-            severity: 'error'
-          });
-        }
-      }
-    }
-  }
-
-  /**
-   * Extract stage names from condition expression.
-   * Matches patterns like: stages.stageName.outputs.key
-   */
-  private extractStageReferences(condition: string): string[] {
-    const pattern = /stages\.([a-zA-Z0-9_-]+)/g;
-    const matches: string[] = [];
-    let match;
-
-    while ((match = pattern.exec(condition)) !== null) {
-      matches.push(match[1]);
-    }
-
-    return [...new Set(matches)]; // Remove duplicates
   }
 
   /**

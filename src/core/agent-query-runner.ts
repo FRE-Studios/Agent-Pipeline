@@ -1,7 +1,6 @@
 // src/core/agent-query-runner.ts
 
 import { query, type SettingSource } from '@anthropic-ai/claude-agent-sdk';
-import { OutputToolBuilder } from './output-tool-builder.js';
 
 /**
  * Options for SDK query execution
@@ -21,7 +20,6 @@ export interface SDKQueryOptions {
  */
 export interface SDKQueryResult {
   textOutput: string;
-  extractedData?: Record<string, unknown>;
   tokenUsage?: {
     input_tokens: number;
     output_tokens: number;
@@ -34,7 +32,7 @@ export interface SDKQueryResult {
 
 /**
  * Encapsulates Claude Agent SDK query execution logic.
- * Extracts common pattern used by stage-executor and context-reducer.
+ * Used by claude-sdk-runtime for internal operations.
  */
 export class AgentQueryRunner {
   /**
@@ -42,24 +40,13 @@ export class AgentQueryRunner {
    *
    * @param userPrompt - The prompt to send to the agent
    * @param options - Configuration options for the query
-   * @returns Query result with text output, extracted data, and optional token usage
+   * @returns Query result with text output and optional token usage
    */
   async runSDKQuery(
     userPrompt: string,
     options: SDKQueryOptions
   ): Promise<SDKQueryResult> {
-    // Get MCP server with report_outputs tool (if available)
-    let mcpServer: ReturnType<typeof OutputToolBuilder.getMcpServer> | undefined;
-    try {
-      mcpServer = OutputToolBuilder.getMcpServer();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`⚠️  Failed to initialize output tool server: ${message}`);
-    }
-
     // Build SDK options
-    type McpServerInstance = ReturnType<typeof OutputToolBuilder.getMcpServer>;
-
     const sdkOptions: {
       systemPrompt: string;
       settingSources: SettingSource[];
@@ -67,7 +54,6 @@ export class AgentQueryRunner {
       model?: 'haiku' | 'sonnet' | 'opus';
       maxTurns?: number;
       maxThinkingTokens?: number;
-      mcpServers?: Record<string, McpServerInstance>;
     } = {
       systemPrompt: options.systemPrompt,
       settingSources: ['project'],
@@ -84,11 +70,6 @@ export class AgentQueryRunner {
     if (options.maxThinkingTokens !== undefined) {
       sdkOptions.maxThinkingTokens = options.maxThinkingTokens;
     }
-    if (mcpServer) {
-      sdkOptions.mcpServers = {
-        'pipeline-outputs': mcpServer
-      };
-    }
 
     // Execute query
     const q = query({
@@ -98,26 +79,19 @@ export class AgentQueryRunner {
 
     // Collect results
     let textOutput = '';
-    let toolExtractedData: Record<string, unknown> | undefined;
     let tokenUsage: SDKQueryResult['tokenUsage'] | undefined;
     let numTurns: number | undefined;
 
     // Iterate through messages
     for await (const message of q) {
       if (message.type === 'assistant') {
-        // Extract text and tool calls from assistant message content
+        // Extract text from assistant message content
         for (const content of message.message.content) {
           if (content.type === 'text') {
             textOutput += content.text;
             // Stream output to callback if provided
             if (options.onOutputUpdate) {
               options.onOutputUpdate(textOutput);
-            }
-          } else if (content.type === 'tool_use' && content.name === 'report_outputs') {
-            // Capture tool call arguments as extracted data
-            const toolInput = content.input as { outputs?: Record<string, unknown> };
-            if (toolInput.outputs) {
-              toolExtractedData = toolInput.outputs;
             }
           }
         }
@@ -137,7 +111,6 @@ export class AgentQueryRunner {
 
     return {
       textOutput,
-      extractedData: toolExtractedData,
       tokenUsage,
       numTurns
     };

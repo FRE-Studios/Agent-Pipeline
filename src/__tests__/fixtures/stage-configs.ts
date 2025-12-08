@@ -9,7 +9,6 @@ export const basicStageConfig: AgentStageConfig = {
 export const stageWithOutputs: AgentStageConfig = {
   name: 'stage-with-outputs',
   agent: '.claude/agents/analyzer.md',
-  outputs: ['issues_found', 'severity', 'score'],
   timeout: 180,
 };
 
@@ -59,7 +58,6 @@ export const stageWithLongTimeout: AgentStageConfig = {
 export const stageWithCondition: AgentStageConfig = {
   name: 'conditional-stage',
   agent: '.claude/agents/conditional.md',
-  condition: '{{ stages.previous.outputs.issues_found > 0 }}',
   dependsOn: ['previous'],
   timeout: 120,
 };

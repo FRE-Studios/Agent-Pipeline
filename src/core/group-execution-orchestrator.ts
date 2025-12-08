@@ -1,21 +1,14 @@
 // src/core/group-execution-orchestrator.ts
 
-import { GitManager } from './git-manager.js';
-import { StageExecutor } from './stage-executor.js';
 import { ParallelExecutor } from './parallel-executor.js';
 import { StateManager } from './state-manager.js';
-import { ConditionEvaluator } from './condition-evaluator.js';
-import { ContextReducer } from './context-reducer.js';
-import { AgentRuntime } from './types/agent-runtime.js';
-import { TokenEstimator } from '../utils/token-estimator.js';
-import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import {
   PipelineConfig,
   PipelineState,
   AgentStageConfig,
   StageExecution
 } from '../config/schema.js';
-import { ExecutionGraph, ExecutionGroup } from './types/execution-graph.js';
+import { ExecutionGroup } from './types/execution-graph.js';
 import type { ParallelExecutionResult } from './parallel-executor.js';
 
 export interface GroupProcessingResult {
@@ -24,23 +17,15 @@ export interface GroupProcessingResult {
 }
 
 export class GroupExecutionOrchestrator {
-  private conditionEvaluator: ConditionEvaluator;
-
   constructor(
-    private gitManager: GitManager,
     private stateManager: StateManager,
-    private repoPath: string,
-    private dryRun: boolean,
-    private runtime: AgentRuntime,
     private shouldLog: (interactive: boolean) => boolean,
     private stateChangeCallback: (state: PipelineState) => void,
     private notifyStageResultsCallback: (
       executions: StageExecution[],
       state: PipelineState
     ) => Promise<void>
-  ) {
-    this.conditionEvaluator = new ConditionEvaluator();
-  }
+  ) {}
 
   /**
    * Process a single execution group
@@ -49,7 +34,6 @@ export class GroupExecutionOrchestrator {
     group: ExecutionGroup,
     state: PipelineState,
     config: PipelineConfig,
-    executionGraph: ExecutionGraph,
     parallelExecutor: ParallelExecutor,
     interactive: boolean
   ): Promise<GroupProcessingResult> {
@@ -95,15 +79,6 @@ export class GroupExecutionOrchestrator {
     await this.stateManager.saveState(state);
     this.stateChangeCallback(state);
 
-    // Check if context reduction needed
-    await this.handleContextReduction(
-      state,
-      config,
-      executionGraph,
-      executionGraph.plan.groups.indexOf(group),
-      interactive
-    );
-
     // Log group result
     this.logGroupResult(groupResult, executionMode, stagesToRun, parallelExecutor, interactive);
 
@@ -147,47 +122,15 @@ export class GroupExecutionOrchestrator {
   }
 
   /**
-   * Evaluate conditions for stages
+   * Filter stages (conditionals dropped - just return enabled stages)
    */
   private async evaluateConditions(
     enabledStages: AgentStageConfig[],
-    state: PipelineState,
-    interactive: boolean
+    _state: PipelineState,
+    _interactive: boolean
   ): Promise<AgentStageConfig[]> {
-    const stagesToRun: AgentStageConfig[] = [];
-
-    for (const stage of enabledStages) {
-      if (stage.condition) {
-        const conditionMet = this.conditionEvaluator.evaluate(
-          stage.condition,
-          state
-        );
-
-        if (!conditionMet) {
-          if (this.shouldLog(interactive)) {
-            this.logSkippedStage(stage.name, 'condition', stage.condition);
-          }
-          state.stages.push({
-            stageName: stage.name,
-            status: 'skipped',
-            startTime: new Date().toISOString(),
-            conditionEvaluated: true,
-            conditionResult: false
-          });
-          this.stateChangeCallback(state);
-          continue;
-        } else {
-          if (this.shouldLog(interactive)) {
-            console.log(
-              `✅ Condition met for stage "${stage.name}": ${stage.condition}`
-            );
-          }
-        }
-      }
-      stagesToRun.push(stage);
-    }
-
-    return stagesToRun;
+    // Conditionals have been dropped - return all enabled stages
+    return enabledStages;
   }
 
   /**
@@ -231,100 +174,6 @@ export class GroupExecutionOrchestrator {
           }
         }
       );
-    }
-  }
-
-  /**
-   * Handle context reduction if needed (agent-based strategy)
-   */
-  private async handleContextReduction(
-    state: PipelineState,
-    config: PipelineConfig,
-    executionGraph: ExecutionGraph,
-    currentGroupIndex: number,
-    interactive: boolean
-  ): Promise<void> {
-    const contextReductionConfig = config.settings?.contextReduction;
-
-    if (
-      !contextReductionConfig?.enabled ||
-      contextReductionConfig.strategy !== 'agent-based' ||
-      !contextReductionConfig.agentPath
-    ) {
-      return;
-    }
-
-    // Get next stage to execute (peek ahead)
-    const nextStage = this.getNextStageToExecute(
-      executionGraph,
-      currentGroupIndex
-    );
-
-    if (!nextStage) {
-      return;
-    }
-
-    // Estimate context size for next stage
-    const contextEstimate = await this.estimateNextContext(state, nextStage);
-
-    // Create ContextReducer instance
-    const contextReducer = new ContextReducer(
-      this.gitManager,
-      this.repoPath,
-      state.runId,
-      this.runtime
-    );
-
-    // Check if reduction needed
-    if (
-      contextReducer.shouldReduce(contextEstimate, contextReductionConfig)
-    ) {
-      if (this.shouldLog(interactive)) {
-        console.log(
-          `⚠️  Context approaching limit (${PipelineFormatter.formatTokenCount(contextEstimate)} tokens). ` +
-            `Running context reducer...\n`
-        );
-      }
-
-      try {
-        // Run reduction
-        const reducerOutput = await contextReducer.runReduction(
-          state,
-          nextStage,
-          contextReductionConfig.agentPath
-        );
-
-        // Apply reduction to state (if successful)
-        if (reducerOutput.status === 'success') {
-          // Modify state by reference
-          const reducedState = contextReducer.applyReduction(
-            state,
-            reducerOutput
-          );
-          state.stages = reducedState.stages;
-
-          // Save reduced state
-          await this.stateManager.saveState(state);
-          this.stateChangeCallback(state);
-
-          if (this.shouldLog(interactive)) {
-            console.log(`✅ Context reduced successfully\n`);
-          }
-        } else {
-          if (this.shouldLog(interactive)) {
-            console.log(
-              `⚠️  Context reduction failed. Continuing with full context.\n`
-            );
-          }
-        }
-      } catch (error) {
-        // Never let context reduction crash the pipeline
-        if (this.shouldLog(interactive)) {
-          console.warn(
-            `⚠️  Context reduction error: ${error}. Continuing with full context.\n`
-          );
-        }
-      }
     }
   }
 
@@ -396,52 +245,6 @@ export class GroupExecutionOrchestrator {
     }
 
     return false;
-  }
-
-  /**
-   * Get next stage to execute (peek ahead)
-   */
-  private getNextStageToExecute(
-    executionGraph: ExecutionGraph,
-    currentGroupIndex: number
-  ): AgentStageConfig | null {
-    const nextGroupIndex = currentGroupIndex + 1;
-    if (nextGroupIndex >= executionGraph.plan.groups.length) {
-      return null;
-    }
-
-    const nextGroup = executionGraph.plan.groups[nextGroupIndex];
-    const enabledStage = nextGroup.stages.find((s) => s.enabled !== false);
-    return enabledStage || null;
-  }
-
-  /**
-   * Estimate context token count for next stage
-   */
-  private async estimateNextContext(
-    state: PipelineState,
-    nextStage: AgentStageConfig
-  ): Promise<number> {
-    const stageExecutor = new StageExecutor(
-      this.gitManager,
-      this.dryRun,
-      state.runId,
-      this.repoPath,
-      this.runtime  // Optional: used for context estimation
-    );
-
-    try {
-      const context = await (stageExecutor as any).buildAgentContext(
-        nextStage,
-        state
-      );
-      const tokenEstimator = new TokenEstimator();
-      const estimate = tokenEstimator.estimateTokens(context);
-      tokenEstimator.dispose();
-      return estimate;
-    } catch (error) {
-      return 0;
-    }
   }
 
   /**

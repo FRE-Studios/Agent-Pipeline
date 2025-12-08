@@ -49,23 +49,14 @@ agents:
   - name: doc-sync
     agent: .claude/agents/doc-updater.md
     timeout: 300
-    outputs:
-      - files_updated
-      - sections_added
 
   - name: dependency-audit
     agent: .claude/agents/dependency-auditor.md
     timeout: 300
-    outputs:
-      - outdated_count
-      - security_issues
 
   - name: code-consolidation
     agent: .claude/agents/code-reducer.md
     timeout: 300
-    outputs:
-      - duplicates_found
-      - files_merged
 
   # Generate summary report after all cleanup completes
   - name: summary-report

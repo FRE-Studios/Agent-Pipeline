@@ -301,7 +301,6 @@ export const conditionalStagesExecutionGraph: ExecutionGraph = {
       stage: {
         name: 'code-review',
         agent: '.claude/agents/reviewer.md',
-        outputs: ['issues_found', 'severity'],
       },
       dependencies: [],
       dependents: ['auto-fix', 'celebrate'],
@@ -312,7 +311,6 @@ export const conditionalStagesExecutionGraph: ExecutionGraph = {
         name: 'auto-fix',
         agent: '.claude/agents/fixer.md',
         dependsOn: ['code-review'],
-        condition: '{{ stages.code-review.outputs.issues_found > 0 }}',
       },
       dependencies: ['code-review'],
       dependents: [],
@@ -323,7 +321,6 @@ export const conditionalStagesExecutionGraph: ExecutionGraph = {
         name: 'celebrate',
         agent: '.claude/agents/celebration.md',
         dependsOn: ['code-review'],
-        condition: '{{ stages.code-review.outputs.issues_found == 0 }}',
       },
       dependencies: ['code-review'],
       dependents: [],
@@ -342,7 +339,6 @@ export const conditionalStagesExecutionGraph: ExecutionGraph = {
         stages: [{
           name: 'code-review',
           agent: '.claude/agents/reviewer.md',
-          outputs: ['issues_found', 'severity'],
         }],
       },
       {
@@ -352,13 +348,11 @@ export const conditionalStagesExecutionGraph: ExecutionGraph = {
             name: 'auto-fix',
             agent: '.claude/agents/fixer.md',
             dependsOn: ['code-review'],
-            condition: '{{ stages.code-review.outputs.issues_found > 0 }}',
           },
           {
             name: 'celebrate',
             agent: '.claude/agents/celebration.md',
             dependsOn: ['code-review'],
-            condition: '{{ stages.code-review.outputs.issues_found == 0 }}',
           },
         ],
       },
@@ -380,7 +374,6 @@ export const parallelExecutionGraph: ExecutionGraph = {
       stage: {
         name: 'review',
         agent: '.claude/agents/reviewer.md',
-        outputs: ['issues_found', 'severity'],
       },
       dependencies: [],
       dependents: ['summary'],
@@ -390,7 +383,6 @@ export const parallelExecutionGraph: ExecutionGraph = {
       stage: {
         name: 'security',
         agent: '.claude/agents/security.md',
-        outputs: ['vulnerabilities'],
       },
       dependencies: [],
       dependents: ['summary'],
@@ -400,7 +392,6 @@ export const parallelExecutionGraph: ExecutionGraph = {
       stage: {
         name: 'quality',
         agent: '.claude/agents/quality.md',
-        outputs: ['score'],
       },
       dependencies: [],
       dependents: ['summary'],
@@ -431,17 +422,14 @@ export const parallelExecutionGraph: ExecutionGraph = {
           {
             name: 'review',
             agent: '.claude/agents/reviewer.md',
-            outputs: ['issues_found', 'severity'],
           },
           {
             name: 'security',
             agent: '.claude/agents/security.md',
-            outputs: ['vulnerabilities'],
           },
           {
             name: 'quality',
             agent: '.claude/agents/quality.md',
-            outputs: ['score'],
           },
         ],
       },

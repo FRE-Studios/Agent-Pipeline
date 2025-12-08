@@ -47,8 +47,6 @@ The pipeline executes in this order:
 
 **Output Extraction**: Agents report structured data via MCP `report_outputs` tool or text format. Tool-based extraction preserves types (objects, arrays, numbers). Text-based falls back to regex. Single reusable MCP server created via `OutputToolBuilder` with generic `z.record(z.string(), z.unknown())` schema.
 
-**Conditional Execution**: Condition Evaluator (`src/core/condition-evaluator.ts`) parses template expressions like `{{ stages.review.outputs.issues > 0 }}` and evaluates against pipeline state before delegation to the orchestrator.
-
 **Retry Mechanism**: Retry Handler (`src/core/retry-handler.ts`) implements exponential/linear/fixed backoff strategies. `StageExecutor` uses it to wrap agent execution with configurable retry logic.
 
 **UI Architecture**: Dual-mode operation - Interactive mode uses Ink/React terminal UI (`src/ui/pipeline-ui.tsx`) with real-time updates. Non-interactive mode uses simple console logging.

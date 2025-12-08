@@ -8,10 +8,6 @@ export const successfulStageExecution: StageExecution = {
   endTime: '2024-01-01T00:01:00.000Z',
   duration: 60,
   commitSha: 'abc123def456',
-  extractedData: {
-    issues_found: 0,
-    severity: 'low',
-  },
   tokenUsage: {
     estimated_input: 10000,
     actual_input: 10500,
@@ -39,8 +35,6 @@ export const skippedStageExecution: StageExecution = {
   stageName: 'test-stage',
   status: 'skipped',
   startTime: '2024-01-01T00:00:00.000Z',
-  conditionEvaluated: true,
-  conditionResult: false,
 };
 
 export const runningPipelineState: PipelineState = {
@@ -85,9 +79,6 @@ export const completedPipelineState: PipelineState = {
       endTime: '2024-01-01T00:01:00.000Z',
       duration: 60,
       commitSha: 'stage-1-commit',
-      extractedData: {
-        result: 'success',
-      },
     },
     {
       stageName: 'stage-2',
@@ -96,9 +87,6 @@ export const completedPipelineState: PipelineState = {
       endTime: '2024-01-01T00:02:00.000Z',
       duration: 60,
       commitSha: 'stage-2-commit',
-      extractedData: {
-        result: 'success',
-      },
     },
   ],
   status: 'completed',
@@ -164,10 +152,6 @@ export const parallelPipelineState: PipelineState = {
       endTime: '2024-01-01T00:01:00.000Z',
       duration: 60,
       commitSha: 'review-commit',
-      extractedData: {
-        issues_found: 3,
-        severity: 'medium',
-      },
     },
     {
       stageName: 'security',
@@ -176,9 +160,6 @@ export const parallelPipelineState: PipelineState = {
       endTime: '2024-01-01T00:01:00.000Z',
       duration: 60,
       commitSha: 'security-commit',
-      extractedData: {
-        vulnerabilities: 0,
-      },
     },
     {
       stageName: 'quality',
@@ -187,9 +168,6 @@ export const parallelPipelineState: PipelineState = {
       endTime: '2024-01-01T00:01:00.000Z',
       duration: 60,
       commitSha: 'quality-commit',
-      extractedData: {
-        score: 85,
-      },
     },
   ],
   status: 'running',
@@ -474,8 +452,6 @@ export const analyticsSkippedStageRun: PipelineState = {
       stageName: 'stage-2',
       status: 'skipped',
       startTime: '2024-01-18T14:01:00.000Z',
-      conditionEvaluated: true,
-      conditionResult: false,
     },
   ],
   status: 'completed',

@@ -9,13 +9,11 @@ import { PipelineFormatter } from '../../utils/pipeline-formatter.js';
 interface StageRowProps {
   stage: StageExecution;
   isLast: boolean;
-  condition?: string;
 }
 
 export const StageRow: React.FC<StageRowProps> = ({
   stage,
   isLast,
-  condition,
 }) => {
   const getIcon = () => {
     switch (stage.status) {
@@ -36,9 +34,6 @@ export const StageRow: React.FC<StageRowProps> = ({
     }
   };
 
-  const hasExtractedData =
-    stage.extractedData && Object.keys(stage.extractedData).length > 0;
-
   return (
     <Box flexDirection="column" marginLeft={2} marginBottom={isLast ? 0 : 1}>
       <Box>
@@ -55,13 +50,6 @@ export const StageRow: React.FC<StageRowProps> = ({
         )}
       </Box>
 
-      {stage.conditionEvaluated && !stage.conditionResult && condition && (
-        <Box marginLeft={3}>
-          <Text dimColor>└─ Condition not met: </Text>
-          <Text color="gray">{condition}</Text>
-        </Box>
-      )}
-
       {stage.commitSha && (
         <Box marginLeft={3}>
           <Text dimColor>└─ Commit: </Text>
@@ -73,19 +61,6 @@ export const StageRow: React.FC<StageRowProps> = ({
         <Box marginLeft={3}>
           <Text dimColor>└─ Tokens: </Text>
           <Text color="magenta">{PipelineFormatter.formatTokenUsage(stage.tokenUsage)}</Text>
-        </Box>
-      )}
-
-      {stage.status === 'success' && hasExtractedData && (
-        <Box marginLeft={3} flexDirection="column">
-          <Text dimColor>└─ Outputs:</Text>
-          {Object.entries(stage.extractedData || {}).map(([key, value]) => (
-            <Box key={key} marginLeft={2}>
-              <Text>
-                - {key}: {JSON.stringify(value)}
-              </Text>
-            </Box>
-          ))}
         </Box>
       )}
 

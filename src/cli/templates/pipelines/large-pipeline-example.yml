@@ -51,26 +51,14 @@ agents:
   # Stage 1: Initial code review
   - name: code-review
     agent: .claude/agents/code-reviewer.md
-    outputs:
-      - issues_found
-      - severity_level
-      - files_reviewed
 
   # Stage 2: Security audit (parallel with quality check)
   - name: security-audit
     agent: .claude/agents/security-auditor.md
-    outputs:
-      - vulnerabilities
-      - critical_count
-      - files_scanned
 
   # Stage 3: Quality check (parallel with security audit)
   - name: quality-check
     agent: .claude/agents/quality-checker.md
-    outputs:
-      - quality_score
-      - improvements_made
-      - recommendations
 
   # Stage 4: Documentation update
   - name: doc-update
@@ -79,34 +67,22 @@ agents:
       - code-review
       - security-audit
       - quality-check
-    outputs:
-      - files_updated
-      - sections_added
 
   # Stage 5: Dependency audit
   - name: dependency-audit
     agent: .claude/agents/dependency-auditor.md
-    outputs:
-      - outdated_count
-      - security_issues
 
   # Stage 6: Performance analysis
   - name: performance-analysis
     agent: .claude/agents/quality-checker.md
     inputs:
       focus_areas: "performance, optimization"
-    outputs:
-      - performance_score
-      - bottlenecks_found
 
   # Stage 7: Test coverage check
   - name: test-coverage
     agent: .claude/agents/quality-checker.md
     inputs:
       focus_areas: "test coverage, edge cases"
-    outputs:
-      - coverage_percentage
-      - missing_tests
 
   # Stage 8: Code consolidation
   - name: code-consolidation
@@ -114,16 +90,10 @@ agents:
     dependsOn:
       - code-review
       - quality-check
-    outputs:
-      - duplicates_found
-      - files_merged
 
   # Stage 9: Memory management review
   - name: memory-review
     agent: .claude/agents/memory-updater.md
-    outputs:
-      - memory_issues
-      - optimizations_applied
 
   # Stage 10: Final summary report
   - name: summary-report
@@ -138,19 +108,12 @@ agents:
       - test-coverage
       - code-consolidation
       - memory-review
-    outputs:
-      - total_stages
-      - total_issues
-      - overall_status
 
   # Stage 11: Cleanup
   - name: cleanup
     agent: .claude/agents/cleanup-reporter.md
     dependsOn:
       - summary-report
-    outputs:
-      - cleanup_actions
-      - files_removed
 
 # How Context Reduction Works:
 #

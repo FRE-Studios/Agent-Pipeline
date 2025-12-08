@@ -30,7 +30,6 @@ export const ExecutionGroup: React.FC<ExecutionGroupProps> = ({
               key={agentConfig.name}
               stage={stage}
               isLast={index === group.length - 1}
-              condition={agentConfig.condition}
             />
           );
         }
