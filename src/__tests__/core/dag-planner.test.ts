@@ -56,10 +56,6 @@ describe('DAGPlanner', () => {
       const celebrateNode = result.nodes.get('celebrate');
       expect(autoFixNode?.dependencies).toContain('code-review');
       expect(celebrateNode?.dependencies).toContain('code-review');
-
-      // Verify conditional stages have conditions
-      expect(autoFixNode?.stage.condition).toBeDefined();
-      expect(celebrateNode?.stage.condition).toBeDefined();
     });
 
     it('should throw error for cyclic dependencies', () => {

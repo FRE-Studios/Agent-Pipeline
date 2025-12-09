@@ -34,6 +34,7 @@ export const prPipelineStateCompleted: PipelineState = {
   ],
   status: 'completed',
   artifacts: {
+    handoverDir: '.agent-pipeline/handover/pr-run-completed-123',
     initialCommit: 'initial-abc123',
     finalCommit: 'test-commit-def456',
     changedFiles: ['src/index.ts', 'src/utils.ts'],
@@ -80,6 +81,7 @@ export const prPipelineStatePartial: PipelineState = {
   ],
   status: 'failed',
   artifacts: {
+    handoverDir: '.agent-pipeline/handover/pr-run-partial-456',
     initialCommit: 'initial-xyz789',
     finalCommit: 'lint-commit-ghi789',
     changedFiles: ['src/main.ts'],
@@ -122,6 +124,7 @@ export const prPipelineStateWithRetries: PipelineState = {
   ],
   status: 'completed',
   artifacts: {
+    handoverDir: '.agent-pipeline/handover/pr-run-retries-789',
     initialCommit: 'initial-retry-001',
     finalCommit: 'integration-commit-mno345',
     changedFiles: ['tests/integration.test.ts'],
@@ -153,6 +156,7 @@ export const prPipelineStateSingleStage: PipelineState = {
   ],
   status: 'completed',
   artifacts: {
+    handoverDir: '.agent-pipeline/handover/pr-run-single-999',
     initialCommit: 'initial-single-111',
     finalCommit: 'quick-commit-pqr678',
     changedFiles: ['README.md'],
@@ -191,6 +195,7 @@ export const prPipelineStateNoCommits: PipelineState = {
   ],
   status: 'completed',
   artifacts: {
+    handoverDir: '.agent-pipeline/handover/pr-run-no-commits-000',
     initialCommit: 'initial-no-commit-222',
     changedFiles: [],
     totalDuration: 60,
