@@ -184,7 +184,7 @@ describe('initCommand', () => {
         expect(agent).toBeDefined();
         expect(agent.agent).toBe('.claude/agents/code-reviewer.md');
         expect(agent.timeout).toBe(300);
-        expect(agent.outputs).toEqual(['issues_found', 'severity_level']);
+        // Note: outputs field removed - using file-based handover strategy
       });
 
       it('should have sequential execution with correct dependencies', async () => {
@@ -253,7 +253,7 @@ describe('initCommand', () => {
         expect(parsed.agents).toHaveLength(4);
       });
 
-      it('should include conditional push-approval agent', async () => {
+      it('should include push-approval agent with dependencies', async () => {
         await initCommand(tempDir, { exampleName: 'pre-push' });
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'pre-push-example.yml');
@@ -262,7 +262,7 @@ describe('initCommand', () => {
 
         const pushApproval = parsed.agents.find((a: any) => a.name === 'push-approval');
         expect(pushApproval).toBeDefined();
-        expect(pushApproval.condition).toBeDefined();
+        // Note: condition field removed - using file-based handover strategy
         expect(pushApproval.dependsOn).toEqual(['security-audit', 'code-quality', 'dependency-check']);
       });
     });

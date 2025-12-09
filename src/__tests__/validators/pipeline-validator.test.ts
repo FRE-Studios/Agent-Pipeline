@@ -996,86 +996,8 @@ describe('PipelineValidator', () => {
       });
     });
 
-    describe('validateConditionalStageReferences', () => {
-      it('should error when condition references non-existent stage', async () => {
-        const config: PipelineConfig = {
-          ...simplePipelineConfig,
-          agents: [
-            {
-              name: 'test-stage',
-              agent: '.claude/agents/test-agent.md'
-            },
-            {
-              name: 'deploy',
-              agent: '.claude/agents/test-agent-2.md',
-              condition: '{{ stages.review.outputs.passed }}'
-            }
-          ]
-        };
-
-        const errors = await validator.validate(config, tempDir);
-
-        expect(errors.some(e =>
-          e.field === 'agents.deploy.condition' &&
-          e.severity === 'error' &&
-          e.message.includes('references non-existent stage "review"')
-        )).toBe(true);
-      });
-
-      it('should pass when all stage references are valid', async () => {
-        const config: PipelineConfig = {
-          ...simplePipelineConfig,
-          agents: [
-            {
-              name: 'review',
-              agent: '.claude/agents/test-agent.md'
-            },
-            {
-              name: 'deploy',
-              agent: '.claude/agents/test-agent-2.md',
-              condition: '{{ stages.review.outputs.passed }}'
-            }
-          ]
-        };
-
-        const errors = await validator.validate(config, tempDir);
-
-        const stageRefErrors = errors.filter(e =>
-          e.field === 'agents.deploy.condition' &&
-          e.message.includes('non-existent stage')
-        );
-        expect(stageRefErrors).toHaveLength(0);
-      });
-
-      it('should handle multiple stage references in one condition', async () => {
-        const config: PipelineConfig = {
-          ...simplePipelineConfig,
-          agents: [
-            {
-              name: 'test',
-              agent: '.claude/agents/test-agent.md'
-            },
-            {
-              name: 'review',
-              agent: '.claude/agents/test-agent.md'
-            },
-            {
-              name: 'deploy',
-              agent: '.claude/agents/test-agent-2.md',
-              condition: '{{ stages.test.outputs.passed && stages.review.outputs.passed }}'
-            }
-          ]
-        };
-
-        const errors = await validator.validate(config, tempDir);
-
-        const stageRefErrors = errors.filter(e =>
-          e.field === 'agents.deploy.condition' &&
-          e.message.includes('non-existent stage')
-        );
-        expect(stageRefErrors).toHaveLength(0);
-      });
-    });
+    // Note: validateConditionalStageReferences tests removed - condition field validation
+    // was deprecated in favor of file-based agent handover strategy
 
     describe('validateSlackWebhook', () => {
       it('should skip when Slack is not enabled', async () => {
