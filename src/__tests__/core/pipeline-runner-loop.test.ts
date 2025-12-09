@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PipelineRunner } from '../../core/pipeline-runner.js';
 import { AgentRuntimeRegistry } from '../../core/agent-runtime-registry.js';
 import { ClaudeSDKRuntime } from '../../core/agent-runtimes/claude-sdk-runtime.js';
+import { ClaudeCodeHeadlessRuntime } from '../../core/agent-runtimes/claude-code-headless-runtime.js';
 import { ProjectConfigLoader } from '../../config/project-config-loader.js';
 import { PipelineLoader } from '../../config/pipeline-loader.js';
 import { PipelineConfig, PipelineState, LoopingConfig } from '../../config/schema.js';
@@ -37,8 +38,9 @@ describe('PipelineRunner - Loop Mode', () => {
     // Clear registry to prevent duplicate registration errors
     AgentRuntimeRegistry.clear();
 
-    // Register runtime for tests
+    // Register runtimes for tests
     AgentRuntimeRegistry.register(new ClaudeSDKRuntime());
+    AgentRuntimeRegistry.register(new ClaudeCodeHeadlessRuntime());
 
     // Create temp directories
     tempDir = await fs.mkdtemp(path.join(tmpdir(), 'loop-test-'));

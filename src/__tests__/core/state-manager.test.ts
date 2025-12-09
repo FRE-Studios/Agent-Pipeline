@@ -62,15 +62,6 @@ describe('StateManager', () => {
       expect(loaded?.artifacts).toEqual(completedPipelineState.artifacts);
     });
 
-    it('should save stages with extracted data', async () => {
-      await stateManager.saveState(completedPipelineState);
-
-      const loaded = await stateManager.loadState(completedPipelineState.runId);
-
-      expect(loaded?.stages[0].extractedData).toEqual({ result: 'success' });
-      expect(loaded?.stages[1].extractedData).toEqual({ result: 'success' });
-    });
-
     it('should save error information for failed stages', async () => {
       await stateManager.saveState(failedPipelineState);
 

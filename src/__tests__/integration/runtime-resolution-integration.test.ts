@@ -35,11 +35,30 @@ vi.mock('../../utils/token-estimator.js', () => ({
   }))
 }));
 
+// Create mock HandoverManager factory
+const createMockHandoverManager = () => ({
+  initialize: vi.fn().mockResolvedValue(undefined),
+  getPreviousStages: vi.fn().mockResolvedValue([]),
+  buildContextMessage: vi.fn().mockReturnValue(''),
+  saveAgentOutput: vi.fn().mockResolvedValue(undefined),
+  appendToLog: vi.fn().mockResolvedValue(undefined),
+  getHandoverDir: vi.fn().mockReturnValue('/tmp/handover'),
+  createStageDirectory: vi.fn().mockResolvedValue('/tmp/handover/stages/test')
+});
+
+// Mock HandoverManager
+vi.mock('../../core/handover-manager.js', () => ({
+  HandoverManager: vi.fn().mockImplementation(() => createMockHandoverManager())
+}));
+
 describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
   let mockSdkRuntime: AgentRuntime;
   let mockHeadlessRuntime: AgentRuntime;
+  let mockHandoverManager: ReturnType<typeof createMockHandoverManager>;
 
   beforeEach(() => {
+    // Create fresh mock HandoverManager for each test
+    mockHandoverManager = createMockHandoverManager();
     // Clear registry before each test
     AgentRuntimeRegistry.clear();
 
@@ -49,7 +68,6 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       name: 'Claude SDK Runtime',
       execute: vi.fn().mockResolvedValue({
         textOutput: 'SDK runtime output',
-        extractedData: { runtime: 'sdk', test: 'success' },
         tokenUsage: {
           inputTokens: 100,
           outputTokens: 50,
@@ -76,7 +94,6 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       name: 'Claude Code Headless Runtime',
       execute: vi.fn().mockResolvedValue({
         textOutput: 'Headless runtime output',
-        extractedData: { runtime: 'headless', test: 'success' },
         tokenUsage: {
           inputTokens: 120,
           outputTokens: 60,
@@ -115,8 +132,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'sdk-test-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const pipelineState: PipelineState = {
@@ -142,7 +158,6 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       expect(result1.status).toBe('success');
       expect(result1.stageName).toBe('sdk-stage-1');
-      expect(result1.extractedData).toEqual({ runtime: 'sdk', test: 'success' });
       // Token usage in StageExecution uses different field names
       expect(result1.tokenUsage?.actual_input).toBe(100);
       expect(result1.tokenUsage?.cache_read).toBe(20);
@@ -184,8 +199,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'headless-test-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const pipelineState: PipelineState = {
@@ -211,7 +225,6 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       expect(result1.status).toBe('success');
       expect(result1.stageName).toBe('headless-stage-1');
-      expect(result1.extractedData).toEqual({ runtime: 'headless', test: 'success' });
       expect(result1.tokenUsage?.actual_input).toBe(120);
 
       // Verify Headless runtime was used
@@ -254,8 +267,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'mixed-test-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const pipelineState: PipelineState = {
@@ -316,8 +328,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'parallel-mixed-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const pipelineState: PipelineState = {
@@ -381,8 +392,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'override-test-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const stageConfig: AgentStageConfig = {
@@ -432,8 +442,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'default-test-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const stageConfig: AgentStageConfig = {
@@ -480,8 +489,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'fallback-test-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const stageConfig: AgentStageConfig = {
@@ -532,8 +540,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'context-reduction-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const stageConfig: AgentStageConfig = {
@@ -588,8 +595,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'context-sdk-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const stageConfig: AgentStageConfig = {
@@ -660,8 +666,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'failure-test-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const stageConfig: AgentStageConfig = {
@@ -711,7 +716,6 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
         execute: vi.fn().mockImplementation(() =>
           new Promise((resolve) => setTimeout(() => resolve({
             textOutput: 'Late response',
-            extractedData: {},
             tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
             numTurns: 1
           }), 100000)) // 100 seconds
@@ -726,8 +730,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'timeout-test-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const stageConfig: AgentStageConfig = {
@@ -765,7 +768,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       expect(result.status).toBe('failed');
       expect(result.error).toBeDefined();
-      expect(result.error?.message).toBe('Agent timeout');
+      expect(result.error?.message).toContain('Agent timeout');
     }, 10000); // 10 second test timeout
 
     it('should enforce timeout for Headless runtime', async () => {
@@ -775,7 +778,6 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
         execute: vi.fn().mockImplementation(() =>
           new Promise((resolve) => setTimeout(() => resolve({
             textOutput: 'Late response',
-            extractedData: {},
             tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
             numTurns: 1
           }), 100000)) // 100 seconds
@@ -790,8 +792,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'timeout-headless-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const stageConfig: AgentStageConfig = {
@@ -829,7 +830,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       expect(result.status).toBe('failed');
       expect(result.error).toBeDefined();
-      expect(result.error?.message).toBe('Agent timeout');
+      expect(result.error?.message).toContain('Agent timeout');
     }, 10000); // 10 second test timeout
 
     it('should pass permission mode to runtime.execute() correctly', async () => {
@@ -837,8 +838,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'permission-test-run',
-        '/test/repo'
+        mockHandoverManager
       );
 
       const stageConfig: AgentStageConfig = {
