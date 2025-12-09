@@ -14,6 +14,19 @@ import {
   stageWithLongTimeout,
 } from '../fixtures/stage-configs.js';
 import type { PipelineState } from '../../config/schema.js';
+import type { HandoverManager } from '../../core/handover-manager.js';
+
+function createMockHandoverManager() {
+  return {
+    initialize: vi.fn().mockResolvedValue(undefined),
+    createStageDirectory: vi.fn().mockResolvedValue('/tmp/handover/stages/test-stage'),
+    saveAgentOutput: vi.fn().mockResolvedValue(undefined),
+    appendToLog: vi.fn().mockResolvedValue(undefined),
+    getPreviousStages: vi.fn().mockResolvedValue([]),
+    buildContextMessage: vi.fn().mockReturnValue('## Pipeline Handover Context\n...'),
+    getHandoverDir: vi.fn().mockReturnValue('/tmp/handover'),
+  } as unknown as HandoverManager;
+}
 
 function createMockQuery({ output, error }: { output?: string; error?: Error }) {
   return vi.fn().mockImplementation(async function* () {
@@ -106,6 +119,7 @@ describe('StageExecutor', () => {
 
   let executor: StageExecutor;
   let mockGitManager: ReturnType<typeof createMockGitManager>;
+  let mockHandoverManager: ReturnType<typeof createMockHandoverManager>;
   let mockRuntime: ReturnType<typeof createMockRuntime>;
   let mockQuery: ReturnType<typeof vi.fn>;
   const testRunId = 'test-run-id-12345';
@@ -117,6 +131,9 @@ describe('StageExecutor', () => {
     // Reset fs.readFile mock (cleared by clearAllMocks)
     const fs = await import('fs/promises');
     vi.mocked(fs.readFile).mockResolvedValue('Mock agent system prompt');
+
+    // Create mock handover manager
+    mockHandoverManager = createMockHandoverManager();
 
     // Create mock runtime
     mockRuntime = createMockRuntime();
@@ -168,7 +185,7 @@ describe('StageExecutor', () => {
   describe('executeStage - Success Scenarios', () => {
     it('should execute stage successfully with agent output', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -180,29 +197,8 @@ describe('StageExecutor', () => {
       expect(result.duration).toBeGreaterThanOrEqual(0);
     });
 
-    it('should persist stage outputs and attach file references when verbose saving enabled', async () => {
-      const { OutputStorageManager } = await import('../../core/output-storage-manager.js');
-      const outputStorageMock = vi.mocked(OutputStorageManager);
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-
-      const result = await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      const storageInstance = outputStorageMock.mock.results.at(-1)?.value as {
-        saveStageOutputs: ReturnType<typeof vi.fn>;
-      } | undefined;
-
-      expect(storageInstance?.saveStageOutputs).toHaveBeenCalledWith(
-        'test-stage',
-        undefined,
-        'Mock agent response'
-      );
-      expect(result.outputFiles).toEqual({
-        structured: 'path/to/output.json',
-        raw: 'path/to/raw.md',
-      });
-    });
+    // REMOVED: "should persist stage outputs" test
+    // OutputStorageManager was removed - agents now use handover files
 
     it('should execute successfully after retries (test 1)', async () => {
       let callCount = 0;
@@ -219,7 +215,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const promise = executor.executeStage(stageWithRetry, runningPipelineState);
       promise.catch(() => {}); // Suppress unhandled rejection warning
@@ -235,7 +231,7 @@ describe('StageExecutor', () => {
       mockRuntime.execute.mockRejectedValue(new Error('Agent execution failed'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -257,7 +253,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const promise = executor.executeStage(basicStageConfig, runningPipelineState);
       await vi.advanceTimersByTimeAsync(1000);
@@ -272,7 +268,7 @@ describe('StageExecutor', () => {
         commitSha: 'integration-commit',
         commitMessage: '[pipeline:test-stage] Integration test',
       });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -281,30 +277,7 @@ describe('StageExecutor', () => {
       expect(mockGitManager.getCommitMessage).toHaveBeenCalledWith('integration-commit');
     });
 
-    it('should execute stage with extracted data outputs', async () => {
-      // Mock runtime with extracted data
-      mockRuntime.execute.mockResolvedValue({
-        textOutput: 'Analysis complete. issues_found: 3\nseverity: high\nscore: 85',
-        extractedData: {
-          issues_found: '3',
-          severity: 'high',
-          score: '85'
-        },
-        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-        numTurns: 1
-      });
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-
-      const result = await executor.executeStage(stageWithOutputs, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.extractedData).toBeDefined();
-      expect(result.extractedData?.issues_found).toBe('3');
-      expect(result.extractedData?.severity).toBe('high');
-      expect(result.extractedData?.score).toBe('85');
-    });
+    // extractedData feature was removed - agents now use handover files for passing data
 
     it('should execute stage with auto-commit when changes are present', async () => {
       mockGitManager = createMockGitManager({
@@ -312,7 +285,7 @@ describe('StageExecutor', () => {
         commitSha: 'new-commit-123',
         commitMessage: '[pipeline:test-stage] Test commit',
       });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -331,7 +304,7 @@ describe('StageExecutor', () => {
         hasChanges: true,
         commitSha: 'custom-commit-456',
       });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(stageWithCustomCommit, runningPipelineState);
 
@@ -345,7 +318,7 @@ describe('StageExecutor', () => {
 
     it('should not commit when auto-commit is disabled', async () => {
       mockGitManager = createMockGitManager({ hasChanges: true });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(
         stageWithAutoCommitDisabled,
@@ -359,7 +332,7 @@ describe('StageExecutor', () => {
 
     it('should respect pipeline-level auto-commit disabled setting', async () => {
       mockGitManager = createMockGitManager({ hasChanges: true });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const noAutoCommitPipelineState: PipelineState = {
         ...runningPipelineState,
@@ -385,7 +358,7 @@ describe('StageExecutor', () => {
         commitSha: 'override-commit',
         commitMessage: '[pipeline:override-stage] Override commit',
       });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const noAutoCommitPipelineState: PipelineState = {
         ...runningPipelineState,
@@ -417,7 +390,7 @@ describe('StageExecutor', () => {
 
     it('should not commit when no changes are present', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -428,7 +401,7 @@ describe('StageExecutor', () => {
 
     it('should execute in dry-run mode with changes', async () => {
       mockGitManager = createMockGitManager({ hasChanges: true });
-      executor = new StageExecutor(mockGitManager, true, testRunId, testRepoPath, mockRuntime); // dry-run mode
+      executor = new StageExecutor(mockGitManager, true, mockHandoverManager, mockRuntime); // dry-run mode
 
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -444,7 +417,7 @@ describe('StageExecutor', () => {
 
     it('should execute in dry-run mode without changes', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, true, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, true, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -468,7 +441,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const outputCallback = vi.fn();
       await executor.executeStage(
@@ -483,7 +456,7 @@ describe('StageExecutor', () => {
 
     it('should execute successfully with retry configured (no retries needed)', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(stageWithRetry, runningPipelineState);
 
@@ -496,7 +469,7 @@ describe('StageExecutor', () => {
 
     it('should respect custom timeout value', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(stageWithLongTimeout, runningPipelineState);
 
@@ -507,7 +480,7 @@ describe('StageExecutor', () => {
     it('should include stage inputs in agent context', async () => {
       const fs = await import('fs/promises');
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       await executor.executeStage(stageWithInputs, runningPipelineState);
 
@@ -531,28 +504,20 @@ describe('StageExecutor', () => {
       );
     });
 
-    it('should include previous stages in context', async () => {
+    it('should include previous stages in context via handover manager', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      mockHandoverManager.getPreviousStages = vi.fn().mockResolvedValue(['stage-1', 'stage-2']);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       await executor.executeStage(basicStageConfig, completedPipelineState);
 
       expect(mockRuntime.execute).toHaveBeenCalled();
 
-      // Check that execute was called with previous stage context
-      expect(mockRuntime.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userPrompt: expect.stringContaining('stage-1'),
-          systemPrompt: expect.any(String),
-          options: expect.any(Object)
-        })
-      );
-
-      // Also verify second stage is in context
-      expect(mockRuntime.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userPrompt: expect.stringContaining('stage-2')
-        })
+      // Verify handover manager was used to get previous stages
+      expect(mockHandoverManager.getPreviousStages).toHaveBeenCalled();
+      expect(mockHandoverManager.buildContextMessage).toHaveBeenCalledWith(
+        'test-stage',
+        ['stage-1', 'stage-2']
       );
     });
   });
@@ -562,7 +527,7 @@ describe('StageExecutor', () => {
       mockRuntime.execute.mockRejectedValue(new Error('Agent execution failed'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -575,7 +540,7 @@ describe('StageExecutor', () => {
       mockRuntime.execute.mockRejectedValue(new Error('Persistent failure'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const promise = executor.executeStage(stageWithRetry, runningPipelineState);
@@ -599,7 +564,7 @@ describe('StageExecutor', () => {
       );
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const promise = executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -619,7 +584,7 @@ describe('StageExecutor', () => {
       );
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -633,7 +598,7 @@ describe('StageExecutor', () => {
       mockRuntime.execute.mockRejectedValue(new Error('API error: 401 Unauthorized'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -646,7 +611,7 @@ describe('StageExecutor', () => {
       mockRuntime.execute.mockRejectedValue(new Error('YAML parse error: invalid syntax'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -660,7 +625,7 @@ describe('StageExecutor', () => {
       vi.mocked(fs.readFile).mockRejectedValue(new Error('permission denied'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -673,7 +638,7 @@ describe('StageExecutor', () => {
       mockRuntime.execute.mockRejectedValue(new Error('Unknown error occurred'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -687,7 +652,7 @@ describe('StageExecutor', () => {
       mockRuntime.execute.mockRejectedValue(new Error('Failed after retries'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const promise = executor.executeStage(stageWithRetry, runningPipelineState);
@@ -707,7 +672,7 @@ describe('StageExecutor', () => {
       mockRuntime.execute.mockRejectedValue(new Error('Failed'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -719,7 +684,7 @@ describe('StageExecutor', () => {
 
     it('should handle git commit failure', async () => {
       mockGitManager = createMockGitManager({ hasChanges: true, shouldFailCommit: true });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -728,48 +693,15 @@ describe('StageExecutor', () => {
       expect(result.error?.message).toContain('Git commit failed');
     });
 
-    it('should skip saving verbose outputs when disabled via pipeline settings', async () => {
-      const { OutputStorageManager } = await import('../../core/output-storage-manager.js');
-      const outputStorageMock = vi.mocked(OutputStorageManager);
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-
-      const noVerboseState: PipelineState = {
-        ...runningPipelineState,
-        pipelineConfig: {
-          ...runningPipelineState.pipelineConfig,
-          settings: {
-            ...runningPipelineState.pipelineConfig.settings,
-            contextReduction: {
-              enabled: true,
-              maxTokens: 50000,
-              strategy: 'summary-based',
-              contextWindow: 3,
-              requireSummary: true,
-              saveVerboseOutputs: false,
-              compressFileList: true,
-            },
-          },
-        },
-      };
-
-      const result = await executor.executeStage(basicStageConfig, noVerboseState);
-
-      const storageInstance = outputStorageMock.mock.results.at(-1)?.value as {
-        saveStageOutputs: ReturnType<typeof vi.fn>;
-      } | undefined;
-
-      expect(storageInstance?.saveStageOutputs).not.toHaveBeenCalled();
-      expect(result.outputFiles).toBeUndefined();
-    });
+    // REMOVED: "should skip saving verbose outputs" test
+    // OutputStorageManager was removed - agents now use handover files
   });
 
   // Phase 7.2: Runtime-agnostic tests for context building
   describe('buildAgentContext', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
     });
 
     it('should build context with no previous stages', async () => {
@@ -787,39 +719,33 @@ describe('StageExecutor', () => {
     });
 
     it('should build context with single successful previous stage', async () => {
+      // Mock previous stages in handover directory
+      mockHandoverManager.getPreviousStages = vi.fn().mockResolvedValue(['stage-1']);
+
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
-      const callArgs = mockRuntime.execute.mock.calls[0][0];
-      expect(callArgs.userPrompt).toContain('stage-1');
-      expect(callArgs.userPrompt).toContain('stage-1-commit');
+      // Handover manager should have been used
+      expect(mockHandoverManager.getPreviousStages).toHaveBeenCalled();
+      expect(mockHandoverManager.buildContextMessage).toHaveBeenCalled();
     });
 
     it('should build context with multiple successful previous stages', async () => {
+      // Mock multiple previous stages in handover directory
+      mockHandoverManager.getPreviousStages = vi.fn().mockResolvedValue(['stage-1', 'stage-2']);
+
       await executor.executeStage(basicStageConfig, completedPipelineState);
 
-      const callArgs = mockRuntime.execute.mock.calls[0][0];
-      expect(callArgs.userPrompt).toContain('stage-1');
-      expect(callArgs.userPrompt).toContain('stage-2');
+      // Handover manager should have been used with multiple stages
+      expect(mockHandoverManager.getPreviousStages).toHaveBeenCalled();
+      expect(mockHandoverManager.buildContextMessage).toHaveBeenCalled();
     });
 
-    it('should include earlier-stage summary when exceeding context window', async () => {
+    it('should use handover manager for context with many stages', async () => {
+      // Mock many previous stages in handover directory
+      mockHandoverManager.getPreviousStages = vi.fn().mockResolvedValue(['stage-a', 'stage-b', 'stage-c']);
+
       const extendedState: PipelineState = {
         ...runningPipelineState,
-        pipelineConfig: {
-          ...runningPipelineState.pipelineConfig,
-          settings: {
-            ...runningPipelineState.pipelineConfig.settings,
-            contextReduction: {
-              enabled: true,
-              contextWindow: 2,
-              maxTokens: 50000,
-              strategy: 'summary-based',
-              requireSummary: true,
-              saveVerboseOutputs: true,
-              compressFileList: true,
-            },
-          },
-        },
         stages: [
           { stageName: 'stage-a', status: 'success', startTime: '2024-01-01T00:00:00.000Z', endTime: '2024-01-01T00:01:00.000Z', duration: 60 },
           { stageName: 'stage-b', status: 'success', startTime: '2024-01-01T00:01:00.000Z', endTime: '2024-01-01T00:02:00.000Z', duration: 60 },
@@ -829,105 +755,63 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, extendedState);
 
-      const callArgs = mockRuntime.execute.mock.calls[0][0];
-      expect(callArgs.userPrompt).toContain('Earlier Stages');
-      expect(callArgs.userPrompt).toContain('.agent-pipeline/outputs/test-run-123/pipeline-summary.json');
+      // Handover manager should be used for context
+      expect(mockHandoverManager.getPreviousStages).toHaveBeenCalled();
+      expect(mockHandoverManager.buildContextMessage).toHaveBeenCalled();
     });
 
-    it('should filter out non-successful stages from context', async () => {
-      const stateWithFailure: PipelineState = {
-        ...runningPipelineState,
-        stages: [
-          {
-            stageName: 'stage-1',
-            status: 'success',
-            startTime: '2024-01-01T00:00:00.000Z',
-            endTime: '2024-01-01T00:01:00.000Z',
-            duration: 60,
-            commitSha: 'success-commit',
-          },
-          {
-            stageName: 'stage-2',
-            status: 'failed',
-            startTime: '2024-01-01T00:01:00.000Z',
-            endTime: '2024-01-01T00:02:00.000Z',
-            duration: 60,
-            error: { message: 'Failed' },
-          },
-        ],
-      };
+    it('should use handover manager to track previous stages', async () => {
+      // Handover manager reads from filesystem, filtering is done there
+      mockHandoverManager.getPreviousStages = vi.fn().mockResolvedValue(['stage-1']);
 
-      await executor.executeStage(basicStageConfig, stateWithFailure);
+      await executor.executeStage(basicStageConfig, runningPipelineState);
 
-      const callArgs = mockRuntime.execute.mock.calls[0][0];
-      expect(callArgs.userPrompt).toContain('stage-1');
-      expect(callArgs.userPrompt).not.toContain('stage-2');
+      expect(mockHandoverManager.getPreviousStages).toHaveBeenCalled();
     });
 
-    it('should include extracted data in context', async () => {
+    it('should include handover context from handover manager', async () => {
+      // Setup handover manager mock with specific context
+      mockHandoverManager.buildContextMessage = vi.fn().mockReturnValue('## Pipeline Handover Context\n**Handover Directory:** /test/handover');
+
       await executor.executeStage(basicStageConfig, completedPipelineState);
 
       const callArgs = mockRuntime.execute.mock.calls[0][0];
-      expect(callArgs.userPrompt).toContain('result');
-      expect(callArgs.userPrompt).toContain('success');
+      expect(callArgs.userPrompt).toContain('Pipeline Handover Context');
     });
 
-    it('should reference stored output files for recent stages', async () => {
-      const stateWithOutputFiles: PipelineState = {
-        ...runningPipelineState,
-        stages: [
-          {
-            stageName: 'file-stage',
-            status: 'success',
-            startTime: '2024-01-01T00:00:00.000Z',
-            endTime: '2024-01-01T00:01:00.000Z',
-            duration: 60,
-            outputFiles: {
-              structured: 'path/to/structured.json',
-              raw: 'path/to/raw.md',
-            },
-          },
-        ],
-      };
+    it('should include handover directory path in context', async () => {
+      mockHandoverManager.buildContextMessage = vi.fn().mockReturnValue(
+        '## Pipeline Handover Context\n**Handover Directory:** `/tmp/handover`\n### Previous Stage Outputs\n- `/tmp/handover/stages/file-stage/output.md`'
+      );
 
-      await executor.executeStage(basicStageConfig, stateWithOutputFiles);
-
-      const callArgs = mockRuntime.execute.mock.calls[0][0];
-      expect(callArgs.userPrompt).toContain('Full Output');
-      expect(callArgs.userPrompt).toContain('path/to/structured.json');
-    });
-
-    it('should include output instructions when stage declares outputs', async () => {
-      await executor.executeStage(stageWithOutputs, runningPipelineState);
-
-      const callArgs = mockRuntime.execute.mock.calls[0][0];
-      expect(callArgs.userPrompt).toContain('## Reporting Outputs');
-      expect(callArgs.userPrompt).toContain('report_outputs');
-      expect(callArgs.userPrompt).toContain('issues_found');
-    });
-
-    it('should include commit SHAs in context', async () => {
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
       const callArgs = mockRuntime.execute.mock.calls[0][0];
-      expect(callArgs.userPrompt).toContain('Commit:');
-      expect(callArgs.userPrompt).toContain('stage-1-commit');
+      expect(callArgs.userPrompt).toContain('/tmp/handover');
     });
 
-    it('should include changed files in context', async () => {
+    // REMOVED: "should include output instructions when stage declares outputs" test
+    // report_outputs feature was removed - agents now use handover files
+
+    it('should include trigger commit in context', async () => {
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
       const callArgs = mockRuntime.execute.mock.calls[0][0];
-      // With context reduction enabled, files are compressed
-      expect(callArgs.userPrompt).toContain('Changed 2 files');
-      expect(callArgs.userPrompt).toContain('changed-files.txt');
+      expect(callArgs.userPrompt).toContain('Trigger Commit');
+    });
+
+    it('should include changed files section in context', async () => {
+      await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      const callArgs = mockRuntime.execute.mock.calls[0][0];
+      expect(callArgs.userPrompt).toContain('Changed Files');
     });
 
     it('should include stage inputs in context', async () => {
       await executor.executeStage(stageWithInputs, runningPipelineState);
 
       const callArgs = mockRuntime.execute.mock.calls[0][0];
-      expect(callArgs.userPrompt).toContain('Your Task');
+      expect(callArgs.userPrompt).toContain('Stage Inputs');
       expect(callArgs.userPrompt).toContain('targetFile');
       expect(callArgs.userPrompt).toContain('maxIssues');
       expect(callArgs.userPrompt).toContain('strictMode');
@@ -938,7 +822,7 @@ describe('StageExecutor', () => {
   describe('runAgentWithTimeout', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
     });
 
     it('should execute agent query successfully', async () => {
@@ -1119,100 +1003,14 @@ describe('StageExecutor', () => {
     });
   });
 
-  // Phase 7.2: Runtime-agnostic tests for MCP tool-based output extraction
-  // NOTE: Regex extraction is runtime-specific functionality tested in individual
-  // runtime implementation test files (claude-sdk-runtime.test.ts, claude-code-headless-runtime.test.ts).
-  // StageExecutor simply passes through whatever extractedData the runtime returns.
-  describe('Tool-based output extraction', () => {
-    beforeEach(() => {
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-    });
-
-    it('should extract data from report_outputs tool call', async () => {
-      mockRuntime.execute.mockResolvedValue({
-        textOutput: 'Analysis complete.',
-        extractedData: {
-          issues_found: 5,
-          severity: 'high',
-          details: { critical: 2, warning: 3 }
-        },
-        tokenUsage: {
-          inputTokens: 100,
-          outputTokens: 50,
-          totalTokens: 150
-        },
-        numTurns: 1
-      });
-
-      const config = { ...basicStageConfig, outputs: ['issues_found', 'severity'] };
-      const result = await executor.executeStage(config, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.extractedData).toBeDefined();
-      expect(result.extractedData?.issues_found).toBe(5);
-      expect(result.extractedData?.severity).toBe('high');
-      expect(result.extractedData?.details).toEqual({ critical: 2, warning: 3 });
-    });
-
-    it('should handle complex data types in tool call', async () => {
-      mockRuntime.execute.mockResolvedValue({
-        textOutput: '',
-        extractedData: {
-          arr: [1, 2, 3],
-          obj: { nested: { value: true } },
-          num: 42,
-          str: 'text',
-          bool: false
-        },
-        tokenUsage: {
-          inputTokens: 100,
-          outputTokens: 50,
-          totalTokens: 150
-        },
-        numTurns: 1
-      });
-
-      const config = { ...basicStageConfig, outputs: ['arr', 'obj'] };
-      const result = await executor.executeStage(config, runningPipelineState);
-
-      expect(result.extractedData?.arr).toEqual([1, 2, 3]);
-      expect(result.extractedData?.obj).toEqual({ nested: { value: true } });
-      expect(result.extractedData?.num).toBe(42);
-    });
-
-    it('should combine text and tool outputs', async () => {
-      mockRuntime.execute.mockResolvedValue({
-        textOutput: 'Found several issues in the code.',
-        extractedData: {
-          issues_found: 7
-        },
-        tokenUsage: {
-          inputTokens: 100,
-          outputTokens: 50,
-          totalTokens: 150
-        },
-        numTurns: 1
-      });
-
-      const config = { ...basicStageConfig, outputs: ['issues_found'] };
-      const result = await executor.executeStage(config, runningPipelineState);
-
-      expect(result.agentOutput).toContain('Found several issues');
-      expect(result.extractedData?.issues_found).toBe(7);
-    });
-  });
-
-  // REMOVED: "extractOutputs" describe block
-  // These tests were testing runtime-specific regex extraction functionality that was moved
-  // to runtime implementations during Phase 3 refactoring. This functionality is properly
-  // tested in claude-sdk-runtime.test.ts and claude-code-headless-runtime.test.ts.
-  // StageExecutor simply passes through whatever extractedData the runtime returns.
+  // REMOVED: "Tool-based output extraction" and "extractOutputs" blocks
+  // extractedData feature was removed - agents now use handover files for passing data
+  // between stages. Previous tests for MCP tool extraction and regex extraction are obsolete.
 
   describe('calculateDuration', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
     });
 
     it('should calculate duration with valid start and end times', async () => {
@@ -1248,7 +1046,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const promise = executor.executeStage(basicStageConfig, runningPipelineState);
       await vi.advanceTimersByTimeAsync(1000);
@@ -1261,7 +1059,7 @@ describe('StageExecutor', () => {
   describe('captureErrorDetails', () => {
     beforeEach(() => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
     });
 
     it('should capture ENOENT error with file path suggestion', async () => {
@@ -1372,7 +1170,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -1396,7 +1194,7 @@ describe('StageExecutor', () => {
         commitSha: 'integration-commit',
         commitMessage: '[pipeline:test-stage] Integration test',
       });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -1411,7 +1209,7 @@ describe('StageExecutor', () => {
       vi.mocked(fs.readFile).mockResolvedValue('Custom agent prompt');
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -1420,7 +1218,7 @@ describe('StageExecutor', () => {
 
     it('should handle concurrent stage executions', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const promise1 = executor.executeStage(basicStageConfig, runningPipelineState);
       const promise2 = executor.executeStage(
@@ -1446,7 +1244,7 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
@@ -1456,7 +1254,7 @@ describe('StageExecutor', () => {
 
     it('should track stage execution state transitions correctly', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       await vi.advanceTimersByTimeAsync(1);
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -1470,112 +1268,8 @@ describe('StageExecutor', () => {
     });
   });
 
-  describe('Context Size Warnings', () => {
-    it('should log warning when context size is at 80% threshold', async () => {
-      const consoleLogSpy = vi.spyOn(console, 'log');
-
-      // Import and setup mock before creating executor
-      const { TokenEstimator } = await import('../../utils/token-estimator.js');
-      // Use 40001 tokens (just above 80% threshold of 50k = 40k)
-      const mockSmartCount = vi.fn().mockResolvedValue({ tokens: 40001, method: 'estimated' });
-      const mockDispose = vi.fn();
-
-      // Override the TokenEstimator mock for this test
-      vi.mocked(TokenEstimator).mockImplementation(() => ({
-        smartCount: mockSmartCount,
-        estimateTokens: vi.fn().mockReturnValue(40001),
-        dispose: mockDispose,
-      }) as any);
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-
-      // Create state with context reduction enabled
-      const stateWithContextReduction = {
-        ...runningPipelineState,
-        pipelineConfig: {
-          ...runningPipelineState.pipelineConfig,
-          settings: {
-            ...runningPipelineState.pipelineConfig.settings,
-            contextReduction: {
-              enabled: true,
-              maxTokens: 50000,
-              strategy: 'summary-based' as const,
-              contextWindow: 3,
-              requireSummary: true,
-              saveVerboseOutputs: true,
-              compressFileList: true,
-            },
-          },
-        },
-      };
-
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-      await executor.executeStage(basicStageConfig, stateWithContextReduction);
-
-      // Verify warning was logged
-      const logCalls = consoleLogSpy.mock.calls.map(call => call[0]);
-      // Check for the specific warning pattern - it's logged as a single call
-      const hasContextWarning = logCalls.some(msg =>
-        typeof msg === 'string' &&
-        msg.includes('ℹ️  Context size:') &&
-        msg.includes('80%') &&
-        msg.includes('approaching threshold')
-      );
-      expect(hasContextWarning).toBe(true);
-      expect(mockDispose).toHaveBeenCalled();
-
-      consoleLogSpy.mockRestore();
-    });
-
-    it('should log warning when context exceeds max tokens', async () => {
-      const consoleWarnSpy = vi.spyOn(console, 'warn');
-
-      // Import and setup mock
-      const { TokenEstimator } = await import('../../utils/token-estimator.js');
-      const mockSmartCount = vi.fn().mockResolvedValue({ tokens: 55000, method: 'estimated' });
-      const mockDispose = vi.fn();
-
-      // Override the TokenEstimator mock for this test
-      vi.mocked(TokenEstimator).mockImplementation(() => ({
-        smartCount: mockSmartCount,
-        estimateTokens: vi.fn().mockReturnValue(55000),
-        dispose: mockDispose,
-      }) as any);
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-
-      const stateWithContextReduction = {
-        ...runningPipelineState,
-        pipelineConfig: {
-          ...runningPipelineState.pipelineConfig,
-          settings: {
-            ...runningPipelineState.pipelineConfig.settings,
-            contextReduction: {
-              enabled: true,
-              maxTokens: 50000,
-              strategy: 'summary-based' as const,
-              contextWindow: 3,
-              requireSummary: true,
-              saveVerboseOutputs: true,
-              compressFileList: true,
-            },
-          },
-        },
-      };
-
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-      await executor.executeStage(basicStageConfig, stateWithContextReduction);
-
-      // Verify warning was logged
-      const warnCalls = consoleWarnSpy.mock.calls.map(call => call[0]);
-      const hasExceedsWarning = warnCalls.some(msg =>
-        typeof msg === 'string' && msg.includes('⚠️  Context size') && msg.includes('exceeds limit')
-      );
-      expect(hasExceedsWarning).toBe(true);
-
-      consoleWarnSpy.mockRestore();
-    });
-  });
+  // REMOVED: "Context Size Warnings" block
+  // Context size warning functionality was removed
 
   // REMOVED: "Token Usage with Cache Metrics" and "Token Usage with num_turns and thinking_tokens" describe blocks
   // These tests were testing runtime-specific token normalization functionality. Token usage
@@ -1583,281 +1277,9 @@ describe('StageExecutor', () => {
   // runtime implementation test files (claude-sdk-runtime.test.ts, claude-code-headless-runtime.test.ts).
   // StageExecutor simply passes through the normalized tokenUsage from the runtime.
 
-  // Phase 7.2: Runtime-agnostic tests for output validation warnings
-  describe('Output Validation Warnings', () => {
-    let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
-
-    beforeEach(() => {
-      consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
-    });
-
-    afterEach(() => {
-      consoleWarnSpy.mockRestore();
-    });
-
-    describe('Missing summary field', () => {
-      it('should warn when summary is missing and requireSummary is true (default)', async () => {
-        mockRuntime.execute.mockResolvedValue({
-          textOutput: '',
-          extractedData: {
-            issues_found: 5,
-            severity: 'high'
-            // No summary field
-          },
-          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-          numTurns: 1
-        });
-
-        const config = { ...basicStageConfig, outputs: ['issues_found', 'severity'] };
-        await executor.executeStage(config, runningPipelineState);
-
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining(`⚠️  Stage '${config.name}' did not provide 'summary' field`)
-        );
-      });
-
-      it('should not warn when summary is present', async () => {
-        mockRuntime.execute.mockResolvedValue({
-          textOutput: '',
-          extractedData: {
-            summary: 'Review completed successfully',
-            issues_found: 5,
-            severity: 'high'
-          },
-          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-          numTurns: 1
-        });
-
-        const config = { ...basicStageConfig, outputs: ['issues_found', 'severity'] };
-        await executor.executeStage(config, runningPipelineState);
-
-        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
-          expect.stringContaining('did not provide \'summary\' field')
-        );
-      });
-
-      it('should not warn when requireSummary is false', async () => {
-        mockRuntime.execute.mockResolvedValue({
-          textOutput: '',
-          extractedData: {
-            issues_found: 5
-            // No summary
-          },
-          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-          numTurns: 1
-        });
-
-        const stateWithNoSummaryRequirement: PipelineState = {
-          ...runningPipelineState,
-          pipelineConfig: {
-            ...runningPipelineState.pipelineConfig,
-            settings: {
-              ...runningPipelineState.pipelineConfig.settings,
-              contextReduction: {
-                enabled: true,
-                maxTokens: 50000,
-                strategy: 'summary-based',
-                requireSummary: false
-              }
-            }
-          }
-        };
-
-        await executor.executeStage(basicStageConfig, stateWithNoSummaryRequirement);
-
-        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
-          expect.stringContaining('did not provide \'summary\' field')
-        );
-      });
-    });
-
-    describe('Missing expected outputs', () => {
-      it('should warn when some expected outputs are missing', async () => {
-        mockRuntime.execute.mockResolvedValue({
-          textOutput: '',
-          extractedData: {
-            summary: 'Review complete',
-            issues_found: 5
-            // Missing: severity, needs_refactor
-          },
-          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-          numTurns: 1
-        });
-
-        const config = {
-          ...basicStageConfig,
-          outputs: ['issues_found', 'severity', 'needs_refactor']
-        };
-        await executor.executeStage(config, runningPipelineState);
-
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining(`⚠️  Stage '${config.name}' did not provide expected outputs: severity, needs_refactor`)
-        );
-      });
-
-      it('should warn when all expected outputs are missing', async () => {
-        mockRuntime.execute.mockResolvedValue({
-          textOutput: '',
-          extractedData: {
-            summary: 'Task complete',
-            other_field: 'value'
-            // Missing all expected outputs
-          },
-          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-          numTurns: 1
-        });
-
-        const config = {
-          ...basicStageConfig,
-          outputs: ['issues_found', 'severity']
-        };
-        await executor.executeStage(config, runningPipelineState);
-
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('did not provide expected outputs: issues_found, severity')
-        );
-      });
-
-      it('should not warn when all expected outputs are present', async () => {
-        mockRuntime.execute.mockResolvedValue({
-          textOutput: '',
-          extractedData: {
-            summary: 'Review complete',
-            issues_found: 5,
-            severity: 'high',
-            extra_field: 'allowed'  // Extra fields are fine
-          },
-          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-          numTurns: 1
-        });
-
-        const config = {
-          ...basicStageConfig,
-          outputs: ['issues_found', 'severity']
-        };
-        await executor.executeStage(config, runningPipelineState);
-
-        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
-          expect.stringContaining('did not provide expected outputs')
-        );
-      });
-
-      it('should not warn when no outputs are configured', async () => {
-        mockRuntime.execute.mockResolvedValue({
-          textOutput: '',
-          extractedData: {
-            arbitrary_field: 'value'
-          },
-          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-          numTurns: 1
-        });
-
-        await executor.executeStage(basicStageConfig, runningPipelineState);
-
-        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
-          expect.stringContaining('did not provide expected outputs')
-        );
-      });
-    });
-
-    describe('Tool not called', () => {
-      it('should warn when agent does not call report_outputs and outputs are expected', async () => {
-        mockRuntime.execute.mockResolvedValue({
-          textOutput: 'Analysis complete. Found some issues.',
-          extractedData: undefined,
-          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-          numTurns: 1
-        });
-
-        const config = {
-          ...basicStageConfig,
-          outputs: ['issues_found', 'severity']
-        };
-        await executor.executeStage(config, runningPipelineState);
-
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining(`⚠️  Stage '${config.name}' did not call report_outputs tool`)
-        );
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Expected outputs: issues_found, severity')
-        );
-      });
-
-      it('should not warn when agent does not call tool but no outputs expected', async () => {
-        mockRuntime.execute.mockResolvedValue({
-          textOutput: 'Task completed successfully.',
-          extractedData: undefined,
-          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-          numTurns: 1
-        });
-
-        await executor.executeStage(basicStageConfig, runningPipelineState);
-
-        expect(consoleWarnSpy).not.toHaveBeenCalledWith(
-          expect.stringContaining('did not call report_outputs tool')
-        );
-      });
-
-      // REMOVED: "should use regex fallback when tool not called but warn about missing summary"
-      // This test was checking runtime-specific regex extraction behavior.
-      // Covered by: src/__tests__/core/agent-runtimes/claude-sdk-runtime.test.ts
-      // Test: "should use regex extraction when no MCP tool call"
-    });
-
-    describe('Combined warnings', () => {
-      it('should show both summary and missing outputs warnings', async () => {
-        mockRuntime.execute.mockResolvedValue({
-          textOutput: '',
-          extractedData: {
-            issues_found: 5
-            // Missing: summary, severity
-          },
-          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-          numTurns: 1
-        });
-
-        const config = {
-          ...basicStageConfig,
-          outputs: ['issues_found', 'severity']
-        };
-        await executor.executeStage(config, runningPipelineState);
-
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('did not provide \'summary\' field')
-        );
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('did not provide expected outputs: severity')
-        );
-      });
-
-      it('should not show any warnings when everything is provided correctly', async () => {
-        mockRuntime.execute.mockResolvedValue({
-          textOutput: '',
-          extractedData: {
-            summary: 'Review completed successfully',
-            issues_found: 5,
-            severity: 'high'
-          },
-          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-          numTurns: 1
-        });
-
-        const config = {
-          ...basicStageConfig,
-          outputs: ['issues_found', 'severity']
-        };
-        await executor.executeStage(config, runningPipelineState);
-
-        // Should have no warnings about outputs
-        const warningCalls = consoleWarnSpy.mock.calls.filter(call =>
-          call[0].includes('did not provide')
-        );
-        expect(warningCalls.length).toBe(0);
-      });
-    });
-  });
+  // REMOVED: "Output Validation Warnings" block
+  // extractedData feature was removed - agents now use handover files for passing data
+  // Output validation (summary, missing outputs) was tied to the extractedData system
 
   // Phase 7.2: Runtime-agnostic tests for permission mode configuration
   describe('Permission Mode', () => {
@@ -1947,7 +1369,7 @@ describe('StageExecutor', () => {
   describe('Runtime Resolution (Phase 6.1 Smoke Tests)', () => {
     it('should use stage-level runtime when specified', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath, mockRuntime);
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       const stageWithRuntime: AgentStageConfig = {
         ...basicStageConfig,
@@ -1994,7 +1416,8 @@ describe('StageExecutor', () => {
 
     it('should use global default runtime (claude-code-headless) when no runtime specified', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+      // Create executor without providing a runtime - it should resolve to the global default
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager);
 
       // Create a pipeline state without any runtime config
       const stateWithoutRuntime: PipelineState = {
