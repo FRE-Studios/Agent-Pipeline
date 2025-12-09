@@ -15,7 +15,7 @@ export class NotificationManager {
   private enabledEvents: Set<NotificationEvent>;
 
   constructor(private config?: NotificationConfig) {
-    this.enabledEvents = new Set(
+    this.enabledEvents = new Set<NotificationEvent>(
       config?.events || ['pipeline.completed', 'pipeline.failed', 'pr.created']
     );
 
@@ -104,7 +104,7 @@ export class NotificationManager {
           trigger: { type: 'manual', commitSha: 'abc123', timestamp: new Date().toISOString() },
           stages: [],
           status: 'completed',
-          artifacts: { handoverDir: '.agent-pipeline/handover/test-run', initialCommit: 'abc123', totalDuration: 42.5, changedFiles: [] }
+          artifacts: { handoverDir: '.agent-pipeline/handover/test-run', initialCommit: 'abc123', totalDuration: 42.5, changedFiles: [] as string[] }
         }
       };
 
