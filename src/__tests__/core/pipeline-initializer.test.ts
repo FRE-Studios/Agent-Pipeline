@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PipelineInitializer } from '../../core/pipeline-initializer.js';
 import { GitManager } from '../../core/git-manager.js';
 import { BranchManager } from '../../core/branch-manager.js';
+import { HandoverManager } from '../../core/handover-manager.js';
 import { PipelineConfig } from '../../config/schema.js';
 import { StageExecutor } from '../../core/stage-executor.js';
 import { ParallelExecutor } from '../../core/parallel-executor.js';
@@ -11,6 +12,7 @@ import { ParallelExecutor } from '../../core/parallel-executor.js';
 // Mock dependencies
 vi.mock('../../core/git-manager.js');
 vi.mock('../../core/branch-manager.js');
+vi.mock('../../core/handover-manager.js');
 vi.mock('../../core/stage-executor.js');
 vi.mock('../../core/parallel-executor.js');
 vi.mock('../../notifications/notification-manager.js');
@@ -63,6 +65,17 @@ describe('PipelineInitializer', () => {
     vi.spyOn(mockGitManager, 'getCurrentCommit').mockResolvedValue('abc123');
     vi.spyOn(mockGitManager, 'getChangedFiles').mockResolvedValue(['file1.ts', 'file2.ts']);
     vi.spyOn(mockBranchManager, 'getCurrentBranch').mockResolvedValue('main');
+
+    // Setup HandoverManager mock
+    const handoverManagerMock = HandoverManager as unknown as vi.Mock;
+    handoverManagerMock.mockImplementation(() => ({
+      initialize: vi.fn().mockResolvedValue(undefined),
+      getHandoverDir: vi.fn().mockReturnValue('/test/repo/test-pipeline-abc123'),
+      saveAgentOutput: vi.fn().mockResolvedValue(undefined),
+      appendToLog: vi.fn().mockResolvedValue(undefined),
+      getPreviousStages: vi.fn().mockResolvedValue([]),
+      buildContextMessage: vi.fn().mockReturnValue('')
+    }));
 
     initializer = new PipelineInitializer(
       mockGitManager,
@@ -238,12 +251,11 @@ describe('PipelineInitializer', () => {
         mockStateChangeCallback
       );
 
-      // StageExecutor constructor: (gitManager, dryRun, runId, repoPath, defaultRuntime?, loopContext?)
+      // StageExecutor constructor: (gitManager, dryRun, handoverManager, defaultRuntime?, loopContext?)
       expect(stageExecutorMock).toHaveBeenCalledWith(
         mockGitManager,
         false,  // dryRun
-        result.state.runId,
-        '/test/repo',
+        expect.any(Object),  // handoverManager
         expect.any(Object),  // defaultRuntime (the runtime passed to PipelineInitializer)
         undefined  // loopContext (not provided in this test)
       );

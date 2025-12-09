@@ -8,17 +8,6 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: vi.fn()
 }));
 
-// Mock OutputToolBuilder
-vi.mock('../../core/output-tool-builder.js', () => ({
-  OutputToolBuilder: {
-    getMcpServer: vi.fn(() => ({
-      type: 'sdk',
-      name: 'pipeline-outputs',
-      instance: {}
-    }))
-  }
-}));
-
 describe('AgentQueryRunner', () => {
   let queryRunner: AgentQueryRunner;
   let mockQuery: any;
@@ -78,40 +67,34 @@ describe('AgentQueryRunner', () => {
       });
     });
 
-    it('should extract tool call data from report_outputs', async () => {
+    it('should handle multiple assistant messages', async () => {
       mockQuery.mockImplementation(() => ({
         async *[Symbol.asyncIterator]() {
           yield {
             type: 'assistant',
             message: {
               content: [
-                { type: 'text', text: 'Analysis complete' },
-                {
-                  type: 'tool_use',
-                  name: 'report_outputs',
-                  input: {
-                    outputs: {
-                      score: 85,
-                      issues: ['issue1', 'issue2']
-                    }
-                  }
-                }
+                { type: 'text', text: 'First response ' }
+              ]
+            }
+          };
+          yield {
+            type: 'assistant',
+            message: {
+              content: [
+                { type: 'text', text: 'Second response' }
               ]
             }
           };
         }
       }));
 
-      const result = await queryRunner.runSDKQuery('Analyze code', {
-        systemPrompt: 'Analyze code',
+      const result = await queryRunner.runSDKQuery('Test', {
+        systemPrompt: 'Test',
         captureTokenUsage: false
       });
 
-      expect(result.textOutput).toBe('Analysis complete');
-      expect(result.extractedData).toEqual({
-        score: 85,
-        issues: ['issue1', 'issue2']
-      });
+      expect(result.textOutput).toBe('First response Second response');
     });
 
     it('should concatenate multiple text blocks', async () => {
@@ -276,7 +259,7 @@ describe('AgentQueryRunner', () => {
       });
     });
 
-    it('should include mcpServers in options when available', async () => {
+    it('should handle result message type', async () => {
       mockQuery.mockImplementation(() => ({
         async *[Symbol.asyncIterator]() {
           yield {
@@ -285,39 +268,13 @@ describe('AgentQueryRunner', () => {
               content: [{ type: 'text', text: 'Done' }]
             }
           };
-        }
-      }));
-
-      await queryRunner.runSDKQuery('Test', {
-        systemPrompt: 'Test',
-        captureTokenUsage: false
-      });
-
-      expect(mockQuery).toHaveBeenCalledWith({
-        prompt: 'Test',
-        options: expect.objectContaining({
-          mcpServers: expect.objectContaining({
-            'pipeline-outputs': expect.any(Object)
-          })
-        })
-      });
-    });
-
-    it('should handle OutputToolBuilder.getMcpServer failure gracefully', async () => {
-      // Mock getMcpServer to throw error
-      const { OutputToolBuilder } = await import('../../core/output-tool-builder.js');
-      vi.mocked(OutputToolBuilder.getMcpServer).mockImplementation(() => {
-        throw new Error('MCP server initialization failed');
-      });
-
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      mockQuery.mockImplementation(() => ({
-        async *[Symbol.asyncIterator]() {
           yield {
-            type: 'assistant',
-            message: {
-              content: [{ type: 'text', text: 'Done' }]
+            type: 'result',
+            subtype: 'success',
+            num_turns: 2,
+            usage: {
+              input_tokens: 50,
+              output_tokens: 25
             }
           };
         }
@@ -325,23 +282,11 @@ describe('AgentQueryRunner', () => {
 
       const result = await queryRunner.runSDKQuery('Test', {
         systemPrompt: 'Test',
-        captureTokenUsage: false
+        captureTokenUsage: true
       });
 
       expect(result.textOutput).toBe('Done');
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to initialize output tool server')
-      );
-
-      // Options should not include mcpServers
-      expect(mockQuery).toHaveBeenCalledWith({
-        prompt: 'Test',
-        options: expect.not.objectContaining({
-          mcpServers: expect.anything()
-        })
-      });
-
-      consoleWarnSpy.mockRestore();
+      expect(result.numTurns).toBe(2);
     });
 
     it('should handle empty content array', async () => {
@@ -362,10 +307,9 @@ describe('AgentQueryRunner', () => {
       });
 
       expect(result.textOutput).toBe('');
-      expect(result.extractedData).toBeUndefined();
     });
 
-    it('should ignore non-report_outputs tool calls', async () => {
+    it('should ignore tool_use content blocks', async () => {
       mockQuery.mockImplementation(() => ({
         async *[Symbol.asyncIterator]() {
           yield {
@@ -375,7 +319,7 @@ describe('AgentQueryRunner', () => {
                 { type: 'text', text: 'Using tools' },
                 {
                   type: 'tool_use',
-                  name: 'some_other_tool',
+                  name: 'some_tool',
                   input: { data: 'ignored' }
                 }
               ]
@@ -390,7 +334,6 @@ describe('AgentQueryRunner', () => {
       });
 
       expect(result.textOutput).toBe('Using tools');
-      expect(result.extractedData).toBeUndefined();
     });
 
     it('should use default permissionMode if not specified', async () => {

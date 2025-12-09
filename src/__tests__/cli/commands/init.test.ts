@@ -383,7 +383,6 @@ describe('initCommand', () => {
       expect(content).toContain('# Storyteller Agent');
       expect(content).toContain('## Your Task');
       expect(content).toContain('## Output Format');
-      expect(content).toContain('report_outputs');
     });
 
     it('should include valid markdown in doc-updater agent', async () => {
@@ -395,7 +394,6 @@ describe('initCommand', () => {
       expect(content).toContain('# Documentation Updater Agent');
       expect(content).toContain('## Your Task');
       expect(content).toContain('## Output Format');
-      expect(content).toContain('report_outputs');
     });
 
     it('should include valid markdown in quality-checker agent', async () => {
@@ -407,7 +405,6 @@ describe('initCommand', () => {
       expect(content).toContain('# Quality Checker Agent');
       expect(content).toContain('## Your Task');
       expect(content).toContain('## Output Format');
-      expect(content).toContain('report_outputs');
     });
 
     it('should include valid markdown in security-auditor agent', async () => {
@@ -419,7 +416,6 @@ describe('initCommand', () => {
       expect(content).toContain('# Security Auditor Agent');
       expect(content).toContain('## Your Task');
       expect(content).toContain('## Output Format');
-      expect(content).toContain('report_outputs');
     });
 
     it('should include valid markdown in judge agent', async () => {
@@ -463,15 +459,15 @@ describe('initCommand', () => {
     it('should create agents with proper output format instructions', async () => {
       await initCommand(tempDir, { all: true, importPluginAgents: false });
 
-      // Test agents that should have report_outputs
-      const agentsWithOutputs = ['code-reviewer.md', 'doc-updater.md', 'quality-checker.md', 'security-auditor.md'];
+      // Test agents that should have output format instructions
+      const agentsWithOutputFormat = ['code-reviewer.md', 'doc-updater.md', 'quality-checker.md', 'security-auditor.md'];
 
-      for (const agentName of agentsWithOutputs) {
+      for (const agentName of agentsWithOutputFormat) {
         const agentPath = path.join(tempDir, '.claude', 'agents', agentName);
         const exists = await fs.stat(agentPath).then(() => true, () => false);
         if (exists) {
           const content = await fs.readFile(agentPath, 'utf-8');
-          expect(content).toContain('report_outputs');
+          expect(content).toContain('## Output Format');
         }
       }
     });

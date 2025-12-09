@@ -173,11 +173,11 @@ export interface PipelineState {
   status: 'running' | 'completed' | 'failed' | 'partial';
 
   artifacts: {
+    handoverDir: string;                  // Path to handover directory
     initialCommit: string;
     finalCommit?: string;
     changedFiles: string[];
     totalDuration: number;
-    handoverDir?: string;                 // Path to handover directory
     pullRequest?: {                       // Pull request info (if created)
       url: string;
       number: number;

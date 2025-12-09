@@ -82,11 +82,13 @@ export const conditionalPipelineConfig: PipelineConfig = {
       name: 'auto-fix',
       agent: '.claude/agents/fixer.md',
       dependsOn: ['code-review'],
+      condition: '{{code-review.issues_found}} > 0',
     },
     {
       name: 'celebrate',
       agent: '.claude/agents/celebration.md',
       dependsOn: ['code-review'],
+      condition: '{{code-review.issues_found}} == 0',
     },
   ],
 };

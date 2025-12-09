@@ -312,39 +312,6 @@ describe('statusCommand', () => {
       expect(hasCommitLog).toBe(false);
     });
 
-    it('should display extracted data when present', async () => {
-      mockStateManager.getLatestRun.mockResolvedValue(completedPipelineState);
-
-      await statusCommand(tempDir);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('   Extracted Data:'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('     - result: success'));
-    });
-
-    it('should not display extracted data section when empty', async () => {
-      const stateWithoutData = {
-        ...completedPipelineState,
-        stages: [
-          {
-            stageName: 'stage-1',
-            status: 'success',
-            startTime: '2024-01-01T00:00:00.000Z',
-            duration: 60,
-            extractedData: {},
-          },
-        ],
-      };
-      mockStateManager.getLatestRun.mockResolvedValue(stateWithoutData);
-
-      await statusCommand(tempDir);
-
-      const logCalls = vi.mocked(console.log).mock.calls;
-      const hasExtractedData = logCalls.some(call =>
-        call[0]?.includes('   Extracted Data:')
-      );
-      expect(hasExtractedData).toBe(false);
-    });
-
     it('should display error message when stage failed', async () => {
       mockStateManager.getLatestRun.mockResolvedValue(failedPipelineState);
 

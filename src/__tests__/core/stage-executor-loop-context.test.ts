@@ -3,10 +3,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StageExecutor } from '../../core/stage-executor.js';
 import { GitManager } from '../../core/git-manager.js';
+import { HandoverManager } from '../../core/handover-manager.js';
 import { AgentStageConfig, PipelineState, LoopContext } from '../../config/schema.js';
 
 // Mock dependencies
 vi.mock('../../core/git-manager.js');
+vi.mock('../../core/handover-manager.js');
 vi.mock('../../utils/token-estimator.js', () => ({
   TokenEstimator: vi.fn(() => ({
     estimateTokens: vi.fn(() => 1000),
@@ -17,11 +19,17 @@ vi.mock('../../utils/token-estimator.js', () => ({
 
 describe('StageExecutor - Loop Context Injection', () => {
   let mockGitManager: GitManager;
+  let mockHandoverManager: HandoverManager;
   let mockPipelineState: PipelineState;
   let mockStageConfig: AgentStageConfig;
 
   beforeEach(() => {
     mockGitManager = new GitManager('/test/repo');
+    mockHandoverManager = new HandoverManager('/test/repo', 'test-pipeline', 'test-run-123');
+
+    // Setup mock methods
+    vi.mocked(mockHandoverManager.getPreviousStages).mockResolvedValue([]);
+    vi.mocked(mockHandoverManager.buildContextMessage).mockReturnValue('## Pipeline Handover Context\n\n**Handover Directory:** `/test/repo/test-pipeline-test-run`');
 
     mockPipelineState = {
       runId: 'test-run-123',
@@ -73,8 +81,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'test-run-123',
-        '/test/repo',
+        mockHandoverManager,
         undefined,  // No default runtime
         loopContext
       );
@@ -94,8 +101,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'test-run-123',
-        '/test/repo',
+        mockHandoverManager,
         undefined,  // No default runtime
         undefined  // No loop context
       );
@@ -121,8 +127,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'test-run-123',
-        '/test/repo',
+        mockHandoverManager,
         undefined,  // No default runtime
         loopContext
       );
@@ -151,8 +156,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'test-run-123',
-        '/test/repo',
+        mockHandoverManager,
         undefined,  // No default runtime
         loopContext
       );
@@ -178,8 +182,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'test-run-123',
-        '/test/repo',
+        mockHandoverManager,
         undefined,  // No default runtime
         loopContext
       );
@@ -192,7 +195,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       expect(context).toContain('Iteration: undefined/undefined');
     });
 
-    it('should include loop section between changed files and task section', async () => {
+    it('should include loop section between changed files and inputs section', async () => {
       const loopContext: LoopContext = {
         enabled: true,
         directories: {
@@ -208,8 +211,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'test-run-123',
-        '/test/repo',
+        mockHandoverManager,
         undefined,  // No default runtime
         loopContext
       );
@@ -219,10 +221,8 @@ describe('StageExecutor - Loop Context Injection', () => {
       // Verify ordering: changed files should come before loop section
       const changedFilesIndex = context.indexOf('Changed Files');
       const loopSectionIndex = context.indexOf('Pipeline Looping');
-      const taskSectionIndex = context.indexOf('Your Task');
 
       expect(changedFilesIndex).toBeLessThan(loopSectionIndex);
-      expect(loopSectionIndex).toBeLessThan(taskSectionIndex);
     });
 
     it('should include all standard context sections alongside loop context', async () => {
@@ -241,8 +241,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'test-run-123',
-        '/test/repo',
+        mockHandoverManager,
         undefined,  // No default runtime
         loopContext
       );
@@ -255,7 +254,6 @@ describe('StageExecutor - Loop Context Injection', () => {
       expect(context).toContain('test-stage');
       expect(context).toContain('abc123');
       expect(context).toContain('Pipeline Looping');
-      expect(context).toContain('Your Task');
     });
   });
 
@@ -264,8 +262,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'test-run-123',
-        '/test/repo',
+        mockHandoverManager,
         undefined
       );
 
@@ -287,8 +284,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'test-run-123',
-        '/test/repo',
+        mockHandoverManager,
         undefined,  // No default runtime
         loopContext
       );
@@ -313,8 +309,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
-        'test-run-123',
-        '/test/repo',
+        mockHandoverManager,
         undefined,  // No default runtime
         loopContext
       );

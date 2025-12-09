@@ -31,10 +31,10 @@ describe('ErrorFactory', () => {
     });
 
     it('should add suggestion for timeout errors', () => {
-      const error = new Error('Agent timeout exceeded');
+      const error = new Error('Agent timeout after 5 minutes');
       const result = ErrorFactory.createStageError(error);
 
-      expect(result.suggestion).toContain('Agent exceeded timeout');
+      expect(result.suggestion).toContain('Agent exceeded 5-minute timeout');
       expect(result.suggestion).toContain('increasing timeout');
     });
 

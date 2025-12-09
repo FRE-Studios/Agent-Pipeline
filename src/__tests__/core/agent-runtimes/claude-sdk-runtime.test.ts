@@ -59,7 +59,6 @@ describe('ClaudeSDKRuntime', () => {
       // Setup mock
       mockRunSDKQuery.mockResolvedValue({
         textOutput: 'Test output',
-        extractedData: { result: 'success' },
         tokenUsage: {
           input_tokens: 100,
           output_tokens: 50,
@@ -91,7 +90,6 @@ describe('ClaudeSDKRuntime', () => {
 
       // Verify result normalization
       expect(result.textOutput).toBe('Test output');
-      expect(result.extractedData).toEqual({ result: 'success' });
       expect(result.numTurns).toBe(3);
       expect(result.tokenUsage).toEqual({
         inputTokens: 100,
@@ -180,73 +178,9 @@ describe('ClaudeSDKRuntime', () => {
       expect(result.tokenUsage).toBeUndefined();
     });
 
-    it('should use regex extraction when no MCP tool call', async () => {
+    it('should handle response with no token usage', async () => {
       mockRunSDKQuery.mockResolvedValue({
-        textOutput: 'key1: value1\nkey2: value2',
-        extractedData: undefined // No MCP tool call
-      });
-
-      const request: AgentExecutionRequest = {
-        systemPrompt: 'System',
-        userPrompt: 'User',
-        options: {
-          outputKeys: ['key1', 'key2']
-        }
-      };
-
-      const result = await runtime.execute(request);
-
-      expect(result.extractedData).toEqual({
-        key1: 'value1',
-        key2: 'value2'
-      });
-    });
-
-    it('should prefer MCP tool extraction over regex', async () => {
-      mockRunSDKQuery.mockResolvedValue({
-        textOutput: 'key1: fallback_value',
-        extractedData: { key1: 'tool_value' } // From MCP tool
-      });
-
-      const request: AgentExecutionRequest = {
-        systemPrompt: 'System',
-        userPrompt: 'User',
-        options: {
-          outputKeys: ['key1']
-        }
-      };
-
-      const result = await runtime.execute(request);
-
-      // Should use MCP tool extraction, not regex
-      expect(result.extractedData).toEqual({ key1: 'tool_value' });
-    });
-
-    it('should handle regex extraction with special characters', async () => {
-      mockRunSDKQuery.mockResolvedValue({
-        textOutput: 'test.key: special value',
-        extractedData: undefined
-      });
-
-      const request: AgentExecutionRequest = {
-        systemPrompt: 'System',
-        userPrompt: 'User',
-        options: {
-          outputKeys: ['test.key']
-        }
-      };
-
-      const result = await runtime.execute(request);
-
-      expect(result.extractedData).toEqual({
-        'test.key': 'special value'
-      });
-    });
-
-    it('should return undefined extractedData when no output keys and no MCP tool', async () => {
-      mockRunSDKQuery.mockResolvedValue({
-        textOutput: 'Some output',
-        extractedData: undefined
+        textOutput: 'Some output'
       });
 
       const request: AgentExecutionRequest = {
@@ -257,7 +191,8 @@ describe('ClaudeSDKRuntime', () => {
 
       const result = await runtime.execute(request);
 
-      expect(result.extractedData).toBeUndefined();
+      expect(result.textOutput).toBe('Some output');
+      expect(result.tokenUsage).toBeUndefined();
     });
 
     it('should normalize invalid model names to undefined', async () => {
@@ -344,8 +279,7 @@ describe('ClaudeSDKRuntime', () => {
   describe('Edge Cases', () => {
     it('should handle empty text output', async () => {
       mockRunSDKQuery.mockResolvedValue({
-        textOutput: '',
-        extractedData: { key: 'value' }
+        textOutput: ''
       });
 
       const request: AgentExecutionRequest = {
@@ -357,48 +291,24 @@ describe('ClaudeSDKRuntime', () => {
       const result = await runtime.execute(request);
 
       expect(result.textOutput).toBe('');
-      expect(result.extractedData).toEqual({ key: 'value' });
     });
 
-    it('should handle regex extraction with no matches', async () => {
+    it('should include metadata in result', async () => {
       mockRunSDKQuery.mockResolvedValue({
-        textOutput: 'No matching keys here',
-        extractedData: undefined
+        textOutput: 'Output'
       });
 
       const request: AgentExecutionRequest = {
         systemPrompt: 'System',
         userPrompt: 'User',
-        options: {
-          outputKeys: ['missing_key']
-        }
+        options: { model: 'sonnet' }
       };
 
       const result = await runtime.execute(request);
 
-      expect(result.extractedData).toBeUndefined();
-    });
-
-    it('should handle partial regex matches', async () => {
-      mockRunSDKQuery.mockResolvedValue({
-        textOutput: 'key1: value1\nother text\nkey3: value3',
-        extractedData: undefined
-      });
-
-      const request: AgentExecutionRequest = {
-        systemPrompt: 'System',
-        userPrompt: 'User',
-        options: {
-          outputKeys: ['key1', 'key2', 'key3']
-        }
-      };
-
-      const result = await runtime.execute(request);
-
-      // Should only extract keys that match
-      expect(result.extractedData).toEqual({
-        key1: 'value1',
-        key3: 'value3'
+      expect(result.metadata).toEqual({
+        runtime: 'claude-sdk',
+        model: 'sonnet'
       });
     });
   });

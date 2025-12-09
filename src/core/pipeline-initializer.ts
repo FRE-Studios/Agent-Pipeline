@@ -202,7 +202,8 @@ export class PipelineInitializer {
       artifacts: {
         initialCommit: triggerCommit,
         changedFiles,
-        totalDuration: 0
+        totalDuration: 0,
+        handoverDir: ''
       },
       loopContext: stateLoopContext
     };

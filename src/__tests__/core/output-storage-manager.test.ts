@@ -130,7 +130,6 @@ describe('OutputStorageManager', () => {
           endTime: '2024-01-01T00:01:00Z',
           duration: 60,
           commitSha: 'abc123',
-          extractedData: { issues_found: 5 },
           retryAttempt: 0,
           maxRetries: 0
         },
@@ -141,7 +140,6 @@ describe('OutputStorageManager', () => {
           endTime: '2024-01-01T00:02:30Z',
           duration: 90,
           commitSha: 'def456',
-          extractedData: { vulnerabilities: 0 },
           retryAttempt: 0,
           maxRetries: 0
         }
@@ -157,14 +155,13 @@ describe('OutputStorageManager', () => {
         name: 'code-review',
         status: 'success',
         duration: 60,
-        commitSha: 'abc123',
-        extractedData: { issues_found: 5 }
+        commitSha: 'abc123'
       });
       expect(parsed[1].name).toBe('security-scan');
       expect(filepath).toContain('pipeline-summary.json');
     });
 
-    it('should handle stages without extractedData', async () => {
+    it('should handle stages without optional fields', async () => {
       const stages: StageExecution[] = [
         {
           stageName: 'test-stage',
@@ -182,7 +179,7 @@ describe('OutputStorageManager', () => {
       const content = await fs.readFile(filepath, 'utf-8');
       const parsed = JSON.parse(content);
 
-      expect(parsed[0].extractedData).toBeUndefined();
+      expect(parsed[0].commitSha).toBeUndefined();
     });
   });
 
