@@ -157,7 +157,8 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
     // Core command arguments
     // -p/--print takes the prompt as its argument value
     args.push('-p', userPrompt);
-    args.push('--output-format', 'json'); // Request JSON output
+    args.push('--output-format', 'stream-json'); // Request streaming NDJSON for real-time tool activity
+    args.push('--verbose'); // Required for stream-json with -p mode
 
     // Permission mode
     if (options.permissionMode) {
@@ -386,8 +387,9 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
         if (line) {
           try {
             const parsed = JSON.parse(line);
-            // Final result should have 'result' or 'output' field
-            if (parsed.result !== undefined || parsed.output !== undefined) {
+            // stream-json format: look for type='result' event
+            // json format: look for 'result' or 'output' field directly
+            if (parsed.type === 'result' || parsed.result !== undefined || parsed.output !== undefined) {
               finalJson = parsed;
               break;
             }
