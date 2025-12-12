@@ -10,6 +10,7 @@ import {
 import { ExecutionGroup } from './components/execution-group.js';
 import { StatusBadge } from './components/status-badge.js';
 import { SummaryLine } from './components/summary-line.js';
+import { LiveTimer } from './components/live-timer.js';
 
 interface PipelineUIProps {
   onStateChange: (callback: (state: PipelineState) => void) => void;
@@ -119,7 +120,12 @@ export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange }) => {
           <Text>
             {state.loopContext && <Text color="magenta">🔁 Loop {state.loopContext.currentIteration} | </Text>}
             Status: <StatusBadge status={state.status} /> | Duration:{' '}
-            {state.artifacts.totalDuration.toFixed(1)}s | Commits:{' '}
+            <LiveTimer
+              startTime={state.trigger.timestamp}
+              isRunning={!isFinished}
+              finalDuration={state.artifacts.totalDuration}
+            />
+            {' '}| Commits:{' '}
             {state.stages.filter((s) => s.commitSha).length}
           </Text>
         </Box>
