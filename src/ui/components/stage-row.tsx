@@ -64,15 +64,27 @@ export const StageRow: React.FC<StageRowProps> = ({
         </Box>
       )}
 
-      {(stage.status === 'running' || stage.status === 'failed') &&
-        stage.agentOutput && (
+      {/* Show tool activity for running stages */}
+      {stage.status === 'running' && stage.toolActivity && stage.toolActivity.length > 0 && (
+        <Box marginLeft={3} flexDirection="column">
+          {stage.toolActivity.map((activity, idx) => (
+            <Text key={idx} dimColor>
+              {idx === stage.toolActivity!.length - 1 ? '└─ ' : '├─ '}
+              {activity}
+            </Text>
+          ))}
+        </Box>
+      )}
+
+      {/* Show agent output for failed stages */}
+      {stage.status === 'failed' && stage.agentOutput && (
+        <Box marginLeft={3} flexDirection="column">
+          <Text dimColor>└─ Output:</Text>
           <Box marginLeft={3} flexDirection="column">
-            <Text dimColor>└─ Output:</Text>
-            <Box marginLeft={3} flexDirection="column">
-              <Text>{stage.agentOutput.split('\n').slice(-3).join('\n')}</Text>
-            </Box>
+            <Text>{stage.agentOutput.split('\n').slice(-3).join('\n')}</Text>
           </Box>
-        )}
+        </Box>
+      )}
 
       {stage.error && (
         <Box marginLeft={3} flexDirection="column">

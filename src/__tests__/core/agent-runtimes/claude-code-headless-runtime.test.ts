@@ -623,7 +623,7 @@ describe('ClaudeCodeHeadlessRuntime', () => {
   });
 
   describe('execute() - Streaming', () => {
-    it('should call onOutputUpdate callback with streaming data', async () => {
+    it('should call onOutputUpdate callback with tool activity from assistant messages', async () => {
       const mockProcess = createMockProcess();
       mockSpawn.mockReturnValue(mockProcess);
 
@@ -637,26 +637,33 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       };
 
       setTimeout(() => {
-        // Simulate stream-json format output
-        mockProcess.stdout.emit(
-          'data',
-          Buffer.from(JSON.stringify({ type: 'output', content: 'Chunk 1' }) + '\n')
-        );
-        mockProcess.stdout.emit(
-          'data',
-          Buffer.from(JSON.stringify({ type: 'output', content: 'Chunk 2' }) + '\n')
-        );
-        mockProcess.stdout.emit(
-          'data',
-          Buffer.from(JSON.stringify({ result: 'Final output' }))
-        );
+        // Simulate NDJSON streaming with assistant messages containing tool_use
+        const assistantMsg1 = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'Read', input: { file_path: '/src/index.ts' } }
+            ]
+          }
+        };
+        const assistantMsg2 = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'Edit', input: { file_path: '/src/config.ts' } }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(assistantMsg1) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(assistantMsg2) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Final output' })));
         mockProcess.emit('exit', 0);
       }, 10);
 
       await runtime.execute(request);
 
-      expect(onOutputUpdate).toHaveBeenCalledWith('Chunk 1');
-      expect(onOutputUpdate).toHaveBeenCalledWith('Chunk 2');
+      expect(onOutputUpdate).toHaveBeenCalledWith('📖 Reading .../src/index.ts');
+      expect(onOutputUpdate).toHaveBeenCalledWith('✏️ Editing .../src/config.ts');
       expect(onOutputUpdate).toHaveBeenCalledTimes(2);
     });
 
@@ -675,21 +682,24 @@ describe('ClaudeCodeHeadlessRuntime', () => {
 
       setTimeout(() => {
         mockProcess.stdout.emit('data', Buffer.from('Non-JSON line\n'));
-        mockProcess.stdout.emit(
-          'data',
-          Buffer.from(JSON.stringify({ type: 'output', content: 'Valid chunk' }) + '\n')
-        );
-        mockProcess.stdout.emit(
-          'data',
-          Buffer.from(JSON.stringify({ result: 'Final' }))
-        );
+        // Valid assistant message with tool_use
+        const assistantMsg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'Bash', input: { command: 'npm test' } }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(assistantMsg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Final' })));
         mockProcess.emit('exit', 0);
       }, 10);
 
       await runtime.execute(request);
 
-      // Should only call with valid streaming JSON
-      expect(onOutputUpdate).toHaveBeenCalledWith('Valid chunk');
+      // Should only call with valid streaming JSON containing tool_use
+      expect(onOutputUpdate).toHaveBeenCalledWith('🔧 Running: npm test');
       expect(onOutputUpdate).toHaveBeenCalledTimes(1);
     });
   });
@@ -844,10 +854,22 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       };
 
       setTimeout(() => {
-        // Emit malformed streaming JSON
-        mockProcess.stdout.emit('data', Buffer.from('{"type": "output", "content": "Valid"}\n'));
+        // Emit malformed streaming JSON mixed with valid assistant messages
+        const validMsg1 = {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'tool_use', name: 'Grep', input: { pattern: 'TODO' } }]
+          }
+        };
+        const validMsg2 = {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'tool_use', name: 'Glob', input: { pattern: '*.ts' } }]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(validMsg1) + '\n'));
         mockProcess.stdout.emit('data', Buffer.from('{malformed json}\n'));
-        mockProcess.stdout.emit('data', Buffer.from('{"type": "output", "content": "Also valid"}\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(validMsg2) + '\n'));
         // Final result must be valid
         mockProcess.stdout.emit(
           'data',
@@ -859,8 +881,8 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       const result = await runtime.execute(request);
 
       // Should call onOutputUpdate only for valid streaming JSON, skip malformed
-      expect(onOutputUpdate).toHaveBeenCalledWith('Valid');
-      expect(onOutputUpdate).toHaveBeenCalledWith('Also valid');
+      expect(onOutputUpdate).toHaveBeenCalledWith('🔎 Searching for "TODO"');
+      expect(onOutputUpdate).toHaveBeenCalledWith('🔍 Finding *.ts');
       expect(onOutputUpdate).toHaveBeenCalledTimes(2);
       expect(result.textOutput).toBe('Final output');
     });

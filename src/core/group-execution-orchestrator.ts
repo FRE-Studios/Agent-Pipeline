@@ -145,33 +145,38 @@ export class GroupExecutionOrchestrator {
     const shouldRunParallel =
       executionMode === 'parallel' && stagesToRun.length > 1;
 
+    // Helper to update tool activity as a rolling array (max 3 items)
+    const updateToolActivity = (stageName: string, activity: string) => {
+      const stageIndex = state.stages.findIndex(
+        (s) => s.stageName === stageName
+      );
+      if (stageIndex >= 0) {
+        const stage = state.stages[stageIndex];
+        if (!stage.toolActivity) {
+          stage.toolActivity = [];
+        }
+        stage.toolActivity.push(activity);
+        // Keep only the last 3 items
+        if (stage.toolActivity.length > 3) {
+          stage.toolActivity = stage.toolActivity.slice(-3);
+        }
+        this.stateChangeCallback(state);
+      }
+    };
+
     if (shouldRunParallel) {
       // Parallel execution
       return await parallelExecutor.executeParallelGroup(
         stagesToRun,
         state,
-        (stageName, output) => {
-          const stageIndex = state.stages.findIndex(
-            (s) => s.stageName === stageName
-          );
-          if (stageIndex >= 0) {
-            state.stages[stageIndex].agentOutput = output;
-            this.stateChangeCallback(state);
-          }
-        }
+        updateToolActivity
       );
     } else {
       // Sequential execution
       return await parallelExecutor.executeSequentialGroup(
         stagesToRun,
         state,
-        (stageName, output) => {
-          const currentStage = state.stages[state.stages.length - 1];
-          if (currentStage && currentStage.stageName === stageName) {
-            currentStage.agentOutput = output;
-            this.stateChangeCallback(state);
-          }
-        }
+        updateToolActivity
       );
     }
   }

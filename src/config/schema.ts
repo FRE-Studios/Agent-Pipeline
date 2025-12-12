@@ -208,6 +208,7 @@ export interface StageExecution {
   commitMessage?: string;
 
   agentOutput?: string;                // Raw agent response
+  toolActivity?: string[];             // Rolling tool activity log (max 3 recent items)
 
   // Token usage tracking
   tokenUsage?: {

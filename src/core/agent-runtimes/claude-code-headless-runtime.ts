@@ -281,14 +281,23 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
 
           // Call streaming callback if provided
           if (options.onOutputUpdate) {
-            // Try to extract incremental updates from stream-json format
+            // Parse NDJSON streaming events to extract tool activity
             const lines = chunk.split('\n');
             for (const line of lines) {
               if (line.trim()) {
                 try {
                   const parsed = JSON.parse(line);
-                  if (parsed.type === 'output' && parsed.content) {
-                    options.onOutputUpdate(parsed.content);
+
+                  // Parse assistant messages which contain tool_use blocks
+                  if (parsed.type === 'assistant' && parsed.message?.content) {
+                    for (const block of parsed.message.content) {
+                      if (block.type === 'tool_use') {
+                        const activity = this.formatToolActivity(block.name, block.input);
+                        if (activity) {
+                          options.onOutputUpdate(activity);
+                        }
+                      }
+                    }
                   }
                 } catch {
                   // Not JSON, ignore
@@ -506,5 +515,87 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
    */
   private escapeRegex(string: string): string {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
+   * Format tool activity into a human-readable string
+   *
+   * @param toolName - Name of the tool being used
+   * @param input - Tool input parameters
+   * @returns Formatted activity string
+   */
+  private formatToolActivity(toolName: string, input: Record<string, unknown>): string {
+    const icons: Record<string, string> = {
+      Read: '📖',
+      Write: '📝',
+      Edit: '✏️',
+      Bash: '🔧',
+      Glob: '🔍',
+      Grep: '🔎',
+      LS: '📂',
+      WebFetch: '🌐',
+      WebSearch: '🔍',
+      Task: '🤖',
+      TodoWrite: '📋',
+      NotebookEdit: '📓'
+    };
+
+    const icon = icons[toolName] || '⚡';
+
+    switch (toolName) {
+      case 'Read':
+        return `${icon} Reading ${this.truncatePath(input.file_path as string)}`;
+      case 'Write':
+        return `${icon} Writing ${this.truncatePath(input.file_path as string)}`;
+      case 'Edit':
+        return `${icon} Editing ${this.truncatePath(input.file_path as string)}`;
+      case 'Bash': {
+        const cmd = (input.command as string) || '';
+        const shortCmd = cmd.length > 50 ? cmd.substring(0, 47) + '...' : cmd;
+        return `${icon} Running: ${shortCmd}`;
+      }
+      case 'Glob':
+        return `${icon} Finding ${input.pattern}`;
+      case 'Grep':
+        return `${icon} Searching for "${input.pattern}"`;
+      case 'LS':
+        return `${icon} Listing ${this.truncatePath(input.path as string) || '.'}`;
+      case 'WebFetch':
+        return `${icon} Fetching ${this.truncateUrl(input.url as string)}`;
+      case 'WebSearch':
+        return `${icon} Searching: ${input.query}`;
+      case 'Task':
+        return `${icon} Spawning agent: ${input.description || input.subagent_type}`;
+      case 'TodoWrite':
+        return `${icon} Updating task list`;
+      case 'NotebookEdit':
+        return `${icon} Editing notebook ${this.truncatePath(input.notebook_path as string)}`;
+      default:
+        return `${icon} ${toolName}`;
+    }
+  }
+
+  /**
+   * Truncate a file path for display
+   */
+  private truncatePath(filePath: string | undefined): string {
+    if (!filePath) return '';
+    // Show just the filename or last part of path
+    const parts = filePath.split('/');
+    if (parts.length <= 2) return filePath;
+    return '.../' + parts.slice(-2).join('/');
+  }
+
+  /**
+   * Truncate a URL for display
+   */
+  private truncateUrl(url: string | undefined): string {
+    if (!url) return '';
+    try {
+      const parsed = new URL(url);
+      return parsed.hostname + (parsed.pathname.length > 20 ? parsed.pathname.substring(0, 17) + '...' : parsed.pathname);
+    } catch {
+      return url.substring(0, 40);
+    }
   }
 }
