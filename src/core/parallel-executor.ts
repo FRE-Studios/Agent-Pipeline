@@ -65,6 +65,37 @@ export class ParallelExecutor {
   }
 
   /**
+   * Add a stage as 'running' to the pipeline state
+   */
+  private addRunningStage(
+    stageConfig: AgentStageConfig,
+    pipelineState: PipelineState
+  ): void {
+    pipelineState.stages.push({
+      stageName: stageConfig.name,
+      status: 'running',
+      startTime: new Date().toISOString(),
+      retryAttempt: 0,
+      maxRetries: stageConfig.retry?.maxAttempts || 0
+    });
+  }
+
+  /**
+   * Update an existing stage entry in the pipeline state
+   */
+  private updateStageInState(
+    execution: StageExecution,
+    pipelineState: PipelineState
+  ): void {
+    const index = pipelineState.stages.findIndex(
+      s => s.stageName === execution.stageName
+    );
+    if (index >= 0) {
+      pipelineState.stages[index] = execution;
+    }
+  }
+
+  /**
    * Execute multiple stages in parallel
    * @param stages - Stages to execute concurrently
    * @param pipelineState - Current pipeline state
@@ -78,8 +109,15 @@ export class ParallelExecutor {
   ): Promise<ParallelExecutionResult> {
     const startTime = Date.now();
 
-    // Create promises for all stages
-    const promises = stages.map(async (stageConfig) => {
+    // Add all stages as 'running' to state before execution starts
+    for (const stageConfig of stages) {
+      this.addRunningStage(stageConfig, pipelineState);
+    }
+    this.emitStateChange(pipelineState);
+
+    // Create promises for all stages - each promise resolves to StageExecution
+    // (never rejects, failures are returned as StageExecution with status='failed')
+    const promises = stages.map(async (stageConfig): Promise<StageExecution> => {
       const stageOutputCallback = this.createStageCallback(stageConfig.name, onOutputUpdate);
 
       try {
@@ -88,28 +126,21 @@ export class ParallelExecutor {
           pipelineState,
           stageOutputCallback
         );
+        // Update the existing stage entry in state
+        this.updateStageInState(execution, pipelineState);
         this.emitStateChange(pipelineState);
         return execution;
       } catch (error) {
+        // Don't rethrow - return the failed execution directly
+        const failedExecution = this.createFailedExecution(stageConfig, error);
+        this.updateStageInState(failedExecution, pipelineState);
         this.emitStateChange(pipelineState);
-        throw error;
+        return failedExecution;
       }
     });
 
-    // Execute all stages in parallel using allSettled
-    // This ensures all stages complete even if some fail
-    const results = await Promise.allSettled(promises);
-
-    // Convert results to StageExecution objects
-    const executions: StageExecution[] = results.map((result, index) => {
-      if (result.status === 'fulfilled') {
-        return result.value;
-      } else {
-        // Handle rejected promise
-        const stageConfig = stages[index];
-        return this.createFailedExecution(stageConfig, result.reason);
-      }
-    });
+    // Execute all stages in parallel
+    const executions = await Promise.all(promises);
 
     return this.buildExecutionResult(executions, startTime);
   }
@@ -130,6 +161,10 @@ export class ParallelExecutor {
     const executions: StageExecution[] = [];
 
     for (const stageConfig of stages) {
+      // Add stage as 'running' before execution starts
+      this.addRunningStage(stageConfig, pipelineState);
+      this.emitStateChange(pipelineState);
+
       const stageOutputCallback = this.createStageCallback(stageConfig.name, onOutputUpdate);
       try {
         const execution = await this.stageExecutor.executeStage(
@@ -138,10 +173,13 @@ export class ParallelExecutor {
           stageOutputCallback
         );
         executions.push(execution);
+        // Update existing stage entry
+        this.updateStageInState(execution, pipelineState);
         this.emitStateChange(pipelineState);
       } catch (error) {
         const failedExecution = this.createFailedExecution(stageConfig, error);
         executions.push(failedExecution);
+        this.updateStageInState(failedExecution, pipelineState);
         this.emitStateChange(pipelineState);
       }
     }

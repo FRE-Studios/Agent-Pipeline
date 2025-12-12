@@ -60,6 +60,8 @@ export class GroupExecutionOrchestrator {
     this.logGroupStart(stagesToRun, group, interactive);
 
     // Execute group (parallel or sequential)
+    // Note: ParallelExecutor now manages stage entries directly in state
+    // (adds as 'running' at start, updates when complete)
     const executionMode = config.settings?.executionMode || 'parallel';
     const groupResult = await this.executeGroup(
       stagesToRun,
@@ -68,9 +70,6 @@ export class GroupExecutionOrchestrator {
       parallelExecutor,
       interactive
     );
-
-    // Add executions to state
-    state.stages.push(...groupResult.executions);
 
     // Notify for each completed/failed stage
     await this.notifyStageResultsCallback(groupResult.executions, state);

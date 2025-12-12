@@ -465,7 +465,7 @@ describe('ParallelExecutor', () => {
         expect(calls[0][0]).toEqual(stages[0]);
       });
 
-      it('should notify onStateChange after each parallel stage completes', async () => {
+      it('should notify onStateChange when adding running stages and after each completes', async () => {
         const stages: AgentStageConfig[] = [
           { name: 'alpha', agent: 'alpha.md' },
           { name: 'beta', agent: 'beta.md' },
@@ -479,7 +479,8 @@ describe('ParallelExecutor', () => {
           runningPipelineState
         );
 
-        expect(onStateChangeSpy).toHaveBeenCalledTimes(2);
+        // Called: 1x for adding all running stages + 2x for each stage completing
+        expect(onStateChangeSpy).toHaveBeenCalledTimes(3);
         for (const call of onStateChangeSpy.mock.calls) {
           expect(call[0]).toBe(runningPipelineState);
         }
@@ -602,13 +603,13 @@ describe('ParallelExecutor', () => {
     });
 
     describe('state management', () => {
-      it('should not mutate pipelineState during execution', async () => {
+      it('should add stages to pipelineState as running then update when complete', async () => {
         const stages: AgentStageConfig[] = [
           { name: 'stage1', agent: 'agent1.md' },
           { name: 'stage2', agent: 'agent2.md' },
         ];
 
-        const state = { ...runningPipelineState, stages: [] };
+        const state = { ...runningPipelineState, stages: [] as any[] };
         const execution1 = { ...successfulStageExecution, stageName: 'stage1' };
         const execution2 = { ...successfulStageExecution, stageName: 'stage2' };
 
@@ -619,23 +620,27 @@ describe('ParallelExecutor', () => {
         const result = await parallelExecutor.executeSequentialGroup(stages, state);
 
         expect(result.executions).toEqual([execution1, execution2]);
-        expect(state.stages).toHaveLength(0);
+        // Now stages ARE added to state (as running, then updated)
+        expect(state.stages).toHaveLength(2);
+        expect(state.stages[0]).toEqual(execution1);
+        expect(state.stages[1]).toEqual(execution2);
       });
 
-      it('should call onStateChange callback after each sequential stage completes', async () => {
+      it('should call onStateChange for each running stage and completion', async () => {
         const stages: AgentStageConfig[] = [
           { name: 'stage1', agent: 'agent1.md' },
           { name: 'stage2', agent: 'agent2.md' },
         ];
 
-        const state = { ...runningPipelineState, stages: [] };
+        const state = { ...runningPipelineState, stages: [] as any[] };
 
         (mockStageExecutor.executeStage as any)
           .mockResolvedValue({ ...successfulStageExecution });
 
         await parallelExecutor.executeSequentialGroup(stages, state);
 
-        expect(onStateChangeSpy).toHaveBeenCalledTimes(2);
+        // Called: 2x for adding running (once per stage) + 2x for completion
+        expect(onStateChangeSpy).toHaveBeenCalledTimes(4);
         for (const call of onStateChangeSpy.mock.calls) {
           expect(call[0]).toBe(state);
         }
@@ -816,7 +821,7 @@ describe('ParallelExecutor', () => {
         expect(result.allSucceeded).toBe(true);
       });
 
-      it('should leave original pipeline state stages array unchanged', async () => {
+      it('should add executed stage to pipeline state stages array', async () => {
         const stages: AgentStageConfig[] = [
           { name: 'stage1', agent: 'agent1.md' },
         ];
@@ -829,7 +834,8 @@ describe('ParallelExecutor', () => {
 
         await parallelExecutor.executeSequentialGroup(stages, originalState);
 
-        expect(originalState.stages.length).toBe(originalStagesLength);
+        // Now stages ARE added to state for real-time UI updates
+        expect(originalState.stages.length).toBe(originalStagesLength + 1);
       });
     });
   });
