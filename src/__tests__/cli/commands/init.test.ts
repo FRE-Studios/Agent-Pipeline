@@ -300,7 +300,7 @@ describe('initCommand', () => {
 
   describe('Example Agent Creation', () => {
     it('should create only agents required by test-pipeline by default', async () => {
-      await initCommand(tempDir, { importPluginAgents: false });
+      await initCommand(tempDir);
 
       const agentsDir = path.join(tempDir, '.claude', 'agents');
       const files = await fs.readdir(agentsDir);
@@ -320,7 +320,7 @@ describe('initCommand', () => {
     });
 
     it('should create agents required by post-commit-example when specified', async () => {
-      await initCommand(tempDir, { exampleName: 'post-commit', importPluginAgents: false });
+      await initCommand(tempDir, { exampleName: 'post-commit' });
 
       const agentsDir = path.join(tempDir, '.claude', 'agents');
       const files = await fs.readdir(agentsDir);
@@ -343,7 +343,7 @@ describe('initCommand', () => {
     });
 
     it('should create all required agents when --all flag is set', async () => {
-      await initCommand(tempDir, { all: true, importPluginAgents: false });
+      await initCommand(tempDir, { all: true });
 
       const agentsDir = path.join(tempDir, '.claude', 'agents');
       const files = await fs.readdir(agentsDir);
@@ -375,7 +375,7 @@ describe('initCommand', () => {
     });
 
     it('should include valid markdown in storyteller agent', async () => {
-      await initCommand(tempDir, { importPluginAgents: false });
+      await initCommand(tempDir);
 
       const agentPath = path.join(tempDir, '.claude', 'agents', 'storyteller.md');
       const content = await fs.readFile(agentPath, 'utf-8');
@@ -386,7 +386,7 @@ describe('initCommand', () => {
     });
 
     it('should include valid markdown in doc-updater agent', async () => {
-      await initCommand(tempDir, { all: true, importPluginAgents: false });
+      await initCommand(tempDir, { all: true });
 
       const agentPath = path.join(tempDir, '.claude', 'agents', 'doc-updater.md');
       const content = await fs.readFile(agentPath, 'utf-8');
@@ -397,7 +397,7 @@ describe('initCommand', () => {
     });
 
     it('should include valid markdown in quality-checker agent', async () => {
-      await initCommand(tempDir, { all: true, importPluginAgents: false });
+      await initCommand(tempDir, { all: true });
 
       const agentPath = path.join(tempDir, '.claude', 'agents', 'quality-checker.md');
       const content = await fs.readFile(agentPath, 'utf-8');
@@ -408,7 +408,7 @@ describe('initCommand', () => {
     });
 
     it('should include valid markdown in security-auditor agent', async () => {
-      await initCommand(tempDir, { all: true, importPluginAgents: false });
+      await initCommand(tempDir, { all: true });
 
       const agentPath = path.join(tempDir, '.claude', 'agents', 'security-auditor.md');
       const content = await fs.readFile(agentPath, 'utf-8');
@@ -419,7 +419,7 @@ describe('initCommand', () => {
     });
 
     it('should include valid markdown in judge agent', async () => {
-      await initCommand(tempDir, { importPluginAgents: false });
+      await initCommand(tempDir);
 
       const agentPath = path.join(tempDir, '.claude', 'agents', 'judge.md');
       const content = await fs.readFile(agentPath, 'utf-8');
@@ -434,7 +434,7 @@ describe('initCommand', () => {
       await fs.mkdir(agentsDir, { recursive: true });
       await fs.writeFile(path.join(agentsDir, 'storyteller.md'), '# Existing Storyteller', 'utf-8');
 
-      await initCommand(tempDir, { importPluginAgents: false });
+      await initCommand(tempDir);
 
       // Should create other 7 game agents but not storyteller.md (already exists)
       const files = await fs.readdir(agentsDir);
@@ -457,7 +457,7 @@ describe('initCommand', () => {
     });
 
     it('should create agents with proper output format instructions', async () => {
-      await initCommand(tempDir, { all: true, importPluginAgents: false });
+      await initCommand(tempDir, { all: true });
 
       // Test agents that should have output format instructions
       const agentsWithOutputFormat = ['code-reviewer.md', 'doc-updater.md', 'quality-checker.md', 'security-auditor.md'];
@@ -568,8 +568,8 @@ describe('initCommand', () => {
     });
 
     it('should log agent creation confirmation', async () => {
-      // Disable plugin import to ensure fallback agents are created
-      await initCommand(tempDir, { importPluginAgents: false });
+      vi.spyOn(AgentImporter, 'discoverPluginAgents').mockResolvedValue([]);
+      await initCommand(tempDir);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Created'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('fallback agent'));
@@ -596,37 +596,40 @@ describe('initCommand', () => {
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline install post-commit-example'));
     });
 
-    it('should log plugin agent import information', async () => {
+    it('should log plugin agent discovery information', async () => {
+      vi.spyOn(AgentImporter, 'discoverPluginAgents').mockResolvedValue([
+        { agentName: 'test', targetName: 'test.md', marketplace: 'm', plugin: 'p', originalPath: '/path' }
+      ]);
       await initCommand(tempDir);
 
-      // Should show plugin agent search message
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('📦 Searching for Claude Code plugin agents'));
+      // Should show agent count and pull command hint
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent(s) found'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline agent pull'));
     });
   });
 
   describe('AgentImporter Integration', () => {
-    it('should call AgentImporter by default', async () => {
+    it('should call AgentImporter.discoverPluginAgents by default', async () => {
+      const spy = vi.spyOn(AgentImporter, 'discoverPluginAgents').mockResolvedValue([]);
       await initCommand(tempDir);
 
-      // AgentImporter.importPluginAgents should be called
-      // This is verified by the console log output test above
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('📦 Searching for Claude Code plugin agents'));
+      expect(spy).toHaveBeenCalled();
     });
 
-    it('should skip AgentImporter when importPluginAgents is false', async () => {
-      await initCommand(tempDir, { importPluginAgents: false });
+    it('should show message when plugin agents are found', async () => {
+      vi.spyOn(AgentImporter, 'discoverPluginAgents').mockResolvedValue([
+        { agentName: 'agent1', targetName: 'agent1.md', marketplace: 'm', plugin: 'p', originalPath: '/path' },
+        { agentName: 'agent2', targetName: 'agent2.md', marketplace: 'm', plugin: 'p', originalPath: '/path' }
+      ]);
+      await initCommand(tempDir);
 
-      // Should not show plugin agent search message
-      const calls = (console.log as any).mock.calls;
-      const hasPluginMessage = calls.some((call: any[]) =>
-        call[0]?.includes('📦 Searching for Claude Code plugin agents')
-      );
-      expect(hasPluginMessage).toBe(false);
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2 agent(s) found'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline agent pull'));
     });
 
     it('should create required agents if no plugin agents exist', async () => {
-      // Disable plugin import to force fallback agent creation
-      await initCommand(tempDir, { importPluginAgents: false });
+      vi.spyOn(AgentImporter, 'discoverPluginAgents').mockResolvedValue([]);
+      await initCommand(tempDir);
 
       // Required agents for test-pipeline (8 game agents) should be created
       const agentNames = [
@@ -648,12 +651,13 @@ describe('initCommand', () => {
     });
 
     it('should not create agents that already exist from plugins', async () => {
-      // Pre-create code-reviewer.md to simulate plugin import
+      // Pre-create storyteller.md to simulate existing agent
       const agentsDir = path.join(tempDir, '.claude', 'agents');
       await fs.mkdir(agentsDir, { recursive: true });
       await fs.writeFile(path.join(agentsDir, 'storyteller.md'), '# Plugin Agent', 'utf-8');
 
-      await initCommand(tempDir, { importPluginAgents: false });
+      vi.spyOn(AgentImporter, 'discoverPluginAgents').mockResolvedValue([]);
+      await initCommand(tempDir);
 
       // Should create the other 7 game agents but not storyteller.md (already exists)
       const files = await fs.readdir(agentsDir);
@@ -671,13 +675,8 @@ describe('initCommand', () => {
       ]);
     });
 
-    it('should show fallback agent summary when no plugin agents are imported', async () => {
-      vi.spyOn(AgentImporter, 'importPluginAgents').mockResolvedValue({
-        total: 0,
-        imported: 0,
-        skipped: 0,
-        agents: []
-      });
+    it('should show fallback agent summary when creating required agents', async () => {
+      vi.spyOn(AgentImporter, 'discoverPluginAgents').mockResolvedValue([]);
 
       await initCommand(tempDir);
 
@@ -748,7 +747,7 @@ describe('initCommand', () => {
   describe('Integration', () => {
     it('should create complete project structure in one command', async () => {
       // Disable plugin import for deterministic testing
-      await initCommand(tempDir, { importPluginAgents: false });
+      await initCommand(tempDir);
 
       // Verify all directories
       const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
@@ -796,7 +795,7 @@ describe('initCommand', () => {
     });
 
     it('should create all pipelines when --all flag is used', async () => {
-      await initCommand(tempDir, { all: true, importPluginAgents: false });
+      await initCommand(tempDir, { all: true });
 
       const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
       const files = await fs.readdir(pipelinesDir);
@@ -842,7 +841,7 @@ describe('initCommand', () => {
 
     it('should create agents with proper markdown structure', async () => {
       // Disable plugin import for deterministic testing
-      await initCommand(tempDir, { importPluginAgents: false });
+      await initCommand(tempDir);
 
       const agentNames = [
         'storyteller.md',
@@ -865,7 +864,7 @@ describe('initCommand', () => {
   describe('Helper Functions', () => {
     describe('getRequiredAgents', () => {
       it('should extract agents from test-pipeline', async () => {
-        await initCommand(tempDir, { importPluginAgents: false });
+        await initCommand(tempDir);
 
         // Use a simple test by checking what files were created
         const agentsDir = path.join(tempDir, '.claude', 'agents');
@@ -881,7 +880,7 @@ describe('initCommand', () => {
       });
 
       it('should extract unique agents from multiple pipelines', async () => {
-        await initCommand(tempDir, { exampleName: 'post-commit', importPluginAgents: false });
+        await initCommand(tempDir, { exampleName: 'post-commit' });
 
         const agentsDir = path.join(tempDir, '.claude', 'agents');
         const files = await fs.readdir(agentsDir);

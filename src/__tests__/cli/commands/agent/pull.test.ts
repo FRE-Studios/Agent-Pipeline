@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { pullAgentsCommand } from '../../../../cli/commands/agent/pull.js';
-import { AgentImporter } from '../../../../cli/utils/agent-importer.js';
+import { AgentImporter, ImportedAgent } from '../../../../cli/utils/agent-importer.js';
 import { InteractivePrompts } from '../../../../cli/utils/interactive-prompts.js';
 import { createTempDir, cleanupTempDir } from '../../../setup.js';
 import * as fs from 'fs/promises';
@@ -14,6 +14,30 @@ describe('pullAgentsCommand', () => {
   let tempDir: string;
   let agentsDir: string;
 
+  const mockAgents: ImportedAgent[] = [
+    {
+      agentName: 'agent1',
+      targetName: 'plugin1-agent1.md',
+      marketplace: 'marketplace1',
+      plugin: 'plugin1',
+      originalPath: '/path/to/agent1.md',
+    },
+    {
+      agentName: 'agent2',
+      targetName: 'plugin1-agent2.md',
+      marketplace: 'marketplace1',
+      plugin: 'plugin1',
+      originalPath: '/path/to/agent2.md',
+    },
+    {
+      agentName: 'agent3',
+      targetName: 'plugin2-agent3.md',
+      marketplace: 'marketplace2',
+      plugin: 'plugin2',
+      originalPath: '/path/to/agent3.md',
+    },
+  ];
+
   beforeEach(async () => {
     tempDir = await createTempDir('agent-pull-test-');
     agentsDir = path.join(tempDir, '.claude', 'agents');
@@ -25,84 +49,31 @@ describe('pullAgentsCommand', () => {
     vi.clearAllMocks();
   });
 
-  describe('Agent Import from Plugins', () => {
-    it('should import agents from Claude Code plugins', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 3,
-        imported: 3,
-        skipped: 0,
-        agents: [
-          {
-            agentName: 'agent1',
-            targetName: 'agent1.md',
-            marketplace: 'marketplace1',
-            plugin: 'plugin1',
-            originalPath: '/path/to/agent1.md',
-          },
-          {
-            agentName: 'agent2',
-            targetName: 'agent2.md',
-            marketplace: 'marketplace1',
-            plugin: 'plugin1',
-            originalPath: '/path/to/agent2.md',
-          },
-          {
-            agentName: 'agent3',
-            targetName: 'agent3.md',
-            marketplace: 'marketplace2',
-            plugin: 'plugin2',
-            originalPath: '/path/to/agent3.md',
-          },
-        ],
-      });
+  describe('Agent Discovery', () => {
+    it('should discover agents from Claude Code plugins', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue(mockAgents);
+      vi.mocked(InteractivePrompts.multiSelect).mockResolvedValue([]);
 
       await pullAgentsCommand(tempDir);
 
-      expect(AgentImporter.importPluginAgents).toHaveBeenCalledWith(agentsDir);
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent pull complete'));
+      expect(AgentImporter.discoverPluginAgents).toHaveBeenCalled();
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Found 3 agent(s)'));
     });
 
     it('should create agents directory if it does not exist', async () => {
       await fs.rm(agentsDir, { recursive: true, force: true });
-
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 1,
-        imported: 1,
-        skipped: 0,
-        agents: [],
-      });
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue([]);
 
       await pullAgentsCommand(tempDir);
 
       const exists = await fs.access(agentsDir).then(() => true).catch(() => false);
       expect(exists).toBe(true);
     });
-
-    it('should show success message after import', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 2,
-        imported: 2,
-        skipped: 0,
-        agents: [],
-      });
-
-      await pullAgentsCommand(tempDir);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent pull complete'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Next steps:'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline agent list'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline create'));
-    });
   });
 
   describe('No Plugins Found', () => {
-    it('should show tips when no agents imported', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 0,
-        imported: 0,
-        skipped: 0,
-        agents: [],
-      });
+    it('should show tips when no agents discovered', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue([]);
 
       await pullAgentsCommand(tempDir);
 
@@ -112,311 +83,152 @@ describe('pullAgentsCommand', () => {
       expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining('Agent pull complete'));
     });
 
-    it('should not prompt for updates when no agents imported', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 0,
-        imported: 0,
+    it('should not prompt for selection when no agents discovered', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue([]);
+
+      await pullAgentsCommand(tempDir);
+
+      expect(InteractivePrompts.multiSelect).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Interactive Selection', () => {
+    it('should show interactive selection when agents are found', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue(mockAgents);
+      vi.mocked(InteractivePrompts.multiSelect).mockResolvedValue([]);
+
+      await pullAgentsCommand(tempDir);
+
+      expect(InteractivePrompts.multiSelect).toHaveBeenCalledWith(
+        expect.stringContaining('Select agents to import'),
+        expect.any(Array)
+      );
+    });
+
+    it('should pass agent options to multiSelect', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue(mockAgents);
+      vi.mocked(InteractivePrompts.multiSelect).mockResolvedValue([]);
+
+      await pullAgentsCommand(tempDir);
+
+      const multiSelectCall = vi.mocked(InteractivePrompts.multiSelect).mock.calls[0];
+      const options = multiSelectCall[1];
+
+      expect(options).toHaveLength(3);
+      expect(options[0].name).toContain('agent1');
+      expect(options[0].name).toContain('marketplace1/plugin1');
+    });
+
+    it('should import selected agents', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue(mockAgents);
+      vi.mocked(InteractivePrompts.multiSelect).mockResolvedValue([
+        'marketplace1:plugin1:agent1',
+        'marketplace2:plugin2:agent3'
+      ]);
+      vi.mocked(AgentImporter.importSelectedAgents).mockResolvedValue({
+        total: 2,
+        imported: 2,
         skipped: 0,
-        agents: [],
+        agents: [mockAgents[0], mockAgents[2]]
       });
 
       await pullAgentsCommand(tempDir);
 
-      expect(InteractivePrompts.confirm).not.toHaveBeenCalled();
+      expect(AgentImporter.importSelectedAgents).toHaveBeenCalledWith(
+        agentsDir,
+        expect.arrayContaining([
+          expect.objectContaining({ agentName: 'agent1' }),
+          expect.objectContaining({ agentName: 'agent3' })
+        ])
+      );
+    });
+
+    it('should show exit message when no agents selected', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue(mockAgents);
+      vi.mocked(InteractivePrompts.multiSelect).mockResolvedValue([]);
+
+      await pullAgentsCommand(tempDir);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('No agents selected'));
+      expect(AgentImporter.importSelectedAgents).not.toHaveBeenCalled();
+    });
+
+    it('should show success message after import', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue(mockAgents);
+      vi.mocked(InteractivePrompts.multiSelect).mockResolvedValue([
+        'marketplace1:plugin1:agent1'
+      ]);
+      vi.mocked(AgentImporter.importSelectedAgents).mockResolvedValue({
+        total: 1,
+        imported: 1,
+        skipped: 0,
+        agents: [mockAgents[0]]
+      });
+
+      await pullAgentsCommand(tempDir);
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent pull complete'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Next steps:'));
     });
   });
 
-  describe('Conflict Handling', () => {
-    it('should detect when agents are skipped', async () => {
+  describe('--all Flag', () => {
+    it('should import all agents when --all flag is set', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue(mockAgents);
       vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
         total: 3,
-        imported: 1,
-        skipped: 2,
-        agents: [],
+        imported: 3,
+        skipped: 0,
+        agents: mockAgents
       });
-      vi.mocked(InteractivePrompts.confirm).mockResolvedValue(false);
 
-      await pullAgentsCommand(tempDir);
+      await pullAgentsCommand(tempDir, { all: true });
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2 agent(s) already exist'));
-      expect(InteractivePrompts.confirm).toHaveBeenCalledWith(
-        expect.stringContaining('see which agents have updates available'),
-        true
-      );
+      expect(AgentImporter.importPluginAgents).toHaveBeenCalledWith(agentsDir, { silent: true });
+      expect(InteractivePrompts.multiSelect).not.toHaveBeenCalled();
     });
 
-    it('should prompt to check for updates when conflicts exist', async () => {
+    it('should show summary after --all import', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue(mockAgents);
       vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 2,
-        imported: 0,
-        skipped: 2,
-        agents: [
-          {
-            agentName: 'existing-agent',
-            targetName: 'existing-agent.md',
-            marketplace: 'marketplace1',
-            plugin: 'plugin1',
-            originalPath: path.join(tempDir, 'source', 'existing-agent.md'),
-          },
-        ],
+        total: 3,
+        imported: 3,
+        skipped: 0,
+        agents: mockAgents
       });
-      vi.mocked(InteractivePrompts.confirm).mockResolvedValue(true);
 
-      // Create existing agent
-      await fs.writeFile(path.join(agentsDir, 'existing-agent.md'), '# Old Version', 'utf-8');
+      // Create mock imported files to simulate successful import
+      for (const agent of mockAgents) {
+        await fs.writeFile(
+          path.join(agentsDir, agent.targetName),
+          `<!--\nImported from Claude Code Plugin\n-->\n\n# ${agent.agentName}`,
+          'utf-8'
+        );
+      }
 
-      // Create source agent (different content)
-      const sourceDir = path.join(tempDir, 'source');
-      await fs.mkdir(sourceDir, { recursive: true });
-      await fs.writeFile(path.join(sourceDir, 'existing-agent.md'), '# New Version', 'utf-8');
+      await pullAgentsCommand(tempDir, { all: true });
 
-      await pullAgentsCommand(tempDir);
-
-      expect(InteractivePrompts.confirm).toHaveBeenCalled();
-    });
-
-    it('should skip update check if user declines', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 2,
-        imported: 0,
-        skipped: 2,
-        agents: [],
-      });
-      vi.mocked(InteractivePrompts.confirm).mockResolvedValue(false);
-
-      await pullAgentsCommand(tempDir);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('2 agent(s) already exist'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent pull complete'));
-    });
-  });
-
-  describe('Agent Update Flow', () => {
-    it('should detect agents with updates available', async () => {
-      const sourceDir = path.join(tempDir, 'source');
-      await fs.mkdir(sourceDir, { recursive: true });
-
-      // Create existing agent with old content
-      await fs.writeFile(
-        path.join(agentsDir, 'test-agent.md'),
-        '<!--\nImported from...\n-->\n\n# Old Content',
-        'utf-8'
-      );
-
-      // Create source agent with new content
-      await fs.writeFile(path.join(sourceDir, 'test-agent.md'), '# New Content', 'utf-8');
-
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 1,
-        imported: 0,
-        skipped: 1,
-        agents: [
-          {
-            agentName: 'test-agent',
-            targetName: 'test-agent.md',
-            marketplace: 'marketplace1',
-            plugin: 'plugin1',
-            originalPath: path.join(sourceDir, 'test-agent.md'),
-          },
-        ],
-      });
-      vi.mocked(InteractivePrompts.confirm)
-        .mockResolvedValueOnce(true)  // Check for updates
-        .mockResolvedValueOnce(false); // Don't update
-
-      await pullAgentsCommand(tempDir);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('test-agent - UPDATE AVAILABLE'));
-    });
-
-    it('should update agent when user confirms', async () => {
-      const sourceDir = path.join(tempDir, 'source');
-      await fs.mkdir(sourceDir, { recursive: true });
-
-      // Create existing agent
-      await fs.writeFile(
-        path.join(agentsDir, 'test-agent.md'),
-        '<!--\nImported from...\n-->\n\n# Old Content',
-        'utf-8'
-      );
-
-      // Create source agent
-      await fs.writeFile(path.join(sourceDir, 'test-agent.md'), '# New Content', 'utf-8');
-
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 1,
-        imported: 0,
-        skipped: 1,
-        agents: [
-          {
-            agentName: 'test-agent',
-            targetName: 'test-agent.md',
-            marketplace: 'marketplace1',
-            plugin: 'plugin1',
-            originalPath: path.join(sourceDir, 'test-agent.md'),
-          },
-        ],
-      });
-      vi.mocked(InteractivePrompts.confirm)
-        .mockResolvedValueOnce(true)  // Check for updates
-        .mockResolvedValueOnce(true);  // Update agent
-
-      await pullAgentsCommand(tempDir);
-
-      const updatedContent = await fs.readFile(path.join(agentsDir, 'test-agent.md'), 'utf-8');
-      expect(updatedContent).toContain('# New Content');
-      expect(updatedContent).toContain('Imported from Claude Code Plugin');
-      expect(updatedContent).toContain('Updated:');
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Updated'));
-    });
-
-    it('should skip update when user declines', async () => {
-      const sourceDir = path.join(tempDir, 'source');
-      await fs.mkdir(sourceDir, { recursive: true });
-
-      const oldContent = '<!--\nImported from...\n-->\n\n# Old Content';
-      await fs.writeFile(path.join(agentsDir, 'test-agent.md'), oldContent, 'utf-8');
-      await fs.writeFile(path.join(sourceDir, 'test-agent.md'), '# New Content', 'utf-8');
-
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 1,
-        imported: 0,
-        skipped: 1,
-        agents: [
-          {
-            agentName: 'test-agent',
-            targetName: 'test-agent.md',
-            marketplace: 'marketplace1',
-            plugin: 'plugin1',
-            originalPath: path.join(sourceDir, 'test-agent.md'),
-          },
-        ],
-      });
-      vi.mocked(InteractivePrompts.confirm)
-        .mockResolvedValueOnce(true)  // Check for updates
-        .mockResolvedValueOnce(false); // Skip update
-
-      await pullAgentsCommand(tempDir);
-
-      const content = await fs.readFile(path.join(agentsDir, 'test-agent.md'), 'utf-8');
-      expect(content).toBe(oldContent);
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Skipped'));
-    });
-
-    it('should not show update when content is identical', async () => {
-      const sourceDir = path.join(tempDir, 'source');
-      await fs.mkdir(sourceDir, { recursive: true });
-
-      const sameContent = '# Same Content';
-      await fs.writeFile(
-        path.join(agentsDir, 'test-agent.md'),
-        `<!--\nMetadata\n-->\n\n${sameContent}`,
-        'utf-8'
-      );
-      await fs.writeFile(path.join(sourceDir, 'test-agent.md'), sameContent, 'utf-8');
-
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 1,
-        imported: 0,
-        skipped: 1,
-        agents: [
-          {
-            agentName: 'test-agent',
-            targetName: 'test-agent.md',
-            marketplace: 'marketplace1',
-            plugin: 'plugin1',
-            originalPath: path.join(sourceDir, 'test-agent.md'),
-          },
-        ],
-      });
-      vi.mocked(InteractivePrompts.confirm).mockResolvedValueOnce(true); // Check for updates
-
-      await pullAgentsCommand(tempDir);
-
-      expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining('UPDATE AVAILABLE'));
-    });
-
-    it('should handle multiple agents with updates', async () => {
-      const sourceDir = path.join(tempDir, 'source');
-      await fs.mkdir(sourceDir, { recursive: true });
-
-      // Create two existing agents
-      await fs.writeFile(
-        path.join(agentsDir, 'agent1.md'),
-        '<!--\nMeta\n-->\n\n# Old 1',
-        'utf-8'
-      );
-      await fs.writeFile(
-        path.join(agentsDir, 'agent2.md'),
-        '<!--\nMeta\n-->\n\n# Old 2',
-        'utf-8'
-      );
-
-      // Create source agents with new content
-      await fs.writeFile(path.join(sourceDir, 'agent1.md'), '# New 1', 'utf-8');
-      await fs.writeFile(path.join(sourceDir, 'agent2.md'), '# New 2', 'utf-8');
-
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 2,
-        imported: 0,
-        skipped: 2,
-        agents: [
-          {
-            agentName: 'agent1',
-            targetName: 'agent1.md',
-            marketplace: 'marketplace1',
-            plugin: 'plugin1',
-            originalPath: path.join(sourceDir, 'agent1.md'),
-          },
-          {
-            agentName: 'agent2',
-            targetName: 'agent2.md',
-            marketplace: 'marketplace1',
-            plugin: 'plugin1',
-            originalPath: path.join(sourceDir, 'agent2.md'),
-          },
-        ],
-      });
-      vi.mocked(InteractivePrompts.confirm)
-        .mockResolvedValueOnce(true)  // Check for updates
-        .mockResolvedValueOnce(true)  // Update agent1
-        .mockResolvedValueOnce(false); // Skip agent2
-
-      await pullAgentsCommand(tempDir);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent1 - UPDATE AVAILABLE'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent2 - UPDATE AVAILABLE'));
-
-      const agent1Content = await fs.readFile(path.join(agentsDir, 'agent1.md'), 'utf-8');
-      expect(agent1Content).toContain('# New 1');
-
-      const agent2Content = await fs.readFile(path.join(agentsDir, 'agent2.md'), 'utf-8');
-      expect(agent2Content).toContain('# Old 2');
     });
   });
 
   describe('Custom Source Option', () => {
     it('should show warning for custom source and fallback to plugins', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 1,
-        imported: 1,
-        skipped: 0,
-        agents: [],
-      });
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue([]);
 
       await pullAgentsCommand(tempDir, { source: 'https://example.com/agents' });
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Custom source pull not yet implemented'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Falling back to Claude Code plugins'));
-      expect(AgentImporter.importPluginAgents).toHaveBeenCalled();
+      expect(AgentImporter.discoverPluginAgents).toHaveBeenCalled();
     });
   });
 
   describe('Error Handling', () => {
-    it('should handle import errors gracefully', async () => {
-      const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+    it('should handle discovery errors gracefully', async () => {
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
 
-      vi.mocked(AgentImporter.importPluginAgents).mockRejectedValue(
+      vi.mocked(AgentImporter.discoverPluginAgents).mockRejectedValue(
         new Error('Plugin directory not found')
       );
 
@@ -430,9 +242,9 @@ describe('pullAgentsCommand', () => {
     });
 
     it('should exit with code 1 on error', async () => {
-      const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never);
 
-      vi.mocked(AgentImporter.importPluginAgents).mockRejectedValue(new Error('Test error'));
+      vi.mocked(AgentImporter.discoverPluginAgents).mockRejectedValue(new Error('Test error'));
 
       await pullAgentsCommand(tempDir);
 
@@ -440,52 +252,27 @@ describe('pullAgentsCommand', () => {
 
       exitSpy.mockRestore();
     });
-
-    it('should handle file access errors during update check', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 1,
-        imported: 0,
-        skipped: 1,
-        agents: [
-          {
-            agentName: 'missing-agent',
-            targetName: 'missing-agent.md',
-            marketplace: 'marketplace1',
-            plugin: 'plugin1',
-            originalPath: '/nonexistent/path/agent.md',
-          },
-        ],
-      });
-      vi.mocked(InteractivePrompts.confirm).mockResolvedValue(true);
-
-      // Should not throw, just skip the agent
-      await pullAgentsCommand(tempDir);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent pull complete'));
-    });
   });
 
   describe('Console Output', () => {
-    it('should show checking for updates message', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 1,
-        imported: 0,
-        skipped: 1,
-        agents: [],
-      });
-      vi.mocked(InteractivePrompts.confirm).mockResolvedValue(true);
+    it('should show searching message', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue([]);
 
       await pullAgentsCommand(tempDir);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Checking for agent updates'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Searching for Claude Code plugin agents'));
     });
 
     it('should display next steps after successful pull', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 3,
-        imported: 3,
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue(mockAgents);
+      vi.mocked(InteractivePrompts.multiSelect).mockResolvedValue([
+        'marketplace1:plugin1:agent1'
+      ]);
+      vi.mocked(AgentImporter.importSelectedAgents).mockResolvedValue({
+        total: 1,
+        imported: 1,
         skipped: 0,
-        agents: [],
+        agents: [mockAgents[0]]
       });
 
       await pullAgentsCommand(tempDir);
@@ -497,45 +284,30 @@ describe('pullAgentsCommand', () => {
   });
 
   describe('Edge Cases', () => {
-    it('should handle all agents being skipped', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 5,
-        imported: 0,
-        skipped: 5,
-        agents: [],
+    it('should handle single agent selection', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue([mockAgents[0]]);
+      vi.mocked(InteractivePrompts.multiSelect).mockResolvedValue([
+        'marketplace1:plugin1:agent1'
+      ]);
+      vi.mocked(AgentImporter.importSelectedAgents).mockResolvedValue({
+        total: 1,
+        imported: 1,
+        skipped: 0,
+        agents: [mockAgents[0]]
       });
-      vi.mocked(InteractivePrompts.confirm).mockResolvedValue(false);
 
       await pullAgentsCommand(tempDir);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('5 agent(s) already exist'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent pull complete'));
-    });
-
-    it('should handle partial import (some new, some skipped)', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 10,
-        imported: 6,
-        skipped: 4,
-        agents: [],
-      });
-      vi.mocked(InteractivePrompts.confirm).mockResolvedValue(false);
-
-      await pullAgentsCommand(tempDir);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('4 agent(s) already exist'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent pull complete'));
+      expect(AgentImporter.importSelectedAgents).toHaveBeenCalledWith(
+        agentsDir,
+        expect.arrayContaining([expect.objectContaining({ agentName: 'agent1' })])
+      );
     });
 
     it('should handle empty agents directory creation', async () => {
       const nonExistentDir = path.join(tempDir, 'new-repo');
 
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 1,
-        imported: 1,
-        skipped: 0,
-        agents: [],
-      });
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue([]);
 
       await pullAgentsCommand(nonExistentDir);
 
@@ -546,71 +318,60 @@ describe('pullAgentsCommand', () => {
   });
 
   describe('Integration', () => {
-    it('should complete full workflow with new imports', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 3,
-        imported: 3,
+    it('should complete full workflow with interactive selection', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue(mockAgents);
+      vi.mocked(InteractivePrompts.multiSelect).mockResolvedValue([
+        'marketplace1:plugin1:agent1',
+        'marketplace1:plugin1:agent2'
+      ]);
+      vi.mocked(AgentImporter.importSelectedAgents).mockResolvedValue({
+        total: 2,
+        imported: 2,
         skipped: 0,
-        agents: [],
+        agents: [mockAgents[0], mockAgents[1]]
       });
 
       await pullAgentsCommand(tempDir);
 
-      expect(AgentImporter.importPluginAgents).toHaveBeenCalledWith(agentsDir);
+      expect(AgentImporter.discoverPluginAgents).toHaveBeenCalled();
+      expect(InteractivePrompts.multiSelect).toHaveBeenCalled();
+      expect(AgentImporter.importSelectedAgents).toHaveBeenCalled();
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent pull complete'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Next steps:'));
+    });
+
+    it('should complete full workflow with --all flag', async () => {
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue(mockAgents);
+      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
+        total: 3,
+        imported: 3,
+        skipped: 0,
+        agents: mockAgents
+      });
+
+      // Create mock imported files
+      for (const agent of mockAgents) {
+        await fs.writeFile(
+          path.join(agentsDir, agent.targetName),
+          `<!--\nImported from Claude Code Plugin\n-->\n\n# ${agent.agentName}`,
+          'utf-8'
+        );
+      }
+
+      await pullAgentsCommand(tempDir, { all: true });
+
+      expect(AgentImporter.discoverPluginAgents).toHaveBeenCalled();
+      expect(AgentImporter.importPluginAgents).toHaveBeenCalled();
+      expect(InteractivePrompts.multiSelect).not.toHaveBeenCalled();
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent pull complete'));
     });
 
     it('should complete full workflow with no agents found', async () => {
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 0,
-        imported: 0,
-        skipped: 0,
-        agents: [],
-      });
+      vi.mocked(AgentImporter.discoverPluginAgents).mockResolvedValue([]);
 
       await pullAgentsCommand(tempDir);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Tips for adding agents'));
       expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining('Agent pull complete'));
-    });
-
-    it('should complete full update workflow', async () => {
-      const sourceDir = path.join(tempDir, 'source');
-      await fs.mkdir(sourceDir, { recursive: true });
-
-      await fs.writeFile(
-        path.join(agentsDir, 'agent.md'),
-        '<!--\nMeta\n-->\n\n# Old',
-        'utf-8'
-      );
-      await fs.writeFile(path.join(sourceDir, 'agent.md'), '# New', 'utf-8');
-
-      vi.mocked(AgentImporter.importPluginAgents).mockResolvedValue({
-        total: 1,
-        imported: 0,
-        skipped: 1,
-        agents: [
-          {
-            agentName: 'agent',
-            targetName: 'agent.md',
-            marketplace: 'marketplace1',
-            plugin: 'plugin1',
-            originalPath: path.join(sourceDir, 'agent.md'),
-          },
-        ],
-      });
-      vi.mocked(InteractivePrompts.confirm)
-        .mockResolvedValueOnce(true)  // Check updates
-        .mockResolvedValueOnce(true);  // Update agent
-
-      await pullAgentsCommand(tempDir);
-
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('1 agent(s) already exist'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Checking for agent updates'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent - UPDATE AVAILABLE'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Updated'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent pull complete'));
     });
   });
 });

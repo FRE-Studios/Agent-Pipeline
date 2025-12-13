@@ -2,11 +2,12 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { AgentImporter } from '../../utils/agent-importer.js';
+import { AgentImporter, ImportedAgent } from '../../utils/agent-importer.js';
 import { InteractivePrompts } from '../../utils/interactive-prompts.js';
 
 export interface PullAgentsOptions {
   source?: string;
+  all?: boolean;
 }
 
 export async function pullAgentsCommand(
@@ -25,10 +26,11 @@ export async function pullAgentsCommand(
       console.log('   Falling back to Claude Code plugins\n');
     }
 
-    // Import from Claude Code plugins
-    const summary = await AgentImporter.importPluginAgents(agentsDir);
+    // Discover available agents
+    console.log('\n📦 Searching for Claude Code plugin agents...');
+    const discoveredAgents = await AgentImporter.discoverPluginAgents();
 
-    if (summary.total === 0) {
+    if (discoveredAgents.length === 0) {
       console.log('\n💡 Tips for adding agents:');
       console.log('   1. Install Claude Code plugins with agent collections');
       console.log('   2. Create custom agents in .claude/agents/');
@@ -36,66 +38,27 @@ export async function pullAgentsCommand(
       return;
     }
 
-    // Check for conflicts (agents that were skipped because they exist)
-    if (summary.skipped > 0) {
-      console.log(`\n⚠️  ${summary.skipped} agent(s) already exist\n`);
+    console.log(`   Found ${discoveredAgents.length} agent(s) across installed plugins\n`);
 
-      const update = await InteractivePrompts.confirm(
-        'Would you like to see which agents have updates available?',
-        true
-      );
-
-      if (update) {
-        console.log('\n📊 Checking for agent updates...\n');
-
-        for (const agent of summary.agents) {
-          const targetPath = path.join(agentsDir, agent.targetName);
-
-          try {
-            await fs.access(targetPath);
-
-            // Read both versions and compare
-            const existing = await fs.readFile(targetPath, 'utf-8');
-            const source = await fs.readFile(agent.originalPath, 'utf-8');
-
-            // Remove metadata header for comparison
-            const cleanExisting = existing.replace(/<!--[\s\S]*?-->\n\n/, '');
-            const cleanSource = source;
-
-            if (cleanExisting !== cleanSource) {
-              console.log(`   📝 ${agent.agentName} - UPDATE AVAILABLE`);
-
-              const override = await InteractivePrompts.confirm(
-                `      Update ${agent.agentName}?`,
-                false
-              );
-
-              if (override) {
-                const enhancedContent = `<!--
-Imported from Claude Code Plugin
-Marketplace: ${agent.marketplace}
-Plugin: ${agent.plugin}
-Original: ${agent.agentName}.md
-Imported: ${new Date().toISOString()}
-Updated: ${new Date().toISOString()}
--->
-
-${cleanSource}`;
-
-                await fs.writeFile(targetPath, enhancedContent, 'utf-8');
-                console.log(`      ✅ Updated\n`);
-              } else {
-                console.log(`      ⏭️  Skipped\n`);
-              }
-            }
-          } catch {
-            // Agent doesn't exist, skip
-          }
-        }
-      }
+    // If --all flag, import all agents
+    if (options.all) {
+      await AgentImporter.importPluginAgents(agentsDir, { silent: true });
+      await showImportSummary(agentsDir, discoveredAgents);
+      return;
     }
 
-    console.log('\n✅ Agent pull complete!\n');
+    // Interactive selection
+    const selectedAgents = await selectAgentsInteractively(discoveredAgents);
+
+    if (selectedAgents.length === 0) {
+      console.log('\nNo agents selected. Exiting.\n');
+      return;
+    }
+
+    // Import selected agents
+    await AgentImporter.importSelectedAgents(agentsDir, selectedAgents);
+
+    console.log('✅ Agent pull complete!\n');
     console.log('💡 Next steps:');
     console.log('   - View agents: agent-pipeline agent list');
     console.log('   - Create pipeline: agent-pipeline create\n');
@@ -104,4 +67,71 @@ ${cleanSource}`;
     console.error(`❌ Failed to pull agents: ${(error as Error).message}`);
     process.exit(1);
   }
+}
+
+/**
+ * Interactive agent selection using multiSelect
+ */
+async function selectAgentsInteractively(agents: ImportedAgent[]): Promise<ImportedAgent[]> {
+  // Group agents by marketplace/plugin for display
+  const grouped = agents.reduce((acc, agent) => {
+    const key = `${agent.marketplace}/${agent.plugin}`;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(agent);
+    return acc;
+  }, {} as Record<string, ImportedAgent[]>);
+
+  // Build options list with plugin grouping info
+  const options: { name: string; value: string }[] = [];
+  const agentMap = new Map<string, ImportedAgent>();
+
+  for (const [pluginKey, pluginAgents] of Object.entries(grouped)) {
+    for (const agent of pluginAgents) {
+      const key = `${agent.marketplace}:${agent.plugin}:${agent.agentName}`;
+      options.push({
+        name: `${agent.agentName} (${pluginKey})`,
+        value: key
+      });
+      agentMap.set(key, agent);
+    }
+  }
+
+  const selectedKeys = await InteractivePrompts.multiSelect(
+    '\nSelect agents to import:',
+    options
+  );
+
+  return selectedKeys
+    .map(key => agentMap.get(key))
+    .filter((agent): agent is ImportedAgent => agent !== undefined);
+}
+
+/**
+ * Show import summary after --all import
+ */
+async function showImportSummary(agentsDir: string, agents: ImportedAgent[]): Promise<void> {
+  let imported = 0;
+  let skipped = 0;
+
+  for (const agent of agents) {
+    const targetPath = path.join(agentsDir, agent.targetName);
+    try {
+      await fs.access(targetPath);
+      // File exists - was either imported or skipped
+      const content = await fs.readFile(targetPath, 'utf-8');
+      if (content.includes('Imported from Claude Code Plugin')) {
+        imported++;
+      } else {
+        skipped++;
+      }
+    } catch {
+      skipped++;
+    }
+  }
+
+  console.log(`\n📊 Import complete: ${imported} imported, ${skipped} skipped\n`);
+  console.log('✅ Agent pull complete!\n');
+  console.log('💡 Next steps:');
+  console.log('   - View agents: agent-pipeline agent list');
+  console.log('   - Create pipeline: agent-pipeline create\n');
 }

@@ -17,8 +17,6 @@ export async function initCommand(
   options?: {
     exampleName?: string;
     all?: boolean;
-    importPluginAgents?: boolean;
-    interactive?: boolean;
   }
 ): Promise<void> {
   console.log('\n🚀 Initializing Agent Pipeline...\n');
@@ -35,10 +33,11 @@ export async function initCommand(
     console.log(`   - .agent-pipeline/pipelines/`);
     console.log(`   - .claude/agents/\n`);
 
-    // Import plugin agents (default to true)
-    let importSummary;
-    if (options?.importPluginAgents !== false) {
-      importSummary = await AgentImporter.importPluginAgents(agentsDir);
+    // Check for available plugin agents (don't auto-import)
+    const discoveredAgents = await AgentImporter.discoverPluginAgents();
+    if (discoveredAgents.length > 0) {
+      console.log(`📦 ${discoveredAgents.length} agent(s) found in Claude Code plugins.`);
+      console.log('   Use "agent-pipeline agent pull" to import.\n');
     }
 
     // Determine which pipelines to create
@@ -114,15 +113,6 @@ export async function initCommand(
       console.log(`   - ${pipeline}.yml`);
     }
     console.log('');
-
-    // Show agent import summary
-    if (importSummary && importSummary.imported > 0) {
-      console.log(`📦 Imported ${importSummary.imported} agent(s) from Claude Code plugins`);
-      if (importSummary.skipped > 0) {
-        console.log(`   (${importSummary.skipped} skipped - already exist)`);
-      }
-      console.log('');
-    }
 
     console.log('Next steps:');
     console.log('  1. Review your pipeline in .agent-pipeline/pipelines/test-pipeline.yml');

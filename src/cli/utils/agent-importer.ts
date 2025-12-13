@@ -210,4 +210,94 @@ ${content}`;
 
     return { total: agents.length, imported, skipped, agents };
   }
+
+  /**
+   * Import only selected agents into the target directory
+   */
+  static async importSelectedAgents(
+    targetAgentsDir: string,
+    selectedAgents: ImportedAgent[]
+  ): Promise<ImportSummary> {
+    if (selectedAgents.length === 0) {
+      console.log('   No agents selected.\n');
+      return { total: 0, imported: 0, skipped: 0, agents: [] };
+    }
+
+    console.log(`\n📦 Importing ${selectedAgents.length} agent(s)...\n`);
+
+    // Group agents by marketplace and plugin for better display
+    const grouped = selectedAgents.reduce((acc, agent) => {
+      const key = `${agent.marketplace}/${agent.plugin}`;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(agent);
+      return acc;
+    }, {} as Record<string, ImportedAgent[]>);
+
+    let imported = 0;
+    let skipped = 0;
+
+    for (const [key, pluginAgents] of Object.entries(grouped)) {
+      console.log(`   📂 ${key}:`);
+
+      for (const agent of pluginAgents) {
+        const targetPath = path.join(targetAgentsDir, agent.targetName);
+
+        try {
+          // Check if target already exists
+          try {
+            await fs.access(targetPath);
+            console.log(`      ⏭️  ${agent.agentName} (already exists, skipping)`);
+            skipped++;
+            continue;
+          } catch {
+            // File doesn't exist, good to import
+          }
+
+          // Read the original agent file
+          const content = await fs.readFile(agent.originalPath, 'utf-8');
+
+          // Add metadata header to imported agent
+          const enhancedContent = `<!--
+Imported from Claude Code Plugin
+Marketplace: ${agent.marketplace}
+Plugin: ${agent.plugin}
+Original: ${agent.agentName}.md
+Imported: ${new Date().toISOString()}
+-->
+
+${content}`;
+
+          await fs.writeFile(targetPath, enhancedContent, 'utf-8');
+          console.log(`      ✅ ${agent.agentName}`);
+          imported++;
+        } catch (error) {
+          console.log(`      ❌ ${agent.agentName} (${(error as Error).message})`);
+        }
+      }
+    }
+
+    // Create import manifest for tracking
+    const manifestPath = path.join(targetAgentsDir, '.import-manifest.json');
+    const manifest = {
+      importedAt: new Date().toISOString(),
+      pluginsPath: AgentImporter.getClaudePluginsBasePath(),
+      summary: {
+        total: selectedAgents.length,
+        imported,
+        skipped
+      },
+      agents: selectedAgents.map(a => ({
+        marketplace: a.marketplace,
+        plugin: a.plugin,
+        original: a.agentName,
+        target: a.targetName
+      }))
+    };
+
+    await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+
+    console.log(`\n   📊 Import complete: ${imported} imported, ${skipped} skipped\n`);
+
+    return { total: selectedAgents.length, imported, skipped, agents: selectedAgents };
+  }
 }

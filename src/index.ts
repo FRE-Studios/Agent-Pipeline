@@ -325,7 +325,8 @@ async function main() {
 
           case 'pull': {
             const source = agentArg;
-            await pullAgentsCommand(repoPath, { source });
+            const all = args.includes('--all');
+            await pullAgentsCommand(repoPath, { source, all });
             break;
           }
 
@@ -336,12 +337,16 @@ Agent Management Commands:
 Usage:
   agent-pipeline agent list                    List available agents
   agent-pipeline agent info <agent-name>       Show detailed agent information
-  agent-pipeline agent pull [source]           Import agents from Claude Code plugins
+  agent-pipeline agent pull [--all]            Import agents from Claude Code plugins
+
+Options:
+  --all    Import all available agents without interactive selection
 
 Examples:
   agent-pipeline agent list
   agent-pipeline agent info code-reviewer
   agent-pipeline agent pull
+  agent-pipeline agent pull --all
             `);
           }
         }
@@ -376,7 +381,7 @@ Pipeline Management:
 Agent Management:
   agent list                   List available agents
   agent info <agent-name>      Show detailed agent information
-  agent pull [source]          Import agents from Claude Code plugins
+  agent pull [--all]           Import agents from Claude Code plugins
 
 Git Integration:
   install <pipeline-name>      Install git hook (respects pipeline trigger)
