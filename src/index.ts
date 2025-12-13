@@ -49,6 +49,9 @@ import { listAgentsCommand } from './cli/commands/agent/list.js';
 import { agentInfoCommand } from './cli/commands/agent/info.js';
 import { pullAgentsCommand } from './cli/commands/agent/pull.js';
 
+// Schema command
+import { schemaCommand } from './cli/commands/schema.js';
+
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
@@ -353,6 +356,25 @@ Examples:
         break;
       }
 
+      case 'schema': {
+        let format: 'json' | 'yaml' = 'json';
+        let output: string | undefined;
+
+        for (let i = 1; i < args.length; i++) {
+          if (args[i] === '--format' || args[i] === '-f') {
+            const fmt = args[++i];
+            if (fmt === 'json' || fmt === 'yaml') {
+              format = fmt;
+            }
+          } else if (args[i] === '--output' || args[i] === '-o') {
+            output = args[++i];
+          }
+        }
+
+        await schemaCommand(repoPath, { format, output });
+        break;
+      }
+
       default: {
         console.log(`
 Agent Pipeline - Intelligent agent orchestration for Claude Code
@@ -382,6 +404,9 @@ Agent Management:
   agent list                   List available agents
   agent info <agent-name>      Show detailed agent information
   agent pull [--all]           Import agents from Claude Code plugins
+
+Schema:
+  schema [options]             Output JSON Schema for pipeline configuration
 
 Git Integration:
   install <pipeline-name>      Install git hook (respects pipeline trigger)
@@ -416,6 +441,10 @@ Analytics Options:
   -d, --days <n>               Filter by last N days
   -l, --loops                  Show loop session analytics instead of pipeline runs
 
+Schema Options:
+  -f, --format <format>        Output format: json (default) or yaml
+  -o, --output <file>          Write to file instead of stdout
+
 Rollback Options:
   -r, --run-id <id>            Rollback specific run ID
   -s, --stages <n>             Rollback last N stages
@@ -438,6 +467,8 @@ Examples:
   agent-pipeline install commit-review
   agent-pipeline export commit-review --include-agents --output backup.yml
   agent-pipeline import https://example.com/pipeline.yml
+  agent-pipeline schema
+  agent-pipeline schema --format yaml --output schema.yaml
         `);
       }
     }

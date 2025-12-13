@@ -1,0 +1,386 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/PipelineConfig",
+  "definitions": {
+    "PipelineConfig": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "pre-commit",
+            "post-commit",
+            "pre-push",
+            "post-merge",
+            "manual"
+          ]
+        },
+        "git": {
+          "$ref": "#/definitions/GitConfig"
+        },
+        "notifications": {
+          "$ref": "#/definitions/NotificationConfig"
+        },
+        "runtime": {
+          "$ref": "#/definitions/RuntimeConfig"
+        },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "autoCommit": {
+              "type": "boolean"
+            },
+            "commitPrefix": {
+              "type": "string"
+            },
+            "failureStrategy": {
+              "type": "string",
+              "enum": [
+                "stop",
+                "continue"
+              ]
+            },
+            "preserveWorkingTree": {
+              "type": "boolean"
+            },
+            "executionMode": {
+              "type": "string",
+              "enum": [
+                "sequential",
+                "parallel"
+              ]
+            },
+            "contextReduction": {
+              "$ref": "#/definitions/ContextReductionConfig"
+            },
+            "permissionMode": {
+              "$ref": "#/definitions/PermissionMode"
+            },
+            "handover": {
+              "type": "object",
+              "properties": {
+                "directory": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "autoCommit",
+            "commitPrefix",
+            "failureStrategy",
+            "preserveWorkingTree"
+          ],
+          "additionalProperties": false
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AgentStageConfig"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "trigger",
+        "agents"
+      ],
+      "additionalProperties": false
+    },
+    "GitConfig": {
+      "type": "object",
+      "properties": {
+        "baseBranch": {
+          "type": "string"
+        },
+        "branchStrategy": {
+          "type": "string",
+          "enum": [
+            "reusable",
+            "unique-per-run"
+          ]
+        },
+        "branchPrefix": {
+          "type": "string"
+        },
+        "pullRequest": {
+          "$ref": "#/definitions/PRConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PRConfig": {
+      "type": "object",
+      "properties": {
+        "autoCreate": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "reviewers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "draft": {
+          "type": "boolean"
+        },
+        "assignees": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "milestone": {
+          "type": "string"
+        },
+        "web": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "NotificationConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/NotificationEvent"
+          }
+        },
+        "channels": {
+          "type": "object",
+          "properties": {
+            "local": {
+              "$ref": "#/definitions/LocalNotificationConfig"
+            },
+            "slack": {
+              "$ref": "#/definitions/SlackNotificationConfig"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "NotificationEvent": {
+      "type": "string",
+      "enum": [
+        "pipeline.started",
+        "pipeline.completed",
+        "pipeline.failed",
+        "stage.completed",
+        "stage.failed",
+        "pr.created"
+      ]
+    },
+    "LocalNotificationConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "sound": {
+          "type": "boolean"
+        },
+        "openUrl": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SlackNotificationConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "webhookUrl": {
+          "type": "string"
+        },
+        "channel": {
+          "type": "string"
+        },
+        "mentionOnFailure": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "RuntimeConfig": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "description": "Runtime configuration for agent execution Supports multiple runtime types: 'claude-sdk', 'claude-code-headless', etc."
+    },
+    "ContextReductionConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "maxTokens": {
+          "type": "number"
+        },
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "summary-based",
+            "agent-based"
+          ]
+        },
+        "contextWindow": {
+          "type": "number"
+        },
+        "requireSummary": {
+          "type": "boolean"
+        },
+        "saveVerboseOutputs": {
+          "type": "boolean"
+        },
+        "compressFileList": {
+          "type": "boolean"
+        },
+        "agentPath": {
+          "type": "string"
+        },
+        "triggerThreshold": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "enabled",
+        "maxTokens",
+        "strategy"
+      ],
+      "additionalProperties": false
+    },
+    "PermissionMode": {
+      "type": "string",
+      "enum": [
+        "default",
+        "acceptEdits",
+        "bypassPermissions",
+        "plan"
+      ],
+      "description": "Permission mode for agent execution\n- default: Prompts for permission based on .claude/settings.json rules\n- acceptEdits: Auto-accepts file edits (Write, Edit tools) while respecting allow/deny rules\n- bypassPermissions: Bypasses all permission checks (use with caution)\n- plan: Read-only mode, no actual execution",
+      "default": "'acceptEdits' - Optimized for automated workflows"
+    },
+    "AgentStageConfig": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/definitions/RuntimeConfig"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "onFail": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "continue",
+            "warn"
+          ]
+        },
+        "timeout": {
+          "type": "number"
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "retry": {
+          "$ref": "#/definitions/RetryConfig"
+        },
+        "autoCommit": {
+          "type": "boolean"
+        },
+        "commitMessage": {
+          "type": "string"
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "agent"
+      ],
+      "additionalProperties": false
+    },
+    "RetryConfig": {
+      "type": "object",
+      "properties": {
+        "maxAttempts": {
+          "type": "number"
+        },
+        "backoff": {
+          "type": "string",
+          "enum": [
+            "exponential",
+            "linear",
+            "fixed"
+          ]
+        },
+        "initialDelay": {
+          "type": "number"
+        },
+        "maxDelay": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "maxAttempts",
+        "backoff"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "title": "Agent Pipeline Configuration",
+  "description": "Schema for .agent-pipeline/pipelines/*.yml configuration files"
+}

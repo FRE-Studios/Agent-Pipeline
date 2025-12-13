@@ -2,6 +2,8 @@
 
 Agent Pipeline loads YAML pipeline definitions from `.agent-pipeline/pipelines/<name>.yml`. Each file describes the trigger, global settings, and an ordered (or DAG-planned) list of agent stages.
 
+> **Schema Validation:** Run `agent-pipeline schema` to export the JSON Schema for IDE autocomplete and validation. See [CLI Reference](cli.md#schema) for details.
+
 ## Configuration Overview
 
 ```yaml

@@ -18,6 +18,7 @@
     "test:unit": "vitest --exclude '**/smoke/claude-cli-e2e.test.ts'",
     "test:e2e": "RUN_E2E_TESTS=true vitest src/__tests__/smoke/claude-cli-e2e.test.ts",
     "start": "node dist/index.js",
+    "generate:schema": "node scripts/generate-schema.mjs",
     "postinstall": "test ! -d node_modules/typescript || npm run build",
     "prepublishOnly": "npm run build"
   },
@@ -27,6 +28,8 @@
     "dist/**/*.d.ts.map",
     "dist/**/*.js.map",
     "dist/**/*.yml",
+    "dist/**/*.yaml",
+    "dist/**/*.json",
     "dist/**/*.md",
     "!dist/**/*.test.*",
     "!dist/__tests__",
@@ -81,6 +84,7 @@
     "@types/uuid": "^10.0.0",
     "@vitest/coverage-v8": "^3.0.0",
     "ink-testing-library": "^4.0.0",
+    "ts-json-schema-generator": "^2.4.0",
     "typescript": "^5.5.0",
     "vitest": "^3.0.0"
   },

@@ -38,6 +38,20 @@ Commands under the `agent` namespace interact with `.claude/agents/`:
 - `agent info <name>` – Display prompt metadata and usage.
 - `agent pull [source]` – Fetch agents from a Claude Code plugin directory.
 
+## Schema
+
+- `schema [--format <json|yaml>] [--output <file>]` – Output JSON Schema for pipeline configuration files.
+  - Default format is JSON. Use `--format yaml` for YAML output.
+  - Without `--output`, prints to stdout.
+
+**IDE Integration:** Use the schema for YAML validation and autocomplete:
+```yaml
+# yaml-language-server: $schema=./path/to/pipeline-config.schema.json
+name: my-pipeline
+trigger: manual
+# ... IDE will now provide autocomplete
+```
+
 ## Git Hooks and Workflow
 
 - `install <pipeline>` – Install a git hook matching the pipeline trigger (`pre-commit`, `post-commit`, `pre-push`, or `post-merge`). Manual pipelines are rejected.
