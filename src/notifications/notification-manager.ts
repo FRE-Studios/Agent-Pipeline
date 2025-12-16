@@ -13,6 +13,7 @@ import {
 export class NotificationManager {
   private notifiers: BaseNotifier[] = [];
   private enabledEvents: Set<NotificationEvent>;
+  private warnedMisconfiguredChannels = new Set<string>();
 
   constructor(private config?: NotificationConfig) {
     this.enabledEvents = new Set<NotificationEvent>(
@@ -78,6 +79,16 @@ export class NotificationManager {
         configured: await notifier.isConfigured()
       }))
     );
+
+    const misconfigured = checks.filter(check => !check.configured);
+    for (const { notifier } of misconfigured) {
+      if (!this.warnedMisconfiguredChannels.has(notifier.channel)) {
+        console.warn(
+          `⚠️  Notification channel '${notifier.channel}' is enabled but not configured; skipping.`
+        );
+        this.warnedMisconfiguredChannels.add(notifier.channel);
+      }
+    }
 
     return checks.filter(check => check.configured).map(check => check.notifier);
   }

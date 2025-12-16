@@ -87,20 +87,26 @@ export class PipelineRunner {
     executions: import('../config/schema.js').StageExecution[],
     state: PipelineState
   ): Promise<void> {
+    const notificationContexts: NotificationContext[] = [];
+
     for (const execution of executions) {
       if (execution.status === 'success') {
-        await this.notify({
+        notificationContexts.push({
           event: 'stage.completed',
           pipelineState: state,
           stage: execution
         });
       } else if (execution.status === 'failed') {
-        await this.notify({
+        notificationContexts.push({
           event: 'stage.failed',
           pipelineState: state,
           stage: execution
         });
       }
+    }
+
+    if (notificationContexts.length > 0) {
+      await Promise.all(notificationContexts.map(context => this.notify(context)));
     }
   }
 

@@ -8,6 +8,7 @@ import {
 } from '../types.js';
 
 const BROADCAST_MENTIONS = new Set(['channel', 'here', 'everyone']);
+const SLACK_REQUEST_TIMEOUT_MS = 10000;
 
 interface SlackBlock {
   type: string;
@@ -38,23 +39,38 @@ export class SlackNotifier extends BaseNotifier {
 
     try {
       const payload = this.buildSlackPayload(context);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), SLACK_REQUEST_TIMEOUT_MS);
 
-      const response = await fetch(this.webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      try {
+        const response = await fetch(this.webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
 
-      if (!response.ok) {
-        throw new Error(`Slack API error: ${response.status} ${response.statusText}`);
+        if (!response.ok) {
+          throw new Error(`Slack API error: ${response.status} ${response.statusText}`);
+        }
+      } finally {
+        clearTimeout(timeoutId);
       }
+
 
       return { success: true, channel: this.channel };
     } catch (error) {
+      const message =
+        error instanceof Error && error.name === 'AbortError'
+          ? `Slack request timed out after ${SLACK_REQUEST_TIMEOUT_MS}ms`
+          : error instanceof Error
+            ? error.message
+            : String(error);
+
       return {
         success: false,
         channel: this.channel,
-        error: error instanceof Error ? error.message : String(error)
+        error: message
       };
     }
   }
