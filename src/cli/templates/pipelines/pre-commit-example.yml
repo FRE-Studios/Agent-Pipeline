@@ -9,16 +9,6 @@ settings:
   preserveWorkingTree: true  # Preserve working tree state
   executionMode: parallel
 
-  # Context reduction for multi-stage pipelines
-  contextReduction:
-    enabled: true
-    maxTokens: 50000              # Token limit for context
-    strategy: summary-based       # summary-based or agent-based
-    contextWindow: 3              # Number of recent stages to include in full
-    requireSummary: true          # Require summary field from agents
-    saveVerboseOutputs: true      # Save full outputs to .agent-pipeline/outputs/
-    compressFileList: true        # Compress changed files list
-
 # Agent stages
 agents:
   # Run validation checks in parallel for speed

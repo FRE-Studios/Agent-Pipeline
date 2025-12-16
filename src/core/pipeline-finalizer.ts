@@ -75,7 +75,7 @@ export class PipelineFinalizer {
    * Save pipeline outputs (summary and changed files)
    */
   private async saveOutputs(state: PipelineState, config: PipelineConfig): Promise<void> {
-    if (config.settings?.contextReduction?.saveVerboseOutputs !== false) {
+    if (config.settings?.saveVerboseOutputs !== false) {
       const outputStorageManager = new OutputStorageManager(this.repoPath, state.runId);
       await outputStorageManager.savePipelineSummary(state.stages);
       await outputStorageManager.saveChangedFiles(state.artifacts.changedFiles);

@@ -1,7 +1,7 @@
-# Large Pipeline Example with Agent-Based Context Reduction
+# Large Pipeline Example
 #
-# This example demonstrates agent-based context reduction in a large, multi-stage pipeline.
-# With 10+ stages, context can grow to 60k+ tokens. Agent-based reduction keeps it under 15k.
+# This example demonstrates a large, multi-stage pipeline with parallel execution
+# and complex dependencies. Uses file-based handover for inter-stage communication.
 
 name: large-pipeline-example
 trigger: manual
@@ -12,16 +12,6 @@ settings:
   failureStrategy: continue
   preserveWorkingTree: false
   executionMode: parallel
-
-  # Agent-based context reduction configuration
-  contextReduction:
-    enabled: true
-    maxTokens: 50000                    # Token limit for context
-    strategy: agent-based               # Use intelligent agent-based reduction
-    agentPath: .claude/agents/context-reducer.md  # Path to context reducer agent
-    triggerThreshold: 45000             # Trigger reduction at 90% of maxTokens (45k)
-    contextWindow: 3                    # Keep last 3 stages in full after reduction
-    saveVerboseOutputs: true            # Save full outputs to .agent-pipeline/outputs/
 
 # Git workflow with branch isolation
 git:
@@ -114,28 +104,3 @@ agents:
     agent: .claude/agents/cleanup-reporter.md
     dependsOn:
       - summary-report
-
-# How Context Reduction Works:
-#
-# Without reduction (at stage 10):
-# - Stage 1: 5k tokens
-# - Stage 2: 10k tokens (includes Stage 1)
-# - Stage 3: 15k tokens (includes 1-2)
-# - ...
-# - Stage 10: 50k+ tokens (includes 1-9) ❌ EXCEEDS LIMIT
-#
-# With agent-based reduction (at stage 10):
-# 1. After stage group completes, check if next stage's context > 45k tokens
-# 2. If yes, trigger context-reducer agent
-# 3. Reducer reads upcoming agent definition (stage 10: summary-report.md)
-# 4. Reducer analyzes what stage 10 needs (all metrics, critical findings)
-# 5. Reducer creates intelligent summary preserving relevant info
-# 6. Context reduced: 50k → 12k tokens ✅ UNDER LIMIT
-# 7. Stage 10 runs with reduced but complete context
-#
-# Benefits:
-# ✅ Never exceed token limits
-# ✅ Preserve all critical information
-# ✅ Intelligent, context-aware reduction
-# ✅ No manual intervention required
-# ✅ Full audit trail in .agent-pipeline/outputs/

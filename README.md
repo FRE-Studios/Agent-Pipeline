@@ -10,7 +10,7 @@ Agent Pipeline delivers an agent-driven CI/CD workflow with full visibility. Exe
 
 - **Pipeline orchestration** – `PipelineRunner` combines DAG planning, conditional gating, and per-stage retries backed by `RetryHandler`.
 - **Git workflow automation** – `BranchManager` and `PRCreator` isolate work on dedicated branches and open PRs via GitHub CLI.
-- **State & context management** – `StateManager` persists run history while `ContextReducer` trims prompts using token-aware summaries and saved artifacts.
+- **State & context management** – `StateManager` persists run history while `HandoverManager` enables filesystem-based communication between stages.
 - **Model flexibility** – Mix Haiku, Sonnet, and Opus models per stage for cost optimization (up to 90% savings on simple tasks).
 - **Cost controls** – Set `maxTurns` and `maxThinkingTokens` to prevent runaway agents and enable deep reasoning when needed.
 - **Observability** – Ink-powered live UI, interactive history browser, and analytics reports generated from stored run data.

@@ -100,8 +100,8 @@ export interface PipelineConfig {
     failureStrategy: 'stop' | 'continue'; // Default failure handling
     preserveWorkingTree: boolean;      // Stash/restore uncommitted changes
     executionMode?: 'sequential' | 'parallel'; // Execution strategy (default: parallel with DAG)
-    contextReduction?: ContextReductionConfig; // Context reduction settings
     permissionMode?: PermissionMode;   // Permission mode for agents (default: 'acceptEdits')
+    saveVerboseOutputs?: boolean;      // Save pipeline summaries to .agent-pipeline/outputs/ (default: true)
     handover?: {
       directory?: string;             // Handover directory (default: {pipeline-name}-{runId}/)
     };
@@ -115,22 +115,6 @@ export interface RetryConfig {
   backoff: 'exponential' | 'linear' | 'fixed'; // Backoff strategy
   initialDelay?: number;               // Initial delay in ms (default: 1000)
   maxDelay?: number;                   // Max delay in ms (default: 30000)
-}
-
-export interface ContextReductionConfig {
-  enabled: boolean;                    // Enable context reduction (default: true)
-  maxTokens: number;                   // Max context tokens (default: 50000)
-  strategy: 'summary-based' | 'agent-based'; // Reduction strategy (default: 'summary-based')
-
-  // Summary-based strategy options
-  contextWindow?: number;              // Number of recent stages to include in full (default: 3)
-  requireSummary?: boolean;            // Require summary field from agents (default: true)
-  saveVerboseOutputs?: boolean;        // Save full outputs to files (default: true)
-  compressFileList?: boolean;          // Compress changed files list (default: true)
-
-  // Agent-based strategy options
-  agentPath?: string;                  // Path to context reducer agent
-  triggerThreshold?: number;           // Token count to trigger reduction (default: 45000)
 }
 
 export interface AgentStageConfig {

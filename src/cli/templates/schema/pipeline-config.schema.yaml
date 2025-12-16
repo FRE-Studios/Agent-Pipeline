@@ -39,10 +39,11 @@ definitions:
             enum:
               - sequential
               - parallel
-          contextReduction:
-            $ref: "#/definitions/ContextReductionConfig"
           permissionMode:
             $ref: "#/definitions/PermissionMode"
+          saveVerboseOutputs:
+            type: boolean
+            description: Save pipeline summaries to .agent-pipeline/outputs/ (default true)
           handover:
             type: object
             properties:
@@ -171,35 +172,6 @@ definitions:
     additionalProperties: false
     description: "Runtime configuration for agent execution Supports multiple
       runtime types: 'claude-sdk', 'claude-code-headless', etc."
-  ContextReductionConfig:
-    type: object
-    properties:
-      enabled:
-        type: boolean
-      maxTokens:
-        type: number
-      strategy:
-        type: string
-        enum:
-          - summary-based
-          - agent-based
-      contextWindow:
-        type: number
-      requireSummary:
-        type: boolean
-      saveVerboseOutputs:
-        type: boolean
-      compressFileList:
-        type: boolean
-      agentPath:
-        type: string
-      triggerThreshold:
-        type: number
-    required:
-      - enabled
-      - maxTokens
-      - strategy
-    additionalProperties: false
   PermissionMode:
     type: string
     enum:

@@ -16,11 +16,7 @@ settings:
   failureStrategy: continue          # stop or continue
   preserveWorkingTree: false         # Stash and restore local changes
   executionMode: parallel            # parallel (default) or sequential
-  contextReduction:
-    enabled: true
-    maxTokens: 50000
-    strategy: summary-based
-    contextWindow: 3
+  saveVerboseOutputs: true           # Save pipeline summaries to .agent-pipeline/outputs/
   claudeAgent:                       # Optional: Claude Agent SDK settings
     model: sonnet                    # haiku, sonnet, or opus
     maxTurns: 10                     # Prevent runaway agents
@@ -74,7 +70,7 @@ agents:
 - `failureStrategy`: controls how the pipeline reacts to a failed stage (`stop` or `continue`). Individual stages can override via `onFail` (`stop`, `continue`, or `warn`).
 - `preserveWorkingTree`: stashes uncommitted changes before the run and restores them after completion.
 - `executionMode`: `parallel` (default) uses the DAG planner to execute independent groups simultaneously; `sequential` forces one stage at a time.
-- `contextReduction`: enables the context optimizer backed by `ContextReducer` and `TokenEstimator`. When enabled, summaries and file references are persisted under `.agent-pipeline/outputs/<runId>/`.
+- `saveVerboseOutputs`: when `true` (default), saves pipeline summaries and changed file lists to `.agent-pipeline/outputs/<runId>/`.
 - `permissionMode`: controls how agents handle file operations and permissions. Options:
   - `default`: Prompts for permission based on `.claude/settings.json` rules (interactive workflows)
   - `acceptEdits` (default): Auto-accepts file edits (Write, Edit tools) while respecting allow/deny rules (automated workflows)
@@ -192,14 +188,14 @@ report_outputs({
 
 The stage executor writes structured JSON to `.agent-pipeline/outputs/<runId>/<stage>-output.json` and the raw response to `<stage>-raw.md`, enabling later stages to read full details via the Read tool when needed.
 
-## Context Reduction Details
+## Inter-Stage Communication
 
-Long pipelines can exceed Claude's token window. When `contextReduction.enabled` is `true`:
+Agent Pipeline uses filesystem-based handover for communication between stages:
 
-1. `ContextReducer` keeps only the most recent `contextWindow` stages in full detail.
-2. Older stages contribute a short summary plus links to on-disk artifacts.
-3. `TokenEstimator.smartCount()` monitors token usage. If a run approaches `maxTokens`, the reducer tightens summaries or invokes a dedicated reducer agent when configured.
-4. Stage outputs are always persisted under `.agent-pipeline/outputs/<runId>/`, so agents can fetch complete data on demand.
+1. Each pipeline run creates a handover directory at `.agent-pipeline/handover/<pipeline>-<runId>/`.
+2. Stages write their outputs to `stages/<stage-name>/output.md` within the handover directory.
+3. The `HANDOVER.md` file contains the current pipeline state and context for the next stage.
+4. The `LOG.md` file maintains an execution history.
 
-Enable this feature for pipelines with many stages or verbose agent output—it provides significant savings without data loss.
+This approach enables agents to access outputs from previous stages directly via the filesystem, providing reliable data transfer without token overhead.
 

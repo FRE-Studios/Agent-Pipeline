@@ -48,11 +48,6 @@ export class PipelineValidator {
       await this.validateGitHubCLI();
     }
 
-    // P0: Context reduction agent path (conditional - only if agent-based strategy)
-    if (config.settings?.contextReduction?.strategy === 'agent-based') {
-      await this.validateContextReductionAgent(config, repoPath);
-    }
-
     // P1: Slack webhook (conditional - only if Slack notifications enabled)
     if (config.notifications?.channels?.slack?.enabled) {
       this.validateSlackWebhook(config);
@@ -275,65 +270,6 @@ export class PipelineValidator {
         });
       }
     }
-
-    // Validate context reduction configuration
-    if (config.settings.contextReduction) {
-      const cr = config.settings.contextReduction;
-
-      // Validate strategy
-      const validStrategies = ['summary-based', 'agent-based'];
-      if (!validStrategies.includes(cr.strategy)) {
-        this.errors.push({
-          field: 'settings.contextReduction.strategy',
-          message: `Invalid context reduction strategy: ${cr.strategy}. Must be one of: ${validStrategies.join(', ')}`,
-          severity: 'error'
-        });
-      }
-
-      // Validate maxTokens
-      if (typeof cr.maxTokens !== 'number' || cr.maxTokens <= 0) {
-        this.errors.push({
-          field: 'settings.contextReduction.maxTokens',
-          message: 'maxTokens must be a positive number',
-          severity: 'error'
-        });
-      } else if (cr.maxTokens < 5000) {
-        this.errors.push({
-          field: 'settings.contextReduction.maxTokens',
-          message: 'maxTokens is very low (< 5000). Consider increasing to at least 10000.',
-          severity: 'warning'
-        });
-      }
-
-      // Validate contextWindow
-      if (cr.contextWindow !== undefined) {
-        if (typeof cr.contextWindow !== 'number' || cr.contextWindow <= 0) {
-          this.errors.push({
-            field: 'settings.contextReduction.contextWindow',
-            message: 'contextWindow must be a positive number',
-            severity: 'error'
-          });
-        }
-      }
-
-      // Validate triggerThreshold
-      if (cr.triggerThreshold !== undefined) {
-        if (typeof cr.triggerThreshold !== 'number' || cr.triggerThreshold <= 0) {
-          this.errors.push({
-            field: 'settings.contextReduction.triggerThreshold',
-            message: 'triggerThreshold must be a positive number',
-            severity: 'error'
-          });
-        } else if (cr.triggerThreshold > cr.maxTokens) {
-          this.errors.push({
-            field: 'settings.contextReduction.triggerThreshold',
-            message: 'triggerThreshold should be less than maxTokens',
-            severity: 'error'
-          });
-        }
-      }
-    }
-
   }
 
   /**
@@ -456,40 +392,6 @@ export class PipelineValidator {
       }
     } catch (error) {
       // If git config fails, likely not a git repo - already caught by validateGitRepository
-    }
-  }
-
-  /**
-   * Validate context reduction agent file exists when using agent-based strategy.
-   */
-  private async validateContextReductionAgent(
-    config: PipelineConfig,
-    repoPath: string
-  ): Promise<void> {
-    const agentPath = config.settings?.contextReduction?.agentPath;
-
-    if (!agentPath) {
-      this.errors.push({
-        field: 'settings.contextReduction.agentPath',
-        message:
-          'agentPath is required when strategy is "agent-based". Specify agent file or change strategy to "summary-based"',
-        severity: 'error'
-      });
-      return;
-    }
-
-    const fullPath = path.isAbsolute(agentPath)
-      ? agentPath
-      : path.join(repoPath, agentPath);
-
-    try {
-      await fs.access(fullPath);
-    } catch {
-      this.errors.push({
-        field: 'settings.contextReduction.agentPath',
-        message: `Context reduction agent not found: ${agentPath}. Create this file or change strategy to "summary-based"`,
-        severity: 'error'
-      });
     }
   }
 

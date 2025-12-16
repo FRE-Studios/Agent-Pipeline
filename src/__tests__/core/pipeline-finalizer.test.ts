@@ -147,9 +147,7 @@ describe('PipelineFinalizer', () => {
       const configWithDisabledOutputs = {
         ...mockConfig,
         settings: {
-          contextReduction: {
-            saveVerboseOutputs: false
-          }
+          saveVerboseOutputs: false
         }
       };
 

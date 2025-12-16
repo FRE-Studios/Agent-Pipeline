@@ -557,13 +557,6 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
         pipelineConfig: {
           name: 'context-reduction-test',
           trigger: 'manual',
-          settings: {
-            contextReduction: {
-              enabled: true,
-              threshold: 50000,
-              targetSize: 30000
-            }
-          },
           agents: [stageConfig]
         },
         trigger: {
@@ -612,13 +605,6 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
         pipelineConfig: {
           name: 'context-sdk-test',
           trigger: 'manual',
-          settings: {
-            contextReduction: {
-              enabled: true,
-              threshold: 50000,
-              targetSize: 30000
-            }
-          },
           agents: [stageConfig]
         },
         trigger: {
