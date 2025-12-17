@@ -359,6 +359,7 @@ Examples:
       case 'schema': {
         let format: 'json' | 'yaml' = 'json';
         let output: string | undefined;
+        let full = false;
 
         for (let i = 1; i < args.length; i++) {
           if (args[i] === '--format' || args[i] === '-f') {
@@ -368,10 +369,12 @@ Examples:
             }
           } else if (args[i] === '--output' || args[i] === '-o') {
             output = args[++i];
+          } else if (args[i] === '--full') {
+            full = true;
           }
         }
 
-        await schemaCommand(repoPath, { format, output });
+        await schemaCommand(repoPath, { format, output, full });
         break;
       }
 
@@ -406,7 +409,7 @@ Agent Management:
   agent pull [--all]           Import agents from Claude Code plugins
 
 Schema:
-  schema [options]             Output JSON Schema for pipeline configuration
+  schema [options]             Output pipeline configuration template
 
 Git Integration:
   install <pipeline-name>      Install git hook (respects pipeline trigger)
@@ -442,7 +445,8 @@ Analytics Options:
   -l, --loops                  Show loop session analytics instead of pipeline runs
 
 Schema Options:
-  -f, --format <format>        Output format: json (default) or yaml
+  --full                       Show complete JSON schema (all fields)
+  -f, --format <format>        Output format: json (default) or yaml (--full only)
   -o, --output <file>          Write to file instead of stdout
 
 Rollback Options:
@@ -468,7 +472,8 @@ Examples:
   agent-pipeline export test-pipeline --include-agents --output backup.yml
   agent-pipeline import https://example.com/pipeline.yml
   agent-pipeline schema
-  agent-pipeline schema --format yaml --output schema.yaml
+  agent-pipeline schema --full
+  agent-pipeline schema --full --format yaml
         `);
       }
     }
