@@ -5,6 +5,8 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import * as YAML from 'yaml';
 import { AgentImporter } from '../utils/agent-importer.js';
+import { PipelineLoader } from '../../config/pipeline-loader.js';
+import { PipelineValidator, ValidationError } from '../../validators/pipeline-validator.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -102,6 +104,18 @@ export async function initCommand(
 
     // Update .gitignore
     await updateGitignore(repoPath);
+
+    // Validate created pipelines
+    console.log('🔍 Validating pipelines...\n');
+    const validationResults = await validateCreatedPipelines(repoPath, pipelinesToCreate);
+
+    if (!validationResults.allValid) {
+      console.log(`\n${'='.repeat(60)}`);
+      console.log('\n⚠️  Agent Pipeline initialized with validation issues.\n');
+      console.log('Fix the errors above before running pipelines.');
+      console.log(`\n${'='.repeat(60)}\n`);
+      return;
+    }
 
     // Success message
     console.log(`${'='.repeat(60)}`);
@@ -231,4 +245,54 @@ async function updateGitignore(repoPath: string): Promise<void> {
   } catch (error) {
     // Silently fail if can't update .gitignore
   }
+}
+
+/**
+ * Validate all created pipelines and report results
+ */
+async function validateCreatedPipelines(
+  repoPath: string,
+  pipelineNames: string[]
+): Promise<{ allValid: boolean; results: Map<string, ValidationError[]> }> {
+  const loader = new PipelineLoader(repoPath);
+  const validator = new PipelineValidator();
+  const results = new Map<string, ValidationError[]>();
+  let hasErrors = false;
+
+  for (const pipelineName of pipelineNames) {
+    try {
+      const { config } = await loader.loadPipeline(pipelineName);
+      const errors = await validator.validate(config, repoPath);
+      results.set(pipelineName, errors);
+
+      // Check for actual errors (not just warnings)
+      const pipelineErrors = errors.filter(e => e.severity === 'error');
+      const pipelineWarnings = errors.filter(e => e.severity === 'warning');
+
+      if (pipelineErrors.length > 0) {
+        hasErrors = true;
+        console.log(`❌ ${pipelineName}: ${pipelineErrors.length} error(s)`);
+        for (const error of pipelineErrors) {
+          console.log(`   • ${error.field}: ${error.message}`);
+        }
+      } else if (pipelineWarnings.length > 0) {
+        console.log(`✅ ${pipelineName}: valid (${pipelineWarnings.length} warning(s))`);
+        for (const warning of pipelineWarnings) {
+          console.log(`   ⚠️  ${warning.field}: ${warning.message}`);
+        }
+      } else {
+        console.log(`✅ ${pipelineName}: valid`);
+      }
+    } catch (error) {
+      hasErrors = true;
+      console.log(`❌ ${pipelineName}: failed to load - ${(error as Error).message}`);
+      results.set(pipelineName, [{
+        field: 'pipeline',
+        message: (error as Error).message,
+        severity: 'error'
+      }]);
+    }
+  }
+
+  return { allValid: !hasErrors, results };
 }

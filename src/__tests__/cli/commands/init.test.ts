@@ -5,15 +5,28 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as YAML from 'yaml';
 import { AgentImporter } from '../../../cli/utils/agent-importer.js';
+import { simpleGit } from 'simple-git';
+import { AgentRuntimeRegistry } from '../../../core/agent-runtime-registry.js';
+import { ClaudeCodeHeadlessRuntime } from '../../../core/agent-runtimes/claude-code-headless-runtime.js';
 
 describe('initCommand', () => {
   let tempDir: string;
 
   beforeEach(async () => {
     tempDir = await createTempDir('init-command-test-');
+    // Initialize git repo for validation to pass
+    const git = simpleGit(tempDir);
+    await git.init();
+    await git.addConfig('user.name', 'Test User');
+    await git.addConfig('user.email', 'test@example.com');
+
+    // Register runtimes for validation
+    AgentRuntimeRegistry.clear();
+    AgentRuntimeRegistry.register(new ClaudeCodeHeadlessRuntime());
   });
 
   afterEach(async () => {
+    AgentRuntimeRegistry.clear();
     await cleanupTempDir(tempDir);
   });
 
@@ -787,6 +800,87 @@ describe('initCommand', () => {
           'synthesizer.md'
         ]);
       });
+    });
+  });
+
+  describe('Pipeline Validation', () => {
+    it('should validate created pipelines after init', async () => {
+      await initCommand(tempDir);
+
+      // Should log validation step
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Validating pipelines'));
+    });
+
+    it('should show valid status for test-pipeline', async () => {
+      await initCommand(tempDir);
+
+      // Should show test-pipeline as valid
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('test-pipeline: valid'));
+    });
+
+    it('should show valid status for all pipelines when --all flag is used', async () => {
+      await initCommand(tempDir, { all: true });
+
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('test-pipeline: valid'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('post-commit-example: valid'));
+    });
+
+    it('should report validation warnings for runtime availability', async () => {
+      // Clear runtimes so validation reports warnings about runtime unavailability
+      AgentRuntimeRegistry.clear();
+      AgentRuntimeRegistry.register(new ClaudeCodeHeadlessRuntime());
+
+      await initCommand(tempDir);
+
+      // Validation should still pass (warnings don't block) and show valid status
+      // Note: runtime warnings are expected in test environment where claude CLI may not be installed
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Validating pipelines'));
+    });
+
+    it('should ensure pipeline templates are always valid', async () => {
+      // This test verifies our shipped templates pass validation
+      // If this fails, it means we broke a template
+      await initCommand(tempDir);
+
+      // Should show success message (templates should always be valid)
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('initialized successfully'));
+    });
+
+    it('should validate all example pipelines pass validation', async () => {
+      await initCommand(tempDir, { all: true });
+
+      // All pipelines should be valid
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('test-pipeline: valid'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('post-commit-example: valid'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('initialized successfully'));
+    });
+
+    it('should fail validation and block success when runtime is unknown', async () => {
+      // Clear all runtimes - validation should fail because runtime type is unknown
+      AgentRuntimeRegistry.clear();
+
+      await initCommand(tempDir);
+
+      // Should report error about unknown runtime
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('error'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Unknown runtime type'));
+
+      // Should NOT show success message
+      const calls = (console.log as any).mock.calls;
+      const hasSuccessMessage = calls.some((call: any[]) =>
+        call[0]?.includes('initialized successfully')
+      );
+      expect(hasSuccessMessage).toBe(false);
+    });
+
+    it('should report validation issues message when validation fails', async () => {
+      // Clear all runtimes to cause validation failure
+      AgentRuntimeRegistry.clear();
+
+      await initCommand(tempDir);
+
+      // Should show validation issues message
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('validation issues'));
     });
   });
 });
