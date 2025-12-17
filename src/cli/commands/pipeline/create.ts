@@ -97,13 +97,61 @@ export async function createPipelineCommand(repoPath: string): Promise<void> {
   }));
 
   const selectedAgents = await InteractivePrompts.multiSelect(
-    '\nSelect agents to include:',
+    '\nSelect agents in execution order:',
     agentOptions
   );
 
   if (selectedAgents.length === 0) {
     console.error('❌ At least one agent must be selected');
     process.exit(1);
+  }
+
+  // Configure dependencies for parallel mode
+  const dependencies: Map<string, string[]> = new Map();
+
+  if (executionMode === 'parallel' && selectedAgents.length > 1) {
+    console.log('\nDependency pattern:');
+    console.log('  1. All parallel (no dependencies, all run simultaneously)');
+    console.log('  2. Sequential chain (each waits for previous)');
+    console.log('  3. Fan-out (all depend on first agent)');
+    console.log('  4. Custom (configure each agent)');
+
+    const dependencyPattern = await InteractivePrompts.choose(
+      '',
+      ['all-parallel', 'sequential-chain', 'fan-out', 'custom'] as const,
+      'all-parallel'
+    );
+
+    const agentNames = selectedAgents.map(a => a.replace('.md', ''));
+
+    if (dependencyPattern === 'sequential-chain') {
+      // Each agent depends on the previous one
+      for (let i = 1; i < agentNames.length; i++) {
+        dependencies.set(agentNames[i], [agentNames[i - 1]]);
+      }
+    } else if (dependencyPattern === 'fan-out') {
+      // All agents depend on the first one
+      const firstAgent = agentNames[0];
+      for (let i = 1; i < agentNames.length; i++) {
+        dependencies.set(agentNames[i], [firstAgent]);
+      }
+    } else if (dependencyPattern === 'custom') {
+      // Ask for each agent's dependencies
+      for (let i = 1; i < agentNames.length; i++) {
+        const currentAgent = agentNames[i];
+        const priorAgents = agentNames.slice(0, i);
+
+        const deps = await InteractivePrompts.multiSelect(
+          `\nWhich agents should "${currentAgent}" wait for? (Enter to skip)`,
+          priorAgents.map(a => ({ name: a, value: a }))
+        );
+
+        if (deps.length > 0) {
+          dependencies.set(currentAgent, deps);
+        }
+      }
+    }
+    // 'all-parallel' needs no dependencies
   }
 
   // Build pipeline config
@@ -117,11 +165,16 @@ export async function createPipelineCommand(repoPath: string): Promise<void> {
       preserveWorkingTree: trigger === 'pre-commit' || trigger === 'pre-push',
       executionMode
     },
-    agents: selectedAgents.map(agent => ({
-      name: agent.replace('.md', ''),
-      agent: `.agent-pipeline/agents/${agent}`,
-      timeout: 120
-    }))
+    agents: selectedAgents.map(agent => {
+      const agentName = agent.replace('.md', '');
+      const deps = dependencies.get(agentName);
+      return {
+        name: agentName,
+        agent: `.agent-pipeline/agents/${agent}`,
+        timeout: 120,
+        ...(deps && deps.length > 0 && { dependsOn: deps })
+      };
+    })
   };
 
   // Validate config
