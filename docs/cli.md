@@ -32,7 +32,7 @@ All commands are routed through `src/index.ts`. Use `agent-pipeline <command> [o
 
 ## Agent Management
 
-Commands under the `agent` namespace interact with `.claude/agents/`:
+Commands under the `agent` namespace interact with `.agent-pipeline/agents/`:
 
 - `agent list` – List available agent prompts.
 - `agent info <name>` – Display prompt metadata and usage.

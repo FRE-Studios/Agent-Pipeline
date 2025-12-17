@@ -27,12 +27,12 @@ export const gitWorkflowPipelineConfig: PipelineConfig = {
   agents: [
     {
       name: 'build',
-      agent: '.claude/agents/build.md',
+      agent: '.agent-pipeline/agents/build.md',
       timeout: 120,
     },
     {
       name: 'test',
-      agent: '.claude/agents/test.md',
+      agent: '.agent-pipeline/agents/test.md',
       timeout: 120,
     },
   ],
@@ -68,7 +68,7 @@ export const notificationPipelineConfig: PipelineConfig = {
   agents: [
     {
       name: 'task',
-      agent: '.claude/agents/task.md',
+      agent: '.agent-pipeline/agents/task.md',
       timeout: 120,
     },
   ],
@@ -86,13 +86,13 @@ export const disabledStagesPipelineConfig: PipelineConfig = {
   agents: [
     {
       name: 'enabled-stage',
-      agent: '.claude/agents/enabled.md',
+      agent: '.agent-pipeline/agents/enabled.md',
       timeout: 120,
       enabled: true,
     },
     {
       name: 'disabled-stage',
-      agent: '.claude/agents/disabled.md',
+      agent: '.agent-pipeline/agents/disabled.md',
       timeout: 120,
       enabled: false,
     },
@@ -111,12 +111,12 @@ export const failureStrategyWarnConfig: PipelineConfig = {
   agents: [
     {
       name: 'stage-1',
-      agent: '.claude/agents/stage1.md',
+      agent: '.agent-pipeline/agents/stage1.md',
       timeout: 120,
     },
     {
       name: 'stage-2',
-      agent: '.claude/agents/stage2.md',
+      agent: '.agent-pipeline/agents/stage2.md',
       timeout: 120,
     },
   ],
@@ -134,13 +134,13 @@ export const stageFailureOverrideConfig: PipelineConfig = {
   agents: [
     {
       name: 'critical-stage',
-      agent: '.claude/agents/critical.md',
+      agent: '.agent-pipeline/agents/critical.md',
       timeout: 120,
       onFail: 'stop', // Override global strategy
     },
     {
       name: 'optional-stage',
-      agent: '.claude/agents/optional.md',
+      agent: '.agent-pipeline/agents/optional.md',
       timeout: 120,
       onFail: 'warn',
     },
@@ -160,17 +160,17 @@ export const sequentialExecutionConfig: PipelineConfig = {
   agents: [
     {
       name: 'stage-1',
-      agent: '.claude/agents/stage1.md',
+      agent: '.agent-pipeline/agents/stage1.md',
       timeout: 120,
     },
     {
       name: 'stage-2',
-      agent: '.claude/agents/stage2.md',
+      agent: '.agent-pipeline/agents/stage2.md',
       timeout: 120,
     },
     {
       name: 'stage-3',
-      agent: '.claude/agents/stage3.md',
+      agent: '.agent-pipeline/agents/stage3.md',
       timeout: 120,
     },
   ],
@@ -183,7 +183,7 @@ export const simpleExecutionGraph: ExecutionGraph = {
     ['stage-1', {
       stage: {
         name: 'stage-1',
-        agent: '.claude/agents/test-agent.md',
+        agent: '.agent-pipeline/agents/test-agent.md',
         timeout: 120,
       },
       dependencies: [],
@@ -193,7 +193,7 @@ export const simpleExecutionGraph: ExecutionGraph = {
     ['stage-2', {
       stage: {
         name: 'stage-2',
-        agent: '.claude/agents/test-agent-2.md',
+        agent: '.agent-pipeline/agents/test-agent-2.md',
         timeout: 120,
       },
       dependencies: ['stage-1'],
@@ -211,7 +211,7 @@ export const simpleExecutionGraph: ExecutionGraph = {
         level: 0,
         stages: [{
           name: 'stage-1',
-          agent: '.claude/agents/test-agent.md',
+          agent: '.agent-pipeline/agents/test-agent.md',
           timeout: 120,
         }],
       },
@@ -219,7 +219,7 @@ export const simpleExecutionGraph: ExecutionGraph = {
         level: 1,
         stages: [{
           name: 'stage-2',
-          agent: '.claude/agents/test-agent-2.md',
+          agent: '.agent-pipeline/agents/test-agent-2.md',
           timeout: 120,
         }],
       },
@@ -240,7 +240,7 @@ export const disabledStagesExecutionGraph: ExecutionGraph = {
     ['enabled-stage', {
       stage: {
         name: 'enabled-stage',
-        agent: '.claude/agents/enabled.md',
+        agent: '.agent-pipeline/agents/enabled.md',
         timeout: 120,
         enabled: true,
       },
@@ -251,7 +251,7 @@ export const disabledStagesExecutionGraph: ExecutionGraph = {
     ['disabled-stage', {
       stage: {
         name: 'disabled-stage',
-        agent: '.claude/agents/disabled.md',
+        agent: '.agent-pipeline/agents/disabled.md',
         timeout: 120,
         enabled: false,
       },
@@ -271,13 +271,13 @@ export const disabledStagesExecutionGraph: ExecutionGraph = {
         stages: [
           {
             name: 'enabled-stage',
-            agent: '.claude/agents/enabled.md',
+            agent: '.agent-pipeline/agents/enabled.md',
             timeout: 120,
             enabled: true,
           },
           {
             name: 'disabled-stage',
-            agent: '.claude/agents/disabled.md',
+            agent: '.agent-pipeline/agents/disabled.md',
             timeout: 120,
             enabled: false,
           },
@@ -300,7 +300,7 @@ export const conditionalStagesExecutionGraph: ExecutionGraph = {
     ['code-review', {
       stage: {
         name: 'code-review',
-        agent: '.claude/agents/reviewer.md',
+        agent: '.agent-pipeline/agents/reviewer.md',
       },
       dependencies: [],
       dependents: ['auto-fix', 'celebrate'],
@@ -309,7 +309,7 @@ export const conditionalStagesExecutionGraph: ExecutionGraph = {
     ['auto-fix', {
       stage: {
         name: 'auto-fix',
-        agent: '.claude/agents/fixer.md',
+        agent: '.agent-pipeline/agents/fixer.md',
         dependsOn: ['code-review'],
       },
       dependencies: ['code-review'],
@@ -319,7 +319,7 @@ export const conditionalStagesExecutionGraph: ExecutionGraph = {
     ['celebrate', {
       stage: {
         name: 'celebrate',
-        agent: '.claude/agents/celebration.md',
+        agent: '.agent-pipeline/agents/celebration.md',
         dependsOn: ['code-review'],
       },
       dependencies: ['code-review'],
@@ -338,7 +338,7 @@ export const conditionalStagesExecutionGraph: ExecutionGraph = {
         level: 0,
         stages: [{
           name: 'code-review',
-          agent: '.claude/agents/reviewer.md',
+          agent: '.agent-pipeline/agents/reviewer.md',
         }],
       },
       {
@@ -346,12 +346,12 @@ export const conditionalStagesExecutionGraph: ExecutionGraph = {
         stages: [
           {
             name: 'auto-fix',
-            agent: '.claude/agents/fixer.md',
+            agent: '.agent-pipeline/agents/fixer.md',
             dependsOn: ['code-review'],
           },
           {
             name: 'celebrate',
-            agent: '.claude/agents/celebration.md',
+            agent: '.agent-pipeline/agents/celebration.md',
             dependsOn: ['code-review'],
           },
         ],
@@ -373,7 +373,7 @@ export const parallelExecutionGraph: ExecutionGraph = {
     ['review', {
       stage: {
         name: 'review',
-        agent: '.claude/agents/reviewer.md',
+        agent: '.agent-pipeline/agents/reviewer.md',
       },
       dependencies: [],
       dependents: ['summary'],
@@ -382,7 +382,7 @@ export const parallelExecutionGraph: ExecutionGraph = {
     ['security', {
       stage: {
         name: 'security',
-        agent: '.claude/agents/security.md',
+        agent: '.agent-pipeline/agents/security.md',
       },
       dependencies: [],
       dependents: ['summary'],
@@ -391,7 +391,7 @@ export const parallelExecutionGraph: ExecutionGraph = {
     ['quality', {
       stage: {
         name: 'quality',
-        agent: '.claude/agents/quality.md',
+        agent: '.agent-pipeline/agents/quality.md',
       },
       dependencies: [],
       dependents: ['summary'],
@@ -400,7 +400,7 @@ export const parallelExecutionGraph: ExecutionGraph = {
     ['summary', {
       stage: {
         name: 'summary',
-        agent: '.claude/agents/summary.md',
+        agent: '.agent-pipeline/agents/summary.md',
         dependsOn: ['review', 'security', 'quality'],
       },
       dependencies: ['review', 'security', 'quality'],
@@ -421,15 +421,15 @@ export const parallelExecutionGraph: ExecutionGraph = {
         stages: [
           {
             name: 'review',
-            agent: '.claude/agents/reviewer.md',
+            agent: '.agent-pipeline/agents/reviewer.md',
           },
           {
             name: 'security',
-            agent: '.claude/agents/security.md',
+            agent: '.agent-pipeline/agents/security.md',
           },
           {
             name: 'quality',
-            agent: '.claude/agents/quality.md',
+            agent: '.agent-pipeline/agents/quality.md',
           },
         ],
       },
@@ -437,7 +437,7 @@ export const parallelExecutionGraph: ExecutionGraph = {
         level: 1,
         stages: [{
           name: 'summary',
-          agent: '.claude/agents/summary.md',
+          agent: '.agent-pipeline/agents/summary.md',
           dependsOn: ['review', 'security', 'quality'],
         }],
       },

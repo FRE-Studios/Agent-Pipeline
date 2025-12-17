@@ -9,7 +9,7 @@ export async function agentInfoCommand(
   agentName: string
 ): Promise<void> {
   try {
-    const agentsDir = path.join(repoPath, '.claude', 'agents');
+    const agentsDir = path.join(repoPath, '.agent-pipeline', 'agents');
 
     // Try with and without .md extension
     let agentPath = path.join(agentsDir, `${agentName}.md`);

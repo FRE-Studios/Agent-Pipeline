@@ -14,7 +14,7 @@ export async function pullAgentsCommand(
   repoPath: string,
   options: PullAgentsOptions = {}
 ): Promise<void> {
-  const agentsDir = path.join(repoPath, '.claude', 'agents');
+  const agentsDir = path.join(repoPath, '.agent-pipeline', 'agents');
 
   try {
     // Ensure agents directory exists
@@ -33,7 +33,7 @@ export async function pullAgentsCommand(
     if (discoveredAgents.length === 0) {
       console.log('\n💡 Tips for adding agents:');
       console.log('   1. Install Claude Code plugins with agent collections');
-      console.log('   2. Create custom agents in .claude/agents/');
+      console.log('   2. Create custom agents in .agent-pipeline/agents/');
       console.log('   3. Import agents from files or URLs (coming soon)\n');
       return;
     }

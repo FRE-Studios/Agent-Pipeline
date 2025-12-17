@@ -591,7 +591,7 @@ describe('StageExecutor', () => {
       expect(result.status).toBe('failed');
       expect(result.error?.message).toContain('ENOENT');
       expect(result.error?.suggestion).toContain('Agent file not found');
-      expect(result.error?.agentPath).toBe('.claude/agents/test-agent.md');
+      expect(result.error?.agentPath).toBe('.agent-pipeline/agents/test-agent.md');
     });
 
     it('should handle API authentication error', async () => {
@@ -1071,7 +1071,7 @@ describe('StageExecutor', () => {
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
       expect(result.error?.suggestion).toContain('Agent file not found');
-      expect(result.error?.agentPath).toBe('.claude/agents/test-agent.md');
+      expect(result.error?.agentPath).toBe('.agent-pipeline/agents/test-agent.md');
     });
 
     it('should capture timeout error with timeout increase suggestion', async () => {
@@ -1213,7 +1213,7 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
-      expect(fs.readFile).toHaveBeenCalledWith('.claude/agents/test-agent.md', 'utf-8');
+      expect(fs.readFile).toHaveBeenCalledWith('.agent-pipeline/agents/test-agent.md', 'utf-8');
     });
 
     it('should handle concurrent stage executions', async () => {

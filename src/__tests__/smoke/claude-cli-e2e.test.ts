@@ -190,7 +190,7 @@ describe.skip('Claude CLI E2E Tests', () => {
       }
 
       // Create minimal test agent
-      const agentDir = path.join(tempDir, '.claude', 'agents');
+      const agentDir = path.join(tempDir, '.agent-pipeline', 'agents');
       await fs.mkdir(agentDir, { recursive: true });
 
       const agentContent = `# E2E Test Agent

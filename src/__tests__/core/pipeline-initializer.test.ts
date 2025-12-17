@@ -49,7 +49,7 @@ describe('PipelineInitializer', () => {
     agents: [
       {
         name: 'test-agent',
-        agent: '.claude/agents/test.md'
+        agent: '.agent-pipeline/agents/test.md'
       }
     ]
   };

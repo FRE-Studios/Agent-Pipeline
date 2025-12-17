@@ -12,7 +12,7 @@ interface AgentInfo {
 
 export async function listAgentsCommand(repoPath: string): Promise<void> {
   try {
-    const agentsDir = path.join(repoPath, '.claude', 'agents');
+    const agentsDir = path.join(repoPath, '.agent-pipeline', 'agents');
 
     try {
       await fs.access(agentsDir);

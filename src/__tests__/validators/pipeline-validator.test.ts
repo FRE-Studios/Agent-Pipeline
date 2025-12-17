@@ -39,7 +39,7 @@ describe('PipelineValidator', () => {
     AgentRuntimeRegistry.register(new ClaudeCodeHeadlessRuntime());
 
     // Create agent files that are referenced in configs
-    const agentsDir = path.join(tempDir, '.claude', 'agents');
+    const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
     await fs.mkdir(agentsDir, { recursive: true });
 
     // Create test agent files
@@ -120,7 +120,7 @@ describe('PipelineValidator', () => {
         agents: [
           {
             name: 'test-stage',
-            agent: '.claude/agents/non-existent.md',
+            agent: '.agent-pipeline/agents/non-existent.md',
           },
         ],
       };
@@ -137,11 +137,11 @@ describe('PipelineValidator', () => {
         agents: [
           {
             name: 'duplicate',
-            agent: '.claude/agents/test-agent.md',
+            agent: '.agent-pipeline/agents/test-agent.md',
           },
           {
             name: 'duplicate',
-            agent: '.claude/agents/test-agent-2.md',
+            agent: '.agent-pipeline/agents/test-agent-2.md',
           },
         ],
       };
@@ -201,7 +201,7 @@ describe('PipelineValidator', () => {
         agents: [
           {
             name: 'test-stage',
-            agent: '.claude/agents/test-agent.md',
+            agent: '.agent-pipeline/agents/test-agent.md',
             onFail: 'invalid' as any,
           },
         ],
@@ -218,7 +218,7 @@ describe('PipelineValidator', () => {
         agents: [
           {
             name: 'test-stage',
-            agent: '.claude/agents/test-agent.md',
+            agent: '.agent-pipeline/agents/test-agent.md',
             timeout: -10,
           },
         ],
@@ -235,7 +235,7 @@ describe('PipelineValidator', () => {
         agents: [
           {
             name: 'test-stage',
-            agent: '.claude/agents/test-agent.md',
+            agent: '.agent-pipeline/agents/test-agent.md',
             timeout: 1000, // Exceeds 900s threshold
           },
         ],
@@ -288,7 +288,7 @@ describe('PipelineValidator', () => {
 
   describe('edge cases', () => {
     it('should handle absolute agent paths', async () => {
-      const absolutePath = path.join(tempDir, '.claude', 'agents', 'test-agent.md');
+      const absolutePath = path.join(tempDir, '.agent-pipeline', 'agents', 'test-agent.md');
       const config: PipelineConfig = {
         ...simplePipelineConfig,
         agents: [
@@ -310,7 +310,7 @@ describe('PipelineValidator', () => {
         agents: [
           {
             name: 'test-stage',
-            agent: '.claude/agents/test-agent.md',
+            agent: '.agent-pipeline/agents/test-agent.md',
           },
         ],
       };
@@ -338,7 +338,7 @@ describe('PipelineValidator', () => {
         agents: [
           {
             name: '',
-            agent: '.claude/agents/test-agent.md',
+            agent: '.agent-pipeline/agents/test-agent.md',
           },
         ],
       };
@@ -354,7 +354,7 @@ describe('PipelineValidator', () => {
         agents: [
           {
             name: '   ',
-            agent: '.claude/agents/test-agent.md',
+            agent: '.agent-pipeline/agents/test-agent.md',
           },
         ],
       };
@@ -402,7 +402,7 @@ describe('PipelineValidator', () => {
         agents: [
           {
             name: 'test-stage',
-            agent: '.claude/agents/test-agent.md',
+            agent: '.agent-pipeline/agents/test-agent.md',
             timeout: 0,
           },
         ],
@@ -422,7 +422,7 @@ describe('PipelineValidator', () => {
           agents: [
             {
               name: 'test-stage',
-              agent: '.claude/agents/test-agent.md',
+              agent: '.agent-pipeline/agents/test-agent.md',
               timeout,
             },
           ],
@@ -695,7 +695,7 @@ describe('PipelineValidator', () => {
           agents: [
             {
               name: 'test-stage',
-              agent: '.claude/agents/test-agent.md'
+              agent: '.agent-pipeline/agents/test-agent.md'
               // no condition
             }
           ]
@@ -714,7 +714,7 @@ describe('PipelineValidator', () => {
           agents: [
             {
               name: 'test-stage',
-              agent: '.claude/agents/test-agent.md',
+              agent: '.agent-pipeline/agents/test-agent.md',
               condition: '{{ stages.review.outputs.issues > 0 }}'
             }
           ]
@@ -825,7 +825,7 @@ describe('PipelineValidator', () => {
           agents: [
             {
               name: 'test-stage',
-              agent: '.claude/agents/test-agent.md'
+              agent: '.agent-pipeline/agents/test-agent.md'
               // no retry
             }
           ]
@@ -845,7 +845,7 @@ describe('PipelineValidator', () => {
           agents: [
             {
               name: 'test-stage',
-              agent: '.claude/agents/test-agent.md',
+              agent: '.agent-pipeline/agents/test-agent.md',
               retry: {
                 maxAttempts: 15
               }
@@ -868,7 +868,7 @@ describe('PipelineValidator', () => {
           agents: [
             {
               name: 'test-stage',
-              agent: '.claude/agents/test-agent.md',
+              agent: '.agent-pipeline/agents/test-agent.md',
               retry: {
                 maxAttempts: 3,
                 delay: 400
@@ -892,7 +892,7 @@ describe('PipelineValidator', () => {
           agents: [
             {
               name: 'test-stage',
-              agent: '.claude/agents/test-agent.md',
+              agent: '.agent-pipeline/agents/test-agent.md',
               retry: {
                 maxAttempts: 3,
                 delay: 60
@@ -934,7 +934,7 @@ describe('PipelineValidator', () => {
           ...simplePipelineConfig,
           agents: Array.from({ length: 5 }, (_, i) => ({
             name: `stage-${i}`,
-            agent: '.claude/agents/test-agent.md'
+            agent: '.agent-pipeline/agents/test-agent.md'
           }))
         };
 
@@ -951,7 +951,7 @@ describe('PipelineValidator', () => {
           ...simplePipelineConfig,
           agents: Array.from({ length: 15 }, (_, i) => ({
             name: `stage-${i}`,
-            agent: '.claude/agents/test-agent.md'
+            agent: '.agent-pipeline/agents/test-agent.md'
           }))
         };
 
@@ -974,7 +974,7 @@ describe('PipelineValidator', () => {
           ...simplePipelineConfig,
           agents: Array.from({ length: 8 }, (_, i) => ({
             name: `stage-${i}`,
-            agent: '.claude/agents/test-agent.md'
+            agent: '.agent-pipeline/agents/test-agent.md'
           }))
         };
 
@@ -995,16 +995,16 @@ describe('PipelineValidator', () => {
           ...simplePipelineConfig,
           agents: [
             // First level: 3 parallel stages
-            { name: 'stage-1', agent: '.claude/agents/test-agent.md' },
-            { name: 'stage-2', agent: '.claude/agents/test-agent.md' },
-            { name: 'stage-3', agent: '.claude/agents/test-agent.md' },
+            { name: 'stage-1', agent: '.agent-pipeline/agents/test-agent.md' },
+            { name: 'stage-2', agent: '.agent-pipeline/agents/test-agent.md' },
+            { name: 'stage-3', agent: '.agent-pipeline/agents/test-agent.md' },
             // Second level: depends on first level
-            { name: 'stage-4', agent: '.claude/agents/test-agent.md', dependsOn: ['stage-1', 'stage-2'] },
-            { name: 'stage-5', agent: '.claude/agents/test-agent.md', dependsOn: ['stage-3'] },
+            { name: 'stage-4', agent: '.agent-pipeline/agents/test-agent.md', dependsOn: ['stage-1', 'stage-2'] },
+            { name: 'stage-5', agent: '.agent-pipeline/agents/test-agent.md', dependsOn: ['stage-3'] },
             // Third level: 12 parallel stages (should trigger warning if not for dependencies)
             ...Array.from({ length: 12 }, (_, i) => ({
               name: `stage-${i + 6}`,
-              agent: '.claude/agents/test-agent.md',
+              agent: '.agent-pipeline/agents/test-agent.md',
               dependsOn: ['stage-4', 'stage-5']
             }))
           ]
@@ -1240,7 +1240,7 @@ describe('PipelineValidator', () => {
         agents: [
           {
             name: 'test-stage',
-            agent: '.claude/agents/test-agent.md',
+            agent: '.agent-pipeline/agents/test-agent.md',
             runtime: {
               type: 'invalid-runtime',
             },
@@ -1325,7 +1325,7 @@ describe('PipelineValidator', () => {
         agents: [
           {
             name: 'stage-1',
-            agent: '.claude/agents/test-agent.md',
+            agent: '.agent-pipeline/agents/test-agent.md',
             runtime: {
               type: 'claude-code-headless',
               options: {
@@ -1335,7 +1335,7 @@ describe('PipelineValidator', () => {
           },
           {
             name: 'stage-2',
-            agent: '.claude/agents/test-agent-2.md',
+            agent: '.agent-pipeline/agents/test-agent-2.md',
             runtime: {
               type: 'claude-sdk',
               options: {

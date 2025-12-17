@@ -40,7 +40,7 @@ describe('pullAgentsCommand', () => {
 
   beforeEach(async () => {
     tempDir = await createTempDir('agent-pull-test-');
-    agentsDir = path.join(tempDir, '.claude', 'agents');
+    agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
     await fs.mkdir(agentsDir, { recursive: true });
   });
 
@@ -311,7 +311,7 @@ describe('pullAgentsCommand', () => {
 
       await pullAgentsCommand(nonExistentDir);
 
-      const agentsDirPath = path.join(nonExistentDir, '.claude', 'agents');
+      const agentsDirPath = path.join(nonExistentDir, '.agent-pipeline', 'agents');
       const exists = await fs.access(agentsDirPath).then(() => true).catch(() => false);
       expect(exists).toBe(true);
     });

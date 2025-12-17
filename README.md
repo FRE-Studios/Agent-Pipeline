@@ -60,7 +60,7 @@ agent-pipeline init post-commit
 agent-pipeline init --all
 ```
 
-This scaffolds the `test-pipeline`, optional example pipelines, required agent definitions, and the directory structure (`.agent-pipeline/`, `.claude/agents/`). Agents from installed Claude Code plugins are automatically imported.
+This scaffolds the `test-pipeline`, optional example pipelines, required agent definitions, and the directory structure (`.agent-pipeline/`, `.agent-pipeline/agents/`). Agents from installed Claude Code plugins are automatically imported.
 
 ### 2. Run Your First Pipeline
 
@@ -114,17 +114,17 @@ settings:
 
 agents:
   - name: code-review
-    agent: .claude/agents/code-reviewer.md
+    agent: .agent-pipeline/agents/code-reviewer.md
     timeout: 120
 
   - name: code-reducer
-    agent: .claude/agents/code-reducer.md
+    agent: .agent-pipeline/agents/code-reducer.md
 ```
 
 #### 2. Create Agent Definitions
 
 ```markdown
-<!-- .claude/agents/code-reviewer.md -->
+<!-- .agent-pipeline/agents/code-reviewer.md -->
 # Code Review Agent
 
 You are a code review agent in an automated pipeline.
@@ -176,7 +176,7 @@ agent-pipeline/
 │   ├── ui/
 │   ├── utils/
 │   └── index.ts                     # CLI entry point
-└── .claude/agents/                  # Example agent prompts
+└── .agent-pipeline/agents/                  # Example agent prompts
 ```
 
 ## Git History Example

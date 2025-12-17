@@ -397,7 +397,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       const stageConfig: AgentStageConfig = {
         name: 'override-stage',
-        agent: '.claude/agents/test.md',
+        agent: '.agent-pipeline/agents/test.md',
         timeout: 60,
         runtime: {
           type: 'claude-sdk',
@@ -447,7 +447,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       const stageConfig: AgentStageConfig = {
         name: 'default-stage',
-        agent: '.claude/agents/test.md',
+        agent: '.agent-pipeline/agents/test.md',
         timeout: 60
         // No runtime specified
       };
@@ -494,7 +494,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       const stageConfig: AgentStageConfig = {
         name: 'fallback-stage',
-        agent: '.claude/agents/test.md',
+        agent: '.agent-pipeline/agents/test.md',
         timeout: 60
         // No runtime specified
       };
@@ -545,7 +545,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       const stageConfig: AgentStageConfig = {
         name: 'context-reduction-stage',
-        agent: '.claude/agents/test.md',
+        agent: '.agent-pipeline/agents/test.md',
         timeout: 60,
         runtime: {
           type: 'claude-code-headless'
@@ -593,7 +593,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       const stageConfig: AgentStageConfig = {
         name: 'context-sdk-stage',
-        agent: '.claude/agents/test.md',
+        agent: '.agent-pipeline/agents/test.md',
         timeout: 60,
         runtime: {
           type: 'claude-sdk'
@@ -657,7 +657,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       const stageConfig: AgentStageConfig = {
         name: 'failing-stage',
-        agent: '.claude/agents/test.md',
+        agent: '.agent-pipeline/agents/test.md',
         timeout: 60,
         runtime: {
           type: 'claude-sdk'
@@ -721,7 +721,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       const stageConfig: AgentStageConfig = {
         name: 'timeout-stage',
-        agent: '.claude/agents/test.md',
+        agent: '.agent-pipeline/agents/test.md',
         timeout: 1, // 1 second timeout
         runtime: {
           type: 'claude-sdk'
@@ -783,7 +783,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       const stageConfig: AgentStageConfig = {
         name: 'timeout-headless-stage',
-        agent: '.claude/agents/test.md',
+        agent: '.agent-pipeline/agents/test.md',
         timeout: 1, // 1 second timeout
         runtime: {
           type: 'claude-code-headless'
@@ -829,7 +829,7 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
 
       const stageConfig: AgentStageConfig = {
         name: 'permission-stage',
-        agent: '.claude/agents/test.md',
+        agent: '.agent-pipeline/agents/test.md',
         timeout: 60,
         runtime: {
           type: 'claude-sdk'

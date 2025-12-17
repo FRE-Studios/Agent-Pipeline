@@ -10,7 +10,7 @@ describe('listAgentsCommand', () => {
 
   beforeEach(async () => {
     tempDir = await createTempDir('agent-list-test-');
-    agentsDir = path.join(tempDir, '.claude', 'agents');
+    agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
     await fs.mkdir(agentsDir, { recursive: true });
   });
 

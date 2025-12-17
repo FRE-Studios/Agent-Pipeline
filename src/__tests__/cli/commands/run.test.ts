@@ -896,7 +896,7 @@ describe('runCommand', () => {
         name: 'full-pipeline',
         trigger: 'post-commit',
         agents: [
-          { name: 'reviewer', agent: '.claude/agents/reviewer.md' },
+          { name: 'reviewer', agent: '.agent-pipeline/agents/reviewer.md' },
         ],
         git: {
           baseBranch: 'main',

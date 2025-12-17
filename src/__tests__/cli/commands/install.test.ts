@@ -378,7 +378,7 @@ describe('installCommand', () => {
         trigger: 'post-commit',
         agents: Array.from({ length: 10 }, (_, i) => ({
           name: `agent-${i}`,
-          agent: `.claude/agents/agent-${i}.md`,
+          agent: `.agent-pipeline/agents/agent-${i}.md`,
         })),
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -410,7 +410,7 @@ describe('installCommand', () => {
         name: 'full-pipeline',
         trigger: 'post-commit',
         agents: [
-          { name: 'reviewer', agent: '.claude/agents/reviewer.md' },
+          { name: 'reviewer', agent: '.agent-pipeline/agents/reviewer.md' },
         ],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });

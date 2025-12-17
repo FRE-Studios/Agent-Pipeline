@@ -15,7 +15,7 @@ describe('agentInfoCommand', () => {
 
   beforeEach(async () => {
     tempDir = await createTempDir('agent-info-test-');
-    agentsDir = path.join(tempDir, '.claude', 'agents');
+    agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
     await fs.mkdir(agentsDir, { recursive: true });
 
     // Setup PipelineLoader mock
@@ -39,7 +39,7 @@ describe('agentInfoCommand', () => {
       await agentInfoCommand(tempDir, 'code-reviewer');
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent: code-reviewer'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringMatching(/File:.*\.claude\/agents\/code-reviewer\.md/));
+      expect(console.log).toHaveBeenCalledWith(expect.stringMatching(/File:.*\.agent-pipeline\/agents\/code-reviewer\.md/));
       expect(console.log).toHaveBeenCalledWith(expect.stringMatching(/Size: \d+ bytes/));
       expect(console.log).toHaveBeenCalledWith(expect.stringMatching(/Modified:/));
     });
@@ -63,7 +63,7 @@ describe('agentInfoCommand', () => {
           return Promise.resolve({
             config: {
               name: 'pipeline1',
-              agents: [{ agent: '.claude/agents/reviewer.md' }],
+              agents: [{ agent: '.agent-pipeline/agents/reviewer.md' }],
             },
             metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() }
           });
@@ -71,7 +71,7 @@ describe('agentInfoCommand', () => {
         return Promise.resolve({
           config: {
             name: 'pipeline2',
-            agents: [{ agent: '.claude/agents/other.md' }],
+            agents: [{ agent: '.agent-pipeline/agents/other.md' }],
           },
           metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() }
         });
@@ -100,7 +100,7 @@ describe('agentInfoCommand', () => {
       mockLoader.loadPipeline.mockImplementation((name: string) => {
         return Promise.resolve({ config: {
           name,
-          agents: [{ agent: '.claude/agents/popular.md' }],
+          agents: [{ agent: '.agent-pipeline/agents/popular.md' }],
         }, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       });
 
@@ -155,7 +155,7 @@ describe('agentInfoCommand', () => {
       mockLoader.loadPipeline.mockResolvedValue({
         config: {
           name: 'test-pipeline',
-          agents: [{ agent: '.claude/agents/agent.md' }],
+          agents: [{ agent: '.agent-pipeline/agents/agent.md' }],
         },
         metadata: {
           sourcePath: "/test/path.yml",
@@ -199,7 +199,7 @@ describe('agentInfoCommand', () => {
           return Promise.resolve({
             config: {
               name: 'valid',
-              agents: [{ agent: '.claude/agents/agent.md' }],
+              agents: [{ agent: '.agent-pipeline/agents/agent.md' }],
             },
             metadata: {
               sourcePath: "/test/path.yml",
@@ -299,7 +299,7 @@ describe('agentInfoCommand', () => {
 
       await agentInfoCommand(tempDir, 'agent');
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('.claude/agents/agent.md'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('.agent-pipeline/agents/agent.md'));
       expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining(tempDir));
     });
 
@@ -363,7 +363,7 @@ describe('agentInfoCommand', () => {
       mockLoader.loadPipeline.mockImplementation((name: string) => {
         return Promise.resolve({ config: {
           name,
-          agents: [{ agent: '.claude/agents/popular.md' }],
+          agents: [{ agent: '.agent-pipeline/agents/popular.md' }],
         }, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       });
 
@@ -391,7 +391,7 @@ describe('agentInfoCommand', () => {
       mockLoader.loadPipeline.mockResolvedValue({
         config: {
           name: 'pipeline1',
-          agents: [{ agent: '.claude/agents/test-agent.md' }],
+          agents: [{ agent: '.agent-pipeline/agents/test-agent.md' }],
         },
         metadata: {
           sourcePath: "/test/path.yml",

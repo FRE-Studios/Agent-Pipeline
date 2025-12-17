@@ -49,7 +49,7 @@ notifications:
 
 agents:
   - name: code-review
-    agent: .claude/agents/code-reviewer.md
+    agent: .agent-pipeline/agents/code-reviewer.md
     timeout: 180
     outputs: [issues_found, severity]
     retry:
@@ -57,7 +57,7 @@ agents:
       backoff: exponential
 
   - name: auto-fix
-    agent: .claude/agents/fixer.md
+    agent: .agent-pipeline/agents/fixer.md
     dependsOn: [code-review]
     condition: "{{ stages.code-review.outputs.issues_found > 0 }}"
     onFail: warn
@@ -95,7 +95,7 @@ runtime:
 ```yaml
 agents:
   - name: quick-check
-    agent: .claude/agents/quick.md
+    agent: .agent-pipeline/agents/quick.md
     runtime:
       type: claude-sdk          # Override for this stage
       options:
@@ -131,13 +131,13 @@ runtime:
 
   agents:
     - name: quick-lint
-      agent: .claude/agents/linter.md
+      agent: .agent-pipeline/agents/linter.md
       claudeAgent:
         model: haiku          # Override: fast, cheap
         maxTurns: 5
 
     - name: architecture-review
-      agent: .claude/agents/architect.md
+      agent: .agent-pipeline/agents/architect.md
       claudeAgent:
         model: opus           # Override: powerful reasoning
         maxThinkingTokens: 15000

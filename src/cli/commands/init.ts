@@ -24,14 +24,14 @@ export async function initCommand(
   try {
     // Create directory structure
     const pipelinesDir = path.join(repoPath, '.agent-pipeline', 'pipelines');
-    const agentsDir = path.join(repoPath, '.claude', 'agents');
+    const agentsDir = path.join(repoPath, '.agent-pipeline', 'agents');
 
     await fs.mkdir(pipelinesDir, { recursive: true });
     await fs.mkdir(agentsDir, { recursive: true });
 
     console.log('✅ Created directory structure:');
     console.log(`   - .agent-pipeline/pipelines/`);
-    console.log(`   - .claude/agents/\n`);
+    console.log(`   - .agent-pipeline/agents/\n`);
 
     // Check for available plugin agents (don't auto-import)
     const discoveredAgents = await AgentImporter.discoverPluginAgents();
@@ -94,7 +94,7 @@ export async function initCommand(
       if (createdAgents.length > 0) {
         console.log(`✅ Created ${createdAgents.length} fallback agent(s) required by your pipelines:`);
         for (const agent of createdAgents) {
-          console.log(`   - .claude/agents/${agent}`);
+          console.log(`   - .agent-pipeline/agents/${agent}`);
         }
         console.log('');
       }
@@ -116,7 +116,7 @@ export async function initCommand(
 
     console.log('Next steps:');
     console.log('  1. Review your pipeline in .agent-pipeline/pipelines/test-pipeline.yml');
-    console.log('  2. Customize agents in .claude/agents/');
+    console.log('  2. Customize agents in .agent-pipeline/agents/');
     console.log('  3. Run your first pipeline: agent-pipeline run test-pipeline');
     if (pipelinesToCreate.includes('post-commit-example')) {
       console.log('  4. Install git hooks (optional): agent-pipeline install post-commit-example');

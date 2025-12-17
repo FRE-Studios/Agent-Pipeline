@@ -123,7 +123,7 @@ agent-pipeline install post-merge-example
 
 ## Available Agents
 
-All examples use focused micro-agents from `.claude/agents/`:
+All examples use focused micro-agents from `.agent-pipeline/agents/`:
 
 **Game Agents** (test-pipeline):
 - `storyteller`, `detective-logician`, `detective-empath`, `detective-statistician`, `detective-linguist`, `detective-skeptic`, `synthesizer`, `judge`

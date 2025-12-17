@@ -57,7 +57,7 @@ describe('createPipelineCommand', () => {
         // Expected - exits at end
       }
 
-      expect(fs.readdir).toHaveBeenCalledWith(path.join(tempDir, '.claude', 'agents'));
+      expect(fs.readdir).toHaveBeenCalledWith(path.join(tempDir, '.agent-pipeline', 'agents'));
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Found 2 agent(s)'));
     });
 
@@ -307,8 +307,8 @@ describe('createPipelineCommand', () => {
             executionMode: 'sequential',
           }),
           agents: expect.arrayContaining([
-            expect.objectContaining({ name: 'agent1', agent: '.claude/agents/agent1.md', timeout: 120 }),
-            expect.objectContaining({ name: 'agent2', agent: '.claude/agents/agent2.md', timeout: 120 }),
+            expect.objectContaining({ name: 'agent1', agent: '.agent-pipeline/agents/agent1.md', timeout: 120 }),
+            expect.objectContaining({ name: 'agent2', agent: '.agent-pipeline/agents/agent2.md', timeout: 120 }),
           ]),
         }),
         tempDir

@@ -15,12 +15,12 @@ export const simplePipelineConfig: PipelineConfig = {
   agents: [
     {
       name: 'stage-1',
-      agent: '.claude/agents/test-agent.md',
+      agent: '.agent-pipeline/agents/test-agent.md',
       timeout: 120,
     },
     {
       name: 'stage-2',
-      agent: '.claude/agents/test-agent-2.md',
+      agent: '.agent-pipeline/agents/test-agent-2.md',
       timeout: 120,
     },
   ],
@@ -42,19 +42,19 @@ export const parallelPipelineConfig: PipelineConfig = {
   agents: [
     {
       name: 'review',
-      agent: '.claude/agents/reviewer.md',
+      agent: '.agent-pipeline/agents/reviewer.md',
     },
     {
       name: 'security',
-      agent: '.claude/agents/security.md',
+      agent: '.agent-pipeline/agents/security.md',
     },
     {
       name: 'quality',
-      agent: '.claude/agents/quality.md',
+      agent: '.agent-pipeline/agents/quality.md',
     },
     {
       name: 'summary',
-      agent: '.claude/agents/summary.md',
+      agent: '.agent-pipeline/agents/summary.md',
       dependsOn: ['review', 'security', 'quality'],
     },
   ],
@@ -76,16 +76,16 @@ export const conditionalPipelineConfig: PipelineConfig = {
   agents: [
     {
       name: 'code-review',
-      agent: '.claude/agents/reviewer.md',
+      agent: '.agent-pipeline/agents/reviewer.md',
     },
     {
       name: 'auto-fix',
-      agent: '.claude/agents/fixer.md',
+      agent: '.agent-pipeline/agents/fixer.md',
       dependsOn: ['code-review'],
     },
     {
       name: 'celebrate',
-      agent: '.claude/agents/celebration.md',
+      agent: '.agent-pipeline/agents/celebration.md',
       dependsOn: ['code-review'],
     },
   ],
@@ -106,7 +106,7 @@ export const retryPipelineConfig: PipelineConfig = {
   agents: [
     {
       name: 'flaky-stage',
-      agent: '.claude/agents/flaky.md',
+      agent: '.agent-pipeline/agents/flaky.md',
       retry: {
         maxAttempts: 3,
         backoff: 'exponential',
@@ -132,17 +132,17 @@ export const cyclicDependencyConfig: PipelineConfig = {
   agents: [
     {
       name: 'stage-a',
-      agent: '.claude/agents/a.md',
+      agent: '.agent-pipeline/agents/a.md',
       dependsOn: ['stage-c'],
     },
     {
       name: 'stage-b',
-      agent: '.claude/agents/b.md',
+      agent: '.agent-pipeline/agents/b.md',
       dependsOn: ['stage-a'],
     },
     {
       name: 'stage-c',
-      agent: '.claude/agents/c.md',
+      agent: '.agent-pipeline/agents/c.md',
       dependsOn: ['stage-b'],
     },
   ],
@@ -157,11 +157,11 @@ export const duplicateNamesConfig: PipelineConfig = {
   agents: [
     {
       name: 'duplicate',
-      agent: '.claude/agents/a.md',
+      agent: '.agent-pipeline/agents/a.md',
     },
     {
       name: 'duplicate',
-      agent: '.claude/agents/b.md',
+      agent: '.agent-pipeline/agents/b.md',
     },
   ],
 };
@@ -175,7 +175,7 @@ export const missingDependencyConfig: PipelineConfig = {
   agents: [
     {
       name: 'stage-a',
-      agent: '.claude/agents/a.md',
+      agent: '.agent-pipeline/agents/a.md',
       dependsOn: ['non-existent-stage'],
     },
   ],
@@ -210,11 +210,11 @@ export const gitWorkflowConfig: PipelineConfig = {
   agents: [
     {
       name: 'review',
-      agent: '.claude/agents/reviewer.md',
+      agent: '.agent-pipeline/agents/reviewer.md',
     },
     {
       name: 'fix',
-      agent: '.claude/agents/fixer.md',
+      agent: '.agent-pipeline/agents/fixer.md',
       dependsOn: ['review'],
     },
   ],
@@ -252,7 +252,7 @@ export const notificationConfig: PipelineConfig = {
   agents: [
     {
       name: 'test-stage',
-      agent: '.claude/agents/test.md',
+      agent: '.agent-pipeline/agents/test.md',
     },
   ],
 };
@@ -274,18 +274,18 @@ export const sdkOnlyPipelineConfig: PipelineConfig = {
   agents: [
     {
       name: 'sdk-stage-1',
-      agent: '.claude/agents/stage1.md',
+      agent: '.agent-pipeline/agents/stage1.md',
       timeout: 60,
     },
     {
       name: 'sdk-stage-2',
-      agent: '.claude/agents/stage2.md',
+      agent: '.agent-pipeline/agents/stage2.md',
       timeout: 60,
       dependsOn: ['sdk-stage-1'],
     },
     {
       name: 'sdk-stage-3',
-      agent: '.claude/agents/stage3.md',
+      agent: '.agent-pipeline/agents/stage3.md',
       timeout: 60,
       dependsOn: ['sdk-stage-2'],
     },
@@ -307,18 +307,18 @@ export const headlessOnlyPipelineConfig: PipelineConfig = {
   agents: [
     {
       name: 'headless-stage-1',
-      agent: '.claude/agents/stage1.md',
+      agent: '.agent-pipeline/agents/stage1.md',
       timeout: 60,
     },
     {
       name: 'headless-stage-2',
-      agent: '.claude/agents/stage2.md',
+      agent: '.agent-pipeline/agents/stage2.md',
       timeout: 60,
       dependsOn: ['headless-stage-1'],
     },
     {
       name: 'headless-stage-3',
-      agent: '.claude/agents/stage3.md',
+      agent: '.agent-pipeline/agents/stage3.md',
       timeout: 60,
       dependsOn: ['headless-stage-2'],
     },
@@ -340,7 +340,7 @@ export const mixedRuntimePipelineConfig: PipelineConfig = {
   agents: [
     {
       name: 'mixed-stage-1',
-      agent: '.claude/agents/stage1.md',
+      agent: '.agent-pipeline/agents/stage1.md',
       timeout: 60,
       runtime: {
         type: 'claude-sdk', // Override to SDK
@@ -349,14 +349,14 @@ export const mixedRuntimePipelineConfig: PipelineConfig = {
     },
     {
       name: 'mixed-stage-2',
-      agent: '.claude/agents/stage2.md',
+      agent: '.agent-pipeline/agents/stage2.md',
       timeout: 60,
       dependsOn: ['mixed-stage-1'],
       // Uses global default (headless)
     },
     {
       name: 'mixed-stage-3',
-      agent: '.claude/agents/stage3.md',
+      agent: '.agent-pipeline/agents/stage3.md',
       timeout: 60,
       dependsOn: ['mixed-stage-2'],
       runtime: {
@@ -380,7 +380,7 @@ export const parallelMixedPipelineConfig: PipelineConfig = {
   agents: [
     {
       name: 'initial-stage',
-      agent: '.claude/agents/initial.md',
+      agent: '.agent-pipeline/agents/initial.md',
       timeout: 60,
       runtime: {
         type: 'claude-sdk',
@@ -388,7 +388,7 @@ export const parallelMixedPipelineConfig: PipelineConfig = {
     },
     {
       name: 'parallel-sdk',
-      agent: '.claude/agents/parallel-sdk.md',
+      agent: '.agent-pipeline/agents/parallel-sdk.md',
       timeout: 60,
       dependsOn: ['initial-stage'],
       runtime: {
@@ -398,7 +398,7 @@ export const parallelMixedPipelineConfig: PipelineConfig = {
     },
     {
       name: 'parallel-headless',
-      agent: '.claude/agents/parallel-headless.md',
+      agent: '.agent-pipeline/agents/parallel-headless.md',
       timeout: 60,
       dependsOn: ['initial-stage'],
       runtime: {
@@ -407,7 +407,7 @@ export const parallelMixedPipelineConfig: PipelineConfig = {
     },
     {
       name: 'final-stage',
-      agent: '.claude/agents/final.md',
+      agent: '.agent-pipeline/agents/final.md',
       timeout: 60,
       dependsOn: ['parallel-sdk', 'parallel-headless'],
       runtime: {

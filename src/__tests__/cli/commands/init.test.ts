@@ -26,10 +26,10 @@ describe('initCommand', () => {
       expect(exists).toBe(true);
     });
 
-    it('should create .claude/agents directory', async () => {
+    it('should create .agent-pipeline/agents directory', async () => {
       await initCommand(tempDir);
 
-      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
       const exists = await fs.stat(agentsDir).then(() => true, () => false);
       expect(exists).toBe(true);
     });
@@ -37,7 +37,7 @@ describe('initCommand', () => {
     it('should handle existing directories gracefully', async () => {
       // Pre-create directories
       const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
-      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
       await fs.mkdir(pipelinesDir, { recursive: true });
       await fs.mkdir(agentsDir, { recursive: true });
 
@@ -54,7 +54,7 @@ describe('initCommand', () => {
 
       // Check both nested directories exist
       const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
-      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
 
       const pipelinesStats = await fs.stat(pipelinesDir);
       const agentsStats = await fs.stat(agentsDir);
@@ -145,13 +145,13 @@ describe('initCommand', () => {
         const judge = parsed.agents.find((a: any) => a.name === 'judge');
 
         expect(storyteller).toBeDefined();
-        expect(storyteller.agent).toBe('.claude/agents/storyteller.md');
+        expect(storyteller.agent).toBe('.agent-pipeline/agents/storyteller.md');
         expect(logician).toBeDefined();
-        expect(logician.agent).toBe('.claude/agents/detective-logician.md');
+        expect(logician.agent).toBe('.agent-pipeline/agents/detective-logician.md');
         expect(synthesizer).toBeDefined();
-        expect(synthesizer.agent).toBe('.claude/agents/synthesizer.md');
+        expect(synthesizer.agent).toBe('.agent-pipeline/agents/synthesizer.md');
         expect(judge).toBeDefined();
-        expect(judge.agent).toBe('.claude/agents/judge.md');
+        expect(judge.agent).toBe('.agent-pipeline/agents/judge.md');
       });
     });
 
@@ -179,7 +179,7 @@ describe('initCommand', () => {
 
         const agent = parsed.agents.find((a: any) => a.name === 'code-review');
         expect(agent).toBeDefined();
-        expect(agent.agent).toBe('.claude/agents/code-reviewer.md');
+        expect(agent.agent).toBe('.agent-pipeline/agents/code-reviewer.md');
         expect(agent.timeout).toBe(300);
         // Note: outputs field removed - using file-based handover strategy
       });
@@ -208,7 +208,7 @@ describe('initCommand', () => {
     it('should create only agents required by test-pipeline by default', async () => {
       await initCommand(tempDir);
 
-      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
       const files = await fs.readdir(agentsDir);
       const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 
@@ -228,7 +228,7 @@ describe('initCommand', () => {
     it('should create agents required by post-commit-example when specified', async () => {
       await initCommand(tempDir, { exampleName: 'post-commit' });
 
-      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
       const files = await fs.readdir(agentsDir);
       const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 
@@ -251,7 +251,7 @@ describe('initCommand', () => {
     it('should create all required agents when --all flag is set', async () => {
       await initCommand(tempDir, { all: true });
 
-      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
       const files = await fs.readdir(agentsDir);
       const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 
@@ -277,7 +277,7 @@ describe('initCommand', () => {
     it('should include valid markdown in storyteller agent', async () => {
       await initCommand(tempDir);
 
-      const agentPath = path.join(tempDir, '.claude', 'agents', 'storyteller.md');
+      const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', 'storyteller.md');
       const content = await fs.readFile(agentPath, 'utf-8');
 
       expect(content).toContain('# Storyteller Agent');
@@ -288,7 +288,7 @@ describe('initCommand', () => {
     it('should include valid markdown in doc-updater agent', async () => {
       await initCommand(tempDir, { all: true });
 
-      const agentPath = path.join(tempDir, '.claude', 'agents', 'doc-updater.md');
+      const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', 'doc-updater.md');
       const content = await fs.readFile(agentPath, 'utf-8');
 
       expect(content).toContain('# Documentation Updater Agent');
@@ -299,7 +299,7 @@ describe('initCommand', () => {
     it('should include valid markdown in quality-checker agent', async () => {
       await initCommand(tempDir, { all: true });
 
-      const agentPath = path.join(tempDir, '.claude', 'agents', 'quality-checker.md');
+      const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', 'quality-checker.md');
       const content = await fs.readFile(agentPath, 'utf-8');
 
       expect(content).toContain('# Quality Checker Agent');
@@ -310,7 +310,7 @@ describe('initCommand', () => {
     it('should include valid markdown in judge agent', async () => {
       await initCommand(tempDir);
 
-      const agentPath = path.join(tempDir, '.claude', 'agents', 'judge.md');
+      const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', 'judge.md');
       const content = await fs.readFile(agentPath, 'utf-8');
 
       expect(content).toContain('# Judge Agent');
@@ -319,7 +319,7 @@ describe('initCommand', () => {
 
     it('should not create agents that already exist', async () => {
       // Pre-create storyteller.md to simulate existing agent
-      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
       await fs.mkdir(agentsDir, { recursive: true });
       await fs.writeFile(path.join(agentsDir, 'storyteller.md'), '# Existing Storyteller', 'utf-8');
 
@@ -352,7 +352,7 @@ describe('initCommand', () => {
       const agentsWithOutputFormat = ['code-reviewer.md', 'doc-updater.md', 'quality-checker.md'];
 
       for (const agentName of agentsWithOutputFormat) {
-        const agentPath = path.join(tempDir, '.claude', 'agents', agentName);
+        const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', agentName);
         const exists = await fs.stat(agentPath).then(() => true, () => false);
         if (exists) {
           const content = await fs.readFile(agentPath, 'utf-8');
@@ -446,7 +446,7 @@ describe('initCommand', () => {
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Created directory structure'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('.agent-pipeline/pipelines/'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('.claude/agents/'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('.agent-pipeline/agents/'));
     });
 
     it('should log pipeline creation confirmation', async () => {
@@ -533,7 +533,7 @@ describe('initCommand', () => {
       ];
 
       for (const agentName of agentNames) {
-        const agentPath = path.join(tempDir, '.claude', 'agents', agentName);
+        const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', agentName);
         const exists = await fs.stat(agentPath).then(() => true, () => false);
         expect(exists).toBe(true);
       }
@@ -541,7 +541,7 @@ describe('initCommand', () => {
 
     it('should not create agents that already exist from plugins', async () => {
       // Pre-create storyteller.md to simulate existing agent
-      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
       await fs.mkdir(agentsDir, { recursive: true });
       await fs.writeFile(path.join(agentsDir, 'storyteller.md'), '# Plugin Agent', 'utf-8');
 
@@ -640,7 +640,7 @@ describe('initCommand', () => {
 
       // Verify all directories
       const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
-      const agentsDir = path.join(tempDir, '.claude', 'agents');
+      const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
       expect(await fs.stat(pipelinesDir).then(() => true, () => false)).toBe(true);
       expect(await fs.stat(agentsDir).then(() => true, () => false)).toBe(true);
 
@@ -737,7 +737,7 @@ describe('initCommand', () => {
       ];
 
       for (const agentName of agentNames) {
-        const agentPath = path.join(tempDir, '.claude', 'agents', agentName);
+        const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', agentName);
         const content = await fs.readFile(agentPath, 'utf-8');
 
         // Check markdown headers
@@ -753,7 +753,7 @@ describe('initCommand', () => {
         await initCommand(tempDir);
 
         // Use a simple test by checking what files were created
-        const agentsDir = path.join(tempDir, '.claude', 'agents');
+        const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
         const files = await fs.readdir(agentsDir);
         const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 
@@ -768,7 +768,7 @@ describe('initCommand', () => {
       it('should extract unique agents from multiple pipelines', async () => {
         await initCommand(tempDir, { exampleName: 'post-commit' });
 
-        const agentsDir = path.join(tempDir, '.claude', 'agents');
+        const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
         const files = await fs.readdir(agentsDir);
         const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 

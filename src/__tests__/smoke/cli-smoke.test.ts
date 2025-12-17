@@ -65,7 +65,7 @@ describe('CLI Smoke Tests', () => {
 
       // Verify directory structure created
       const pipelinesDir = path.join(tempDir, '.agent-pipeline/pipelines');
-      const agentsDir = path.join(tempDir, '.claude/agents');
+      const agentsDir = path.join(tempDir, '.agent-pipeline/agents');
 
       const [pipelinesStat, agentsStat] = await Promise.all([
         fs.stat(pipelinesDir),

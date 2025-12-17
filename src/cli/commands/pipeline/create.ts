@@ -10,13 +10,13 @@ export async function createPipelineCommand(repoPath: string): Promise<void> {
   console.log('\n🎯 Create New Pipeline\n');
 
   // Check if agents exist
-  const agentsDir = path.join(repoPath, '.claude', 'agents');
+  const agentsDir = path.join(repoPath, '.agent-pipeline', 'agents');
   try {
     const agentFiles = await fs.readdir(agentsDir);
     const mdAgents = agentFiles.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 
     if (mdAgents.length === 0) {
-      console.error('❌ No agents found in .claude/agents/');
+      console.error('❌ No agents found in .agent-pipeline/agents/');
       console.error('   Please run "agent-pipeline init" or "agent-pipeline agent pull" first.');
       process.exit(1);
     }
@@ -76,7 +76,7 @@ export async function createPipelineCommand(repoPath: string): Promise<void> {
       },
       agents: selectedAgents.map(agent => ({
         name: agent.replace('.md', ''),
-        agent: `.claude/agents/${agent}`,
+        agent: `.agent-pipeline/agents/${agent}`,
         timeout: 120
       }))
     };

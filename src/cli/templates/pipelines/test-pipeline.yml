@@ -12,43 +12,43 @@ settings:
 agents:
   # STAGE 1: Storyteller creates the statements
   - name: storyteller
-    agent: .claude/agents/storyteller.md
+    agent: .agent-pipeline/agents/storyteller.md
     timeout: 300
 
   # STAGE 2: Five detectives analyze in parallel
   - name: logician
-    agent: .claude/agents/detective-logician.md
+    agent: .agent-pipeline/agents/detective-logician.md
     dependsOn:
       - storyteller
     timeout: 300
 
   - name: empath
-    agent: .claude/agents/detective-empath.md
+    agent: .agent-pipeline/agents/detective-empath.md
     dependsOn:
       - storyteller
     timeout: 300
 
   - name: statistician
-    agent: .claude/agents/detective-statistician.md
+    agent: .agent-pipeline/agents/detective-statistician.md
     dependsOn:
       - storyteller
     timeout: 300
 
   - name: linguist
-    agent: .claude/agents/detective-linguist.md
+    agent: .agent-pipeline/agents/detective-linguist.md
     dependsOn:
       - storyteller
     timeout: 300
 
   - name: skeptic
-    agent: .claude/agents/detective-skeptic.md
+    agent: .agent-pipeline/agents/detective-skeptic.md
     dependsOn:
       - storyteller
     timeout: 300
 
   # STAGE 3: Synthesizer combines detective reasoning
   - name: synthesizer
-    agent: .claude/agents/synthesizer.md
+    agent: .agent-pipeline/agents/synthesizer.md
     dependsOn:
       - logician
       - empath
@@ -59,7 +59,7 @@ agents:
 
   # STAGE 4: Judge reveals truth and scores
   - name: judge
-    agent: .claude/agents/judge.md
+    agent: .agent-pipeline/agents/judge.md
     dependsOn:
       - synthesizer
     timeout: 300

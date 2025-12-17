@@ -111,7 +111,7 @@ describe('DAGPlanner', () => {
         agents: [
           {
             name: 'stage-a',
-            agent: '.claude/agents/a.md',
+            agent: '.agent-pipeline/agents/a.md',
             dependsOn: ['stage-a'], // Self-dependency
           },
         ],

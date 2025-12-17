@@ -119,7 +119,7 @@ export interface RetryConfig {
 
 export interface AgentStageConfig {
   name: string;                        // Stage identifier
-  agent: string;                       // Path to .claude/agents/xyz.md
+  agent: string;                       // Path to agent file (e.g. .agent-pipeline/agents/xyz.md)
 
   // Runtime configuration (per-stage override)
   runtime?: RuntimeConfig;             // Override pipeline-level runtime for this stage
