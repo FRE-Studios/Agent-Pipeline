@@ -298,7 +298,7 @@ describe('InteractivePrompts', () => {
       await InteractivePrompts.choose('Select', options, 'option2');
 
       expect(mockRl.question).toHaveBeenCalledWith(
-        'Enter number (default: 2): ',
+        'Enter number [1-3] (default: 2): ',
         expect.any(Function)
       );
     });
@@ -311,7 +311,7 @@ describe('InteractivePrompts', () => {
       await InteractivePrompts.choose('Select', options);
 
       expect(mockRl.question).toHaveBeenCalledWith(
-        'Enter number: ',
+        'Enter number [1-3]: ',
         expect.any(Function)
       );
     });
@@ -338,6 +338,7 @@ describe('InteractivePrompts', () => {
 
     it('should exit with code 1 for invalid selection (too low)', async () => {
       const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       mockRl.question.mockImplementation((_prompt, callback) => {
         callback('0');
@@ -345,14 +346,18 @@ describe('InteractivePrompts', () => {
 
       await InteractivePrompts.choose('Select', options);
 
-      expect(consoleLogSpy).toHaveBeenCalledWith('Invalid selection');
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Invalid selection. Please enter a number between 1 and 3.'
+      );
       expect(exitSpy).toHaveBeenCalledWith(1);
 
       exitSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
     });
 
     it('should exit with code 1 for invalid selection (too high)', async () => {
       const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       mockRl.question.mockImplementation((_prompt, callback) => {
         callback('4');
@@ -360,28 +365,32 @@ describe('InteractivePrompts', () => {
 
       await InteractivePrompts.choose('Select', options);
 
-      expect(consoleLogSpy).toHaveBeenCalledWith('Invalid selection');
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Invalid selection. Please enter a number between 1 and 3.'
+      );
       expect(exitSpy).toHaveBeenCalledWith(1);
 
       exitSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
     });
 
-    it('should handle non-numeric input (NaN edge case)', async () => {
+    it('should exit with code 1 for non-numeric input', async () => {
       const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       mockRl.question.mockImplementation((_prompt, callback) => {
         callback('abc');
       });
 
-      const result = await InteractivePrompts.choose('Select', options);
+      await InteractivePrompts.choose('Select', options);
 
-      // Current implementation: parseInt('abc') = NaN, NaN - 1 = NaN
-      // NaN < 0 is false, NaN >= length is false, so validation doesn't catch it
-      // options[NaN] returns undefined
-      expect(result).toBeUndefined();
-      expect(exitSpy).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Invalid selection. Please enter a number between 1 and 3.'
+      );
+      expect(exitSpy).toHaveBeenCalledWith(1);
 
       exitSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
     });
 
     it('should trim whitespace from input', async () => {
@@ -412,7 +421,7 @@ describe('InteractivePrompts', () => {
       expect(result).toEqual(['agent1', 'agent3']);
       expect(consoleLogSpy).toHaveBeenCalledWith('Select agents');
       expect(consoleLogSpy).toHaveBeenCalledWith(
-        '(Enter numbers separated by commas, e.g., "1,3,4")'
+        '(Enter numbers separated by commas, e.g., "1,3,4" or "all" for all)'
       );
       expect(consoleLogSpy).toHaveBeenCalledWith('  1. Agent 1');
       expect(consoleLogSpy).toHaveBeenCalledWith('  2. Agent 2');
@@ -450,27 +459,43 @@ describe('InteractivePrompts', () => {
       expect(result).toEqual(['agent1', 'agent2', 'agent3']);
     });
 
-    it('should filter out invalid selections', async () => {
+    it('should return empty array when any selection is invalid', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
       mockRl.question.mockImplementation((_prompt, callback) => {
         callback('1,5,2');
       });
 
       const result = await InteractivePrompts.multiSelect('Select', options);
 
-      expect(result).toEqual(['agent1', 'agent2']);
+      expect(result).toEqual([]);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Invalid selection(s): 5. Valid range is 1-3.'
+      );
+
+      consoleErrorSpy.mockRestore();
     });
 
-    it('should filter out zero and negative numbers', async () => {
+    it('should return empty array for zero and negative numbers', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
       mockRl.question.mockImplementation((_prompt, callback) => {
         callback('0,1,-1,2');
       });
 
       const result = await InteractivePrompts.multiSelect('Select', options);
 
-      expect(result).toEqual(['agent1', 'agent2']);
+      expect(result).toEqual([]);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Invalid selection(s): 0, -1. Valid range is 1-3.'
+      );
+
+      consoleErrorSpy.mockRestore();
     });
 
-    it('should return empty array for no valid selections', async () => {
+    it('should return empty array for all invalid selections', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
       mockRl.question.mockImplementation((_prompt, callback) => {
         callback('0,5,10');
       });
@@ -478,9 +503,16 @@ describe('InteractivePrompts', () => {
       const result = await InteractivePrompts.multiSelect('Select', options);
 
       expect(result).toEqual([]);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Invalid selection(s): 0, 5, 10. Valid range is 1-3.'
+      );
+
+      consoleErrorSpy.mockRestore();
     });
 
     it('should return empty array for empty input', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
       mockRl.question.mockImplementation((_prompt, callback) => {
         callback('');
       });
@@ -488,16 +520,28 @@ describe('InteractivePrompts', () => {
       const result = await InteractivePrompts.multiSelect('Select', options);
 
       expect(result).toEqual([]);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ No selection made. Please enter at least one number.'
+      );
+
+      consoleErrorSpy.mockRestore();
     });
 
-    it('should handle non-numeric input gracefully', async () => {
+    it('should return empty array for non-numeric input', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
       mockRl.question.mockImplementation((_prompt, callback) => {
         callback('1,abc,2');
       });
 
       const result = await InteractivePrompts.multiSelect('Select', options);
 
-      expect(result).toEqual(['agent1', 'agent2']);
+      expect(result).toEqual([]);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Invalid selection(s): abc. Valid range is 1-3.'
+      );
+
+      consoleErrorSpy.mockRestore();
     });
 
     it('should deduplicate selections', async () => {
@@ -507,9 +551,8 @@ describe('InteractivePrompts', () => {
 
       const result = await InteractivePrompts.multiSelect('Select', options);
 
-      // Deduplication happens naturally because each index maps to a value
-      // However, the code doesn't explicitly dedupe, so we'll get duplicates
-      expect(result).toEqual(['agent1', 'agent2', 'agent1', 'agent2', 'agent3']);
+      // Implementation deduplicates selections
+      expect(result).toEqual(['agent1', 'agent2', 'agent3']);
     });
 
     it('should preserve selection order', async () => {
@@ -522,7 +565,7 @@ describe('InteractivePrompts', () => {
       expect(result).toEqual(['agent3', 'agent1', 'agent2']);
     });
 
-    it('should use "Select agents" in question prompt', async () => {
+    it('should use "Select agents" with range in prompt', async () => {
       mockRl.question.mockImplementation((_prompt, callback) => {
         callback('1');
       });
@@ -530,9 +573,29 @@ describe('InteractivePrompts', () => {
       await InteractivePrompts.multiSelect('Choose items', options);
 
       expect(mockRl.question).toHaveBeenCalledWith(
-        'Select agents: ',
+        'Select agents [1-3]: ',
         expect.any(Function)
       );
+    });
+
+    it('should handle "all" keyword to select all options', async () => {
+      mockRl.question.mockImplementation((_prompt, callback) => {
+        callback('all');
+      });
+
+      const result = await InteractivePrompts.multiSelect('Select', options);
+
+      expect(result).toEqual(['agent1', 'agent2', 'agent3']);
+    });
+
+    it('should handle "ALL" keyword case-insensitively', async () => {
+      mockRl.question.mockImplementation((_prompt, callback) => {
+        callback('ALL');
+      });
+
+      const result = await InteractivePrompts.multiSelect('Select', options);
+
+      expect(result).toEqual(['agent1', 'agent2', 'agent3']);
     });
   });
 });
