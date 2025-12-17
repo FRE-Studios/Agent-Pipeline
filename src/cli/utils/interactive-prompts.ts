@@ -65,9 +65,10 @@ export class InteractivePrompts {
       output: process.stdout
     });
 
-    const prompt = defaultValue
-      ? `Enter number (default: ${options.indexOf(defaultValue) + 1}): `
-      : 'Enter number: ';
+    const defaultIndex = defaultValue ? options.indexOf(defaultValue) + 1 : undefined;
+    const prompt = defaultIndex
+      ? `Enter number [1-${options.length}] (default: ${defaultIndex}): `
+      : `Enter number [1-${options.length}]: `;
 
     const answer = await new Promise<string>((resolve) => {
       rl.question(prompt, resolve);
@@ -75,10 +76,17 @@ export class InteractivePrompts {
 
     rl.close();
 
-    const index = answer.trim() ? parseInt(answer.trim(), 10) - 1 : options.indexOf(defaultValue!);
+    const trimmed = answer.trim();
 
-    if (index < 0 || index >= options.length) {
-      console.log('Invalid selection');
+    // Handle empty input with default
+    if (trimmed === '' && defaultValue !== undefined) {
+      return defaultValue;
+    }
+
+    const index = parseInt(trimmed, 10) - 1;
+
+    if (isNaN(index) || index < 0 || index >= options.length) {
+      console.error(`❌ Invalid selection. Please enter a number between 1 and ${options.length}.`);
       process.exit(1);
     }
 
@@ -93,7 +101,7 @@ export class InteractivePrompts {
     options: T[]
   ): Promise<string[]> {
     console.log(question);
-    console.log('(Enter numbers separated by commas, e.g., "1,3,4")');
+    console.log(`(Enter numbers separated by commas, e.g., "1,3,4" or "all" for all)`);
     options.forEach((opt, idx) => {
       console.log(`  ${idx + 1}. ${opt.name}`);
     });
@@ -104,16 +112,45 @@ export class InteractivePrompts {
     });
 
     const answer = await new Promise<string>((resolve) => {
-      rl.question('Select agents: ', resolve);
+      rl.question(`Select agents [1-${options.length}]: `, resolve);
     });
 
     rl.close();
 
-    const selections = answer
-      .split(',')
-      .map(s => parseInt(s.trim(), 10) - 1)
-      .filter(idx => idx >= 0 && idx < options.length);
+    const trimmed = answer.trim().toLowerCase();
 
-    return selections.map(idx => options[idx].value);
+    // Handle "all" selection
+    if (trimmed === 'all') {
+      return options.map(opt => opt.value);
+    }
+
+    // Parse comma-separated numbers
+    const parts = trimmed.split(',').map(s => s.trim()).filter(s => s !== '');
+
+    if (parts.length === 0) {
+      console.error('❌ No selection made. Please enter at least one number.');
+      return [];
+    }
+
+    const selections: number[] = [];
+    const invalidParts: string[] = [];
+
+    for (const part of parts) {
+      const num = parseInt(part, 10);
+      if (isNaN(num) || num < 1 || num > options.length) {
+        invalidParts.push(part);
+      } else {
+        selections.push(num - 1);
+      }
+    }
+
+    if (invalidParts.length > 0) {
+      console.error(`❌ Invalid selection(s): ${invalidParts.join(', ')}. Valid range is 1-${options.length}.`);
+      return [];
+    }
+
+    // Remove duplicates
+    const uniqueSelections = [...new Set(selections)];
+    return uniqueSelections.map(idx => options[idx].value);
   }
 }

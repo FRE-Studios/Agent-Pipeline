@@ -394,7 +394,7 @@ Core Commands:
   init                         Initialize agent-pipeline project
 
 Pipeline Management:
-  create                       Create a new pipeline (interactive)
+  create                       Create a new pipeline (interactive, requires init first)
   edit <pipeline-name>         Edit pipeline configuration
   delete <pipeline-name>       Delete a pipeline
   clone <source> [dest]        Clone an existing pipeline

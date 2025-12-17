@@ -21,7 +21,10 @@ All commands are routed through `src/index.ts`. Use `agent-pipeline <command> [o
 
 ## Pipeline Management
 
-- `create` – Interactive pipeline generator.
+- `create` – Interactive pipeline generator. Requires an interactive terminal and existing agents.
+  - **Prerequisites**: Run `agent-pipeline init` first, or ensure `.agent-pipeline/agents/` contains agent `.md` files.
+  - **Flow**: Prompts for pipeline name, trigger type, execution mode, auto-commit preference, and agent selection.
+  - **Name rules**: Must start with a letter, contain only letters/numbers/hyphens/underscores, max 50 chars.
 - `edit <pipeline>` – Open a pipeline in your configured editor.
 - `clone <source> [destination]` – Duplicate an existing pipeline file.
 - `delete <pipeline> [--force] [--delete-logs]` – Remove a pipeline and optionally its history.
