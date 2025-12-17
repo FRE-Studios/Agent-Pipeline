@@ -171,7 +171,7 @@ export async function createPipelineCommand(repoPath: string): Promise<void> {
       return {
         name: agentName,
         agent: `.agent-pipeline/agents/${agent}`,
-        timeout: 120,
+        timeout: 300,
         ...(deps && deps.length > 0 && { dependsOn: deps })
       };
     })
@@ -221,6 +221,7 @@ export async function createPipelineCommand(repoPath: string): Promise<void> {
 
   console.log(`\n✅ Pipeline created successfully!`);
   console.log(`   Location: .agent-pipeline/pipelines/${name}.yml`);
+  console.log(`\n   Agent timeouts set to 300s (5 min). Increase in YAML if agents need longer.`);
   console.log(`\n💡 Next steps:`);
   console.log(`   - Review and customize: agent-pipeline edit ${name}`);
   console.log(`   - Run the pipeline: agent-pipeline run ${name}`);

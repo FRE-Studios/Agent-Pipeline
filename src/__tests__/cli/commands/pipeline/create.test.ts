@@ -361,8 +361,8 @@ describe('createPipelineCommand', () => {
             executionMode: 'sequential',
           }),
           agents: expect.arrayContaining([
-            expect.objectContaining({ name: 'agent1', agent: '.agent-pipeline/agents/agent1.md', timeout: 120 }),
-            expect.objectContaining({ name: 'agent2', agent: '.agent-pipeline/agents/agent2.md', timeout: 120 }),
+            expect.objectContaining({ name: 'agent1', agent: '.agent-pipeline/agents/agent1.md', timeout: 300 }),
+            expect.objectContaining({ name: 'agent2', agent: '.agent-pipeline/agents/agent2.md', timeout: 300 }),
           ]),
         }),
         tempDir
