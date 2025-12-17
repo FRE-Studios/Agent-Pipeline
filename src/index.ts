@@ -452,20 +452,20 @@ Rollback Options:
 Examples:
   agent-pipeline init
   agent-pipeline create
-  agent-pipeline run commit-review
-  agent-pipeline run commit-review --dry-run
-  agent-pipeline edit commit-review
-  agent-pipeline clone commit-review my-custom-review
+  agent-pipeline run test-pipeline
+  agent-pipeline run test-pipeline --dry-run
+  agent-pipeline edit test-pipeline
+  agent-pipeline clone test-pipeline my-custom-pipeline
   agent-pipeline agent list
   agent-pipeline agent pull
   agent-pipeline list
   agent-pipeline status
   agent-pipeline history
-  agent-pipeline analytics --pipeline commit-review
+  agent-pipeline analytics --pipeline test-pipeline
   agent-pipeline analytics --loops --days 7
   agent-pipeline cleanup --force --delete-logs
-  agent-pipeline install commit-review
-  agent-pipeline export commit-review --include-agents --output backup.yml
+  agent-pipeline install post-commit-example
+  agent-pipeline export test-pipeline --include-agents --output backup.yml
   agent-pipeline import https://example.com/pipeline.yml
   agent-pipeline schema
   agent-pipeline schema --format yaml --output schema.yaml

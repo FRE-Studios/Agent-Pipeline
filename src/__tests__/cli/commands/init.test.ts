@@ -94,9 +94,6 @@ describe('initCommand', () => {
 
       expect(ymlFiles).toEqual([
         'post-commit-example.yml',
-        'post-merge-example.yml',
-        'pre-commit-example.yml',
-        'pre-push-example.yml',
         'test-pipeline.yml'
       ]);
     });
@@ -205,97 +202,6 @@ describe('initCommand', () => {
       });
     });
 
-    describe('pre-commit-example.yml', () => {
-      it('should have correct pipeline configuration', async () => {
-        await initCommand(tempDir, { exampleName: 'pre-commit' });
-
-        const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'pre-commit-example.yml');
-        const content = await fs.readFile(pipelinePath, 'utf-8');
-        const parsed = YAML.parse(content);
-
-        expect(parsed.name).toBe('pre-commit-example');
-        expect(parsed.trigger).toBe('pre-commit');
-        expect(parsed.settings.autoCommit).toBe(false);
-        expect(parsed.settings.failureStrategy).toBe('stop');
-        expect(parsed.settings.preserveWorkingTree).toBe(true);
-        expect(parsed.agents).toHaveLength(3);
-      });
-
-      it('should include lint-check and security-scan agents', async () => {
-        await initCommand(tempDir, { exampleName: 'pre-commit' });
-
-        const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'pre-commit-example.yml');
-        const content = await fs.readFile(pipelinePath, 'utf-8');
-        const parsed = YAML.parse(content);
-
-        const lintAgent = parsed.agents.find((a: any) => a.name === 'lint-check');
-        const securityAgent = parsed.agents.find((a: any) => a.name === 'security-scan');
-
-        expect(lintAgent).toBeDefined();
-        expect(securityAgent).toBeDefined();
-        expect(lintAgent.timeout).toBe(180);
-        expect(securityAgent.timeout).toBe(180);
-      });
-    });
-
-    describe('pre-push-example.yml', () => {
-      it('should have correct pipeline configuration', async () => {
-        await initCommand(tempDir, { exampleName: 'pre-push' });
-
-        const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'pre-push-example.yml');
-        const content = await fs.readFile(pipelinePath, 'utf-8');
-        const parsed = YAML.parse(content);
-
-        expect(parsed.name).toBe('pre-push-example');
-        expect(parsed.trigger).toBe('pre-push');
-        expect(parsed.settings.autoCommit).toBe(false);
-        expect(parsed.settings.failureStrategy).toBe('stop');
-        expect(parsed.agents).toHaveLength(4);
-      });
-
-      it('should include push-approval agent with dependencies', async () => {
-        await initCommand(tempDir, { exampleName: 'pre-push' });
-
-        const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'pre-push-example.yml');
-        const content = await fs.readFile(pipelinePath, 'utf-8');
-        const parsed = YAML.parse(content);
-
-        const pushApproval = parsed.agents.find((a: any) => a.name === 'push-approval');
-        expect(pushApproval).toBeDefined();
-        // Note: condition field removed - using file-based handover strategy
-        expect(pushApproval.dependsOn).toEqual(['security-audit', 'code-quality', 'dependency-check']);
-      });
-    });
-
-    describe('post-merge-example.yml', () => {
-      it('should have correct pipeline configuration with git workflow', async () => {
-        await initCommand(tempDir, { exampleName: 'post-merge' });
-
-        const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-merge-example.yml');
-        const content = await fs.readFile(pipelinePath, 'utf-8');
-        const parsed = YAML.parse(content);
-
-        expect(parsed.name).toBe('post-merge-example');
-        expect(parsed.trigger).toBe('post-merge');
-        expect(parsed.settings.failureStrategy).toBe('continue');
-        expect(parsed.git).toBeDefined();
-        expect(parsed.git.pullRequest.autoCreate).toBe(true);
-        expect(parsed.notifications).toBeDefined();
-        expect(parsed.agents).toHaveLength(4);
-      });
-
-      it('should include cleanup agents with dependencies', async () => {
-        await initCommand(tempDir, { exampleName: 'post-merge' });
-
-        const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-merge-example.yml');
-        const content = await fs.readFile(pipelinePath, 'utf-8');
-        const parsed = YAML.parse(content);
-
-        const summaryReport = parsed.agents.find((a: any) => a.name === 'summary-report');
-        expect(summaryReport).toBeDefined();
-        expect(summaryReport.dependsOn).toEqual(['doc-sync', 'dependency-audit', 'code-consolidation']);
-      });
-    });
   });
 
   describe('Example Agent Creation', () => {
@@ -350,13 +256,9 @@ describe('initCommand', () => {
       const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.'));
 
       // Should include all agents that have templates and are used by pipelines when --all is set
-      // test-pipeline (8 game agents) + all AVAILABLE_EXAMPLES (post-commit, pre-commit, pre-push, post-merge)
-      // Note: memory-updater is NOT included because large-pipeline-example is not in AVAILABLE_EXAMPLES
+      // test-pipeline (8 game agents) + post-commit-example (code-reviewer, quality-checker, doc-updater)
       const expectedAgents = [
-        'cleanup-reporter.md',
-        'code-reducer.md',
         'code-reviewer.md',
-        'dependency-auditor.md',
         'detective-empath.md',
         'detective-linguist.md',
         'detective-logician.md',
@@ -365,9 +267,7 @@ describe('initCommand', () => {
         'doc-updater.md',
         'judge.md',
         'quality-checker.md',
-        'security-auditor.md',
         'storyteller.md',
-        'summary.md',
         'synthesizer.md'
       ];
 
@@ -403,17 +303,6 @@ describe('initCommand', () => {
       const content = await fs.readFile(agentPath, 'utf-8');
 
       expect(content).toContain('# Quality Checker Agent');
-      expect(content).toContain('## Your Task');
-      expect(content).toContain('## Output Format');
-    });
-
-    it('should include valid markdown in security-auditor agent', async () => {
-      await initCommand(tempDir, { all: true });
-
-      const agentPath = path.join(tempDir, '.claude', 'agents', 'security-auditor.md');
-      const content = await fs.readFile(agentPath, 'utf-8');
-
-      expect(content).toContain('# Security Auditor Agent');
       expect(content).toContain('## Your Task');
       expect(content).toContain('## Output Format');
     });
@@ -460,7 +349,7 @@ describe('initCommand', () => {
       await initCommand(tempDir, { all: true });
 
       // Test agents that should have output format instructions
-      const agentsWithOutputFormat = ['code-reviewer.md', 'doc-updater.md', 'quality-checker.md', 'security-auditor.md'];
+      const agentsWithOutputFormat = ['code-reviewer.md', 'doc-updater.md', 'quality-checker.md'];
 
       for (const agentName of agentsWithOutputFormat) {
         const agentPath = path.join(tempDir, '.claude', 'agents', agentName);
@@ -801,12 +690,9 @@ describe('initCommand', () => {
       const files = await fs.readdir(pipelinesDir);
       const ymlFiles = files.filter(f => f.endsWith('.yml'));
 
-      expect(ymlFiles.length).toBe(5); // test + 4 examples
+      expect(ymlFiles.length).toBe(2); // test + post-commit example
       expect(ymlFiles).toContain('test-pipeline.yml');
       expect(ymlFiles).toContain('post-commit-example.yml');
-      expect(ymlFiles).toContain('pre-commit-example.yml');
-      expect(ymlFiles).toContain('pre-push-example.yml');
-      expect(ymlFiles).toContain('post-merge-example.yml');
     });
 
     it('should be idempotent (safe to run multiple times)', async () => {

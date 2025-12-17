@@ -9,7 +9,7 @@ import { AgentImporter } from '../utils/agent-importer.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Available example templates (excluding test-pipeline)
-const AVAILABLE_EXAMPLES = ['post-commit', 'pre-commit', 'pre-push', 'post-merge'] as const;
+const AVAILABLE_EXAMPLES = ['post-commit'] as const;
 type ExampleName = typeof AVAILABLE_EXAMPLES[number];
 
 export async function initCommand(
