@@ -477,7 +477,8 @@ export class PipelineRunner {
           state,
           config,
           parallelExecutor,
-          interactive
+          interactive,
+          initResult.handoverManager
         );
 
         state = result.state;

@@ -114,39 +114,101 @@ Before starting your task, read these files to understand the current state:
 ${previousStagesSection}
 
 ### Your Output Requirements
-When you complete your task:
+When you complete your task, save your output to:
+\`${this.handoverDir}/stages/${stageName}/output.md\`
 
-1. **Update HANDOVER.md** - Replace the entire file with your handover:
-   \`\`\`markdown
-   # Pipeline Handover
+Use this format:
+\`\`\`markdown
+# Stage: ${stageName}
 
-   ## Current Status
-   - Stage: ${stageName}
-   - Status: success
-   - Timestamp: ${new Date().toISOString()}
+## Summary
+{1-2 sentences: what you accomplished}
 
-   ## Summary
-   {1-2 sentences: what you accomplished}
+## Key Outputs
+{bullet points of important results}
 
-   ## Key Outputs
-   {bullet points of important results}
+## Files Created/Modified
+{list files you changed}
 
-   ## Files Created/Modified
-   {list files you changed}
+## Notes for Next Stage
+{context the next agent needs}
+\`\`\`
 
-   ## Notes for Next Stage
-   {context the next agent needs}
-   \`\`\`
+The orchestrator will update HANDOVER.md and LOG.md automatically.
+`;
+  }
 
-2. **Append to LOG.md** - Add your entry at the end:
-   \`\`\`markdown
-   ---
-   ## [${new Date().toISOString()}] Stage: ${stageName}
-   **Status:** success | **Duration:** (estimated)
-   **Summary:** {brief summary}
-   \`\`\`
+  /**
+   * Read the output file for a specific stage
+   */
+  async readStageOutput(stageName: string): Promise<string> {
+    const outputPath = path.join(this.handoverDir, 'stages', stageName, 'output.md');
+    try {
+      return await fs.readFile(outputPath, 'utf-8');
+    } catch {
+      return `(No output found for stage: ${stageName})`;
+    }
+  }
 
-3. **Save detailed output** to \`${this.handoverDir}/stages/${stageName}/output.md\`
+  /**
+   * Copy a single stage's output to HANDOVER.md (for sequential execution)
+   */
+  async copyStageToHandover(stageName: string): Promise<void> {
+    const stageOutput = await this.readStageOutput(stageName);
+    const handoverContent = this.formatAsHandover(stageName, stageOutput);
+    await fs.writeFile(path.join(this.handoverDir, 'HANDOVER.md'), handoverContent);
+  }
+
+  /**
+   * Merge multiple parallel stage outputs into HANDOVER.md
+   */
+  async mergeParallelOutputs(stageNames: string[]): Promise<void> {
+    const outputs = await Promise.all(
+      stageNames.map(async (name) => ({
+        name,
+        content: await this.readStageOutput(name)
+      }))
+    );
+    const mergedContent = this.formatMergedHandover(outputs);
+    await fs.writeFile(path.join(this.handoverDir, 'HANDOVER.md'), mergedContent);
+  }
+
+  /**
+   * Format a single stage output as HANDOVER.md content
+   */
+  private formatAsHandover(stageName: string, stageOutput: string): string {
+    return `# Pipeline Handover
+
+## Current Status
+- Stage: ${stageName}
+- Status: success
+- Timestamp: ${new Date().toISOString()}
+
+## Stage Output
+
+${stageOutput}
+`;
+  }
+
+  /**
+   * Format merged parallel outputs as HANDOVER.md content
+   */
+  private formatMergedHandover(outputs: Array<{ name: string; content: string }>): string {
+    const stageNames = outputs.map(o => o.name).join(', ');
+    const stageSections = outputs
+      .map(o => `### ${o.name}\n\n${o.content}`)
+      .join('\n\n---\n\n');
+
+    return `# Pipeline Handover
+
+## Current Status
+- Stages: ${stageNames} (parallel group completed)
+- Status: success
+- Timestamp: ${new Date().toISOString()}
+
+## Parallel Stage Outputs
+
+${stageSections}
 `;
   }
 

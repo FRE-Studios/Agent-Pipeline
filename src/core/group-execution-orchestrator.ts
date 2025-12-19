@@ -2,6 +2,7 @@
 
 import { ParallelExecutor } from './parallel-executor.js';
 import { StateManager } from './state-manager.js';
+import { HandoverManager } from './handover-manager.js';
 import {
   PipelineConfig,
   PipelineState,
@@ -35,7 +36,8 @@ export class GroupExecutionOrchestrator {
     state: PipelineState,
     config: PipelineConfig,
     parallelExecutor: ParallelExecutor,
-    interactive: boolean
+    interactive: boolean,
+    handoverManager?: HandoverManager
   ): Promise<GroupProcessingResult> {
     // Filter stages by enabled status
     const { enabledStages } = this.filterDisabledStages(
@@ -63,6 +65,7 @@ export class GroupExecutionOrchestrator {
     // Note: ParallelExecutor now manages stage entries directly in state
     // (adds as 'running' at start, updates when complete)
     const executionMode = config.settings?.executionMode || 'parallel';
+    const shouldRunParallel = executionMode === 'parallel' && stagesToRun.length > 1;
     const groupResult = await this.executeGroup(
       stagesToRun,
       state,
@@ -70,6 +73,30 @@ export class GroupExecutionOrchestrator {
       parallelExecutor,
       interactive
     );
+
+    // Update HANDOVER.md based on execution mode
+    if (handoverManager && groupResult.executions.length > 0) {
+      const completedStages = groupResult.executions
+        .filter(e => e.status === 'success')
+        .map(e => e.stageName);
+
+      if (completedStages.length > 0) {
+        try {
+          if (shouldRunParallel) {
+            // Merge all parallel stage outputs into HANDOVER.md
+            await handoverManager.mergeParallelOutputs(completedStages);
+          } else {
+            // Copy the last sequential stage output to HANDOVER.md
+            await handoverManager.copyStageToHandover(completedStages[completedStages.length - 1]);
+          }
+        } catch (error) {
+          // Log but don't fail the pipeline for handover issues
+          if (this.shouldLog(interactive)) {
+            console.warn(`⚠️  Failed to update HANDOVER.md: ${error}`);
+          }
+        }
+      }
+    }
 
     // Notify for each completed/failed stage
     await this.notifyStageResultsCallback(groupResult.executions, state);

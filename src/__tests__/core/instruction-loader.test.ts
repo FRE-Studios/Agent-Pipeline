@@ -94,7 +94,9 @@ describe('InstructionLoader', () => {
       expect(result).toContain('## Pipeline Handover Context');
       expect(result).toContain('/fallback/dir');
       expect(result).toContain('test-stage');
-      expect(result).toContain('2025-01-01T00:00:00Z');
+      // Note: timestamp is no longer used in the simplified template
+      // (orchestrator now handles HANDOVER.md updates)
+      expect(result).toContain('orchestrator will update HANDOVER.md');
     });
 
     it('should interpolate all handover variables', async () => {

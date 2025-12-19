@@ -119,39 +119,27 @@ Before starting your task, read these files to understand the current state:
 {{previousStagesSection}}
 
 ### Your Output Requirements
-When you complete your task:
+When you complete your task, save your output to:
+\`{{handoverDir}}/stages/{{stageName}}/output.md\`
 
-1. **Update HANDOVER.md** - Replace the entire file with your handover:
-   \`\`\`markdown
-   # Pipeline Handover
+Use this format:
+\`\`\`markdown
+# Stage: {{stageName}}
 
-   ## Current Status
-   - Stage: {{stageName}}
-   - Status: success
-   - Timestamp: {{timestamp}}
+## Summary
+{1-2 sentences: what you accomplished}
 
-   ## Summary
-   {1-2 sentences: what you accomplished}
+## Key Outputs
+{bullet points of important results}
 
-   ## Key Outputs
-   {bullet points of important results}
+## Files Created/Modified
+{list files you changed}
 
-   ## Files Created/Modified
-   {list files you changed}
+## Notes for Next Stage
+{context the next agent needs}
+\`\`\`
 
-   ## Notes for Next Stage
-   {context the next agent needs}
-   \`\`\`
-
-2. **Append to LOG.md** - Add your entry at the end:
-   \`\`\`markdown
-   ---
-   ## [{{timestamp}}] Stage: {{stageName}}
-   **Status:** success | **Duration:** (estimated)
-   **Summary:** {brief summary}
-   \`\`\`
-
-3. **Save detailed output** to \`{{handoverDir}}/stages/{{stageName}}/output.md\`
+The orchestrator will update HANDOVER.md and LOG.md automatically.
 `;
   }
 
