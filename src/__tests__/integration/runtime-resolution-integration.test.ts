@@ -40,6 +40,7 @@ const createMockHandoverManager = () => ({
   initialize: vi.fn().mockResolvedValue(undefined),
   getPreviousStages: vi.fn().mockResolvedValue([]),
   buildContextMessage: vi.fn().mockReturnValue(''),
+  buildContextMessageAsync: vi.fn().mockResolvedValue('## Pipeline Handover Context\n...'),
   saveAgentOutput: vi.fn().mockResolvedValue(undefined),
   appendToLog: vi.fn().mockResolvedValue(undefined),
   getHandoverDir: vi.fn().mockReturnValue('/tmp/handover'),

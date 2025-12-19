@@ -251,13 +251,14 @@ describe('PipelineInitializer', () => {
         mockStateChangeCallback
       );
 
-      // StageExecutor constructor: (gitManager, dryRun, handoverManager, defaultRuntime?, loopContext?)
+      // StageExecutor constructor: (gitManager, dryRun, handoverManager, defaultRuntime?, loopContext?, repoPath?)
       expect(stageExecutorMock).toHaveBeenCalledWith(
         mockGitManager,
         false,  // dryRun
         expect.any(Object),  // handoverManager
         expect.any(Object),  // defaultRuntime (the runtime passed to PipelineInitializer)
-        undefined  // loopContext (not provided in this test)
+        undefined,  // loopContext (not provided in this test)
+        '/test/repo'  // repoPath
       );
       expect(result.stageExecutor).toBe(stageExecutorMock.mock.instances[0]);
 

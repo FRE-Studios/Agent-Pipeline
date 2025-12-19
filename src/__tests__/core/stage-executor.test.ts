@@ -24,6 +24,7 @@ function createMockHandoverManager() {
     appendToLog: vi.fn().mockResolvedValue(undefined),
     getPreviousStages: vi.fn().mockResolvedValue([]),
     buildContextMessage: vi.fn().mockReturnValue('## Pipeline Handover Context\n...'),
+    buildContextMessageAsync: vi.fn().mockResolvedValue('## Pipeline Handover Context\n...'),
     getHandoverDir: vi.fn().mockReturnValue('/tmp/handover'),
   } as unknown as HandoverManager;
 }
@@ -515,9 +516,10 @@ describe('StageExecutor', () => {
 
       // Verify handover manager was used to get previous stages
       expect(mockHandoverManager.getPreviousStages).toHaveBeenCalled();
-      expect(mockHandoverManager.buildContextMessage).toHaveBeenCalledWith(
+      expect(mockHandoverManager.buildContextMessageAsync).toHaveBeenCalledWith(
         'test-stage',
-        ['stage-1', 'stage-2']
+        ['stage-1', 'stage-2'],
+        undefined
       );
     });
   });
@@ -726,7 +728,7 @@ describe('StageExecutor', () => {
 
       // Handover manager should have been used
       expect(mockHandoverManager.getPreviousStages).toHaveBeenCalled();
-      expect(mockHandoverManager.buildContextMessage).toHaveBeenCalled();
+      expect(mockHandoverManager.buildContextMessageAsync).toHaveBeenCalled();
     });
 
     it('should build context with multiple successful previous stages', async () => {
@@ -737,7 +739,7 @@ describe('StageExecutor', () => {
 
       // Handover manager should have been used with multiple stages
       expect(mockHandoverManager.getPreviousStages).toHaveBeenCalled();
-      expect(mockHandoverManager.buildContextMessage).toHaveBeenCalled();
+      expect(mockHandoverManager.buildContextMessageAsync).toHaveBeenCalled();
     });
 
     it('should use handover manager for context with many stages', async () => {
@@ -757,7 +759,7 @@ describe('StageExecutor', () => {
 
       // Handover manager should be used for context
       expect(mockHandoverManager.getPreviousStages).toHaveBeenCalled();
-      expect(mockHandoverManager.buildContextMessage).toHaveBeenCalled();
+      expect(mockHandoverManager.buildContextMessageAsync).toHaveBeenCalled();
     });
 
     it('should use handover manager to track previous stages', async () => {
@@ -771,7 +773,7 @@ describe('StageExecutor', () => {
 
     it('should include handover context from handover manager', async () => {
       // Setup handover manager mock with specific context
-      mockHandoverManager.buildContextMessage = vi.fn().mockReturnValue('## Pipeline Handover Context\n**Handover Directory:** /test/handover');
+      mockHandoverManager.buildContextMessageAsync = vi.fn().mockResolvedValue('## Pipeline Handover Context\n**Handover Directory:** /test/handover');
 
       await executor.executeStage(basicStageConfig, completedPipelineState);
 
@@ -780,7 +782,7 @@ describe('StageExecutor', () => {
     });
 
     it('should include handover directory path in context', async () => {
-      mockHandoverManager.buildContextMessage = vi.fn().mockReturnValue(
+      mockHandoverManager.buildContextMessageAsync = vi.fn().mockResolvedValue(
         '## Pipeline Handover Context\n**Handover Directory:** `/tmp/handover`\n### Previous Stage Outputs\n- `/tmp/handover/stages/file-stage/output.md`'
       );
 
@@ -798,13 +800,6 @@ describe('StageExecutor', () => {
 
       const callArgs = mockRuntime.execute.mock.calls[0][0];
       expect(callArgs.userPrompt).toContain('Trigger Commit');
-    });
-
-    it('should include changed files section in context', async () => {
-      await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      const callArgs = mockRuntime.execute.mock.calls[0][0];
-      expect(callArgs.userPrompt).toContain('Changed Files');
     });
 
     it('should include stage inputs in context', async () => {

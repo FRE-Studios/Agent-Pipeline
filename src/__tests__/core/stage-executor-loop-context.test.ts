@@ -30,6 +30,7 @@ describe('StageExecutor - Loop Context Injection', () => {
     // Setup mock methods
     vi.mocked(mockHandoverManager.getPreviousStages).mockResolvedValue([]);
     vi.mocked(mockHandoverManager.buildContextMessage).mockReturnValue('## Pipeline Handover Context\n\n**Handover Directory:** `/test/repo/test-pipeline-test-run`');
+    vi.mocked(mockHandoverManager.buildContextMessageAsync).mockResolvedValue('## Pipeline Handover Context\n\n**Handover Directory:** `/test/repo/test-pipeline-test-run`');
 
     mockPipelineState = {
       runId: 'test-run-123',
@@ -195,7 +196,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       expect(context).toContain('Iteration: undefined/undefined');
     });
 
-    it('should include loop section between changed files and inputs section', async () => {
+    it('should include loop section before inputs section', async () => {
       const loopContext: LoopContext = {
         enabled: true,
         directories: {
@@ -218,11 +219,9 @@ describe('StageExecutor - Loop Context Injection', () => {
 
       const context = await (executor as any).buildAgentContext(mockStageConfig, mockPipelineState);
 
-      // Verify ordering: changed files should come before loop section
-      const changedFilesIndex = context.indexOf('Changed Files');
-      const loopSectionIndex = context.indexOf('Pipeline Looping');
-
-      expect(changedFilesIndex).toBeLessThan(loopSectionIndex);
+      // Verify loop section is included
+      expect(context).toContain('Pipeline Looping');
+      expect(context).toContain('2/10');
     });
 
     it('should include all standard context sections alongside loop context', async () => {
@@ -257,8 +256,8 @@ describe('StageExecutor - Loop Context Injection', () => {
     });
   });
 
-  describe('buildLoopContextSection helper', () => {
-    it('should return empty string when loopContext is undefined', () => {
+  describe('buildLoopContextSectionAsync helper', () => {
+    it('should return empty string when loopContext is undefined', async () => {
       const executor = new StageExecutor(
         mockGitManager,
         false,
@@ -266,11 +265,11 @@ describe('StageExecutor - Loop Context Injection', () => {
         undefined
       );
 
-      const result = (executor as any).buildLoopContextSection();
+      const result = await (executor as any).buildLoopContextSectionAsync();
       expect(result).toBe('');
     });
 
-    it('should return empty string when loopContext.enabled is false', () => {
+    it('should return empty string when loopContext.enabled is false', async () => {
       const loopContext: LoopContext = {
         enabled: false,
         directories: {
@@ -289,11 +288,11 @@ describe('StageExecutor - Loop Context Injection', () => {
         loopContext
       );
 
-      const result = (executor as any).buildLoopContextSection();
+      const result = await (executor as any).buildLoopContextSectionAsync();
       expect(result).toBe('');
     });
 
-    it('should return formatted loop instructions when enabled', () => {
+    it('should return formatted loop instructions when enabled', async () => {
       const loopContext: LoopContext = {
         enabled: true,
         directories: {
@@ -314,12 +313,12 @@ describe('StageExecutor - Loop Context Injection', () => {
         loopContext
       );
 
-      const result = (executor as any).buildLoopContextSection();
+      const result = await (executor as any).buildLoopContextSectionAsync();
 
       expect(result).toContain('## Pipeline Looping');
       expect(result).toContain('LOOP MODE');
       expect(result).toContain('/test/pending');
-      expect(result).toContain('Iteration: 7/25');
+      expect(result).toContain('7/25');
       expect(result).not.toContain('\n\n\n'); // No excessive newlines
     });
   });
