@@ -10,18 +10,22 @@ import { AgentStageConfig, StageExecution, PipelineState, LoopContext, ClaudeAge
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { ErrorFactory } from '../utils/error-factory.js';
 import { TokenEstimator } from '../utils/token-estimator.js';
+import { InstructionLoader, InstructionContext } from './instruction-loader.js';
 
 export class StageExecutor {
   private retryHandler: RetryHandler;
+  private instructionLoader: InstructionLoader | null;
 
   constructor(
     private gitManager: GitManager,
     private dryRun: boolean,
     private handoverManager: HandoverManager,
     private defaultRuntime?: AgentRuntime,
-    private loopContext?: LoopContext
+    private loopContext?: LoopContext,
+    repoPath?: string
   ) {
     this.retryHandler = new RetryHandler();
+    this.instructionLoader = repoPath ? new InstructionLoader(repoPath) : null;
   }
 
   /**
@@ -299,17 +303,20 @@ export class StageExecutor {
     // Get previous successful stages
     const previousStages = await this.handoverManager.getPreviousStages();
 
-    // Build handover context message
-    const handoverContext = this.handoverManager.buildContextMessage(
+    // Get instructions config from pipeline settings
+    const instructionsConfig = pipelineState.pipelineConfig.settings?.instructions;
+
+    // Build handover context message from file (async)
+    const handoverContext = await this.handoverManager.buildContextMessageAsync(
       stageConfig.name,
-      previousStages
+      previousStages,
+      instructionsConfig?.handover
     );
 
-    // Build changed files context
-    const changedFilesContext = this.buildChangedFilesContext(pipelineState);
-
-    // Build loop context section if enabled
-    const loopContextSection = this.buildLoopContextSection();
+    // Build loop context section from file (async, if enabled)
+    const loopContextSection = await this.buildLoopContextSectionAsync(
+      instructionsConfig?.loop
+    );
 
     // Build inputs section
     const inputsSection = stageConfig.inputs && Object.keys(stageConfig.inputs).length > 0
@@ -326,8 +333,6 @@ export class StageExecutor {
 
 ${handoverContext}
 
-${changedFilesContext}
-
 ${loopContextSection}
 
 ${inputsSection}
@@ -336,31 +341,22 @@ ${inputsSection}
     return context;
   }
 
-  private buildChangedFilesContext(pipelineState: PipelineState): string {
-    const files = pipelineState.artifacts.changedFiles;
-    if (files.length === 0) return '';
-
-    if (files.length > 20) {
-      // Compress long file lists
-      const byDir: Record<string, number> = {};
-      files.forEach(f => {
-        const dir = f.split('/').slice(0, -1).join('/') || '.';
-        byDir[dir] = (byDir[dir] || 0) + 1;
-      });
-      const summary = Object.entries(byDir)
-        .map(([dir, count]) => `  ${dir}/ (${count} files)`)
-        .join('\n');
-      return `## Changed Files Summary\n${files.length} files changed:\n${summary}`;
-    }
-
-    return `## Changed Files\n${files.map(f => `- ${f}`).join('\n')}`;
-  }
-
-  private buildLoopContextSection(): string {
+  private async buildLoopContextSectionAsync(customPath?: string): Promise<string> {
     if (!this.loopContext?.enabled) {
       return '';
     }
 
+    // Use InstructionLoader if available, otherwise fall back to hardcoded
+    if (this.instructionLoader) {
+      const context: InstructionContext = {
+        pendingDir: this.loopContext.directories.pending,
+        currentIteration: this.loopContext.currentIteration,
+        maxIterations: this.loopContext.maxIterations
+      };
+      return this.instructionLoader.loadLoopInstructions(customPath, context);
+    }
+
+    // Fallback to hardcoded template (for backwards compatibility)
     return `
 ## Pipeline Looping
 

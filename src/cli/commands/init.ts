@@ -27,13 +27,19 @@ export async function initCommand(
     // Create directory structure
     const pipelinesDir = path.join(repoPath, '.agent-pipeline', 'pipelines');
     const agentsDir = path.join(repoPath, '.agent-pipeline', 'agents');
+    const instructionsDir = path.join(repoPath, '.agent-pipeline', 'instructions');
 
     await fs.mkdir(pipelinesDir, { recursive: true });
     await fs.mkdir(agentsDir, { recursive: true });
+    await fs.mkdir(instructionsDir, { recursive: true });
+
+    // Create default instruction templates
+    await createInstructionTemplates(instructionsDir);
 
     console.log('✅ Created directory structure:');
     console.log(`   - .agent-pipeline/pipelines/`);
-    console.log(`   - .agent-pipeline/agents/\n`);
+    console.log(`   - .agent-pipeline/agents/`);
+    console.log(`   - .agent-pipeline/instructions/\n`);
 
     // Check for available plugin agents (don't auto-import)
     const discoveredAgents = await AgentImporter.discoverPluginAgents();
@@ -295,4 +301,31 @@ async function validateCreatedPipelines(
   }
 
   return { allValid: !hasErrors, results };
+}
+
+/**
+ * Create default instruction template files
+ */
+async function createInstructionTemplates(instructionsDir: string): Promise<void> {
+  const templatesDir = path.join(__dirname, '../templates/instructions');
+  const templates = ['handover.md', 'loop.md'];
+
+  for (const template of templates) {
+    const targetPath = path.join(instructionsDir, template);
+
+    // Only create if doesn't exist (don't overwrite user customizations)
+    try {
+      await fs.access(targetPath);
+      // File exists, skip
+    } catch {
+      // File doesn't exist, try to copy from template
+      try {
+        const sourcePath = path.join(templatesDir, template);
+        const content = await fs.readFile(sourcePath, 'utf-8');
+        await fs.writeFile(targetPath, content, 'utf-8');
+      } catch {
+        // Template doesn't exist in package, skip silently
+      }
+    }
+  }
 }

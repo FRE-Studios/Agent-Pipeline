@@ -105,6 +105,10 @@ export interface PipelineConfig {
     handover?: {
       directory?: string;             // Handover directory (default: {pipeline-name}-{runId}/)
     };
+    instructions?: {
+      handover?: string;              // Path to handover instructions template (default: .agent-pipeline/instructions/handover.md)
+      loop?: string;                  // Path to loop instructions template (default: .agent-pipeline/instructions/loop.md)
+    };
   };
 
   agents: AgentStageConfig[];

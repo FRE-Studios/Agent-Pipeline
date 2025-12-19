@@ -2,6 +2,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { InstructionLoader, InstructionContext } from './instruction-loader.js';
 
 export interface HandoverConfig {
   directory?: string;  // Base directory for handover files
@@ -11,6 +12,7 @@ export class HandoverManager {
   private handoverDir: string;
   private pipelineName: string;
   private runId: string;
+  private instructionLoader: InstructionLoader;
 
   constructor(
     repoPath: string,
@@ -20,6 +22,7 @@ export class HandoverManager {
   ) {
     this.pipelineName = pipelineName;
     this.runId = runId;
+    this.instructionLoader = new InstructionLoader(repoPath);
 
     // Default: {pipeline-name}-{runId}/ in repo root
     const defaultDir = `${pipelineName}-${runId.substring(0, 8)}`;
@@ -145,6 +148,31 @@ When you complete your task:
 
 3. **Save detailed output** to \`${this.handoverDir}/stages/${stageName}/output.md\`
 `;
+  }
+
+  /**
+   * Build context message from instruction file (async version)
+   * @param stageName Current stage name
+   * @param previousStages List of previous stage names
+   * @param instructionPath Optional custom instruction file path
+   */
+  async buildContextMessageAsync(
+    stageName: string,
+    previousStages: string[],
+    instructionPath?: string
+  ): Promise<string> {
+    const previousStagesSection = previousStages.length > 0
+      ? previousStages.map(s => `- \`${this.handoverDir}/stages/${s}/output.md\``).join('\n')
+      : '(none - this is the first stage)';
+
+    const context: InstructionContext = {
+      handoverDir: this.handoverDir,
+      stageName,
+      timestamp: new Date().toISOString(),
+      previousStagesSection
+    };
+
+    return this.instructionLoader.loadHandoverInstructions(instructionPath, context);
   }
 
   private buildInitialHandover(): string {

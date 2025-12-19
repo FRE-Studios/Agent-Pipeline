@@ -98,7 +98,8 @@ export class PipelineInitializer {
       this.dryRun,
       handoverManager,
       this.runtime,  // Optional: used as fallback if no runtime config specified
-      options.loopContext
+      options.loopContext,
+      this.repoPath  // For file-driven instruction loading
     );
     const parallelExecutor = new ParallelExecutor(
       stageExecutor,
