@@ -387,8 +387,6 @@ describe('PipelineAnalytics', () => {
               stageName: 'stage-skip-check',
               status: 'skipped' as const,
               startTime: '2024-01-21T10:00:00.000Z',
-              conditionEvaluated: true,
-              conditionResult: false,
             },
           ],
           status: 'completed' as const,
@@ -465,8 +463,6 @@ describe('PipelineAnalytics', () => {
               stageName: 'stage-duration-skip',
               status: 'skipped' as const,
               startTime: '2024-01-20T12:00:00.000Z',
-              conditionEvaluated: true,
-              conditionResult: false,
             },
           ],
         };

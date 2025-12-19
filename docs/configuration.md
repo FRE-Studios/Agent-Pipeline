@@ -51,7 +51,6 @@ agents:
   - name: code-review
     agent: .agent-pipeline/agents/code-reviewer.md
     timeout: 180
-    outputs: [issues_found, severity]
     retry:
       maxAttempts: 3
       backoff: exponential
@@ -59,7 +58,6 @@ agents:
   - name: auto-fix
     agent: .agent-pipeline/agents/fixer.md
     dependsOn: [code-review]
-    condition: "{{ stages.code-review.outputs.issues_found > 0 }}"
     onFail: warn
     autoCommit: false
 ```
@@ -165,10 +163,8 @@ Branch isolation and PR creation are handled by `BranchManager` and `PRCreator`:
 Each entry in `agents:` maps to a stage executed by `StageExecutor`:
 
 - `dependsOn`: builds the DAG edges evaluated by `DAGPlanner`.
-- `condition`: uses `ConditionEvaluator` with pipeline state (`stages.<name>.outputs`) to skip stages dynamically.
 - `retry`: per-stage retry policy using `RetryHandler` (`maxAttempts`, `backoff`, `initialDelay`, `maxDelay`).
-- `inputs`: adds ad-hoc values to the agent prompt payload.
-- `outputs`: keys extracted from agent responses via `report_outputs` or legacy text parsing. Extracted values feed downstream stages.
+- `inputs`: adds ad-hoc key-value pairs to the agent prompt context.
 - `autoCommit` and `commitMessage`: override global commit behavior for the stage.
 - `timeout`: maximum execution time in seconds. Default is 900s (15 minutes) with non-blocking warnings at 5, 10, and 13 minutes. Customize for quick tasks (`timeout: 60`) or complex operations (`timeout: 600`).
 

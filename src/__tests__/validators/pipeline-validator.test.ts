@@ -688,49 +688,6 @@ describe('PipelineValidator', () => {
   });
 
   describe('P1/P2 Feature Validations', () => {
-    describe('validateConditionalExpressions', () => {
-      it('should skip when no agents have conditions', async () => {
-        const config: PipelineConfig = {
-          ...simplePipelineConfig,
-          agents: [
-            {
-              name: 'test-stage',
-              agent: '.agent-pipeline/agents/test-agent.md'
-              // no condition
-            }
-          ]
-        };
-
-        const errors = await validator.validate(config, tempDir);
-
-        const conditionErrors = errors.filter(e => e.field.includes('.condition'));
-        expect(conditionErrors).toHaveLength(0);
-      });
-
-      it('should validate condition syntax when agents have conditions', async () => {
-        // The actual ConditionEvaluator is used, which validates real syntax
-        const config: PipelineConfig = {
-          ...simplePipelineConfig,
-          agents: [
-            {
-              name: 'test-stage',
-              agent: '.agent-pipeline/agents/test-agent.md',
-              condition: '{{ stages.review.outputs.issues > 0 }}'
-            }
-          ]
-        };
-
-        const errors = await validator.validate(config, tempDir);
-
-        // The validator runs successfully (actual validation behavior depends on ConditionEvaluator)
-        // We're testing that the validation method runs without throwing
-        expect(errors).toBeDefined();
-      });
-    });
-
-    // Note: validateConditionalStageReferences tests removed - condition field validation
-    // was deprecated in favor of file-based agent handover strategy
-
     describe('validateSlackWebhook', () => {
       it('should skip when Slack is not enabled', async () => {
         const config: PipelineConfig = {

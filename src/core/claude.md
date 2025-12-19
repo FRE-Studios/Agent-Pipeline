@@ -8,7 +8,6 @@ Core pipeline execution engine including orchestration, git operations, and stag
 - **dag-planner.ts** - DAG dependency analysis and topological sort for execution planning
 - **parallel-executor.ts** - Parallel and sequential stage execution with Promise.allSettled
 - **stage-executor.ts** - Individual agent stage execution with Claude SDK integration
-- **condition-evaluator.ts** - Template expression parser and evaluator for conditional stages
 - **retry-handler.ts** - Retry logic with exponential/linear/fixed backoff strategies
 - **state-manager.ts** - Pipeline state persistence to `.agent-pipeline/state/runs/`
 - **git-manager.ts** - Git operations wrapper around simple-git

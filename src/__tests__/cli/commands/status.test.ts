@@ -214,8 +214,6 @@ describe('statusCommand', () => {
             stageName: 'skipped-stage',
             status: 'skipped',
             startTime: '2024-01-01T00:02:00.000Z',
-            conditionEvaluated: true,
-            conditionResult: false,
           },
         ],
       };

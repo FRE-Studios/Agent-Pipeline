@@ -115,29 +115,6 @@ describe('PipelineLoader', () => {
       expect(config.agents[2].dependsOn).toEqual(['stage-1', 'stage-2']);
     });
 
-    it('should handle pipeline with conditional stages', async () => {
-      const conditionalConfig = {
-        name: 'conditional',
-        trigger: 'manual',
-        agents: [
-          { name: 'review', agent: 'review.md', outputs: ['issues'] },
-          {
-            name: 'fix',
-            agent: 'fix.md',
-            dependsOn: ['review'],
-            condition: '{{ stages.review.outputs.issues > 0 }}',
-          },
-        ],
-      };
-
-      const configPath = path.join(pipelinesDir, 'conditional.yml');
-      await fs.writeFile(configPath, YAML.stringify(conditionalConfig), 'utf-8');
-
-      const { config } = await loader.loadPipeline('conditional');
-
-      expect(config.agents[1].condition).toBe('{{ stages.review.outputs.issues > 0 }}');
-    });
-
     it('should handle pipeline with retry configuration', async () => {
       const retryConfig = {
         name: 'retry',

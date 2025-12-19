@@ -200,7 +200,6 @@ describe('configPipelineCommand', () => {
           name: `agent-${i}`,
           agent: `agents/agent-${i}.md`,
           timeout: 120,
-          outputs: [`output${i}`],
         })),
       };
       mockLoader.loadPipeline.mockResolvedValue(mockConfig);
@@ -321,13 +320,11 @@ describe('configPipelineCommand', () => {
             name: 'stage1',
             agent: 'agent1.md',
             timeout: 120,
-            outputs: ['result1'],
           },
           {
             name: 'stage2',
             agent: 'agent2.md',
             dependsOn: ['stage1'],
-            condition: '{{ stages.stage1.outputs.result1 > 0 }}',
             retry: {
               maxAttempts: 3,
               backoff: 'exponential',
