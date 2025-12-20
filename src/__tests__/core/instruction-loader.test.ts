@@ -165,6 +165,7 @@ Previous: {{previousStagesSection}}
 
       expect(result).toContain('## Pipeline Looping');
       expect(result).toContain('LOOP MODE');
+      expect(result).toContain('FINAL stage group');
       expect(result).toContain('/pending/dir');
       expect(result).toContain('5/100');
     });
@@ -263,8 +264,9 @@ Iteration: {{currentIteration}}/{{maxIterations}}
       expect(result).toContain('## Pipeline Looping');
       expect(result).toContain('LOOP MODE');
       expect(result).toContain('To queue the next pipeline');
-      expect(result).toContain('Current loop status');
-      expect(result).toContain('Pending directory');
+      expect(result).toContain('When to Create a Next Pipeline');
+      expect(result).toContain('When NOT to Create a Next Pipeline');
+      expect(result).toContain('Loop status');
     });
   });
 });

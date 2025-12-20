@@ -59,6 +59,7 @@ export interface LoopContext {
   directories: LoopingConfig['directories'];
   currentIteration?: number;
   maxIterations?: number;
+  isFinalGroup?: boolean;  // Only inject loop instructions in final group
 }
 
 export interface GitConfig {

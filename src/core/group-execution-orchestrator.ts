@@ -17,6 +17,10 @@ export interface GroupProcessingResult {
   shouldStopPipeline: boolean;
 }
 
+export interface GroupContext {
+  isFinalGroup: boolean;
+}
+
 export class GroupExecutionOrchestrator {
   constructor(
     private stateManager: StateManager,
@@ -37,7 +41,8 @@ export class GroupExecutionOrchestrator {
     config: PipelineConfig,
     parallelExecutor: ParallelExecutor,
     interactive: boolean,
-    handoverManager?: HandoverManager
+    handoverManager?: HandoverManager,
+    groupContext?: GroupContext
   ): Promise<GroupProcessingResult> {
     // Filter stages by enabled status
     const { enabledStages } = this.filterDisabledStages(
@@ -71,7 +76,8 @@ export class GroupExecutionOrchestrator {
       state,
       executionMode,
       parallelExecutor,
-      interactive
+      interactive,
+      groupContext
     );
 
     // Update HANDOVER.md based on execution mode
@@ -167,7 +173,8 @@ export class GroupExecutionOrchestrator {
     state: PipelineState,
     executionMode: 'parallel' | 'sequential',
     parallelExecutor: ParallelExecutor,
-    _interactive: boolean
+    _interactive: boolean,
+    groupContext?: GroupContext
   ) {
     const shouldRunParallel =
       executionMode === 'parallel' && stagesToRun.length > 1;
@@ -196,14 +203,16 @@ export class GroupExecutionOrchestrator {
       return await parallelExecutor.executeParallelGroup(
         stagesToRun,
         state,
-        updateToolActivity
+        updateToolActivity,
+        groupContext
       );
     } else {
       // Sequential execution
       return await parallelExecutor.executeSequentialGroup(
         stagesToRun,
         state,
-        updateToolActivity
+        updateToolActivity,
+        groupContext
       );
     }
   }

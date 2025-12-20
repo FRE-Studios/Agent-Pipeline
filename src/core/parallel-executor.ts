@@ -100,14 +100,21 @@ export class ParallelExecutor {
    * @param stages - Stages to execute concurrently
    * @param pipelineState - Current pipeline state
    * @param onOutputUpdate - Callback for streaming output updates
+   * @param groupContext - Group execution context (e.g., isFinalGroup for loop mode)
    * @returns Results of all parallel executions
    */
   async executeParallelGroup(
     stages: AgentStageConfig[],
     pipelineState: PipelineState,
-    onOutputUpdate?: (stageName: string, output: string) => void
+    onOutputUpdate?: (stageName: string, output: string) => void,
+    groupContext?: { isFinalGroup: boolean }
   ): Promise<ParallelExecutionResult> {
     const startTime = Date.now();
+
+    // Update loop context with group position (for final-group-only loop injection)
+    if (groupContext?.isFinalGroup !== undefined) {
+      this.stageExecutor.updateLoopContext({ isFinalGroup: groupContext.isFinalGroup });
+    }
 
     // Add all stages as 'running' to state before execution starts
     for (const stageConfig of stages) {
@@ -150,15 +157,22 @@ export class ParallelExecutor {
    * @param stages - Stages to execute one by one
    * @param pipelineState - Current pipeline state
    * @param onOutputUpdate - Callback for streaming output updates
+   * @param groupContext - Group execution context (e.g., isFinalGroup for loop mode)
    * @returns Results of all sequential executions
    */
   async executeSequentialGroup(
     stages: AgentStageConfig[],
     pipelineState: PipelineState,
-    onOutputUpdate?: (stageName: string, output: string) => void
+    onOutputUpdate?: (stageName: string, output: string) => void,
+    groupContext?: { isFinalGroup: boolean }
   ): Promise<ParallelExecutionResult> {
     const startTime = Date.now();
     const executions: StageExecution[] = [];
+
+    // Update loop context with group position (for final-group-only loop injection)
+    if (groupContext?.isFinalGroup !== undefined) {
+      this.stageExecutor.updateLoopContext({ isFinalGroup: groupContext.isFinalGroup });
+    }
 
     for (const stageConfig of stages) {
       // Add stage as 'running' before execution starts

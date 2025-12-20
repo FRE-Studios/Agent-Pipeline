@@ -66,7 +66,7 @@ describe('StageExecutor - Loop Context Injection', () => {
   });
 
   describe('buildAgentContext with loopContext', () => {
-    it('should include loop instructions when loopContext.enabled is true', async () => {
+    it('should include loop instructions when loopContext.enabled is true and isFinalGroup is true', async () => {
       const loopContext: LoopContext = {
         enabled: true,
         directories: {
@@ -76,7 +76,8 @@ describe('StageExecutor - Loop Context Injection', () => {
           failed: '/repo/.agent-pipeline/next/failed'
         },
         currentIteration: 3,
-        maxIterations: 100
+        maxIterations: 100,
+        isFinalGroup: true
       };
 
       const executor = new StageExecutor(
@@ -93,9 +94,37 @@ describe('StageExecutor - Loop Context Injection', () => {
       expect(context).toContain('Pipeline Looping');
       expect(context).toContain('LOOP MODE');
       expect(context).toContain('/repo/.agent-pipeline/next/pending');
-      expect(context).toContain('Iteration: 3/100');
+      expect(context).toContain('3/100');
       expect(context).toContain('To queue the next pipeline:');
-      expect(context).toContain('Write a valid pipeline YAML file to');
+      expect(context).toContain('Write a valid pipeline YAML to');
+    });
+
+    it('should NOT include loop section when loopContext.isFinalGroup is false', async () => {
+      const loopContext: LoopContext = {
+        enabled: true,
+        directories: {
+          pending: '/repo/.agent-pipeline/next/pending',
+          running: '/repo/.agent-pipeline/next/running',
+          finished: '/repo/.agent-pipeline/next/finished',
+          failed: '/repo/.agent-pipeline/next/failed'
+        },
+        currentIteration: 3,
+        maxIterations: 100,
+        isFinalGroup: false
+      };
+
+      const executor = new StageExecutor(
+        mockGitManager,
+        false,
+        mockHandoverManager,
+        undefined,  // No default runtime
+        loopContext
+      );
+
+      const context = await (executor as any).buildAgentContext(mockStageConfig, mockPipelineState);
+
+      expect(context).not.toContain('Pipeline Looping');
+      expect(context).not.toContain('LOOP MODE');
     });
 
     it('should NOT include loop section when loopContext is undefined', async () => {
@@ -151,7 +180,8 @@ describe('StageExecutor - Loop Context Injection', () => {
         enabled: true,
         directories: customDirs,
         currentIteration: 1,
-        maxIterations: 50
+        maxIterations: 50,
+        isFinalGroup: true
       };
 
       const executor = new StageExecutor(
@@ -165,7 +195,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       const context = await (executor as any).buildAgentContext(mockStageConfig, mockPipelineState);
 
       expect(context).toContain('/custom/path/pending');
-      expect(context).toContain('Iteration: 1/50');
+      expect(context).toContain('1/50');
     });
 
     it('should handle missing optional iteration fields gracefully', async () => {
@@ -176,7 +206,8 @@ describe('StageExecutor - Loop Context Injection', () => {
           running: '/repo/.agent-pipeline/next/running',
           finished: '/repo/.agent-pipeline/next/finished',
           failed: '/repo/.agent-pipeline/next/failed'
-        }
+        },
+        isFinalGroup: true
         // No currentIteration or maxIterations
       };
 
@@ -193,7 +224,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       expect(context).toContain('Pipeline Looping');
       expect(context).toContain('LOOP MODE');
       // Should handle undefined gracefully
-      expect(context).toContain('Iteration: undefined/undefined');
+      expect(context).toContain('undefined/undefined');
     });
 
     it('should include loop section before inputs section', async () => {
@@ -206,7 +237,8 @@ describe('StageExecutor - Loop Context Injection', () => {
           failed: '/repo/.agent-pipeline/next/failed'
         },
         currentIteration: 2,
-        maxIterations: 10
+        maxIterations: 10,
+        isFinalGroup: true
       };
 
       const executor = new StageExecutor(
@@ -234,7 +266,8 @@ describe('StageExecutor - Loop Context Injection', () => {
           failed: '/repo/.agent-pipeline/next/failed'
         },
         currentIteration: 5,
-        maxIterations: 20
+        maxIterations: 20,
+        isFinalGroup: true
       };
 
       const executor = new StageExecutor(
@@ -292,7 +325,7 @@ describe('StageExecutor - Loop Context Injection', () => {
       expect(result).toBe('');
     });
 
-    it('should return formatted loop instructions when enabled', async () => {
+    it('should return empty string when loopContext.isFinalGroup is false', async () => {
       const loopContext: LoopContext = {
         enabled: true,
         directories: {
@@ -302,7 +335,34 @@ describe('StageExecutor - Loop Context Injection', () => {
           failed: '/test/failed'
         },
         currentIteration: 7,
-        maxIterations: 25
+        maxIterations: 25,
+        isFinalGroup: false
+      };
+
+      const executor = new StageExecutor(
+        mockGitManager,
+        false,
+        mockHandoverManager,
+        undefined,  // No default runtime
+        loopContext
+      );
+
+      const result = await (executor as any).buildLoopContextSectionAsync();
+      expect(result).toBe('');
+    });
+
+    it('should return formatted loop instructions when enabled and isFinalGroup is true', async () => {
+      const loopContext: LoopContext = {
+        enabled: true,
+        directories: {
+          pending: '/test/pending',
+          running: '/test/running',
+          finished: '/test/finished',
+          failed: '/test/failed'
+        },
+        currentIteration: 7,
+        maxIterations: 25,
+        isFinalGroup: true
       };
 
       const executor = new StageExecutor(
@@ -320,6 +380,38 @@ describe('StageExecutor - Loop Context Injection', () => {
       expect(result).toContain('/test/pending');
       expect(result).toContain('7/25');
       expect(result).not.toContain('\n\n\n'); // No excessive newlines
+    });
+
+    it('should update loop context via updateLoopContext method', async () => {
+      const loopContext: LoopContext = {
+        enabled: true,
+        directories: {
+          pending: '/test/pending',
+          running: '/test/running',
+          finished: '/test/finished',
+          failed: '/test/failed'
+        },
+        isFinalGroup: false
+      };
+
+      const executor = new StageExecutor(
+        mockGitManager,
+        false,
+        mockHandoverManager,
+        undefined,
+        loopContext
+      );
+
+      // Initially should return empty (not final group)
+      let result = await (executor as any).buildLoopContextSectionAsync();
+      expect(result).toBe('');
+
+      // Update to final group
+      executor.updateLoopContext({ isFinalGroup: true });
+
+      // Now should return loop instructions
+      result = await (executor as any).buildLoopContextSectionAsync();
+      expect(result).toContain('Pipeline Looping');
     });
   });
 });

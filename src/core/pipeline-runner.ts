@@ -471,14 +471,19 @@ export class PipelineRunner {
       }
 
       // Phase 2: Execute each group in order
-      for (const group of executionGraph.plan.groups) {
+      const totalGroups = executionGraph.plan.groups.length;
+      for (let groupIndex = 0; groupIndex < totalGroups; groupIndex++) {
+        const group = executionGraph.plan.groups[groupIndex];
+        const isFinalGroup = groupIndex === totalGroups - 1;
+
         const result = await this.groupOrchestrator.processGroup(
           group,
           state,
           config,
           parallelExecutor,
           interactive,
-          initResult.handoverManager
+          initResult.handoverManager,
+          { isFinalGroup }
         );
 
         state = result.state;

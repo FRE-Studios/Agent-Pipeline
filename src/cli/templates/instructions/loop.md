@@ -1,14 +1,21 @@
 ## Pipeline Looping
 
-This pipeline is running in LOOP MODE. After completion, the orchestrator will check for the next pipeline to run.
+This pipeline is running in LOOP MODE. You are in the FINAL stage group.
+
+**When to Create a Next Pipeline:**
+Create a pipeline in the pending directory ONLY when:
+1. You discovered unexpected new work outside your current scope
+2. You are finishing a phase in a multi-phase plan and more phases remain
+   - Create a pipeline for the NEXT PHASE ONLY (not all remaining phases)
+
+**When NOT to Create a Next Pipeline:**
+- Your task is complete with no follow-up needed
+- The work is a simple fix that doesn't warrant a new pipeline
+- Subsequent work is better handled by a human
 
 **To queue the next pipeline:**
-- Write a valid pipeline YAML file to: `{{pendingDir}}`
-- The file will be automatically picked up and executed after this pipeline completes
-- Use the same format as regular pipeline definitions in `.agent-pipeline/pipelines/`
+- Write a valid pipeline YAML to: `{{pendingDir}}`
+- Automatically picked up after this pipeline completes
+- Use same format as `.agent-pipeline/pipelines/`
 
-**Current loop status:**
-- Iteration: {{currentIteration}}/{{maxIterations}}
-- Pending directory: `{{pendingDir}}`
-
-**Note:** Only create a next pipeline if your analysis determines follow-up work is needed.
+**Loop status:** Iteration {{currentIteration}}/{{maxIterations}}
