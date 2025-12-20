@@ -16,6 +16,6 @@ Create a pipeline in the pending directory ONLY when:
 **To queue the next pipeline:**
 - Write a valid pipeline YAML to: `{{pendingDir}}`
 - Automatically picked up after this pipeline completes
-- Use same format as `.agent-pipeline/pipelines/`
+- Reference: `.agent-pipeline/pipelines/{{pipelineName}}.yml`
 
 **Loop status:** Iteration {{currentIteration}}/{{maxIterations}}

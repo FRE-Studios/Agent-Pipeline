@@ -315,7 +315,8 @@ export class StageExecutor {
 
     // Build loop context section from file (async, if enabled)
     const loopContextSection = await this.buildLoopContextSectionAsync(
-      instructionsConfig?.loop
+      instructionsConfig?.loop,
+      pipelineState.pipelineConfig.name
     );
 
     // Build inputs section
@@ -350,7 +351,7 @@ ${inputsSection}
     }
   }
 
-  private async buildLoopContextSectionAsync(customPath?: string): Promise<string> {
+  private async buildLoopContextSectionAsync(customPath?: string, pipelineName?: string): Promise<string> {
     // Only inject loop context if enabled AND in final group
     if (!this.loopContext?.enabled || !this.loopContext?.isFinalGroup) {
       return '';
@@ -361,12 +362,17 @@ ${inputsSection}
       const context: InstructionContext = {
         pendingDir: this.loopContext.directories.pending,
         currentIteration: this.loopContext.currentIteration,
-        maxIterations: this.loopContext.maxIterations
+        maxIterations: this.loopContext.maxIterations,
+        pipelineName
       };
       return this.instructionLoader.loadLoopInstructions(customPath, context);
     }
 
     // Fallback to hardcoded template (for backwards compatibility)
+    const pipelineRef = pipelineName
+      ? `Reference: \`.agent-pipeline/pipelines/${pipelineName}.yml\``
+      : 'Use same format as `.agent-pipeline/pipelines/`';
+
     return `
 ## Pipeline Looping
 
@@ -386,7 +392,7 @@ Create a pipeline in the pending directory ONLY when:
 **To queue the next pipeline:**
 - Write a valid pipeline YAML to: \`${this.loopContext.directories.pending}\`
 - Automatically picked up after this pipeline completes
-- Use same format as \`.agent-pipeline/pipelines/\`
+- ${pipelineRef}
 
 **Loop status:** Iteration ${this.loopContext.currentIteration}/${this.loopContext.maxIterations}
 `.trim();
