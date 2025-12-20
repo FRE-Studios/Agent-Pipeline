@@ -1,145 +1,81 @@
 # Example Pipelines
 
-Agent Pipeline ships with ready-to-run examples. Use `agent-pipeline init [example-name]` to create specific examples, or `agent-pipeline init --all` to create all examples.
+Agent Pipeline ships with two ready-to-run examples. Run `agent-pipeline init` to create both.
 
-## Test Pipeline (`test-pipeline.yml`)
+## Front-End Parallel Example (`front-end-parallel-example.yml`)
 
-**Created by**: `agent-pipeline init` (default)
-
-**Purpose**: Interactive game demonstrating micro-agent collaboration and DAG-based parallelism.
+**Purpose**: Rapid design exploration demonstrating DAG-based parallelism. Six design agents interpret the same requirements through different aesthetic lenses, producing diverse prototypes in parallel.
 
 **Trigger**: `manual`
 
 **Agents** (8 micro-agents):
-1. `storyteller` - Creates 5 statements (4 truths, 1 lie)
-2. `logician` - Analyzes statements using logical reasoning
-3. `empath` - Detects emotional patterns
-4. `statistician` - Uses statistical analysis
-5. `linguist` - Examines language patterns
-6. `skeptic` - Questions everything systematically
-7. `synthesizer` - Combines all detective reasoning
-8. `judge` - Reveals truth and scores detectives
+1. `product_owner` - Transforms user input into structured requirements
+2. `retro_90s_webmaster` - 90s web aesthetic interpretation
+3. `brutalist_purist` - Brutalist design approach
+4. `luxury_editorial` - High-end editorial style
+5. `indie_game_dev` - Game-inspired visual design
+6. `cyberpunk_hacker` - Cyberpunk visual language
+7. `swiss_modernist` - Swiss modernist design system
+8. `showcase` - Collects all prototypes into a unified showcase
 
 **Execution Flow**:
-- Stage 1: Storyteller creates statements
-- Stage 2: Five detectives analyze in parallel (DAG-based parallelism)
-- Stage 3: Synthesizer combines detective insights
-- Stage 4: Judge reveals winner
+- Stage 1: Product owner creates structured requirements
+- Stage 2: Six design agents run in parallel (DAG-based parallelism)
+- Stage 3: Showcase collects and presents all designs
+
+**Features**:
+- True parallel execution with DAG dependencies
+- Design diversity from the same requirements
+- `preserveWorkingTree: true` - no git changes during exploration
+- `autoCommit: false` - exploration mode
 
 Run it with:
 
 ```bash
-agent-pipeline run test-pipeline
+agent-pipeline run front-end-parallel-example
 ```
 
 ## Post-Commit Example (`post-commit-example.yml`)
 
-**Created by**: `agent-pipeline init post-commit` or `agent-pipeline init --all`
-
-**Purpose**: Automated code review and quality improvements after commits.
+**Purpose**: Automated code review and quality improvements for existing projects after commits.
 
 **Trigger**: `post-commit`
 
 **Agents** (3 micro-agents):
-1. `code-review` - Reviews code for issues, style, and best practices
-2. `quality-check` - Analyzes complexity, code smells, refactoring opportunities
-3. `doc-updater` - Updates README, inline docs, and changelogs
+1. `code-reviewer` - Expert code reviewer with confidence-based filtering (only reports issues ≥80% confidence)
+2. `quality-checker` - Code simplification specialist focused on clarity and maintainability
+3. `doc-updater` - Maintains memory files (CLAUDE.md, README, CHANGELOG)
 
 **Execution Flow**:
-- Sequential execution: `code-review` → `quality-check` → `doc-updater`
-- Each agent builds on previous results for comprehensive analysis
+- Sequential: `code-review` → `quality-check` → `doc-updater`
+- Each agent builds on previous stage results
 
 **Features**:
-- Sequential execution ensuring each stage builds on previous findings
-- Context reduction for managing token usage across stages
+- Sequential execution ensuring comprehensive analysis
+- `failureStrategy: continue` - keeps going if a stage fails
+- `onFail: warn` on quality-check - non-blocking improvements
 - Automated commits with `[pipeline:{{stage}}]` prefix
-- Demonstrates micro-agent composition pattern
 
-## Pre-Commit Example (`pre-commit-example.yml`)
-
-**Created by**: `agent-pipeline init pre-commit` or `agent-pipeline init --all`
-
-**Purpose**: Fast validation checks before allowing commits (fail-fast).
-
-**Trigger**: `pre-commit`
-
-**Agents** (3 micro-agents):
-1. `lint-check` - Runs code quality validation using quality-checker
-2. `security-scan` - Scans for vulnerabilities using security-auditor
-3. `validation-summary` - Generates pass/fail summary
-
-**Features**:
-- Parallel execution for speed
-- Fail-fast behavior (`onFail: stop`)
-- Preserves working tree (`autoCommit: false`, `preserveWorkingTree: true`)
-- Summary only generated if all checks pass
-
-## Pre-Push Example (`pre-push-example.yml`)
-
-**Created by**: `agent-pipeline init pre-push` or `agent-pipeline init --all`
-
-**Purpose**: Comprehensive validation before pushing to remote (with conditional approval).
-
-**Trigger**: `pre-push`
-
-**Agents** (4 micro-agents):
-1. `security-audit` - Deep security scan using security-auditor
-2. `code-quality` - Code quality analysis using quality-checker
-3. `dependency-check` - Audits dependencies using dependency-auditor
-4. `push-approval` - Conditional approval (only runs if no vulnerabilities)
-
-**Features**:
-- Parallel execution of 3 comprehensive checks
-- Conditional logic: `push-approval` only runs if `vulnerabilities == 0`
-- Fail-fast on critical issues
-- Demonstrates template expressions for conditions
-
-## Post-Merge Example (`post-merge-example.yml`)
-
-**Created by**: `agent-pipeline init post-merge` or `agent-pipeline init --all`
-
-**Purpose**: Automated cleanup and maintenance after merging branches (with PR creation).
-
-**Trigger**: `post-merge`
-
-**Agents** (4 micro-agents):
-1. `doc-sync` - Updates documentation using doc-updater
-2. `dependency-audit` - Checks for outdated/vulnerable dependencies
-3. `code-consolidation` - Removes duplicate code using code-reducer
-4. `summary-report` - Generates cleanup summary using cleanup-reporter
-
-**Features**:
-- Parallel execution of 3 cleanup tasks
-- Automated PR creation with custom title and labels
-- Desktop notifications on completion/failure
-- Git workflow with branch isolation
-- Final summary stage aggregates all cleanup results
-
-Install it as a git hook:
+Run it with:
 
 ```bash
-agent-pipeline install post-merge-example
+# On-demand execution
+agent-pipeline run post-commit-example
+
+# Or install as git hook for automatic execution
+agent-pipeline install post-commit-example
 ```
 
 ## Available Agents
 
 All examples use focused micro-agents from `.agent-pipeline/agents/`:
 
-**Game Agents** (test-pipeline):
-- `storyteller`, `detective-logician`, `detective-empath`, `detective-statistician`, `detective-linguist`, `detective-skeptic`, `synthesizer`, `judge`
+**Design Agents** (front-end-parallel-example):
+- `product_owner` - Requirements transformation
+- `retro_90s_webmaster`, `brutalist_purist`, `luxury_editorial`, `indie_game_dev`, `cyberpunk_hacker`, `swiss_modernist` - Design interpretations
+- `showcase` - Prototype collection
 
-**Code Quality Agents**:
-- `code-reviewer` - Reviews code for issues, style, best practices
-- `quality-checker` - Analyzes complexity, code smells, refactoring
-- `security-auditor` - Scans for vulnerabilities and exposed secrets
-- `code-reducer` - Removes duplication and simplifies code
-
-**Documentation Agents**:
-- `doc-updater` - Maintains README, inline docs, changelogs
-- `summary` - Generates pipeline summaries
-- `cleanup-reporter` - Reports cleanup activities
-
-**Infrastructure Agents**:
-- `dependency-auditor` - Audits dependencies for security and updates
-- `context-reducer` - Intelligently reduces context for large pipelines
-
+**Code Quality Agents** (post-commit-example):
+- `code-reviewer` - Reviews code for bugs, security, and project conventions
+- `quality-checker` - Analyzes complexity, code smells, and simplification opportunities
+- `doc-updater` - Maintains documentation in sync with code changes

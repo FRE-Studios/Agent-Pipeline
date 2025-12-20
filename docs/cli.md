@@ -13,11 +13,10 @@ All commands are routed through `src/index.ts`. Use `agent-pipeline <command> [o
 - `status` – Print the most recent run summary.
 - `history` – Launch the interactive history browser (Ink UI).
 - `analytics [--pipeline <name>] [--days <n>]` – Generate success-rate and duration metrics from stored run state.
-- `init [example-name]` – Scaffold `.agent-pipeline/` with test-pipeline and optional examples.
-  - `init` – Creates test-pipeline.yml with minimal setup
-  - `init post-commit` – Creates test-pipeline.yml + post-commit-example.yml
-  - `init --all` – Creates test-pipeline.yml + all example pipelines (post-commit, pre-commit, pre-push, post-merge)
-  - Automatically imports agents from Claude Code plugins and creates only the fallback agents required by your selected pipelines.
+- `init` – Scaffold `.agent-pipeline/` with both example pipelines.
+  - Creates `front-end-parallel-example.yml` (parallel design exploration with 8 agents)
+  - Creates `post-commit-example.yml` (sequential code review workflow for existing projects)
+  - Automatically creates only the fallback agents required by the pipelines.
 
 ## Pipeline Management
 

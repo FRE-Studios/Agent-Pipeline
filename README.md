@@ -50,23 +50,19 @@ npm link
 ### 1. Initialize New Project
 
 ```bash
-# Initialize with minimal test pipeline
 agent-pipeline init
-
-# Initialize with a specific example
-agent-pipeline init post-commit
-
-# Initialize with all examples
-agent-pipeline init --all
 ```
 
-This scaffolds the `test-pipeline`, optional example pipelines, required agent definitions, and the directory structure (`.agent-pipeline/`, `.agent-pipeline/agents/`). Agents from installed Claude Code plugins are automatically imported.
+This scaffolds two example pipelines (`front-end-parallel-example` and `post-commit-example`), required agent definitions, and the directory structure (`.agent-pipeline/`, `.agent-pipeline/agents/`). Agents from installed Claude Code plugins are automatically discovered.
 
 ### 2. Run Your First Pipeline
 
 ```bash
-# Run with interactive live UI (default)
-agent-pipeline run test-pipeline
+# Run the parallel design exploration (works on any project)
+agent-pipeline run front-end-parallel-example
+
+# For existing projects, try the post-commit workflow
+agent-pipeline run post-commit-example
 ```
 
 **What you'll see:** live terminal UI with status badges, real-time agent output streaming, atomic commits per stage, and a pipeline summary with timing and results.
@@ -85,14 +81,11 @@ agent-pipeline analytics --pipeline <name> --days 30
 ### 4. Try Advanced Features
 
 ```bash
-# Parallel execution with DAG dependencies
-agent-pipeline run parallel-example
+# Install git hooks for automated post-commit reviews
+agent-pipeline install post-commit-example
 
-# Conditional logic based on previous stage outputs
-agent-pipeline run conditional-example
-
-# Git workflow with branch isolation and PR creation
-agent-pipeline run git-workflow-example
+# Clone and customize a pipeline
+agent-pipeline clone front-end-parallel-example my-custom-pipeline
 ```
 
 ---

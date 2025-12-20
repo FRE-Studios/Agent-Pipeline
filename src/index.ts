@@ -173,13 +173,7 @@ async function main() {
       }
 
       case 'init': {
-        const exampleName = args[1]; // positional argument
-        const all = args.includes('--all');
-
-        await initCommand(repoPath, {
-          exampleName,
-          all
-        });
+        await initCommand(repoPath);
         break;
       }
 
@@ -456,20 +450,20 @@ Rollback Options:
 Examples:
   agent-pipeline init
   agent-pipeline create
-  agent-pipeline run test-pipeline
-  agent-pipeline run test-pipeline --dry-run
-  agent-pipeline edit test-pipeline
-  agent-pipeline clone test-pipeline my-custom-pipeline
+  agent-pipeline run front-end-parallel-example
+  agent-pipeline run post-commit-example --dry-run
+  agent-pipeline edit front-end-parallel-example
+  agent-pipeline clone front-end-parallel-example my-custom-pipeline
   agent-pipeline agent list
   agent-pipeline agent pull
   agent-pipeline list
   agent-pipeline status
   agent-pipeline history
-  agent-pipeline analytics --pipeline test-pipeline
+  agent-pipeline analytics --pipeline front-end-parallel-example
   agent-pipeline analytics --loops --days 7
   agent-pipeline cleanup --force --delete-logs
   agent-pipeline install post-commit-example
-  agent-pipeline export test-pipeline --include-agents --output backup.yml
+  agent-pipeline export front-end-parallel-example --include-agents --output backup.yml
   agent-pipeline import https://example.com/pipeline.yml
   agent-pipeline schema
   agent-pipeline schema --full

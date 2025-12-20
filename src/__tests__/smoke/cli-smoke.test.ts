@@ -75,11 +75,15 @@ describe('CLI Smoke Tests', () => {
       expect(pipelinesStat.isDirectory()).toBe(true);
       expect(agentsStat.isDirectory()).toBe(true);
 
-      // Verify test pipeline created
-      const testPipelineExists = await fileExists(
-        path.join(pipelinesDir, 'test-pipeline.yml')
+      // Verify both example pipelines created
+      const frontendPipelineExists = await fileExists(
+        path.join(pipelinesDir, 'front-end-parallel-example.yml')
       );
-      expect(testPipelineExists).toBe(true);
+      const postCommitPipelineExists = await fileExists(
+        path.join(pipelinesDir, 'post-commit-example.yml')
+      );
+      expect(frontendPipelineExists).toBe(true);
+      expect(postCommitPipelineExists).toBe(true);
     }, 15000);
 
     it('should not overwrite existing pipelines with init', async () => {
@@ -102,13 +106,13 @@ describe('CLI Smoke Tests', () => {
   });
 
   describe('Pipeline Validation', () => {
-    it('should validate test pipeline after init', async () => {
+    it('should validate front-end-parallel-example pipeline after init', async () => {
       // Initialize project
       await execCLI(['init'], { cwd: tempDir });
 
-      // Validate test pipeline
+      // Validate front-end-parallel-example pipeline
       const { exitCode, stdout, stderr } = await execCLI(
-        ['validate', 'test-pipeline'],
+        ['validate', 'front-end-parallel-example'],
         { cwd: tempDir }
       );
 
@@ -165,7 +169,8 @@ describe('CLI Smoke Tests', () => {
       const { exitCode, stdout } = await execCLI(['list'], { cwd: tempDir });
 
       expect(exitCode).toBe(0);
-      expect(stdout).toContain('test-pipeline');
+      expect(stdout).toContain('front-end-parallel-example');
+      expect(stdout).toContain('post-commit-example');
     }, 15000);
 
     it('should list agents after init', async () => {

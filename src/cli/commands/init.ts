@@ -10,17 +10,7 @@ import { PipelineValidator, ValidationError } from '../../validators/pipeline-va
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Available example templates (excluding test-pipeline)
-const AVAILABLE_EXAMPLES = ['post-commit'] as const;
-type ExampleName = typeof AVAILABLE_EXAMPLES[number];
-
-export async function initCommand(
-  repoPath: string,
-  options?: {
-    exampleName?: string;
-    all?: boolean;
-  }
-): Promise<void> {
+export async function initCommand(repoPath: string): Promise<void> {
   console.log('\n🚀 Initializing Agent Pipeline...\n');
 
   try {
@@ -48,28 +38,11 @@ export async function initCommand(
       console.log('   Use "agent-pipeline agent pull" to import.\n');
     }
 
-    // Determine which pipelines to create
-    const pipelinesToCreate: string[] = ['test-pipeline'];
-
-    // Validate example name if provided
-    if (options?.exampleName) {
-      if (!AVAILABLE_EXAMPLES.includes(options.exampleName as ExampleName)) {
-        throw new Error(
-          `Invalid example name: ${options.exampleName}. Available: ${AVAILABLE_EXAMPLES.join(', ')}`
-        );
-      }
-      pipelinesToCreate.push(`${options.exampleName}-example`);
-    }
-
-    // Add all examples if --all flag is set
-    if (options?.all) {
-      for (const example of AVAILABLE_EXAMPLES) {
-        const pipelineName = `${example}-example`;
-        if (!pipelinesToCreate.includes(pipelineName)) {
-          pipelinesToCreate.push(pipelineName);
-        }
-      }
-    }
+    // Create both example pipelines
+    const pipelinesToCreate: string[] = [
+      'front-end-parallel-example',
+      'post-commit-example'
+    ];
 
     // Copy pipeline templates
     console.log('✅ Creating pipelines:');
@@ -135,12 +108,13 @@ export async function initCommand(
     console.log('');
 
     console.log('Next steps:');
-    console.log('  1. Review your pipeline in .agent-pipeline/pipelines/test-pipeline.yml');
-    console.log('  2. Customize agents in .agent-pipeline/agents/');
-    console.log('  3. Run your first pipeline: agent-pipeline run test-pipeline');
-    if (pipelinesToCreate.includes('post-commit-example')) {
-      console.log('  4. Install git hooks (optional): agent-pipeline install post-commit-example');
-    }
+    console.log('  1. Run the parallel design exploration:');
+    console.log('     agent-pipeline run front-end-parallel-example');
+    console.log('  2. For existing projects, try the post-commit workflow:');
+    console.log('     agent-pipeline run post-commit-example');
+    console.log('  3. Install git hooks (optional):');
+    console.log('     agent-pipeline install post-commit-example');
+    console.log('  4. Customize agents in .agent-pipeline/agents/');
     console.log(`\n${'='.repeat(60)}\n`);
 
   } catch (error) {
@@ -197,6 +171,43 @@ async function getRequiredAgents(pipelineNames: string[]): Promise<string[]> {
 }
 
 /**
+ * Find an agent template file, searching root and subdirectories
+ */
+async function findAgentTemplate(
+  templatesDir: string,
+  filename: string
+): Promise<string | null> {
+  // First check root
+  const rootPath = path.join(templatesDir, filename);
+  try {
+    await fs.access(rootPath);
+    return rootPath;
+  } catch {
+    // Not in root, check subdirectories
+  }
+
+  // Then check subdirectories
+  try {
+    const entries = await fs.readdir(templatesDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const subPath = path.join(templatesDir, entry.name, filename);
+        try {
+          await fs.access(subPath);
+          return subPath;
+        } catch {
+          // Not in this subdirectory
+        }
+      }
+    }
+  } catch {
+    // Failed to read directory
+  }
+
+  return null;
+}
+
+/**
  * Create only the required agents by copying from template files
  */
 async function createRequiredAgents(
@@ -207,19 +218,22 @@ async function createRequiredAgents(
   const createdAgents: string[] = [];
 
   for (const agentFilename of requiredAgents) {
-    const templatePath = path.join(templatesDir, agentFilename);
+    const templatePath = await findAgentTemplate(templatesDir, agentFilename);
 
-    try {
-      const templateContent = await fs.readFile(templatePath, 'utf-8');
-      await fs.writeFile(
-        path.join(agentsDir, agentFilename),
-        templateContent,
-        'utf-8'
-      );
-      createdAgents.push(agentFilename);
-    } catch (error) {
+    if (templatePath) {
+      try {
+        const templateContent = await fs.readFile(templatePath, 'utf-8');
+        await fs.writeFile(
+          path.join(agentsDir, agentFilename),
+          templateContent,
+          'utf-8'
+        );
+        createdAgents.push(agentFilename);
+      } catch (error) {
+        console.log(`   ⚠️  Agent ${agentFilename} failed to copy: ${(error as Error).message}`);
+      }
+    } else {
       // Agent template doesn't exist - skip it
-      // User will need to import it from plugins or create manually
       console.log(`   ⚠️  Agent ${agentFilename} is required but no template available (import from plugins or create manually)`);
     }
   }

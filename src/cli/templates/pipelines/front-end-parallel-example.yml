@@ -1,0 +1,68 @@
+# Design Exploration Pipeline
+# Rapidly prototype the same requirements across 6 distinct design aesthetics
+# Docs: https://github.com/FRE-Studios/agent-pipeline
+
+name: front-end-parallel-example
+trigger: manual
+
+settings:
+  autoCommit: false
+  commitPrefix: "[design-exploration]"
+  failureStrategy: continue  # Keep going even if one design agent fails
+  preserveWorkingTree: true
+  executionMode: parallel  # Enable DAG-based parallelism
+
+agents:
+  # Stage 1: Transform user input into structured requirements
+  - name: product-owner
+    agent: .agent-pipeline/agents/product_owner.md
+    timeout: 120
+
+  # Stage 2: Design agents run in parallel, each interpreting requirements differently
+  - name: retro-90s
+    agent: .agent-pipeline/agents/retro_90s_webmaster.md
+    dependsOn: 
+      - product-owner
+    timeout: 300
+
+  - name: brutalist
+    agent: .agent-pipeline/agents/brutalist_purist.md
+    dependsOn:
+      - product-owner
+    timeout: 300
+
+  - name: luxury-editorial
+    agent: .agent-pipeline/agents/luxury_editorial.md
+    dependsOn:
+      - product-owner
+    timeout: 300
+
+  - name: indie-game
+    agent: .agent-pipeline/agents/indie_game_dev.md
+    dependsOn: 
+      - product-owner
+    timeout: 300
+
+  - name: cyberpunk
+    agent: .agent-pipeline/agents/cyberpunk_hacker.md
+    dependsOn: 
+      - product-owner
+    timeout: 300
+
+  - name: swiss-modernist
+    agent: .agent-pipeline/agents/swiss_modernist.md
+    dependsOn: 
+      - product-owner
+    timeout: 300
+
+  # Stage 3: Collect all prototypes into a showcase
+  - name: showcase
+    agent: .agent-pipeline/agents/showcase.md
+    dependsOn: 
+      - retro-90s
+      - brutalist
+      - luxury-editorial
+      - indie-game
+      - cyberpunk
+      - swiss-modernist
+    timeout: 180
