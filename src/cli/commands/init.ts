@@ -110,6 +110,7 @@ export async function initCommand(repoPath: string): Promise<void> {
     console.log('Next steps:');
     console.log('  1. Run the parallel design exploration:');
     console.log('     agent-pipeline run front-end-parallel-example');
+    console.log('     💡 Tip: Edit the "prompt" in product-owner stage to design your own website!');
     console.log('  2. For existing projects, try the post-commit workflow:');
     console.log('     agent-pipeline run post-commit-example');
     console.log('  3. Install git hooks (optional):');
