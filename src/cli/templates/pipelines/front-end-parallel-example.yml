@@ -17,6 +17,8 @@ agents:
   - name: product-owner
     agent: .agent-pipeline/agents/product_owner.md
     timeout: 120
+    inputs:
+      prompt: "A high-end mountain exploration technology company that makes rugged GPS devices, satellite communicators, and avalanche safety gear for elite alpinists and expedition teams"
 
   # Stage 2: Design agents run in parallel, each interpreting requirements differently
   - name: retro-90s

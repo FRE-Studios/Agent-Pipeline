@@ -806,10 +806,10 @@ describe('StageExecutor', () => {
       await executor.executeStage(stageWithInputs, runningPipelineState);
 
       const callArgs = mockRuntime.execute.mock.calls[0][0];
-      expect(callArgs.userPrompt).toContain('Stage Inputs');
-      expect(callArgs.userPrompt).toContain('targetFile');
-      expect(callArgs.userPrompt).toContain('maxIssues');
-      expect(callArgs.userPrompt).toContain('strictMode');
+      expect(callArgs.userPrompt).toContain('User Inputs to Help with Your Task');
+      expect(callArgs.userPrompt).toContain('**targetFile**');
+      expect(callArgs.userPrompt).toContain('**maxIssues**');
+      expect(callArgs.userPrompt).toContain('**strictMode**');
     });
   });
 

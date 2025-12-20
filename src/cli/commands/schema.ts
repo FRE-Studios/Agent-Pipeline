@@ -39,12 +39,35 @@ agents:
 
   - name: implement
     agent: .agent-pipeline/agents/implementer.md
-    dependsOn: [analyze]     # Runs after 'analyze' completes
+    dependsOn:
+      - analyze              # Runs after 'analyze' completes
 
-# Optional sections:
-# git:           Branch strategy, PR automation
-# notifications: Desktop/Slack alerts
-# runtime:       Model selection (haiku, sonnet, opus)
+# Optional sections (add at root level):
+
+# git:
+#   baseBranch: main           # Base branch for PRs
+#   branchStrategy: reusable   # reusable | unique-per-run
+#   createPR: true             # Auto-create GitHub PR on completion
+
+# notifications:
+#   desktop: true              # Desktop notifications
+#   slack:
+#     webhookUrl: $SLACK_WEBHOOK_URL
+#     events: [started, completed, failed]
+
+# runtime:
+#   model: opus                # haiku | sonnet | opus
+#   maxTurns: 50               # Max agent turns per stage
+#   maxThinkingTokens: 16000   # For extended thinking
+
+# Default settings (when not specified):
+#   runtime: claude-code-headless
+#   permissionMode: acceptEdits
+#   timeout: 900 (15 minutes)
+#   failureStrategy: stop
+#   autoCommit: true
+#   branchStrategy: reusable
+#   baseBranch: main
 `;
 }
 

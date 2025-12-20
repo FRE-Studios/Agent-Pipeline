@@ -319,9 +319,9 @@ export class StageExecutor {
       pipelineState.pipelineConfig.name
     );
 
-    // Build inputs section
+    // Build inputs section - format as readable key: value pairs
     const inputsSection = stageConfig.inputs && Object.keys(stageConfig.inputs).length > 0
-      ? `## Stage Inputs\n${JSON.stringify(stageConfig.inputs, null, 2)}`
+      ? `## User Inputs to Help with Your Task\n${Object.entries(stageConfig.inputs).map(([key, value]) => `- **${key}**: ${value}`).join('\n')}`
       : '';
 
     // Construct full context
