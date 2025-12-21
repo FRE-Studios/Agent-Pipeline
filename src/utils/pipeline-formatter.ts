@@ -89,18 +89,26 @@ export class PipelineFormatter {
   /**
    * Format token usage information
    * Example: "Input: 25.2k tokens | Output: 13.1k | Turns: 3/10 | Thinking: 2.5k"
+   *
+   * Note: Claude API reports input_tokens as only NEW (non-cached) tokens.
+   * Total input = actual_input + cache_read (tokens retrieved from cache).
+   * We display total input to give an accurate picture of context size.
    */
   static formatTokenUsage(tokenUsage: StageExecution['tokenUsage']): string {
     if (!tokenUsage) return '';
 
     const parts: string[] = [];
 
-    // Estimated vs actual comparison
-    parts.push(`Input: ${this.formatTokenCount(tokenUsage.actual_input)} tokens`);
+    // Calculate total input: actual (new) + cache_read (from cache)
+    // This represents the true input context size across all turns
+    const totalInput = tokenUsage.actual_input + (tokenUsage.cache_read || 0);
+
+    // Show total input tokens
+    parts.push(`Input: ${this.formatTokenCount(totalInput)} tokens`);
 
     // Show estimation comparison if they differ significantly (>5%)
-    const estimationDiff = Math.abs(tokenUsage.actual_input - tokenUsage.estimated_input);
-    const estimationDiffPct = (estimationDiff / tokenUsage.actual_input) * 100;
+    const estimationDiff = Math.abs(totalInput - tokenUsage.estimated_input);
+    const estimationDiffPct = totalInput > 0 ? (estimationDiff / totalInput) * 100 : 0;
     if (estimationDiffPct > 5) {
       parts.push(`(est. ${this.formatTokenCount(tokenUsage.estimated_input)})`);
     }
@@ -118,12 +126,16 @@ export class PipelineFormatter {
       parts.push(`Turns: ${tokenUsage.num_turns}`);
     }
 
-    // Cache tokens if present
-    if (tokenUsage.cache_creation) {
-      parts.push(`Cache created: ${this.formatTokenCount(tokenUsage.cache_creation)}`);
+    // Cache efficiency breakdown (if caching was used)
+    if (tokenUsage.cache_read && tokenUsage.cache_read > 0) {
+      // Show cache hit ratio for transparency
+      const cacheHitRatio = Math.round((tokenUsage.cache_read / totalInput) * 100);
+      parts.push(`Cache: ${cacheHitRatio}% hit`);
     }
-    if (tokenUsage.cache_read) {
-      parts.push(`Cache read: ${this.formatTokenCount(tokenUsage.cache_read)}`);
+
+    // Cache creation tokens (new content being cached)
+    if (tokenUsage.cache_creation && tokenUsage.cache_creation > 0) {
+      parts.push(`Cache created: ${this.formatTokenCount(tokenUsage.cache_creation)}`);
     }
 
     return parts.join(' | ');

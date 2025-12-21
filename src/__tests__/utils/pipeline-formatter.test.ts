@@ -240,8 +240,8 @@ describe('PipelineFormatter', () => {
         const result = PipelineFormatter.formatStageInfo(stageWithoutDuration);
 
         expect(result).toContain('✅ test-stage');
-        expect(result).not.toContain('(');
-        expect(result).not.toContain('s)');
+        // Duration pattern should not be present (e.g., "(60.0s)")
+        expect(result).not.toMatch(/\(\d+\.\d+s\)/);
       });
 
       it('should handle stage without commit', () => {
@@ -333,7 +333,8 @@ describe('PipelineFormatter', () => {
         // Zero is falsy, so duration is not shown
         expect(result).toContain('✅ test-stage');
         expect(result).not.toContain('(0.0s)');
-        expect(result).not.toContain('(');
+        // Duration pattern should not be present
+        expect(result).not.toMatch(/\(\d+\.\d+s\)/);
       });
     });
   });
@@ -476,10 +477,12 @@ describe('PipelineFormatter', () => {
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
-        expect(result).toContain('Input: 25.2k tokens');
+        // Total input = actual_input (25234) + cache_read (2000) = 27234 = 27.2k
+        expect(result).toContain('Input: 27.2k tokens');
         expect(result).toContain('Output: 13.1k');
         expect(result).toContain('Cache created: 5k');
-        expect(result).toContain('Cache read: 2k');
+        // Cache read is now shown as cache hit percentage
+        expect(result).toContain('Cache: 7% hit');
       });
 
       it('should show estimation comparison when difference > 5%', () => {
@@ -553,7 +556,7 @@ describe('PipelineFormatter', () => {
         expect(result).toContain('Cache created: 5k');
       });
 
-      it('should include cache_read when present', () => {
+      it('should include cache_read as percentage when present', () => {
         const tokenUsage = {
           estimated_input: 25000,
           actual_input: 25000,
@@ -563,7 +566,9 @@ describe('PipelineFormatter', () => {
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
-        expect(result).toContain('Cache read: 2k');
+        // Total input = 25000 + 2000 = 27000; cache hit = 2000/27000 = 7%
+        expect(result).toContain('Input: 27k tokens');
+        expect(result).toContain('Cache: 7% hit');
       });
 
       it('should include both cache fields when present', () => {
@@ -577,8 +582,10 @@ describe('PipelineFormatter', () => {
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
+        // Total input = 25000 + 2000 = 27000
+        expect(result).toContain('Input: 27k tokens');
         expect(result).toContain('Cache created: 5k');
-        expect(result).toContain('Cache read: 2k');
+        expect(result).toContain('Cache: 7% hit');
       });
     });
 
@@ -635,12 +642,13 @@ describe('PipelineFormatter', () => {
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
-        expect(result).toContain('Input: 25k tokens');
+        // Total input = 25000 + 2000 = 27000
+        expect(result).toContain('Input: 27k tokens');
         expect(result).toContain('Output: 13k');
         expect(result).toContain('Thinking: 8k');
         expect(result).toContain('Turns: 4');
         expect(result).toContain('Cache created: 5k');
-        expect(result).toContain('Cache read: 2k');
+        expect(result).toContain('Cache: 7% hit');
       });
 
       it('should not display num_turns when missing', () => {
