@@ -14,7 +14,6 @@ export class PipelineFinalizer {
     private branchManager: BranchManager,
     private prCreator: PRCreator,
     private stateManager: StateManager,
-    private repoPath: string,
     private dryRun: boolean,
     private shouldLog: (interactive: boolean) => boolean
   ) {}

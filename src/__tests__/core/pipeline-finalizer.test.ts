@@ -91,7 +91,6 @@ describe('PipelineFinalizer', () => {
       mockBranchManager,
       mockPRCreator,
       mockStateManager,
-      '/test/repo',
       false,
       mockShouldLog
     );
@@ -331,7 +330,6 @@ describe('PipelineFinalizer', () => {
         mockBranchManager,
         mockPRCreator,
         mockStateManager,
-        '/test/repo',
         true, // dry run
         mockShouldLog
       );

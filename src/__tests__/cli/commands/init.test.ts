@@ -188,7 +188,7 @@ describe('initCommand', () => {
 
         expect(parsed.name).toBe('post-commit-example');
         expect(parsed.trigger).toBe('post-commit');
-        expect(parsed.settings.executionMode).toBe('parallel');
+        expect(parsed.settings.executionMode).toBe('sequential');
         expect(parsed.settings.failureStrategy).toBe('continue');
         expect(parsed.agents).toHaveLength(3);
       });

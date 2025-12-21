@@ -73,7 +73,6 @@ export class PipelineRunner {
       this.branchManager,
       this.prCreator,
       this.stateManager,
-      this.repoPath,
       this.dryRun,
       this.shouldLog.bind(this)
     );
