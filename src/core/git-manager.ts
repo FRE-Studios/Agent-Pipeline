@@ -75,7 +75,8 @@ export class GitManager {
   async createPipelineCommit(
     stageName: string,
     runId: string,
-    customMessage?: string
+    customMessage?: string,
+    commitPrefix?: string
   ): Promise<string> {
     if (!(await this.hasUncommittedChanges())) {
       return '';
@@ -84,9 +85,14 @@ export class GitManager {
     await this.stageAllChanges();
 
     const message = customMessage || `Apply ${stageName} changes`;
-    const commitMessage = `[pipeline:${stageName}] ${message}`;
+    const resolvedPrefix = commitPrefix
+      ? commitPrefix.replace('{{stage}}', stageName)
+      : `[pipeline:${stageName}]`;
+    const separator = resolvedPrefix.endsWith(' ') ? '' : ' ';
+    const commitMessage = `${resolvedPrefix}${separator}${message}`;
 
     return this.commitWithMetadata(commitMessage, {
+      'Agent-Pipeline': 'true',
       'Pipeline-Run-ID': runId,
       'Pipeline-Stage': stageName
     });

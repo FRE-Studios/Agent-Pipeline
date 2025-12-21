@@ -79,7 +79,8 @@ describe('HookInstaller', () => {
       const hookPath = path.join(gitHooksDir, 'post-commit');
       const content = await fs.readFile(hookPath, 'utf-8');
       expect(content).toContain('nohup');
-      expect(content).toContain('> /dev/null 2>&1 &');
+      expect(content).toContain('.agent-pipeline/logs');
+      expect(content).toContain('>> "$logPath" 2>&1 &');
     });
 
     it('should include user notification message', async () => {

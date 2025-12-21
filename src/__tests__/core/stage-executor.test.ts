@@ -285,7 +285,8 @@ describe('StageExecutor', () => {
       expect(mockGitManager.createPipelineCommit).toHaveBeenCalledWith(
         'test-stage',
         'test-run-123',
-        undefined
+        undefined,
+        '[pipeline:{{stage}}]'
       );
     });
 
@@ -302,7 +303,8 @@ describe('StageExecutor', () => {
       expect(mockGitManager.createPipelineCommit).toHaveBeenCalledWith(
         'custom-commit-stage',
         'test-run-123',
-        'Custom commit message'
+        'Custom commit message',
+        '[pipeline:{{stage}}]'
       );
     });
 
@@ -374,7 +376,8 @@ describe('StageExecutor', () => {
       expect(mockGitManager.createPipelineCommit).toHaveBeenCalledWith(
         'override-stage',
         'test-run-123',
-        undefined
+        undefined,
+        '[pipeline:{{stage}}]'
       );
     });
 

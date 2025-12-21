@@ -565,6 +565,23 @@ describe('GitManager', () => {
       expect(commitCall).toContain('[pipeline:test-stage] Custom commit message');
     });
 
+    it('should use commitPrefix when provided', async () => {
+      mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
+        isClean: () => false,
+      });
+
+      await gitManager.createPipelineCommit(
+        'test-stage',
+        'run-123',
+        undefined,
+        '[custom:{{stage}}]'
+      );
+
+      const commitCall = mockGit.commit.mock.calls[0][0];
+      expect(commitCall).toContain('[custom:test-stage] Apply test-stage changes');
+    });
+
     it('should use default message with stage name', async () => {
       mockGit.status.mockResolvedValue({
         staged: ['file1.ts'],
@@ -611,6 +628,18 @@ describe('GitManager', () => {
 
       const commitCall = mockGit.commit.mock.calls[0][0];
       expect(commitCall).toContain('Pipeline-Stage: my-stage');
+    });
+
+    it('should include Agent-Pipeline trailer', async () => {
+      mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
+        isClean: () => false,
+      });
+
+      await gitManager.createPipelineCommit('stage', 'run-id');
+
+      const commitCall = mockGit.commit.mock.calls[0][0];
+      expect(commitCall).toContain('Agent-Pipeline: true');
     });
 
     it('should return new commit SHA on success', async () => {
@@ -716,7 +745,7 @@ describe('GitManager', () => {
 
       expect(mockGit.log).toHaveBeenCalledWith(['-1', 'meta123def456']);
       expect(result).toBe(
-        '[pipeline:test-stage] Apply test-stage changes\n\nPipeline-Run-ID: run-12345\nPipeline-Stage: test-stage'
+        '[pipeline:test-stage] Apply test-stage changes\n\nAgent-Pipeline: true\nPipeline-Run-ID: run-12345\nPipeline-Stage: test-stage'
       );
     });
 
@@ -750,6 +779,7 @@ describe('GitManager', () => {
 
       const result = await gitManager.getCommitMessage('meta123');
 
+      expect(result).toContain('Agent-Pipeline: true');
       expect(result).toContain('Pipeline-Run-ID: run-12345');
       expect(result).toContain('Pipeline-Stage: test-stage');
     });

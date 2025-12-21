@@ -114,7 +114,7 @@ export const commitWithMetadata = {
   modified: [],
   latest: {
     hash: 'meta123def456',
-    message: '[pipeline:test-stage] Apply test-stage changes\n\nPipeline-Run-ID: run-12345\nPipeline-Stage: test-stage',
+    message: '[pipeline:test-stage] Apply test-stage changes\n\nAgent-Pipeline: true\nPipeline-Run-ID: run-12345\nPipeline-Stage: test-stage',
     author_name: 'Test Author',
     author_email: 'test@example.com',
   },

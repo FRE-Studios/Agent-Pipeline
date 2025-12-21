@@ -121,15 +121,24 @@ export class HookInstaller {
 
   private generateHookScript(pipelineName: string): string {
     return `# Skip if last commit was created by Agent Pipeline
-if git log -1 --pretty=%B | grep -Eq "^(\\[pipeline:|Pipeline-Run-ID:)"; then
+if git log -1 --pretty=%B | grep -Eq "^Agent-Pipeline: true$"; then
   exit 0
 fi
+
+# Ensure PATH includes common locations for non-interactive hooks
+if ! command -v npx >/dev/null 2>&1 && [ -s "$HOME/.nvm/nvm.sh" ]; then
+  . "$HOME/.nvm/nvm.sh"
+fi
+export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 
 # Prevent overlapping runs for the same pipeline
 lockDir=".agent-pipeline/locks"
 lockPath="$lockDir/${pipelineName}.lock"
+logDir=".agent-pipeline/logs"
+logPath="$logDir/${pipelineName}.log"
 
 mkdir -p "$lockDir"
+mkdir -p "$logDir"
 
 if [ -f "$lockPath/pid" ]; then
   oldPid=$(cat "$lockPath/pid")
@@ -143,7 +152,14 @@ if ! mkdir "$lockPath" 2>/dev/null; then
 fi
 
 # Run Agent Pipeline in background to avoid blocking
-nohup npx agent-pipeline run ${pipelineName} > /dev/null 2>&1 &
+if command -v agent-pipeline >/dev/null 2>&1; then
+  runner="agent-pipeline"
+else
+  runner="npx agent-pipeline"
+fi
+
+echo "[agent-pipeline] $(date) starting ${pipelineName}" >> "$logPath"
+nohup $runner run ${pipelineName} >> "$logPath" 2>&1 &
 pipelinePid=$!
 echo "$pipelinePid" > "$lockPath/pid"
 

@@ -212,10 +212,12 @@ export class StageExecutor {
       const stageAutoCommit = stageConfig.autoCommit ?? globalAutoCommit ?? true;
       const shouldCommit = stageAutoCommit && !this.dryRun;
       if (shouldCommit) {
+        const commitPrefix = pipelineState.pipelineConfig.settings?.commitPrefix;
         const commitSha = await this.gitManager.createPipelineCommit(
           stageConfig.name,
           pipelineState.runId,
-          stageConfig.commitMessage
+          stageConfig.commitMessage,
+          commitPrefix
         );
 
         if (commitSha) {
