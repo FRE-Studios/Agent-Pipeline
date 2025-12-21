@@ -1,0 +1,5 @@
+*
+!.gitignore
+!**/
+!**/LOG.md
+!**/HANDOVER.md

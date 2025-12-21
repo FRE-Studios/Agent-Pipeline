@@ -44,7 +44,7 @@ describe('HistoryBrowser', () => {
       }
     ],
     artifacts: {
-      handoverDir: '.agent-pipeline/handover/test-run-123',
+      handoverDir: '.agent-pipeline/runs/test-run-123',
       initialCommit: 'abc1234567',
       finalCommit: 'def7890123',
       changedFiles: ['src/test.ts'],
@@ -611,7 +611,7 @@ describe('HistoryBrowser', () => {
       const incompleteRun: PipelineState = {
         ...mockRun,
         artifacts: {
-          handoverDir: '.agent-pipeline/handover/test-run-123',
+          handoverDir: '.agent-pipeline/runs/test-run-123',
           initialCommit: 'abc1234',
           finalCommit: undefined,
           changedFiles: [],

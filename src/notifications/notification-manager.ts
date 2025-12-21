@@ -115,7 +115,7 @@ export class NotificationManager {
           trigger: { type: 'manual', commitSha: 'abc123', timestamp: new Date().toISOString() },
           stages: [],
           status: 'completed',
-          artifacts: { handoverDir: '.agent-pipeline/handover/test-run', initialCommit: 'abc123', totalDuration: 42.5, changedFiles: [] as string[] }
+          artifacts: { handoverDir: '.agent-pipeline/runs/test-run', initialCommit: 'abc123', totalDuration: 42.5, changedFiles: [] as string[] }
         }
       };
 

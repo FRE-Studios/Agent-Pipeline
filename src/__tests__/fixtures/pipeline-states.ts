@@ -57,7 +57,7 @@ export const runningPipelineState: PipelineState = {
   ],
   status: 'running',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/test-run-123',
+    handoverDir: '.agent-pipeline/runs/test-run-123',
     initialCommit: 'initial-commit-sha',
     changedFiles: ['file1.ts', 'file2.ts'],
     totalDuration: 60,
@@ -92,7 +92,7 @@ export const completedPipelineState: PipelineState = {
   ],
   status: 'completed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/test-run-456',
+    handoverDir: '.agent-pipeline/runs/test-run-456',
     initialCommit: 'initial-commit-sha',
     finalCommit: 'stage-2-commit',
     changedFiles: ['file1.ts', 'file2.ts'],
@@ -131,7 +131,7 @@ export const failedPipelineState: PipelineState = {
   ],
   status: 'failed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/test-run-789',
+    handoverDir: '.agent-pipeline/runs/test-run-789',
     initialCommit: 'initial-commit-sha',
     finalCommit: 'stage-1-commit',
     changedFiles: ['file1.ts', 'file2.ts'],
@@ -175,7 +175,7 @@ export const parallelPipelineState: PipelineState = {
   ],
   status: 'running',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/test-run-parallel',
+    handoverDir: '.agent-pipeline/runs/test-run-parallel',
     initialCommit: 'initial-commit-sha',
     changedFiles: ['file1.ts'],
     totalDuration: 60,
@@ -224,7 +224,7 @@ export const analyticsSuccessRun1: PipelineState = {
   ],
   status: 'completed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/analytics-success-1',
+    handoverDir: '.agent-pipeline/runs/analytics-success-1',
     initialCommit: 'commit-1',
     finalCommit: 'stage-2-commit',
     changedFiles: ['file1.ts'],
@@ -260,7 +260,7 @@ export const analyticsSuccessRun2: PipelineState = {
   ],
   status: 'completed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/analytics-success-2',
+    handoverDir: '.agent-pipeline/runs/analytics-success-2',
     initialCommit: 'commit-2',
     finalCommit: 'stage-2-commit-2',
     changedFiles: ['file2.ts'],
@@ -299,7 +299,7 @@ export const analyticsFailedRun1: PipelineState = {
   ],
   status: 'failed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/analytics-failed-1',
+    handoverDir: '.agent-pipeline/runs/analytics-failed-1',
     initialCommit: 'commit-3',
     finalCommit: 'stage-1-commit-3',
     changedFiles: ['file3.ts'],
@@ -330,7 +330,7 @@ export const analyticsFailedRun2: PipelineState = {
   ],
   status: 'failed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/analytics-failed-2',
+    handoverDir: '.agent-pipeline/runs/analytics-failed-2',
     initialCommit: 'commit-4',
     changedFiles: [],
     totalDuration: 30000,
@@ -357,7 +357,7 @@ export const analyticsMultiDayRun1: PipelineState = {
   ],
   status: 'completed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/analytics-multiday-1',
+    handoverDir: '.agent-pipeline/runs/analytics-multiday-1',
     initialCommit: 'commit-5',
     finalCommit: 'stage-1-commit-5',
     changedFiles: ['file5.ts'],
@@ -388,7 +388,7 @@ export const analyticsSameErrorRun: PipelineState = {
   ],
   status: 'failed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/analytics-same-error',
+    handoverDir: '.agent-pipeline/runs/analytics-same-error',
     initialCommit: 'commit-6',
     changedFiles: [],
     totalDuration: 30000,
@@ -434,7 +434,7 @@ export const analyticsMultiStageRun: PipelineState = {
   ],
   status: 'partial',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/analytics-multistage',
+    handoverDir: '.agent-pipeline/runs/analytics-multistage',
     initialCommit: 'commit-7',
     finalCommit: 'quality-commit',
     changedFiles: ['file7.ts'],
@@ -467,7 +467,7 @@ export const analyticsSkippedStageRun: PipelineState = {
   ],
   status: 'completed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/analytics-skipped',
+    handoverDir: '.agent-pipeline/runs/analytics-skipped',
     initialCommit: 'commit-8',
     finalCommit: 'stage-1-commit-8',
     changedFiles: ['file8.ts'],

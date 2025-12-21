@@ -24,8 +24,12 @@ export class HandoverManager {
     this.runId = runId;
     this.instructionLoader = new InstructionLoader(repoPath);
 
-    // Default: {pipeline-name}-{runId}/ in repo root
-    const defaultDir = `${pipelineName}-${runId.substring(0, 8)}`;
+    // Default: .agent-pipeline/runs/{pipeline-name}-{runId}/ in repo root
+    const defaultDir = path.join(
+      '.agent-pipeline',
+      'runs',
+      `${pipelineName}-${runId.substring(0, 8)}`
+    );
     const baseDir = config?.directory || defaultDir;
 
     this.handoverDir = path.isAbsolute(baseDir)

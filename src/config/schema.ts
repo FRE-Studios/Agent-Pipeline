@@ -103,7 +103,7 @@ export interface PipelineConfig {
     executionMode?: 'sequential' | 'parallel'; // Execution strategy (default: parallel with DAG)
     permissionMode?: PermissionMode;   // Permission mode for agents (default: 'acceptEdits')
     handover?: {
-      directory?: string;             // Handover directory (default: {pipeline-name}-{runId}/)
+      directory?: string;             // Handover directory (default: .agent-pipeline/runs/{pipeline-name}-{runId}/)
     };
     instructions?: {
       handover?: string;              // Path to handover instructions template (default: .agent-pipeline/instructions/handover.md)

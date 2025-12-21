@@ -483,7 +483,7 @@ export const pipelineStateWithPR: PipelineState = {
   ],
   status: 'completed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/test-run-git-workflow',
+    handoverDir: '.agent-pipeline/runs/test-run-git-workflow',
     initialCommit: 'initial-commit-sha',
     finalCommit: 'test-commit',
     changedFiles: ['file1.ts', 'file2.ts'],
@@ -527,7 +527,7 @@ export const failedPipelineState: PipelineState = {
   ],
   status: 'failed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/test-run-failed',
+    handoverDir: '.agent-pipeline/runs/test-run-failed',
     initialCommit: 'initial-commit-sha',
     finalCommit: 'stage-1-commit',
     changedFiles: ['file1.ts'],
@@ -565,7 +565,7 @@ export const partialSuccessPipelineState: PipelineState = {
   ],
   status: 'completed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/test-run-partial',
+    handoverDir: '.agent-pipeline/runs/test-run-partial',
     initialCommit: 'initial-commit-sha',
     finalCommit: 'stage-2-commit',
     changedFiles: ['file1.ts', 'file2.ts'],
@@ -598,7 +598,7 @@ export const skippedStagesPipelineState: PipelineState = {
   ],
   status: 'completed',
   artifacts: {
-    handoverDir: '.agent-pipeline/handover/test-run-skipped',
+    handoverDir: '.agent-pipeline/runs/test-run-skipped',
     initialCommit: 'initial-commit-sha',
     finalCommit: 'enabled-stage-commit',
     changedFiles: ['file1.ts'],

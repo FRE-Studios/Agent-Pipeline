@@ -174,10 +174,10 @@ Each entry in `agents:` maps to a stage executed by `StageExecutor`:
 
 Agent Pipeline uses filesystem-based handover for communication between stages:
 
-1. Each pipeline run creates a handover directory in the repo root (default: `<pipeline>-<runId>`), or at `settings.handover.directory` if set.
+1. Each pipeline run creates a handover directory in the repo root (default: `.agent-pipeline/runs/<pipeline>-<runId>`), or at `settings.handover.directory` if set.
 2. Stages write their outputs to `stages/<stage-name>/output.md` within the handover directory.
 3. The `HANDOVER.md` file contains the current pipeline state and context for the next stage.
 4. The `LOG.md` file maintains an execution history.
 
+By default, `.agent-pipeline/runs/.gitignore` ignores everything except `LOG.md` and `HANDOVER.md` so transient stage artifacts do not pollute Git.
 This approach enables agents to access outputs from previous stages directly via the filesystem, providing reliable data transfer without token overhead.
-
