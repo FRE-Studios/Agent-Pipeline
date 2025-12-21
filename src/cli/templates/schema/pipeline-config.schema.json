@@ -56,10 +56,6 @@
             "permissionMode": {
               "$ref": "#/definitions/PermissionMode"
             },
-            "saveVerboseOutputs": {
-              "type": "boolean",
-              "description": "Save pipeline summaries to .agent-pipeline/outputs/ (default true)"
-            },
             "handover": {
               "type": "object",
               "properties": {

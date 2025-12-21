@@ -16,7 +16,6 @@ settings:
   failureStrategy: continue          # stop or continue
   preserveWorkingTree: false         # Stash and restore local changes
   executionMode: parallel            # parallel (default) or sequential
-  saveVerboseOutputs: true           # Save pipeline summaries to .agent-pipeline/outputs/
   claudeAgent:                       # Optional: Claude Agent SDK settings
     model: sonnet                    # haiku, sonnet, or opus
     maxTurns: 10                     # Prevent runaway agents
@@ -72,7 +71,6 @@ agents:
 - `failureStrategy`: controls how the pipeline reacts to a failed stage (`stop` or `continue`). Individual stages can override via `onFail` (`stop`, `continue`, or `warn`).
 - `preserveWorkingTree`: stashes uncommitted changes before the run and restores them after completion.
 - `executionMode`: `parallel` (default) uses the DAG planner to execute independent groups simultaneously; `sequential` forces one stage at a time.
-- `saveVerboseOutputs`: when `true` (default), saves pipeline summaries and changed file lists to `.agent-pipeline/outputs/<runId>/`.
 - `permissionMode`: controls how agents handle file operations and permissions. Options:
   - `default`: Prompts for permission based on `.claude/settings.json` rules (interactive workflows)
   - `acceptEdits` (default): Auto-accepts file edits (Write, Edit tools) while respecting allow/deny rules (automated workflows)
@@ -172,29 +170,14 @@ Each entry in `agents:` maps to a stage executed by `StageExecutor`:
 - `autoCommit` and `commitMessage`: override global commit behavior for the stage.
 - `timeout`: maximum execution time in seconds. Default is 900s (15 minutes) with non-blocking warnings at 5, 10, and 13 minutes. Customize for quick tasks (`timeout: 60`) or complex operations (`timeout: 600`).
 
-### Reporting Structured Outputs
-
-Agents should call the `report_outputs` tool for precise data passing:
-
-```javascript
-report_outputs({
-  outputs: {
-    summary: "Reviewed 12 files. Found 5 issues.",
-    issues_found: 5,
-    severity: "high"
-  }
-});
-```
-
-The stage executor writes structured JSON to `.agent-pipeline/outputs/<runId>/<stage>-output.json` and the raw response to `<stage>-raw.md`, enabling later stages to read full details via the Read tool when needed.
-
 ## Inter-Stage Communication
 
 Agent Pipeline uses filesystem-based handover for communication between stages:
 
-1. Each pipeline run creates a handover directory at `.agent-pipeline/handover/<pipeline>-<runId>/`.
+1. Each pipeline run creates a handover directory in the repo root (default: `<pipeline>-<runId>`), or at `settings.handover.directory` if set.
 2. Stages write their outputs to `stages/<stage-name>/output.md` within the handover directory.
 3. The `HANDOVER.md` file contains the current pipeline state and context for the next stage.
 4. The `LOG.md` file maintains an execution history.
 
 This approach enables agents to access outputs from previous stages directly via the filesystem, providing reliable data transfer without token overhead.
+

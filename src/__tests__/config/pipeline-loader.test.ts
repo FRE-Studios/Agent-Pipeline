@@ -204,29 +204,6 @@ describe('PipelineLoader', () => {
       expect(config.notifications?.channels?.slack?.webhookUrl).toBe('https://hooks.slack.com/test');
     });
 
-    it('should handle pipeline with saveVerboseOutputs configuration', async () => {
-      const verboseOutputsConfig = {
-        name: 'with-verbose-outputs',
-        trigger: 'manual',
-        settings: {
-          autoCommit: true,
-          commitPrefix: '[pipeline]',
-          failureStrategy: 'stop',
-          preserveWorkingTree: false,
-          saveVerboseOutputs: true,
-        },
-        agents: [
-          { name: 'stage-1', agent: 'agent.md' },
-        ],
-      };
-
-      const configPath = path.join(pipelinesDir, 'with-verbose-outputs.yml');
-      await fs.writeFile(configPath, YAML.stringify(verboseOutputsConfig), 'utf-8');
-
-      const { config } = await loader.loadPipeline('with-verbose-outputs');
-
-      expect(config.settings?.saveVerboseOutputs).toBe(true);
-    });
   });
 
   describe('listPipelines', () => {

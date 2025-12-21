@@ -980,8 +980,8 @@ After implementing integration tests, manually verify:
   - History Browser: Execute agent-pipeline history to launch the Ink UI; scroll through entries and exit without errors.
   - Analytics: Run agent-pipeline analytics and agent-pipeline analytics --pipeline test-pipeline --days 7; check
     summaries align with recent runs.
-  - State Files: Inspect .agent-pipeline/state/runs/<runId>.json and .agent-pipeline/outputs/<runId>/ to confirm outputs
-    and summaries are persisted and match the UI reports.
+  - State Files: Inspect .agent-pipeline/state/runs/<runId>.json and the handover directory in artifacts.handoverDir to
+    confirm summaries and stage outputs are persisted and match the UI reports.
 
   Notifications & Integrations
 

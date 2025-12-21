@@ -4,7 +4,6 @@ import { GitManager } from './git-manager.js';
 import { BranchManager } from './branch-manager.js';
 import { PRCreator } from './pr-creator.js';
 import { StateManager } from './state-manager.js';
-import { OutputStorageManager } from './output-storage-manager.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { PipelineConfig, PipelineState } from '../config/schema.js';
 import { NotificationContext } from '../notifications/types.js';
@@ -36,9 +35,6 @@ export class PipelineFinalizer {
     // Calculate metrics
     await this.calculateMetrics(state, startTime);
 
-    // Save outputs if configured
-    await this.saveOutputs(state, config);
-
     // Handle PR creation if configured
     if (pipelineBranch && config.git?.pullRequest?.autoCreate) {
       await this.handlePRCreation(config, pipelineBranch, state, interactive, notifyCallback);
@@ -69,17 +65,6 @@ export class PipelineFinalizer {
     const endTime = Date.now();
     state.artifacts.totalDuration = (endTime - startTime) / 1000;
     state.artifacts.finalCommit = await this.gitManager.getCurrentCommit();
-  }
-
-  /**
-   * Save pipeline outputs (summary and changed files)
-   */
-  private async saveOutputs(state: PipelineState, config: PipelineConfig): Promise<void> {
-    if (config.settings?.saveVerboseOutputs !== false) {
-      const outputStorageManager = new OutputStorageManager(this.repoPath, state.runId);
-      await outputStorageManager.savePipelineSummary(state.stages);
-      await outputStorageManager.saveChangedFiles(state.artifacts.changedFiles);
-    }
   }
 
   /**

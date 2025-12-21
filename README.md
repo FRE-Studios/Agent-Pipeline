@@ -16,7 +16,7 @@ Agent Pipeline delivers an agent-driven CI/CD workflow with full visibility. Exe
 - **Observability** – Ink-powered live UI, interactive history browser, and analytics reports generated from stored run data.
 - **Notifications** – `NotificationManager` sends desktop and Slack notifications with event filtering and fail-safe delivery.
 - **Permission control** – Defaults to `acceptEdits` mode for automated workflows, respecting `.claude/settings.json` allow/deny rules.
-- **YAML-first configuration** – Schema-validated pipelines with structured agent outputs and customizable commit messages.
+- **YAML-first configuration** – Schema-validated pipelines with filesystem-based stage handover and customizable commit messages.
 
 ## Prerequisites
 

@@ -18,14 +18,6 @@ vi.mock('fs/promises', () => ({
   readFile: vi.fn().mockResolvedValue('Mock agent system prompt')
 }));
 
-// Mock OutputStorageManager
-vi.mock('../../core/output-storage-manager.js', () => ({
-  OutputStorageManager: vi.fn(() => ({
-    saveStageOutputs: vi.fn().mockResolvedValue({ structured: 'path/to/output.json', raw: 'path/to/raw.md' }),
-    compressFileList: vi.fn((files: string[]) => `Changed ${files.length} files`)
-  }))
-}));
-
 // Mock TokenEstimator
 vi.mock('../../utils/token-estimator.js', () => ({
   TokenEstimator: vi.fn(() => ({

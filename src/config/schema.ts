@@ -102,7 +102,6 @@ export interface PipelineConfig {
     preserveWorkingTree: boolean;      // Stash/restore uncommitted changes
     executionMode?: 'sequential' | 'parallel'; // Execution strategy (default: parallel with DAG)
     permissionMode?: PermissionMode;   // Permission mode for agents (default: 'acceptEdits')
-    saveVerboseOutputs?: boolean;      // Save pipeline summaries to .agent-pipeline/outputs/ (default: true)
     handover?: {
       directory?: string;             // Handover directory (default: {pipeline-name}-{runId}/)
     };

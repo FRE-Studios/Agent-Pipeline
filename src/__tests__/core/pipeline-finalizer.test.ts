@@ -14,22 +14,14 @@ vi.mock('../../core/branch-manager.js');
 vi.mock('../../core/pr-creator.js');
 vi.mock('../../core/state-manager.js');
 
-// Hoisted mocks for OutputStorageManager and PipelineFormatter
-const { mockOutputStorageManager, mockPipelineFormatter } = vi.hoisted(() => {
+// Hoisted mocks for PipelineFormatter
+const { mockPipelineFormatter } = vi.hoisted(() => {
   return {
-    mockOutputStorageManager: {
-      savePipelineSummary: vi.fn().mockResolvedValue('/path/to/summary.json'),
-      saveChangedFiles: vi.fn().mockResolvedValue('/path/to/files.txt')
-    },
     mockPipelineFormatter: {
       formatSummary: vi.fn().mockReturnValue('Pipeline Summary Output')
     }
   };
 });
-
-vi.mock('../../core/output-storage-manager.js', () => ({
-  OutputStorageManager: vi.fn(() => mockOutputStorageManager)
-}));
 
 vi.mock('../../utils/pipeline-formatter.js', () => ({
   PipelineFormatter: mockPipelineFormatter
@@ -72,8 +64,6 @@ describe('PipelineFinalizer', () => {
     vi.clearAllMocks();
 
     // Re-setup hoisted mock return values after clearAllMocks
-    mockOutputStorageManager.savePipelineSummary.mockResolvedValue('/path/to/summary.json');
-    mockOutputStorageManager.saveChangedFiles.mockResolvedValue('/path/to/files.txt');
     mockPipelineFormatter.formatSummary.mockReturnValue('Pipeline Summary Output');
 
     // Reset mockState to fresh state (remove any modifications from previous tests)
@@ -125,44 +115,6 @@ describe('PipelineFinalizer', () => {
       expect(mockState.artifacts.totalDuration).toBeGreaterThan(4);
       expect(mockState.artifacts.totalDuration).toBeLessThan(6);
       expect(mockState.artifacts.finalCommit).toBe('def456');
-    });
-
-    it('should save outputs when configured', async () => {
-      await finalizer.finalize(
-        mockState,
-        mockConfig,
-        undefined,
-        'main',
-        Date.now(),
-        false,
-        mockNotifyCallback,
-        mockStateChangeCallback
-      );
-
-      expect(mockOutputStorageManager.savePipelineSummary).toHaveBeenCalledWith(mockState.stages);
-      expect(mockOutputStorageManager.saveChangedFiles).toHaveBeenCalledWith(mockState.artifacts.changedFiles);
-    });
-
-    it('should not save outputs when disabled in config', async () => {
-      const configWithDisabledOutputs = {
-        ...mockConfig,
-        settings: {
-          saveVerboseOutputs: false
-        }
-      };
-
-      await finalizer.finalize(
-        mockState,
-        configWithDisabledOutputs,
-        undefined,
-        'main',
-        Date.now(),
-        false,
-        mockNotifyCallback,
-        mockStateChangeCallback
-      );
-
-      expect(mockOutputStorageManager.savePipelineSummary).not.toHaveBeenCalled();
     });
 
     it('should create PR when configured', async () => {
