@@ -587,6 +587,23 @@ describe('PipelineFormatter', () => {
         expect(result).toContain('Cache created: 5k');
         expect(result).toContain('Cache: 7% hit');
       });
+
+      it('should include cache_creation in total input when actual_input excludes it', () => {
+        const tokenUsage = {
+          estimated_input: 25000,
+          actual_input: 5000,
+          output: 13000,
+          cache_creation: 20000,
+          cache_read: 40000
+        };
+
+        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
+
+        // Total input = 5000 + 40000 + 20000 = 65000
+        expect(result).toContain('Input: 65k tokens');
+        // Cache hit = 40000 / 65000 = ~62%
+        expect(result).toContain('Cache: 62% hit');
+      });
     });
 
     describe('num_turns and thinking_tokens Fields', () => {

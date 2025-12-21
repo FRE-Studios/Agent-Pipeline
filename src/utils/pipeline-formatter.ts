@@ -99,9 +99,13 @@ export class PipelineFormatter {
 
     const parts: string[] = [];
 
-    // Calculate total input: actual (new) + cache_read (from cache)
-    // This represents the true input context size across all turns
-    const totalInput = tokenUsage.actual_input + (tokenUsage.cache_read || 0);
+    const cacheRead = tokenUsage.cache_read || 0;
+    const cacheCreation = tokenUsage.cache_creation || 0;
+
+    // Calculate total input size across all turns, accounting for cache creation
+    // Some runtimes report input_tokens excluding cache_creation_input_tokens.
+    const cacheCreationIncluded = cacheCreation > 0 && tokenUsage.actual_input >= cacheCreation;
+    const totalInput = tokenUsage.actual_input + cacheRead + (cacheCreationIncluded ? 0 : cacheCreation);
 
     // Show total input tokens
     parts.push(`Input: ${this.formatTokenCount(totalInput)} tokens`);
@@ -137,9 +141,11 @@ export class PipelineFormatter {
     }
 
     // Cache efficiency breakdown (if caching was used)
-    if (tokenUsage.cache_read && tokenUsage.cache_read > 0) {
+    if (cacheRead > 0) {
       // Show cache hit ratio for transparency
-      const cacheHitRatio = Math.round((tokenUsage.cache_read / totalInput) * 100);
+      const cacheHitRatio = totalInput > 0
+        ? Math.round((cacheRead / totalInput) * 100)
+        : 0;
       parts.push(`Cache: ${cacheHitRatio}% hit`);
     }
 
