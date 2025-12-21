@@ -106,11 +106,21 @@ export class PipelineFormatter {
     // Show total input tokens
     parts.push(`Input: ${this.formatTokenCount(totalInput)} tokens`);
 
-    // Show estimation comparison if they differ significantly (>5%)
-    const estimationDiff = Math.abs(totalInput - tokenUsage.estimated_input);
-    const estimationDiffPct = totalInput > 0 ? (estimationDiff / totalInput) * 100 : 0;
-    if (estimationDiffPct > 5) {
-      parts.push(`(est. ${this.formatTokenCount(tokenUsage.estimated_input)})`);
+    const estimatedInput = tokenUsage.estimated_input;
+    const numTurns = tokenUsage.num_turns;
+
+    if (estimatedInput > 0) {
+      if (numTurns !== undefined && numTurns > 1) {
+        // Estimated input only reflects the initial prompt; avoid comparing across turns.
+        parts.push(`Est. initial: ${this.formatTokenCount(estimatedInput)}`);
+      } else {
+        // Show estimation comparison if they differ significantly (>5%)
+        const estimationDiff = Math.abs(totalInput - estimatedInput);
+        const estimationDiffPct = totalInput > 0 ? (estimationDiff / totalInput) * 100 : 0;
+        if (estimationDiffPct > 5) {
+          parts.push(`(est. ${this.formatTokenCount(estimatedInput)})`);
+        }
+      }
     }
 
     // Output tokens
@@ -122,8 +132,8 @@ export class PipelineFormatter {
     }
 
     // Conversation turns if present
-    if (tokenUsage.num_turns !== undefined) {
-      parts.push(`Turns: ${tokenUsage.num_turns}`);
+    if (numTurns !== undefined) {
+      parts.push(`Turns: ${numTurns}`);
     }
 
     // Cache efficiency breakdown (if caching was used)

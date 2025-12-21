@@ -11,8 +11,19 @@ settings:
   failureStrategy: continue  # Keep going even if one design agent fails
   preserveWorkingTree: true
   executionMode: parallel  # Enable DAG-based parallelism
+  handover:
+    directory: pipeline-runs/front-end-parallel-example
 
-  #FIXME: Add local notifctions 
+# Notification configuration (optional)
+notifications:
+  enabled: true                    # Enable local notifications for hook runs
+  events:
+    - pipeline.completed           # Notify on successful runs
+    - pipeline.failed              # Notify on failures
+  channels:
+    local:
+      enabled: true                # Desktop notifications (macOS/Linux)
+      sound: true                  # Play a sound on completion
 
 agents:
   # Stage 1: Transform user input into structured requirements

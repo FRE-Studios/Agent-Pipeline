@@ -174,7 +174,7 @@ export class StageExecutor {
       // Run agent using resolved runtime
       const retryInfo = PipelineFormatter.formatRetryInfo(execution.retryAttempt, execution.maxRetries);
       console.log(`🤖 Running stage: ${stageConfig.name}${retryInfo}...`);
-      console.log(`   Estimated input: ~${PipelineFormatter.formatTokenCount(estimatedTokens)} tokens`);
+      console.log(`   Estimated initial input: ~${PipelineFormatter.formatTokenCount(estimatedTokens)} tokens`);
 
       const result = await this.runAgentWithTimeout(
         runtime,

@@ -600,6 +600,7 @@ describe('PipelineFormatter', () => {
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
+        expect(result).toContain('Est. initial: 25k');
         expect(result).toContain('Turns: 3');
       });
 
@@ -644,6 +645,7 @@ describe('PipelineFormatter', () => {
 
         // Total input = 25000 + 2000 = 27000
         expect(result).toContain('Input: 27k tokens');
+        expect(result).toContain('Est. initial: 23k');
         expect(result).toContain('Output: 13k');
         expect(result).toContain('Thinking: 8k');
         expect(result).toContain('Turns: 4');
@@ -675,6 +677,7 @@ describe('PipelineFormatter', () => {
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
+        expect(result).toContain('Est. initial: 25k');
         expect(result).toContain('Turns: 2');
         expect(result).not.toContain('Thinking:');
       });

@@ -200,7 +200,7 @@ export interface StageExecution {
 
   // Token usage tracking
   tokenUsage?: {
-    estimated_input: number;           // Estimated input tokens (from TokenEstimator)
+    estimated_input: number;           // Estimated initial input tokens (from TokenEstimator)
     actual_input: number;              // Actual input tokens (from SDK)
     output: number;                    // Output tokens (from SDK)
     cache_creation?: number;           // Cache creation tokens (from SDK)
