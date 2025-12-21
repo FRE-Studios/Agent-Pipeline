@@ -148,8 +148,7 @@ describe('LocalNotifier', () => {
         expect.objectContaining({
           sound: true,
           appName: 'Agent Pipeline',
-          wait: false,
-          timeout: 10
+          wait: true
         }),
         expect.any(Function)
       );
@@ -662,24 +661,13 @@ describe('LocalNotifier', () => {
       );
     });
 
-    it('should always set wait to false', async () => {
+    it('should always set wait to true', async () => {
       const notifier = new LocalNotifier();
       const context = createNotificationContext('pipeline.completed');
       await notifier.send(context);
 
       expect(mockNotify).toHaveBeenCalledWith(
-        expect.objectContaining({ wait: false }),
-        expect.any(Function)
-      );
-    });
-
-    it('should set timeout to 10 seconds', async () => {
-      const notifier = new LocalNotifier();
-      const context = createNotificationContext('pipeline.completed');
-      await notifier.send(context);
-
-      expect(mockNotify).toHaveBeenCalledWith(
-        expect.objectContaining({ timeout: 10 }),
+        expect.objectContaining({ wait: true }),
         expect.any(Function)
       );
     });

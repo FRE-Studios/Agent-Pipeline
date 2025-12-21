@@ -98,8 +98,7 @@ export class LocalNotifier extends BaseNotifier {
       title,
       message,
       sound: this.config.sound !== false, // Default to true
-      wait: false,
-      timeout: 10,
+      wait: true,
       appName: 'Agent Pipeline'
     };
 

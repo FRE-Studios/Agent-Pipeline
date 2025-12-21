@@ -100,7 +100,7 @@ export class HookInstaller {
         if (newContent === '#!/bin/bash' || !newContent) {
           // Hook only had agent-pipeline, remove it
           await fs.unlink(hookPath);
-          console.log(`✅ ${type} hook removed (was only agent-pipeline)`);
+          console.log(`✅ ${type} hook removed (no other hook content found)`);
           uninstalledCount++;
         } else {
           // Other hooks exist, just remove our section
