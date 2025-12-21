@@ -47,7 +47,10 @@ describe('uninstallCommand', () => {
 
       await uninstallCommand(tempDir);
 
-      expect(mockInstaller.uninstall).toHaveBeenCalledWith();
+      expect(mockInstaller.uninstall).toHaveBeenCalledWith({
+        pipelineName: undefined,
+        removeAll: true,
+      });
     });
 
     it('should successfully complete uninstall operation', async () => {
@@ -147,6 +150,28 @@ describe('uninstallCommand', () => {
   });
 
   describe('Edge Cases', () => {
+    it('should pass pipeline name when provided', async () => {
+      mockInstaller.uninstall.mockResolvedValue(undefined);
+
+      await uninstallCommand(tempDir, { pipelineName: 'post-commit-example' });
+
+      expect(mockInstaller.uninstall).toHaveBeenCalledWith({
+        pipelineName: 'post-commit-example',
+        removeAll: false,
+      });
+    });
+
+    it('should allow removeAll override with pipeline name', async () => {
+      mockInstaller.uninstall.mockResolvedValue(undefined);
+
+      await uninstallCommand(tempDir, { pipelineName: 'post-commit-example', removeAll: true });
+
+      expect(mockInstaller.uninstall).toHaveBeenCalledWith({
+        pipelineName: 'post-commit-example',
+        removeAll: true,
+      });
+    });
+
     it('should handle empty hooks directory', async () => {
       mockInstaller.uninstall.mockResolvedValue(undefined);
 

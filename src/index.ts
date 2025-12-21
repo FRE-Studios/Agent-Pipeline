@@ -155,7 +155,18 @@ async function main() {
       }
 
       case 'uninstall': {
-        await uninstallCommand(repoPath);
+        const removeAll = args.includes('--all');
+        const pipelineName = subCommand && !subCommand.startsWith('--') ? subCommand : undefined;
+
+        if (removeAll && pipelineName) {
+          console.error('Usage: agent-pipeline uninstall <pipeline-name> OR agent-pipeline uninstall --all');
+          process.exit(1);
+        }
+
+        await uninstallCommand(repoPath, {
+          pipelineName,
+          removeAll: removeAll || !pipelineName
+        });
         break;
       }
 
@@ -407,7 +418,8 @@ Schema:
 
 Git Integration:
   install <pipeline-name>      Install git hook (respects pipeline trigger)
-  uninstall                    Remove all agent-pipeline git hooks
+  uninstall <pipeline-name>    Remove git hooks for a pipeline
+  uninstall --all              Remove all agent-pipeline git hooks
   rollback [options]           Rollback pipeline commits
   cleanup [options]            Clean up pipeline branches
 

@@ -328,6 +328,30 @@ describe('HookInstaller', () => {
     });
   });
 
+  describe('Uninstall - Pipeline Name', () => {
+    it('should remove only the matching pipeline section', async () => {
+      await installer.install('pipeline-1', 'post-commit');
+      await installer.install('pipeline-2', 'post-commit');
+
+      await installer.uninstall({ pipelineName: 'pipeline-1' });
+
+      const hookPath = path.join(gitHooksDir, 'post-commit');
+      const content = await fs.readFile(hookPath, 'utf-8');
+      expect(content).not.toContain('# Agent Pipeline (post-commit): pipeline-1');
+      expect(content).toContain('# Agent Pipeline (post-commit): pipeline-2');
+    });
+
+    it('should remove hook file if only matching pipeline is present', async () => {
+      await installer.install('pipeline-1', 'post-commit');
+
+      await installer.uninstall({ pipelineName: 'pipeline-1' });
+
+      const hookPath = path.join(gitHooksDir, 'post-commit');
+      const exists = await fs.stat(hookPath).then(() => true, () => false);
+      expect(exists).toBe(false);
+    });
+  });
+
   describe('Edge Cases', () => {
     it('should handle hook with only shebang', async () => {
       const hookPath = path.join(gitHooksDir, 'post-commit');

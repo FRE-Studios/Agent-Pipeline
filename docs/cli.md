@@ -57,7 +57,8 @@ trigger: manual
 ## Git Hooks and Workflow
 
 - `install <pipeline>` – Install a git hook matching the pipeline trigger (`pre-commit`, `post-commit`, `pre-push`, or `post-merge`). Requires `git.branchStrategy`; manual pipelines are rejected.
-- `uninstall` – Remove Agent Pipeline snippets from all supported hooks.
+- `uninstall <pipeline>` – Remove Agent Pipeline snippets for a pipeline across all supported hooks.
+- `uninstall --all` – Remove Agent Pipeline snippets from all supported hooks.
 - Hooks run `npx agent-pipeline run <pipeline>` via `nohup` so your commits are non-blocking.
 - Hooks skip commits that include the `Pipeline-Run-ID` trailer.
 - Hook installs warn if `branchStrategy` is `reusable` or if `autoCommit` is enabled.

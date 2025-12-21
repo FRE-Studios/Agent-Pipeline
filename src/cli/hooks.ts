@@ -46,14 +46,22 @@ export class HookInstaller {
     console.log(`   Hook: .git/hooks/${hookType}`);
   }
 
-  async uninstall(hookType?: string): Promise<void> {
+  async uninstall(
+    hookTypeOrOptions?: string | { hookType?: string; pipelineName?: string; removeAll?: boolean }
+  ): Promise<void> {
+    const options = typeof hookTypeOrOptions === 'string'
+      ? { hookType: hookTypeOrOptions }
+      : hookTypeOrOptions ?? {};
+
     // If hookType specified, only uninstall from that hook
     // Otherwise, check all common hook types
-    const hookTypes = hookType
-      ? [hookType]
+    const hookTypes = options.hookType
+      ? [options.hookType]
       : ['pre-commit', 'post-commit', 'pre-push', 'post-merge'];
 
     let uninstalledCount = 0;
+    const pipelineName = options.pipelineName;
+    const removeAll = options.removeAll ?? !pipelineName;
 
     for (const type of hookTypes) {
       const hookPath = path.join(this.repoPath, '.git', 'hooks', type);
@@ -66,13 +74,24 @@ export class HookInstaller {
         const filtered = [];
         let inPipelineSection = false;
         let blankLineCount = 0;
+        let removedSection = false;
 
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
 
           if (line.includes('# Agent Pipeline')) {
-            inPipelineSection = true;
-            blankLineCount = 0;
+            const isTargetPipeline = pipelineName
+              ? line.includes(`: ${pipelineName}`)
+              : false;
+
+            if (removeAll || isTargetPipeline) {
+              inPipelineSection = true;
+              blankLineCount = 0;
+              removedSection = true;
+              continue;
+            }
+
+            filtered.push(line);
             continue;
           }
 
@@ -95,6 +114,10 @@ export class HookInstaller {
           filtered.push(line);
         }
 
+        if (!removedSection) {
+          continue;
+        }
+
         const newContent = filtered.join('\n').trim();
 
         if (newContent === '#!/bin/bash' || !newContent) {
@@ -105,7 +128,11 @@ export class HookInstaller {
         } else {
           // Other hooks exist, just remove our section
           await fs.writeFile(hookPath, newContent, 'utf-8');
-          console.log(`✅ Agent Pipeline section removed from ${type} hook`);
+          if (pipelineName) {
+            console.log(`✅ Removed ${pipelineName} from ${type} hook`);
+          } else {
+            console.log(`✅ Agent Pipeline section removed from ${type} hook`);
+          }
           uninstalledCount++;
         }
       } catch (error) {
@@ -115,7 +142,11 @@ export class HookInstaller {
     }
 
     if (uninstalledCount === 0) {
-      console.log('ℹ️  No Agent Pipeline hooks found to uninstall');
+      if (pipelineName) {
+        console.log(`ℹ️  No Agent Pipeline hooks found for ${pipelineName}`);
+      } else {
+        console.log('ℹ️  No Agent Pipeline hooks found to uninstall');
+      }
     }
   }
 
