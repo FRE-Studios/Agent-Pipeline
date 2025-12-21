@@ -3,11 +3,11 @@ trigger: post-commit
 
 # Settings for pipeline execution
 settings:
-  autoCommit: true
-  commitPrefix: "[pipeline:{{stage}}]"
-  failureStrategy: continue
-  preserveWorkingTree: false
-  executionMode: parallel
+  autoCommit: true                  # Enable when agents should commit fixes after each stage
+  commitPrefix: "[pipeline:{{stage}}]"  # Standardized prefix for easy commit filtering
+  failureStrategy: continue         # Continue even if a stage fails
+  preserveWorkingTree: false        # Avoid stashing to keep post-commit flow fast
+  executionMode: sequential         # Enforce ordered execution for dependent stages
 
 # Git workflow configuration (required for hook install)
 git:
@@ -23,15 +23,15 @@ git:
       - code-review
 
 # Notification configuration (optional)
-# notifications:
-#   enabled: true
-#   events:
-#     - pipeline.completed
-#     - pipeline.failed
-#   channels:
-#     local:
-#       enabled: true
-#       sound: true
+notifications:
+  enabled: true                    # Enable local notifications for hook runs
+  events:
+    - pipeline.completed           # Notify on successful runs
+    - pipeline.failed              # Notify on failures
+  channels:
+    local:
+      enabled: true                # Desktop notifications (macOS/Linux)
+      sound: true                  # Play a sound on completion
 
 # Agent stages
 agents:
@@ -39,17 +39,17 @@ agents:
   # Each stage builds on the previous stage's results
   - name: code-review
     agent: .agent-pipeline/agents/code-reviewer.md
-    timeout: 300
+    timeout: 300                    # Hard limit per agent run (seconds)
 
   - name: quality-check
     agent: .agent-pipeline/agents/quality-checker.md
     dependsOn:
       - code-review
-    timeout: 300
-    onFail: warn
+    timeout: 300                    # Hard limit per agent run (seconds)
+    onFail: warn                    # Non-blocking: log but keep running
 
   - name: doc-updater
     agent: .agent-pipeline/agents/doc-updater.md
     dependsOn:
       - quality-check
-    timeout: 300
+    timeout: 300                    # Hard limit per agent run (seconds)
