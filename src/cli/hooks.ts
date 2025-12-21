@@ -120,8 +120,34 @@ export class HookInstaller {
   }
 
   private generateHookScript(pipelineName: string): string {
-    return `# Run Agent Pipeline in background to avoid blocking
+    return `# Skip if last commit was created by Agent Pipeline
+if git log -1 --pretty=%B | grep -Eq "^(\\[pipeline:|Pipeline-Run-ID:)"; then
+  exit 0
+fi
+
+# Prevent overlapping runs for the same pipeline
+lockDir=".agent-pipeline/locks"
+lockPath="$lockDir/${pipelineName}.lock"
+
+mkdir -p "$lockDir"
+
+if [ -f "$lockPath/pid" ]; then
+  oldPid=$(cat "$lockPath/pid")
+  if ! kill -0 "$oldPid" 2>/dev/null; then
+    rm -rf "$lockPath"
+  fi
+fi
+
+if ! mkdir "$lockPath" 2>/dev/null; then
+  exit 0
+fi
+
+# Run Agent Pipeline in background to avoid blocking
 nohup npx agent-pipeline run ${pipelineName} > /dev/null 2>&1 &
+pipelinePid=$!
+echo "$pipelinePid" > "$lockPath/pid"
+
+( wait "$pipelinePid"; rm -rf "$lockPath" ) >/dev/null 2>&1 &
 
 # Optional: Notify user
 echo "🤖 Agent Pipeline running in background (${pipelineName})"`;

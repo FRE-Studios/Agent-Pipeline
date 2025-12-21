@@ -56,9 +56,11 @@ trigger: manual
 
 ## Git Hooks and Workflow
 
-- `install <pipeline>` – Install a git hook matching the pipeline trigger (`pre-commit`, `post-commit`, `pre-push`, or `post-merge`). Manual pipelines are rejected.
+- `install <pipeline>` – Install a git hook matching the pipeline trigger (`pre-commit`, `post-commit`, `pre-push`, or `post-merge`). Requires `git.branchStrategy`; manual pipelines are rejected.
 - `uninstall` – Remove Agent Pipeline snippets from all supported hooks.
 - Hooks run `npx agent-pipeline run <pipeline>` via `nohup` so your commits are non-blocking.
+- Hooks skip commits that include the `Pipeline-Run-ID` trailer.
+- Hook installs warn if `branchStrategy` is `reusable` or if `autoCommit` is enabled.
 - Use git workflow flags during `run` to control PR creation dynamically (`--no-pr`, `--pr-draft`, `--pr-web`, `--base-branch`).
 
 ## Rollback and Cleanup
@@ -71,4 +73,3 @@ trigger: manual
 - `test <pipeline> --notifications` – Invokes `NotificationManager.test()` to validate configured channels (local and Slack). Add additional flags as needed if you want to skip notification testing.
 
 For additional details on configuration, refer to `docs/configuration.md`, and check `docs/examples.md` for sample pipelines to try with these commands.
-

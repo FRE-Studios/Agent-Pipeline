@@ -7,10 +7,12 @@ trigger: manual
 
 settings:
   autoCommit: false
-  commitPrefix: "[design-exploration]"
+  commitPrefix: "[design-exploration:{{stage}}]"
   failureStrategy: continue  # Keep going even if one design agent fails
   preserveWorkingTree: true
   executionMode: parallel  # Enable DAG-based parallelism
+
+  #FIXME: Add local notifctions 
 
 agents:
   # Stage 1: Transform user input into structured requirements

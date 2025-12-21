@@ -54,6 +54,16 @@ describe('HookInstaller', () => {
       expect(content).toContain('# Agent Pipeline (post-commit): test-pipeline');
     });
 
+    it('should include lock directory to prevent overlap', async () => {
+      await installer.install('test-pipeline', 'post-commit');
+
+      const hookPath = path.join(gitHooksDir, 'post-commit');
+      const content = await fs.readFile(hookPath, 'utf-8');
+
+      expect(content).toContain('.agent-pipeline/locks');
+      expect(content).toContain('lockPath');
+    });
+
     it('should make hook file executable', async () => {
       await installer.install('test-pipeline', 'post-commit');
 

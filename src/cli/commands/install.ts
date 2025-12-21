@@ -19,6 +19,25 @@ export async function installCommand(
     process.exit(1);
   }
 
+  // Require branch strategy for hook installs to prevent commit loops
+  if (!config.git?.branchStrategy) {
+    console.error('❌ Cannot install git hook without git.branchStrategy configured.');
+    console.error(`   Pipeline "${pipelineName}" is missing git.branchStrategy`);
+    console.error(`   Add git.branchStrategy (reusable or unique-per-run), then re-run install.`);
+    console.error(`   Use 'agent-pipeline run ${pipelineName}' to run on the current branch.`);
+    process.exit(1);
+  }
+
+  if (config.git.branchStrategy === 'reusable') {
+    console.warn('⚠️  git.branchStrategy is set to reusable.');
+    console.warn('   For hook-triggered pipelines, unique-per-run is safer to avoid branch contention.');
+  }
+
+  if (config.settings?.autoCommit) {
+    console.warn('⚠️  autoCommit is enabled for this hook-triggered pipeline.');
+    console.warn('   This will create commits on the pipeline branch; disable autoCommit for read-only hooks.');
+  }
+
   const installer = new HookInstaller(repoPath);
   await installer.install(pipelineName, config.trigger);
 }

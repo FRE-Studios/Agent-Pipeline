@@ -46,6 +46,7 @@ describe('installCommand', () => {
       const config = {
         name: 'test-pipeline',
         trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -63,6 +64,7 @@ describe('installCommand', () => {
       const config = {
         name: 'lint-pipeline',
         trigger: 'pre-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -77,6 +79,7 @@ describe('installCommand', () => {
       const config = {
         name: 'test-pipeline',
         trigger: 'pre-push',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -91,6 +94,7 @@ describe('installCommand', () => {
       const config = {
         name: 'cleanup-pipeline',
         trigger: 'post-merge',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -187,11 +191,49 @@ describe('installCommand', () => {
     });
   });
 
+  describe('Git Branch Strategy Validation', () => {
+    it('should reject hook install when git config is missing', async () => {
+      const config = {
+        name: 'hook-pipeline',
+        trigger: 'post-commit',
+        agents: [],
+      };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
+
+      await expect(
+        installCommand(tempDir, 'hook-pipeline')
+      ).rejects.toThrow('process.exit(1)');
+
+      expect(console.error).toHaveBeenCalledWith('❌ Cannot install git hook without git.branchStrategy configured.');
+      expect(console.error).toHaveBeenCalledWith('   Pipeline "hook-pipeline" is missing git.branchStrategy');
+      expect(mockInstaller.install).not.toHaveBeenCalled();
+    });
+
+    it('should reject hook install when git.branchStrategy is missing', async () => {
+      const config = {
+        name: 'hook-pipeline',
+        trigger: 'post-commit',
+        git: {},
+        agents: [],
+      };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
+
+      await expect(
+        installCommand(tempDir, 'hook-pipeline')
+      ).rejects.toThrow('process.exit(1)');
+
+      expect(console.error).toHaveBeenCalledWith('❌ Cannot install git hook without git.branchStrategy configured.');
+      expect(console.error).toHaveBeenCalledWith('   Pipeline "hook-pipeline" is missing git.branchStrategy');
+      expect(mockInstaller.install).not.toHaveBeenCalled();
+    });
+  });
+
   describe('PipelineLoader Integration', () => {
     it('should load correct pipeline by name', async () => {
       const config = {
         name: 'my-pipeline',
         trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -225,6 +267,7 @@ describe('installCommand', () => {
       const config = {
         name: 'test-pipeline',
         trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -241,6 +284,7 @@ describe('installCommand', () => {
       const config = {
         name: 'test-pipeline',
         trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -255,6 +299,7 @@ describe('installCommand', () => {
       const config = {
         name: 'review-pipeline',
         trigger: 'pre-push',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -269,6 +314,7 @@ describe('installCommand', () => {
       const config = {
         name: 'test-pipeline',
         trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -283,6 +329,7 @@ describe('installCommand', () => {
       const config = {
         name: 'test-pipeline',
         trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -302,6 +349,7 @@ describe('installCommand', () => {
         const config = {
           name: 'test-pipeline',
           trigger,
+          git: { branchStrategy: 'reusable' },
           agents: [],
         };
         mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -318,6 +366,7 @@ describe('installCommand', () => {
       const config = {
         name: 'test-pipeline',
         trigger: 'pre-push',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -334,6 +383,7 @@ describe('installCommand', () => {
       const config = {
         name: 'pipeline_with-special.chars',
         trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -350,6 +400,7 @@ describe('installCommand', () => {
       const config = {
         name: longName,
         trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -364,6 +415,7 @@ describe('installCommand', () => {
       const config = {
         name: 'test-pipeline',
         trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -376,6 +428,7 @@ describe('installCommand', () => {
       const config = {
         name: 'test-pipeline',
         trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
         agents: Array.from({ length: 10 }, (_, i) => ({
           name: `agent-${i}`,
           agent: `.agent-pipeline/agents/agent-${i}.md`,
@@ -393,6 +446,7 @@ describe('installCommand', () => {
       const config = {
         name: 'test-pipeline',
         trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -409,6 +463,7 @@ describe('installCommand', () => {
       const config = {
         name: 'full-pipeline',
         trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [
           { name: 'reviewer', agent: '.agent-pipeline/agents/reviewer.md' },
         ],
@@ -449,6 +504,7 @@ describe('installCommand', () => {
       const config = {
         name: 'test-pipeline',
         trigger: 'pre-commit',
+        git: { branchStrategy: 'reusable' },
         agents: [],
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -473,7 +529,12 @@ describe('installCommand', () => {
       vi.clearAllMocks();
 
       // Scenario 3: Install fails
-      const validConfig = { name: 'test', trigger: 'post-commit', agents: [] };
+      const validConfig = {
+        name: 'test',
+        trigger: 'post-commit',
+        git: { branchStrategy: 'reusable' },
+        agents: []
+      };
       mockLoader.loadPipeline.mockResolvedValue({ config: validConfig, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockInstaller.install.mockRejectedValue(new Error('Install error'));
       await expect(installCommand(tempDir, 'test')).rejects.toThrow('Install error');

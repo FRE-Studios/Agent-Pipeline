@@ -367,7 +367,11 @@ describe('GitManager', () => {
       await gitManager.commitWithMetadata(message, metadata);
 
       const expectedMessage = 'Test commit\n\nRun-ID: 12345\nStage: test';
-      expect(mockGit.commit).toHaveBeenCalledWith(expectedMessage);
+      expect(mockGit.commit).toHaveBeenCalledWith(
+        expectedMessage,
+        undefined,
+        { '--no-verify': null }
+      );
     });
 
     it('should format metadata as key-value pairs', async () => {
@@ -376,7 +380,11 @@ describe('GitManager', () => {
       await gitManager.commitWithMetadata('Message', metadata);
 
       const expectedMessage = 'Message\n\nKey1: value1\nKey2: value2\nKey3: value3';
-      expect(mockGit.commit).toHaveBeenCalledWith(expectedMessage);
+      expect(mockGit.commit).toHaveBeenCalledWith(
+        expectedMessage,
+        undefined,
+        { '--no-verify': null }
+      );
     });
 
     it('should return new commit SHA', async () => {
@@ -396,7 +404,11 @@ describe('GitManager', () => {
       await gitManager.commitWithMetadata('Single field', metadata);
 
       const expectedMessage = 'Single field\n\nSingle-Key: single-value';
-      expect(mockGit.commit).toHaveBeenCalledWith(expectedMessage);
+      expect(mockGit.commit).toHaveBeenCalledWith(
+        expectedMessage,
+        undefined,
+        { '--no-verify': null }
+      );
     });
 
     it('should handle multiple metadata fields', async () => {
@@ -421,7 +433,11 @@ describe('GitManager', () => {
       await gitManager.commitWithMetadata('No metadata', {});
 
       const expectedMessage = 'No metadata\n\n';
-      expect(mockGit.commit).toHaveBeenCalledWith(expectedMessage);
+      expect(mockGit.commit).toHaveBeenCalledWith(
+        expectedMessage,
+        undefined,
+        { '--no-verify': null }
+      );
     });
 
     it('should preserve commit message formatting', async () => {
@@ -430,7 +446,11 @@ describe('GitManager', () => {
       await gitManager.commitWithMetadata(message, { Key: 'value' });
 
       const expectedMessage = 'Multi-line\nmessage\nhere\n\nKey: value';
-      expect(mockGit.commit).toHaveBeenCalledWith(expectedMessage);
+      expect(mockGit.commit).toHaveBeenCalledWith(
+        expectedMessage,
+        undefined,
+        { '--no-verify': null }
+      );
     });
 
     it('should add blank line before trailers', async () => {

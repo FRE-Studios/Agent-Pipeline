@@ -64,7 +64,7 @@ export class GitManager {
 
     const fullMessage = `${message}\n\n${trailers}`;
 
-    await this.git.commit(fullMessage);
+    await this.git.commit(fullMessage, undefined, { '--no-verify': null });
     return this.getCurrentCommit();
   }
 

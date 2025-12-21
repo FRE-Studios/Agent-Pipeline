@@ -33,6 +33,10 @@ git:
     labels: [automated, needs-review]
     draft: false
 
+# Note: git hooks can only be installed when git.branchStrategy is set.
+# Pipeline commits include a Pipeline-Run-ID trailer and use --no-verify to avoid hook loops.
+# For hook-triggered pipelines, prefer branchStrategy: unique-per-run and disable autoCommit for read-only checks.
+
 notifications:
   enabled: true
   events:
@@ -194,4 +198,3 @@ Agent Pipeline uses filesystem-based handover for communication between stages:
 4. The `LOG.md` file maintains an execution history.
 
 This approach enables agents to access outputs from previous stages directly via the filesystem, providing reliable data transfer without token overhead.
-

@@ -9,17 +9,18 @@ settings:
   preserveWorkingTree: false
   executionMode: parallel
 
-# Git workflow configuration (optional)
-# git:
-#   baseBranch: main
-#   branchStrategy: reusable
-#   pullRequest:
-#     autoCreate: true
-#     title: "🤖 Automated Code Review - {{pipelineName}}"
-#     reviewers: []
-#     labels:
-#       - automated
-#       - code-review
+# Git workflow configuration (required for hook install)
+git:
+  baseBranch: main                  # PR base and merge target for the pipeline branch
+  branchStrategy: unique-per-run    # Avoid branch contention for hook-triggered runs
+  branchPrefix: review-pipeline     # Keeps pipeline branches easy to find/clean up
+  pullRequest:
+    autoCreate: false               # Keep off by default for local post-commit automation
+    title: "🤖 Automated Code Review - {{pipelineName}}"  # PR title when autoCreate is enabled
+    reviewers: []                   # Optional reviewers when autoCreate is enabled
+    labels:
+      - automated                   # Optional PR label when autoCreate is enabled
+      - code-review
 
 # Notification configuration (optional)
 # notifications:
