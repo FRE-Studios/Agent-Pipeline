@@ -22,7 +22,7 @@ settings:
 
 git:
   baseBranch: main
-  branchStrategy: reusable           # reusable or unique-per-run
+  branchStrategy: reusable           # reusable, unique-per-run, or unique-and-delete
   branchPrefix: pipeline
   pullRequest:
     autoCreate: true
@@ -33,7 +33,7 @@ git:
 
 # Note: git hooks can only be installed when git.branchStrategy is set.
 # Pipeline commits include a Pipeline-Run-ID trailer and use --no-verify to avoid hook loops.
-# For hook-triggered pipelines, prefer branchStrategy: unique-per-run and disable autoCommit for read-only checks.
+# For hook-triggered pipelines, prefer branchStrategy: unique-per-run (or unique-and-delete) and disable autoCommit for read-only checks.
 
 notifications:
   enabled: true
@@ -76,7 +76,7 @@ When a pipeline has a `git` configuration, it automatically executes in a dedica
 
 - Your working directory remains completely untouched during pipeline execution
 - No stashing or restoring of uncommitted changes needed
-- Each pipeline run operates in isolation at `.agent-pipeline/worktrees/<pipeline-name>/`
+- Each pipeline run operates in isolation at `.agent-pipeline/worktrees/<pipeline-name>/` by default
 - Original branch and working tree are preserved throughout
 
 You can customize the worktree location via settings:
@@ -84,10 +84,10 @@ You can customize the worktree location via settings:
 ```yaml
 settings:
   worktree:
-    directory: custom-worktrees   # Custom worktree base directory (relative to repo root)
+    directory: custom-worktrees   # Custom worktree base directory (relative or absolute)
 ```
 
-Worktrees are cleaned up automatically after successful runs. Use `agent-pipeline cleanup` to remove stale worktrees.
+Worktrees are cleaned up automatically after successful runs only when `branchStrategy` is `unique-and-delete`. Use `agent-pipeline cleanup` to remove stale worktrees.
 
 ### Permission Control
 
@@ -167,7 +167,7 @@ runtime:
 
 Branch isolation and PR creation are handled by `BranchManager` and `PRCreator`:
 
-- `branchStrategy`: `reusable` keeps a predictable branch name (`pipeline/<name>`), while `unique-per-run` appends the run ID.
+- `branchStrategy`: `reusable` keeps a predictable branch name (`pipeline/<name>`), `unique-per-run` appends the run ID, and `unique-and-delete` appends the run ID and auto-cleans on success.
 - `pullRequest.autoCreate`: when `true`, the pipeline attempts to open a PR with GitHub CLI (`gh`). Additional metadata such as `labels`, `assignees`, and `milestone` map directly to CLI flags.
 - Use `agent-pipeline run <pipeline> --no-pr`, `--pr-draft`, `--pr-web`, or `--base-branch <branch>` for on-demand overrides.
 

@@ -67,7 +67,7 @@ agent-pipeline install post-commit-example
 ```
 
 Note: enable `git.branchStrategy` in the pipeline config before installing the hook.
-Tip: for hook-triggered pipelines, prefer `unique-per-run` and disable `autoCommit` if you only need reports.
+Tip: for hook-triggered pipelines, prefer `unique-per-run` (or `unique-and-delete`) and disable `autoCommit` if you only need reports.
 
 ## Available Agents
 

@@ -1,10 +1,12 @@
 // src/cli/commands/cleanup.ts
 
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import { BranchManager } from '../../core/branch-manager.js';
 import { WorktreeManager } from '../../core/worktree-manager.js';
 import { InteractivePrompts } from '../utils/interactive-prompts.js';
+import * as YAML from 'yaml';
 
 export interface CleanupOptions {
   pipeline?: string;
@@ -19,7 +21,33 @@ export async function cleanupCommand(
   options: CleanupOptions = {}
 ): Promise<void> {
   const branchManager = new BranchManager(repoPath);
-  const worktreeManager = new WorktreeManager(repoPath);
+
+  let branchPrefix = 'pipeline';
+  let worktreeBaseDir: string | undefined;
+
+  if (options.pipeline) {
+    try {
+      const pipelinePath = path.join(
+        repoPath,
+        '.agent-pipeline',
+        'pipelines',
+        `${options.pipeline}.yml`
+      );
+      const content = fsSync.readFileSync(pipelinePath, 'utf-8');
+      const config = YAML.parse(content) as {
+        git?: { branchPrefix?: string };
+        settings?: { worktree?: { directory?: string } };
+      };
+      branchPrefix = config?.git?.branchPrefix || branchPrefix;
+      worktreeBaseDir = config?.settings?.worktree?.directory;
+    } catch {
+      // Fall back to defaults when pipeline config is missing or incomplete.
+    }
+  }
+
+  const worktreeManager = worktreeBaseDir
+    ? new WorktreeManager(repoPath, worktreeBaseDir)
+    : new WorktreeManager(repoPath);
 
   // Determine what to cleanup
   const cleanWorktrees = options.worktrees || options.all;
@@ -29,9 +57,14 @@ export async function cleanupCommand(
 
   // List worktrees if requested
   if (cleanWorktrees) {
-    const worktrees = await worktreeManager.listPipelineWorktrees();
+    const worktrees = await worktreeManager.listPipelineWorktrees(branchPrefix);
     const worktreesToDelete = options.pipeline
-      ? worktrees.filter(wt => wt.path.includes(options.pipeline!) || wt.branch.includes(options.pipeline!))
+      ? worktrees.filter(wt => {
+          const matchesPipeline = wt.path.includes(options.pipeline!) || wt.branch.includes(options.pipeline!);
+          if (!matchesPipeline) return false;
+          if (!worktreeBaseDir) return true;
+          return wt.path.startsWith(worktreeManager.getWorktreeBaseDir());
+        })
       : worktrees;
 
     if (worktreesToDelete.length > 0) {
@@ -57,7 +90,7 @@ export async function cleanupCommand(
 
   // List branches if requested
   if (cleanBranches) {
-    const pipelineBranches = await branchManager.listPipelineBranches('pipeline');
+    const pipelineBranches = await branchManager.listPipelineBranches(branchPrefix);
     const branchesToDelete = options.pipeline
       ? pipelineBranches.filter(b => b.includes(options.pipeline!))
       : pipelineBranches;
