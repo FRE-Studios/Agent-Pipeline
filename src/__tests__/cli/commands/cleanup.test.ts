@@ -476,15 +476,15 @@ describe('cleanupCommand', () => {
         expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🗑️  Deleting history files...'));
       });
 
-      it('should prompt when deleteLogs is false', async () => {
+      it('should NOT prompt when deleteLogs is false', async () => {
         mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
         mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
         mockPrompts.confirm.mockResolvedValue(false);
 
         await cleanupCommand(tempDir, { force: true, deleteLogs: false });
 
-        // Current implementation treats false same as undefined, so it still prompts
-        expect(mockPrompts.confirm).toHaveBeenCalled();
+        // New behavior: explicitly false means do NOT delete and do NOT prompt
+        expect(mockPrompts.confirm).not.toHaveBeenCalled();
         expect(mockFs.readdir).not.toHaveBeenCalled();
         expect(mockFs.unlink).not.toHaveBeenCalled();
       });
@@ -664,9 +664,9 @@ describe('cleanupCommand', () => {
 
         await cleanupCommand(tempDir, { force: true, deleteLogs: true });
 
-        // Current implementation stops processing on first error
-        expect(mockFs.readFile).toHaveBeenCalledTimes(1);
-        expect(console.error).toHaveBeenCalledWith(expect.stringContaining('⚠️  Could not delete history files'));
+        // New behavior: continues processing other files after error
+        expect(mockFs.readFile).toHaveBeenCalledTimes(2);
+        expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('⚠️  Could not process run-1.json'));
       });
 
       it('should handle JSON parse errors', async () => {
@@ -675,12 +675,14 @@ describe('cleanupCommand', () => {
 
         mockFs.readdir.mockResolvedValue(['run-1.json', 'run-2.json']);
         mockFs.readFile.mockResolvedValueOnce('invalid json{{}');
+        mockFs.readFile.mockResolvedValueOnce(JSON.stringify({ pipelineConfig: { name: 'test' } }));
 
         await cleanupCommand(tempDir, { force: true, deleteLogs: true });
 
-        // Current implementation stops processing on first JSON parse error
-        expect(mockFs.readFile).toHaveBeenCalledTimes(1);
-        expect(console.error).toHaveBeenCalledWith(expect.stringContaining('⚠️  Could not delete history files'));
+        // New behavior: continues processing other files after JSON error
+        expect(mockFs.readFile).toHaveBeenCalledTimes(2);
+        expect(mockFs.unlink).toHaveBeenCalledTimes(1); // Second file should still be deleted
+        expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('⚠️  Could not process run-1.json'));
       });
 
       it('should show "no files found" message when directory empty', async () => {

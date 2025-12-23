@@ -76,7 +76,7 @@ export async function cleanupCommand(
         console.log('\n🧹 Cleaning up worktrees...\n');
         for (const wt of worktreesToDelete) {
           try {
-            await worktreeManager.cleanupWorktree(wt.path, true, true);
+            await worktreeManager.cleanupWorktree(wt.path, cleanBranches, true);
             console.log(`✅ Removed worktree: ${wt.path}`);
           } catch (error) {
             console.error(`❌ Failed to remove ${wt.path}: ${error instanceof Error ? error.message : String(error)}`);
@@ -130,9 +130,9 @@ export async function cleanupCommand(
 
   // Handle log deletion
   if (options.force && hasItems) {
-    if (options.deleteLogs !== undefined ? options.deleteLogs : false) {
+    if (options.deleteLogs === true) {
       await deleteAssociatedLogs(repoPath, options.pipeline);
-    } else {
+    } else if (options.deleteLogs === undefined) {
       // Ask user if they want to delete logs
       const shouldDeleteLogs = await InteractivePrompts.confirm(
         '\nDelete associated history files?',
@@ -162,26 +162,39 @@ async function deleteAssociatedLogs(
   try {
     console.log('\n🗑️  Deleting history files...\n');
 
-    const stateFiles = await fs.readdir(stateDir);
+    let stateFiles: string[] = [];
+    try {
+      stateFiles = await fs.readdir(stateDir);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        console.log('   No history files found to delete');
+        return;
+      }
+      throw err;
+    }
+
     let deletedCount = 0;
 
     for (const file of stateFiles) {
       if (!file.endsWith('.json')) continue;
 
-      const statePath = path.join(stateDir, file);
-      const content = await fs.readFile(statePath, 'utf-8');
-      const state = JSON.parse(content);
+      try {
+        const statePath = path.join(stateDir, file);
+        const content = await fs.readFile(statePath, 'utf-8');
+        const state = JSON.parse(content);
 
-      // If pipeline name is specified, only delete logs for that pipeline
-      // Otherwise, delete all logs for pipeline branches we're cleaning up
-      const shouldDelete = pipelineName
-        ? state.pipelineConfig?.name === pipelineName
-        : true; // Delete all if no specific pipeline
+        // If pipeline name is specified, only delete logs for that pipeline
+        const shouldDelete = pipelineName
+          ? state.pipelineConfig?.name?.includes(pipelineName) || state.pipelineConfig?.name === pipelineName
+          : true;
 
-      if (shouldDelete) {
-        await fs.unlink(statePath);
-        console.log(`   ✅ Deleted ${file}`);
-        deletedCount++;
+        if (shouldDelete) {
+          await fs.unlink(statePath);
+          console.log(`   ✅ Deleted ${file}`);
+          deletedCount++;
+        }
+      } catch (fileError) {
+        console.warn(`   ⚠️  Could not process ${file}: ${(fileError as Error).message}`);
       }
     }
 
