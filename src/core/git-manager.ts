@@ -123,6 +123,17 @@ export class GitManager {
   // ============================================
 
   /**
+   * Check if a branch is currently checked out in any worktree (including main).
+   * @param branch - Branch name to check
+   * @returns Path to worktree where branch is checked out, or null if not checked out
+   */
+  async isBranchCheckedOut(branch: string): Promise<string | null> {
+    const worktrees = await this.listWorktrees();
+    const match = worktrees.find(wt => wt.branch === branch);
+    return match ? match.path : null;
+  }
+
+  /**
    * Create a new git worktree for isolated pipeline execution.
    * @param worktreePath - Absolute path where worktree will be created
    * @param branch - Branch name to checkout in the worktree
@@ -133,21 +144,43 @@ export class GitManager {
     branch: string,
     baseBranch: string = 'main'
   ): Promise<void> {
+    // Check if branch is already checked out anywhere
+    const checkedOutPath = await this.isBranchCheckedOut(branch);
+    if (checkedOutPath) {
+      throw new Error(
+        `Branch '${branch}' is already checked out at '${checkedOutPath}'. ` +
+        `Git does not allow checking out the same branch in multiple worktrees.`
+      );
+    }
+
     // Check if the branch exists locally
     const branches = await this.git.branchLocal();
     const branchExists = branches.all.includes(branch);
 
     if (branchExists) {
       // Add worktree with existing branch
-      await this.git.raw(['worktree', 'add', worktreePath, branch]);
+      try {
+        await this.git.raw(['worktree', 'add', worktreePath, branch]);
+      } catch (error) {
+        const gitError = ErrorFactory.createGitError(error, 'worktree_add');
+        throw new Error(`Failed to add worktree for existing branch '${branch}': ${gitError.message}`);
+      }
     } else {
       // Create new branch and worktree from base
       // Try remote base first, fall back to local
       try {
         await this.git.raw(['worktree', 'add', '-b', branch, worktreePath, `origin/${baseBranch}`]);
-      } catch {
-        // Fallback to local base branch if remote doesn't exist
-        await this.git.raw(['worktree', 'add', '-b', branch, worktreePath, baseBranch]);
+      } catch (error) {
+        // Fallback to local base branch if remote doesn't exist, OR if previous command failed
+        // Note: If previous command failed because branch exists (race condition), this might also fail.
+        try {
+          await this.git.raw(['worktree', 'add', '-b', branch, worktreePath, baseBranch]);
+        } catch (fallbackError) {
+           const gitError = ErrorFactory.createGitError(fallbackError, 'worktree_create');
+           throw new Error(
+             `Failed to create worktree with new branch '${branch}' from base '${baseBranch}': ${gitError.message}`
+           );
+        }
       }
     }
   }
