@@ -81,6 +81,14 @@ export interface PRConfig {
   web?: boolean;                          // Open in browser for interactive editing
 }
 
+/**
+ * Worktree configuration for pipeline isolation
+ * Pipelines execute in dedicated git worktrees, leaving user's working directory untouched
+ */
+export interface WorktreeConfig {
+  directory?: string;                     // Override default .agent-pipeline/worktrees
+}
+
 export interface PipelineConfig {
   name: string;
   trigger: 'pre-commit' | 'post-commit' | 'pre-push' | 'post-merge' | 'manual';
@@ -99,9 +107,9 @@ export interface PipelineConfig {
     autoCommit: boolean;              // Auto-commit agent changes
     commitPrefix: string;              // e.g., "[pipeline:stage-name]"
     failureStrategy: 'stop' | 'continue'; // Default failure handling
-    preserveWorkingTree: boolean;      // Stash/restore uncommitted changes
     executionMode?: 'sequential' | 'parallel'; // Execution strategy (default: parallel with DAG)
     permissionMode?: PermissionMode;   // Permission mode for agents (default: 'acceptEdits')
+    worktree?: WorktreeConfig;         // Worktree isolation settings (pipelines run in worktrees by default)
     handover?: {
       directory?: string;             // Handover directory (default: .agent-pipeline/runs/{pipeline-name}-{runId}/)
     };
@@ -166,6 +174,7 @@ export interface PipelineState {
     finalCommit?: string;
     changedFiles: string[];
     totalDuration: number;
+    worktreePath?: string;                // Absolute path to execution worktree
     pullRequest?: {                       // Pull request info (if created)
       url: string;
       number: number;

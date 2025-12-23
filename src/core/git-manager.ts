@@ -4,6 +4,17 @@ import { simpleGit, SimpleGit } from 'simple-git';
 import { ErrorFactory } from '../utils/error-factory.js';
 
 /**
+ * Information about a git worktree
+ */
+export interface WorktreeInfo {
+  path: string;       // Absolute path to worktree directory
+  branch: string;     // Branch name (without refs/heads/)
+  head: string;       // HEAD commit SHA
+  bare?: boolean;     // Whether this is the bare repo entry
+  detached?: boolean; // Whether HEAD is detached
+}
+
+/**
  * Manages git operations for pipeline execution.
  * Wraps simple-git with error handling and pipeline-specific workflows.
  */
@@ -105,5 +116,124 @@ export class GitManager {
   async getCommitMessage(commitSha: string): Promise<string> {
     const log = await this.git.log(['-1', commitSha]);
     return log.latest?.message || '';
+  }
+
+  // ============================================
+  // Worktree Operations
+  // ============================================
+
+  /**
+   * Create a new git worktree for isolated pipeline execution.
+   * @param worktreePath - Absolute path where worktree will be created
+   * @param branch - Branch name to checkout in the worktree
+   * @param baseBranch - Base branch to create new branch from (if branch doesn't exist)
+   */
+  async createWorktree(
+    worktreePath: string,
+    branch: string,
+    baseBranch: string = 'main'
+  ): Promise<void> {
+    // Check if the branch exists locally
+    const branches = await this.git.branchLocal();
+    const branchExists = branches.all.includes(branch);
+
+    if (branchExists) {
+      // Add worktree with existing branch
+      await this.git.raw(['worktree', 'add', worktreePath, branch]);
+    } else {
+      // Create new branch and worktree from base
+      // Try remote base first, fall back to local
+      try {
+        await this.git.raw(['worktree', 'add', '-b', branch, worktreePath, `origin/${baseBranch}`]);
+      } catch {
+        // Fallback to local base branch if remote doesn't exist
+        await this.git.raw(['worktree', 'add', '-b', branch, worktreePath, baseBranch]);
+      }
+    }
+  }
+
+  /**
+   * Remove a worktree directory and its git association.
+   * @param worktreePath - Absolute path to the worktree
+   * @param force - Force removal even with uncommitted changes
+   */
+  async removeWorktree(worktreePath: string, force: boolean = false): Promise<void> {
+    const args = ['worktree', 'remove', worktreePath];
+    if (force) {
+      args.push('--force');
+    }
+    await this.git.raw(args);
+  }
+
+  /**
+   * List all worktrees associated with this repository.
+   * @returns Array of worktree information objects
+   */
+  async listWorktrees(): Promise<WorktreeInfo[]> {
+    const output = await this.git.raw(['worktree', 'list', '--porcelain']);
+    return this.parseWorktreeList(output);
+  }
+
+  /**
+   * Clean up stale worktree administrative entries.
+   * Useful after manually deleting worktree directories.
+   */
+  async pruneWorktrees(): Promise<void> {
+    await this.git.raw(['worktree', 'prune']);
+  }
+
+  /**
+   * Check if a worktree exists at the given path.
+   * @param worktreePath - Absolute path to check
+   */
+  async worktreeExists(worktreePath: string): Promise<boolean> {
+    const worktrees = await this.listWorktrees();
+    return worktrees.some(wt => wt.path === worktreePath);
+  }
+
+  /**
+   * Parse git worktree list --porcelain output into structured data.
+   * Format:
+   *   worktree /path/to/worktree
+   *   HEAD <sha>
+   *   branch refs/heads/branch-name
+   *   (blank line between entries)
+   */
+  private parseWorktreeList(output: string): WorktreeInfo[] {
+    const worktrees: WorktreeInfo[] = [];
+    const entries = output.trim().split('\n\n');
+
+    for (const entry of entries) {
+      if (!entry.trim()) continue;
+
+      const lines = entry.split('\n');
+      const wt: Partial<WorktreeInfo> = {};
+
+      for (const line of lines) {
+        if (line.startsWith('worktree ')) {
+          wt.path = line.slice(9);
+        } else if (line.startsWith('HEAD ')) {
+          wt.head = line.slice(5);
+        } else if (line.startsWith('branch ')) {
+          wt.branch = line.slice(7).replace('refs/heads/', '');
+        } else if (line === 'bare') {
+          wt.bare = true;
+        } else if (line === 'detached') {
+          wt.detached = true;
+        }
+      }
+
+      if (wt.path && wt.head) {
+        worktrees.push({
+          path: wt.path,
+          head: wt.head,
+          branch: wt.branch || '',
+          bare: wt.bare,
+          detached: wt.detached
+        });
+      }
+    }
+
+    return worktrees;
   }
 }

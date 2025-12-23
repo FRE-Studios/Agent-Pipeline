@@ -3,6 +3,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { GitManager } from './git-manager.js';
 import { BranchManager } from './branch-manager.js';
+import { WorktreeManager } from './worktree-manager.js';
 import { StageExecutor } from './stage-executor.js';
 import { ParallelExecutor } from './parallel-executor.js';
 import { HandoverManager } from './handover-manager.js';
@@ -17,19 +18,24 @@ export interface InitializationResult {
   parallelExecutor: ParallelExecutor;
   handoverManager: HandoverManager;
   pipelineBranch?: string;
-  originalBranch: string;
+  worktreePath?: string;
+  executionRepoPath: string;
   notificationManager?: NotificationManager;
   startTime: number;
 }
 
 export class PipelineInitializer {
+  private worktreeManager: WorktreeManager;
+
   constructor(
     private gitManager: GitManager,
     private branchManager: BranchManager,
     private repoPath: string,
     private dryRun: boolean,
     private runtime: AgentRuntime
-  ) {}
+  ) {
+    this.worktreeManager = new WorktreeManager(repoPath);
+  }
 
   /**
    * Initialize the entire pipeline with all necessary setup
@@ -55,17 +61,14 @@ export class PipelineInitializer {
         ? new NotificationManager(config.notifications)
         : undefined);
 
-    // Save original branch to return to later
-    const originalBranch = await this.branchManager.getCurrentBranch();
-
-    // Setup pipeline branch if git config exists
-    const pipelineBranch = await this.setupBranchIsolation(
+    // Setup worktree isolation for pipeline execution
+    const isolation = await this.setupWorktreeIsolation(
       config,
       runId,
       options.interactive || false
     );
 
-    // Get trigger commit and changed files
+    // Get trigger commit and changed files from main repo
     const triggerCommit = await this.gitManager.getCurrentCommit();
     const changedFiles = await this.gitManager.getChangedFiles(triggerCommit);
 
@@ -80,7 +83,12 @@ export class PipelineInitializer {
       options.metadata
     );
 
-    // Create and initialize handover manager
+    // Store worktree path in artifacts if using worktree isolation
+    if (isolation.worktreePath) {
+      state.artifacts.worktreePath = isolation.worktreePath;
+    }
+
+    // Create and initialize handover manager (always in main repo)
     const handoverManager = new HandoverManager(
       this.repoPath,
       config.name,
@@ -92,14 +100,15 @@ export class PipelineInitializer {
     // Store handover directory in state
     state.artifacts.handoverDir = handoverManager.getHandoverDir();
 
-    // Create executors
+    // Create executors with worktree-aware configuration
     const stageExecutor = new StageExecutor(
       this.gitManager,
       this.dryRun,
       handoverManager,
-      this.runtime,  // Optional: used as fallback if no runtime config specified
+      this.runtime,
       options.loopContext,
-      this.repoPath  // For file-driven instruction loading
+      this.repoPath,                    // For file-driven instruction loading
+      isolation.executionRepoPath       // Where agents execute (worktree or main repo)
     );
     const parallelExecutor = new ParallelExecutor(
       stageExecutor,
@@ -107,7 +116,7 @@ export class PipelineInitializer {
     );
 
     // Log startup messages
-    this.logStartup(config, state, triggerCommit, options.interactive || false);
+    this.logStartup(config, state, triggerCommit, isolation, options.interactive || false);
 
     // Notify initial state
     stateChangeCallback(state);
@@ -125,26 +134,40 @@ export class PipelineInitializer {
       stageExecutor,
       parallelExecutor,
       handoverManager,
-      pipelineBranch,
-      originalBranch,
+      pipelineBranch: isolation.branchName,
+      worktreePath: isolation.worktreePath,
+      executionRepoPath: isolation.executionRepoPath,
       notificationManager,
       startTime
     };
   }
 
   /**
-   * Setup branch isolation for pipeline execution
+   * Setup worktree isolation for pipeline execution.
+   * Pipelines execute in dedicated worktrees, leaving user's working directory untouched.
    */
-  private async setupBranchIsolation(
+  private async setupWorktreeIsolation(
     config: PipelineConfig,
     runId: string,
     interactive: boolean
-  ): Promise<string | undefined> {
+  ): Promise<{ worktreePath?: string; branchName?: string; executionRepoPath: string }> {
+    // If no git config or dry run, execute in main repo (no isolation)
     if (!config.git || this.dryRun) {
-      return undefined;
+      return { executionRepoPath: this.repoPath };
     }
 
-    const pipelineBranch = await this.branchManager.setupPipelineBranch(
+    // Get custom worktree directory from settings if configured
+    const worktreeDir = config.settings?.worktree?.directory
+      ? `${this.repoPath}/${config.settings.worktree.directory}`
+      : undefined;
+
+    // Create worktree manager with custom directory if specified
+    const worktreeManager = worktreeDir
+      ? new WorktreeManager(this.repoPath, worktreeDir)
+      : this.worktreeManager;
+
+    // Setup worktree for pipeline execution
+    const result = await worktreeManager.setupPipelineWorktree(
       config.name,
       runId,
       config.git.baseBranch || 'main',
@@ -153,10 +176,15 @@ export class PipelineInitializer {
     );
 
     if (!interactive) {
-      console.log(`📍 Running on branch: ${pipelineBranch}\n`);
+      console.log(`📍 Running in worktree: ${result.worktreePath}`);
+      console.log(`   Branch: ${result.branchName}\n`);
     }
 
-    return pipelineBranch;
+    return {
+      worktreePath: result.worktreePath,
+      branchName: result.branchName,
+      executionRepoPath: result.worktreePath
+    };
   }
 
   /**
@@ -217,6 +245,7 @@ export class PipelineInitializer {
     config: PipelineConfig,
     state: PipelineState,
     triggerCommit: string,
+    isolation: { worktreePath?: string; branchName?: string; executionRepoPath: string },
     interactive: boolean
   ): void {
     if (this.dryRun) {
@@ -227,7 +256,11 @@ export class PipelineInitializer {
     if (!interactive) {
       console.log(`\n🚀 Starting pipeline: ${config.name}`);
       console.log(`📦 Run ID: ${state.runId}`);
-      console.log(`📝 Trigger commit: ${triggerCommit.substring(0, 7)}\n`);
+      console.log(`📝 Trigger commit: ${triggerCommit.substring(0, 7)}`);
+      if (isolation.worktreePath) {
+        console.log(`🌳 Worktree: ${isolation.worktreePath}`);
+      }
+      console.log('');
     }
   }
 }

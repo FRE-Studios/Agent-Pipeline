@@ -40,7 +40,8 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
     // Execute CLI with timeout and streaming
     const cliResult = await this.executeClaudeCLI(args, {
       timeout: options.timeout ? options.timeout * 1000 : 120000,
-      onOutputUpdate: options.onOutputUpdate
+      onOutputUpdate: options.onOutputUpdate,
+      cwd: options.runtimeOptions?.cwd as string | undefined
     });
 
     // Parse JSON output
@@ -245,7 +246,7 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
    */
   private async executeClaudeCLI(
     args: string[],
-    options: { timeout?: number; onOutputUpdate?: (output: string) => void }
+    options: { timeout?: number; onOutputUpdate?: (output: string) => void; cwd?: string }
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     return new Promise((resolve, reject) => {
       const timeout = options.timeout || 120000;
@@ -272,7 +273,8 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
         // Spawn claude CLI
         child = spawn('claude', args, {
           stdio: ['ignore', 'pipe', 'pipe'],
-          shell: false
+          shell: false,
+          cwd: options.cwd || process.cwd()
         });
 
         // Collect stdout

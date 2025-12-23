@@ -53,10 +53,8 @@ export class PipelineValidator {
       this.validateSlackWebhook(config);
     }
 
-    // P1: Git working tree state (conditional - only if preserveWorkingTree is false)
-    if (config.settings?.preserveWorkingTree === false && config.git) {
-      await this.validateGitWorkingTree(repoPath);
-    }
+    // Check for deprecated preserveWorkingTree setting
+    this.checkDeprecatedSettings(config);
 
     // P2: Retry configuration sanity (conditional - only if retries configured)
     this.validateRetryConfiguration(config);
@@ -422,23 +420,19 @@ export class PipelineValidator {
   }
 
   /**
-   * Validate git working tree state - warn if uncommitted changes exist.
+   * Check for deprecated settings and emit warnings.
    */
-  private async validateGitWorkingTree(repoPath: string): Promise<void> {
-    try {
-      const git = simpleGit(repoPath);
-      const status = await git.status();
-
-      if (!status.isClean()) {
-        this.errors.push({
-          field: 'settings.preserveWorkingTree',
-          message:
-            'Uncommitted changes detected. Pipeline may overwrite them. Commit changes first: git add . && git commit -m "..."',
-          severity: 'warning'
-        });
-      }
-    } catch (error) {
-      // If git status fails, likely not a git repo - already caught by validateGitRepository
+  private checkDeprecatedSettings(config: PipelineConfig): void {
+    // Check for deprecated preserveWorkingTree
+    // This setting is no longer used - worktree isolation is now the default
+    if ((config.settings as any)?.preserveWorkingTree !== undefined) {
+      this.errors.push({
+        field: 'settings.preserveWorkingTree',
+        message:
+          "The 'preserveWorkingTree' setting is deprecated. Pipelines now execute in git worktrees by default, " +
+          "leaving your working directory untouched. This setting will be ignored.",
+        severity: 'warning'
+      });
     }
   }
 

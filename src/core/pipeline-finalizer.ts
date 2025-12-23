@@ -2,6 +2,7 @@
 
 import { GitManager } from './git-manager.js';
 import { BranchManager } from './branch-manager.js';
+import { WorktreeManager } from './worktree-manager.js';
 import { PRCreator } from './pr-creator.js';
 import { StateManager } from './state-manager.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
@@ -9,14 +10,19 @@ import { PipelineConfig, PipelineState } from '../config/schema.js';
 import { NotificationContext } from '../notifications/types.js';
 
 export class PipelineFinalizer {
+  private worktreeManager: WorktreeManager;
+
   constructor(
     private gitManager: GitManager,
     private branchManager: BranchManager,
     private prCreator: PRCreator,
     private stateManager: StateManager,
+    private repoPath: string,
     private dryRun: boolean,
     private shouldLog: (interactive: boolean) => boolean
-  ) {}
+  ) {
+    this.worktreeManager = new WorktreeManager(repoPath);
+  }
 
   /**
    * Finalize the pipeline execution
@@ -25,18 +31,19 @@ export class PipelineFinalizer {
     state: PipelineState,
     config: PipelineConfig,
     pipelineBranch: string | undefined,
-    originalBranch: string,
+    worktreePath: string | undefined,
+    executionRepoPath: string,
     startTime: number,
     interactive: boolean,
     notifyCallback: (context: NotificationContext) => Promise<void>,
     stateChangeCallback: (state: PipelineState) => void
   ): Promise<PipelineState> {
-    // Calculate metrics
-    await this.calculateMetrics(state, startTime);
+    // Calculate metrics (use worktree git manager if executing in worktree)
+    await this.calculateMetrics(state, startTime, executionRepoPath);
 
-    // Handle PR creation if configured
+    // Handle PR creation if configured (push from worktree)
     if (pipelineBranch && config.git?.pullRequest?.autoCreate) {
-      await this.handlePRCreation(config, pipelineBranch, state, interactive, notifyCallback);
+      await this.handlePRCreation(config, pipelineBranch, state, executionRepoPath, interactive, notifyCallback);
     }
 
     // Save final state
@@ -48,11 +55,11 @@ export class PipelineFinalizer {
 
     // Print summary if not interactive
     if (this.shouldLog(interactive)) {
-      this.printSummary(state);
+      this.printSummary(state, worktreePath);
     }
 
-    // Return to original branch
-    await this.cleanup(pipelineBranch, originalBranch, interactive);
+    // Handle worktree cleanup based on strategy and status
+    await this.handleWorktreeCleanup(worktreePath, config, state.status, interactive);
 
     return state;
   }
@@ -60,10 +67,19 @@ export class PipelineFinalizer {
   /**
    * Calculate final metrics (duration and final commit)
    */
-  private async calculateMetrics(state: PipelineState, startTime: number): Promise<void> {
+  private async calculateMetrics(
+    state: PipelineState,
+    startTime: number,
+    executionRepoPath: string
+  ): Promise<void> {
     const endTime = Date.now();
     state.artifacts.totalDuration = (endTime - startTime) / 1000;
-    state.artifacts.finalCommit = await this.gitManager.getCurrentCommit();
+
+    // Get final commit from execution path (worktree or main repo)
+    const execGitManager = executionRepoPath !== this.repoPath
+      ? new GitManager(executionRepoPath)
+      : this.gitManager;
+    state.artifacts.finalCommit = await execGitManager.getCurrentCommit();
   }
 
   /**
@@ -73,12 +89,16 @@ export class PipelineFinalizer {
     config: PipelineConfig,
     branchName: string,
     state: PipelineState,
+    executionRepoPath: string,
     interactive: boolean,
     notifyCallback: (context: NotificationContext) => Promise<void>
   ): Promise<void> {
     try {
-      // Push branch to remote
-      await this.branchManager.pushBranch(branchName);
+      // Push branch to remote (use worktree branch manager if in worktree)
+      const pushBranchManager = executionRepoPath !== this.repoPath
+        ? new BranchManager(executionRepoPath)
+        : this.branchManager;
+      await pushBranchManager.pushBranch(branchName);
 
       // Check if PR already exists
       const exists = await this.prCreator.prExists(branchName);
@@ -147,23 +167,58 @@ export class PipelineFinalizer {
   /**
    * Print summary to console
    */
-  private printSummary(state: PipelineState): void {
+  private printSummary(state: PipelineState, worktreePath?: string): void {
     console.log(PipelineFormatter.formatSummary(state));
+    if (worktreePath) {
+      console.log(`\n🌳 Worktree location: ${worktreePath}`);
+    }
   }
 
   /**
-   * Return to original branch (cleanup)
+   * Handle worktree cleanup based on strategy and pipeline status.
+   * - Reusable strategy: Keep worktree for faster subsequent runs
+   * - Unique-per-run on success: Optionally cleanup
+   * - On failure: Always keep for debugging
    */
-  private async cleanup(
-    pipelineBranch: string | undefined,
-    originalBranch: string,
+  private async handleWorktreeCleanup(
+    worktreePath: string | undefined,
+    config: PipelineConfig,
+    status: PipelineState['status'],
     interactive: boolean
   ): Promise<void> {
-    if (pipelineBranch && originalBranch && !this.dryRun) {
+    if (!worktreePath || this.dryRun) {
+      return;
+    }
+
+    const strategy = config.git?.branchStrategy || 'reusable';
+    const success = status === 'completed';
+
+    // For reusable strategy, always keep the worktree
+    if (strategy === 'reusable') {
       if (this.shouldLog(interactive)) {
-        console.log(`\n↩️  Returning to branch: ${originalBranch}`);
+        console.log(`\n🌳 Worktree preserved at: ${worktreePath}`);
+        console.log(`   Use 'agent-pipeline cleanup --worktrees' to remove.`);
       }
-      await this.branchManager.checkoutBranch(originalBranch);
+      return;
+    }
+
+    // For unique-per-run, cleanup on success, keep on failure for debugging
+    if (strategy === 'unique-per-run' && success) {
+      try {
+        await this.worktreeManager.cleanupWorktree(worktreePath, true, false);
+        if (this.shouldLog(interactive)) {
+          console.log(`\n🗑️  Cleaned up worktree: ${worktreePath}`);
+        }
+      } catch (error) {
+        if (this.shouldLog(interactive)) {
+          console.warn(`\n⚠️  Could not cleanup worktree: ${error instanceof Error ? error.message : String(error)}`);
+          console.log(`   Worktree remains at: ${worktreePath}`);
+        }
+      }
+    } else if (!success) {
+      if (this.shouldLog(interactive)) {
+        console.log(`\n🌳 Worktree preserved for debugging: ${worktreePath}`);
+      }
     }
   }
 }

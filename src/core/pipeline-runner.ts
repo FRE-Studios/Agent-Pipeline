@@ -73,6 +73,7 @@ export class PipelineRunner {
       this.branchManager,
       this.prCreator,
       this.stateManager,
+      this.repoPath,
       this.dryRun,
       this.shouldLog.bind(this)
     );
@@ -449,7 +450,7 @@ export class PipelineRunner {
       this.notifyStateChange.bind(this)
     );
 
-    let { state, parallelExecutor, pipelineBranch, originalBranch, startTime } = initResult;
+    let { state, parallelExecutor, pipelineBranch, worktreePath, executionRepoPath, startTime } = initResult;
     this.notificationManager = initResult.notificationManager;
 
     try {
@@ -509,7 +510,8 @@ export class PipelineRunner {
       state,
       config,
       pipelineBranch,
-      originalBranch,
+      worktreePath,
+      executionRepoPath,
       startTime,
       interactive,
       this.notify.bind(this),

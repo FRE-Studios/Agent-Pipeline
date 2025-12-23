@@ -9,7 +9,8 @@
       "Bash(git show:*)",
       "Bash(node dist/index.js:*)",
       "Bash(sed:*)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

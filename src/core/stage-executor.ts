@@ -15,6 +15,8 @@ import { InstructionLoader, InstructionContext } from './instruction-loader.js';
 export class StageExecutor {
   private retryHandler: RetryHandler;
   private instructionLoader: InstructionLoader | null;
+  private worktreeGitManager: GitManager | null = null;
+  private executionCwd: string | undefined;
 
   constructor(
     private gitManager: GitManager,
@@ -22,10 +24,24 @@ export class StageExecutor {
     private handoverManager: HandoverManager,
     private defaultRuntime?: AgentRuntime,
     private loopContext?: LoopContext,
-    repoPath?: string
+    repoPath?: string,
+    executionRepoPath?: string
   ) {
     this.retryHandler = new RetryHandler();
     this.instructionLoader = repoPath ? new InstructionLoader(repoPath) : null;
+
+    // If execution happens in a worktree, create a separate GitManager for it
+    if (executionRepoPath && executionRepoPath !== repoPath) {
+      this.worktreeGitManager = new GitManager(executionRepoPath);
+      this.executionCwd = executionRepoPath;
+    }
+  }
+
+  /**
+   * Get the GitManager to use for operations (worktree or main repo)
+   */
+  private getExecutionGitManager(): GitManager {
+    return this.worktreeGitManager || this.gitManager;
   }
 
   /**
@@ -207,13 +223,14 @@ export class StageExecutor {
         execution.agentOutput || ''
       );
 
-      // Auto-commit if enabled
+      // Auto-commit if enabled (use worktree git manager if executing in worktree)
+      const execGitManager = this.getExecutionGitManager();
       const globalAutoCommit = pipelineState.pipelineConfig.settings?.autoCommit;
       const stageAutoCommit = stageConfig.autoCommit ?? globalAutoCommit ?? true;
       const shouldCommit = stageAutoCommit && !this.dryRun;
       if (shouldCommit) {
         const commitPrefix = pipelineState.pipelineConfig.settings?.commitPrefix;
-        const commitSha = await this.gitManager.createPipelineCommit(
+        const commitSha = await execGitManager.createPipelineCommit(
           stageConfig.name,
           pipelineState.runId,
           stageConfig.commitMessage,
@@ -222,12 +239,12 @@ export class StageExecutor {
 
         if (commitSha) {
           execution.commitSha = commitSha;
-          execution.commitMessage = await this.gitManager.getCommitMessage(commitSha);
+          execution.commitMessage = await execGitManager.getCommitMessage(commitSha);
           console.log(`✅ Committed changes: ${commitSha.substring(0, 7)}`);
         } else {
           console.log(`ℹ️  No changes to commit`);
         }
-      } else if (this.dryRun && await this.gitManager.hasUncommittedChanges()) {
+      } else if (this.dryRun && await execGitManager.hasUncommittedChanges()) {
         console.log(`💡 Would commit changes (dry-run mode)`);
       }
     };
@@ -456,7 +473,8 @@ Create a pipeline in the pending directory ONLY when:
           model: claudeAgentOptions?.model,
           maxTurns: claudeAgentOptions?.maxTurns,
           maxThinkingTokens: claudeAgentOptions?.maxThinkingTokens,
-          onOutputUpdate
+          onOutputUpdate,
+          runtimeOptions: this.executionCwd ? { cwd: this.executionCwd } : undefined
         }
       };
 
