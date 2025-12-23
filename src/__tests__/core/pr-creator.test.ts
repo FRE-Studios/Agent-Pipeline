@@ -271,6 +271,15 @@ describe('PRCreator', () => {
         expect(result.url).toBe('https://github.com/testuser/testrepo/pull/unknown');
         expect(result.number).toBe(0);
     });
+
+    it('should extract number from URL if #number is missing', async () => {
+        configureMockSpawn({
+            prCreate: { stdout: 'https://github.com/testuser/testrepo/pull/456\n' }
+        });
+        const result = await prCreator.createPR('feature-branch', 'main', {}, prPipelineStateCompleted);
+        expect(result.url).toBe('https://github.com/testuser/testrepo/pull/456');
+        expect(result.number).toBe(456);
+    });
   });
 
   describe('createPR - Error Handling', () => {

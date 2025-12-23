@@ -136,8 +136,16 @@ export class PRCreator {
       const url = urlMatch ? urlMatch[0] : '';
 
       // Extract PR number
+      let number = 0;
       const numberMatch = stdout.match(/#(\d+)/);
-      const number = numberMatch ? parseInt(numberMatch[1]) : 0;
+      if (numberMatch) {
+        number = parseInt(numberMatch[1]);
+      } else if (url) {
+        const urlNumberMatch = url.match(/\/pull\/(\d+)/);
+        if (urlNumberMatch) {
+          number = parseInt(urlNumberMatch[1]);
+        }
+      }
 
       return { url, number };
     } catch (error) {
