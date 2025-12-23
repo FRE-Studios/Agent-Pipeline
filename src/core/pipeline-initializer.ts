@@ -155,9 +155,7 @@ export class PipelineInitializer {
     }
 
     // Get custom worktree directory from settings if configured
-    const worktreeDir = config.settings?.worktree?.directory
-      ? `${this.repoPath}/${config.settings.worktree.directory}`
-      : undefined;
+    const worktreeDir = config.settings?.worktree?.directory;
 
     // Create worktree manager with custom directory if specified
     const worktreeManager = worktreeDir

@@ -64,7 +64,7 @@ export interface LoopContext {
 
 export interface GitConfig {
   baseBranch?: string;                    // Branch to PR into (default: 'main')
-  branchStrategy?: 'reusable' | 'unique-per-run'; // Branch naming strategy (default: 'reusable')
+  branchStrategy?: 'reusable' | 'unique-per-run' | 'unique-and-delete'; // Branch naming strategy (default: 'reusable')
   branchPrefix?: string;                  // Custom branch prefix (default: 'pipeline')
   pullRequest?: PRConfig;                 // Pull request configuration
 }

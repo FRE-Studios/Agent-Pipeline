@@ -25,8 +25,8 @@ export class WorktreeManager extends GitManager {
   constructor(repoPath: string, worktreeBaseDir?: string) {
     super(repoPath);
     this.repoPath = repoPath;
-    this.worktreeBaseDir = worktreeBaseDir ||
-      path.join(repoPath, '.agent-pipeline', 'worktrees');
+    const baseDir = worktreeBaseDir || path.join(repoPath, '.agent-pipeline', 'worktrees');
+    this.worktreeBaseDir = path.isAbsolute(baseDir) ? baseDir : path.resolve(repoPath, baseDir);
   }
 
   /**
@@ -155,10 +155,10 @@ export class WorktreeManager extends GitManager {
    * List all pipeline worktrees.
    * Filters to only include worktrees in the pipeline worktree directory.
    */
-  async listPipelineWorktrees(): Promise<WorktreeInfo[]> {
+  async listPipelineWorktrees(branchPrefix: string = 'pipeline'): Promise<WorktreeInfo[]> {
     const allWorktrees = await this.listWorktrees();
     return allWorktrees.filter(wt =>
-      wt.path.startsWith(this.worktreeBaseDir) && !wt.bare
+      !wt.bare && wt.branch.startsWith(`${branchPrefix}/`)
     );
   }
 
@@ -172,7 +172,7 @@ export class WorktreeManager extends GitManager {
     strategy: BranchStrategy,
     branchPrefix: string
   ): string {
-    if (strategy === 'unique-per-run') {
+    if (strategy === 'unique-per-run' || strategy === 'unique-and-delete') {
       return `${branchPrefix}/${pipelineName}/${runId.substring(0, 8)}`;
     }
     return `${branchPrefix}/${pipelineName}`;
@@ -186,7 +186,7 @@ export class WorktreeManager extends GitManager {
     runId: string,
     strategy: BranchStrategy
   ): string {
-    if (strategy === 'unique-per-run') {
+    if (strategy === 'unique-per-run' || strategy === 'unique-and-delete') {
       return `${pipelineName}-${runId.substring(0, 8)}`;
     }
     return pipelineName;

@@ -177,7 +177,7 @@ export class PipelineFinalizer {
   /**
    * Handle worktree cleanup based on strategy and pipeline status.
    * - Reusable strategy: Keep worktree for faster subsequent runs
-   * - Unique-per-run on success: Optionally cleanup
+   * - Unique-and-delete on success: Cleanup worktree and branch
    * - On failure: Always keep for debugging
    */
   private async handleWorktreeCleanup(
@@ -202,8 +202,8 @@ export class PipelineFinalizer {
       return;
     }
 
-    // For unique-per-run, cleanup on success, keep on failure for debugging
-    if (strategy === 'unique-per-run' && success) {
+    // For unique-and-delete, cleanup on success, keep on failure for debugging
+    if (strategy === 'unique-and-delete' && success) {
       try {
         await this.worktreeManager.cleanupWorktree(worktreePath, true, false);
         if (this.shouldLog(interactive)) {
@@ -214,6 +214,11 @@ export class PipelineFinalizer {
           console.warn(`\n⚠️  Could not cleanup worktree: ${error instanceof Error ? error.message : String(error)}`);
           console.log(`   Worktree remains at: ${worktreePath}`);
         }
+      }
+    } else if (strategy === 'unique-per-run' && success) {
+      if (this.shouldLog(interactive)) {
+        console.log(`\n🌳 Worktree preserved at: ${worktreePath}`);
+        console.log(`   Use 'agent-pipeline cleanup --worktrees' to remove.`);
       }
     } else if (!success) {
       if (this.shouldLog(interactive)) {

@@ -3,7 +3,7 @@
 import { GitManager } from './git-manager.js';
 import { ErrorFactory } from '../utils/error-factory.js';
 
-export type BranchStrategy = 'reusable' | 'unique-per-run';
+export type BranchStrategy = 'reusable' | 'unique-per-run' | 'unique-and-delete';
 
 /**
  * Manages git branch workflows for pipeline isolation.
@@ -70,7 +70,7 @@ export class BranchManager extends GitManager {
     strategy: BranchStrategy,
     branchPrefix: string
   ): string {
-    if (strategy === 'unique-per-run') {
+    if (strategy === 'unique-per-run' || strategy === 'unique-and-delete') {
       // Include first 8 chars of runId for uniqueness
       return `${branchPrefix}/${pipelineName}/${runId.substring(0, 8)}`;
     } else {

@@ -46,7 +46,7 @@ agents:
 
 # git:
 #   baseBranch: main           # Base branch for PRs
-#   branchStrategy: reusable   # reusable | unique-per-run
+#   branchStrategy: reusable   # reusable | unique-per-run | unique-and-delete
 #   createPR: true             # Auto-create GitHub PR on completion
 
 # notifications:

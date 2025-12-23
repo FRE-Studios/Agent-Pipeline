@@ -98,7 +98,8 @@
           "type": "string",
           "enum": [
             "reusable",
-            "unique-per-run"
+            "unique-per-run",
+            "unique-and-delete"
           ]
         },
         "branchPrefix": {

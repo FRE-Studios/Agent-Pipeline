@@ -11,7 +11,7 @@ settings:
 # Git workflow configuration (required for hook install)
 git:
   baseBranch: main                  # PR base and merge target for the pipeline branch
-  branchStrategy: unique-per-run    # Avoid branch contention for hook-triggered runs
+  branchStrategy: unique-per-run    # Avoid branch contention for hook-triggered runs (use unique-and-delete to auto-cleanup)
   branchPrefix: review-pipeline     # Keeps pipeline branches easy to find/clean up
   pullRequest:
     autoCreate: false               # Keep off by default for local post-commit automation

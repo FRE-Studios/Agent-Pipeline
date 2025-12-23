@@ -72,6 +72,7 @@ definitions:
         enum:
           - reusable
           - unique-per-run
+          - unique-and-delete
       branchPrefix:
         type: string
       pullRequest:
