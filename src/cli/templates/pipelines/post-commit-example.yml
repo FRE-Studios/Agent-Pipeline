@@ -6,7 +6,6 @@ settings:
   autoCommit: true                  # Enable when agents should commit fixes after each stage
   commitPrefix: "[pipeline:{{stage}}]"  # Standardized prefix for easy commit filtering
   failureStrategy: continue         # Continue even if a stage fails
-  preserveWorkingTree: false        # Avoid stashing to keep post-commit flow fast
   executionMode: sequential         # Enforce ordered execution for dependent stages
 
 # Git workflow configuration (required for hook install)

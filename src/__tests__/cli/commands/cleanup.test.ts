@@ -7,12 +7,16 @@ import { InteractivePrompts } from '../../../cli/utils/interactive-prompts.js';
 
 // Mock dependencies
 vi.mock('../../../core/branch-manager.js');
+vi.mock('../../../core/worktree-manager.js');
 vi.mock('fs/promises');
 vi.mock('../../../cli/utils/interactive-prompts.js');
+
+import { WorktreeManager } from '../../../core/worktree-manager.js';
 
 describe('cleanupCommand', () => {
   let tempDir: string;
   let mockBranchManager: any;
+  let mockWorktreeManager: any;
   let mockFs: any;
   let mockPrompts: any;
 
@@ -25,6 +29,13 @@ describe('cleanupCommand', () => {
       deleteLocalBranch: vi.fn(),
     };
     vi.mocked(BranchManager).mockImplementation(() => mockBranchManager);
+
+    // Setup WorktreeManager mock
+    mockWorktreeManager = {
+      listPipelineWorktrees: vi.fn().mockResolvedValue([]),
+      cleanupWorktree: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(WorktreeManager).mockImplementation(() => mockWorktreeManager);
 
     // Setup fs mock
     mockFs = vi.mocked(fs);
@@ -118,7 +129,7 @@ describe('cleanupCommand', () => {
 
       await cleanupCommand(tempDir);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Run with --force to delete these branches'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Run with --force to delete these items'));
       expect(mockBranchManager.deleteLocalBranch).not.toHaveBeenCalled();
     });
 
@@ -142,7 +153,7 @@ describe('cleanupCommand', () => {
 
       await cleanupCommand(tempDir);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Example: agent-pipeline cleanup --force'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline cleanup --force'));
     });
 
     it('should actually delete with --force', async () => {
@@ -176,7 +187,7 @@ describe('cleanupCommand', () => {
 
       await cleanupCommand(tempDir, { force: true });
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🧹 Cleaning up pipeline branches...'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🧹 Cleaning up branches...'));
     });
   });
 
@@ -190,7 +201,7 @@ describe('cleanupCommand', () => {
       await cleanupCommand(tempDir, { force: true });
 
       expect(mockBranchManager.deleteLocalBranch).toHaveBeenCalledWith('pipeline/old-feature', true);
-      expect(console.log).toHaveBeenCalledWith('✅ Deleted pipeline/old-feature');
+      expect(console.log).toHaveBeenCalledWith('✅ Deleted branch: pipeline/old-feature');
     });
 
     it('should successfully delete multiple branches', async () => {
@@ -204,9 +215,9 @@ describe('cleanupCommand', () => {
       await cleanupCommand(tempDir, { force: true });
 
       expect(mockBranchManager.deleteLocalBranch).toHaveBeenCalledTimes(3);
-      expect(console.log).toHaveBeenCalledWith('✅ Deleted pipeline/branch-1');
-      expect(console.log).toHaveBeenCalledWith('✅ Deleted pipeline/branch-2');
-      expect(console.log).toHaveBeenCalledWith('✅ Deleted pipeline/branch-3');
+      expect(console.log).toHaveBeenCalledWith('✅ Deleted branch: pipeline/branch-1');
+      expect(console.log).toHaveBeenCalledWith('✅ Deleted branch: pipeline/branch-2');
+      expect(console.log).toHaveBeenCalledWith('✅ Deleted branch: pipeline/branch-3');
     });
 
     it('should handle deletion failure', async () => {
@@ -235,9 +246,9 @@ describe('cleanupCommand', () => {
 
       await cleanupCommand(tempDir, { force: true });
 
-      expect(console.log).toHaveBeenCalledWith('✅ Deleted pipeline/branch-1');
+      expect(console.log).toHaveBeenCalledWith('✅ Deleted branch: pipeline/branch-1');
       expect(console.error).toHaveBeenCalledWith(expect.stringContaining('❌ Failed to delete pipeline/branch-2'));
-      expect(console.log).toHaveBeenCalledWith('✅ Deleted pipeline/branch-3');
+      expect(console.log).toHaveBeenCalledWith('✅ Deleted branch: pipeline/branch-3');
     });
 
     it('should call deleteLocalBranch with force=true', async () => {
@@ -260,8 +271,8 @@ describe('cleanupCommand', () => {
 
       await cleanupCommand(tempDir, { force: true });
 
-      expect(console.log).toHaveBeenCalledWith('✅ Deleted pipeline/feature-a');
-      expect(console.log).toHaveBeenCalledWith('✅ Deleted pipeline/feature-b');
+      expect(console.log).toHaveBeenCalledWith('✅ Deleted branch: pipeline/feature-a');
+      expect(console.log).toHaveBeenCalledWith('✅ Deleted branch: pipeline/feature-b');
     });
 
     it('should display error message per branch', async () => {
@@ -321,7 +332,7 @@ describe('cleanupCommand', () => {
 
       await cleanupCommand(tempDir);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Run with --force to delete these branches'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Run with --force to delete these items'));
     });
 
     it('should show cleanup progress message', async () => {
@@ -332,7 +343,7 @@ describe('cleanupCommand', () => {
 
       await cleanupCommand(tempDir, { force: true });
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🧹 Cleaning up pipeline branches...'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🧹 Cleaning up branches...'));
     });
 
     it('should show completion message', async () => {
@@ -382,7 +393,7 @@ describe('cleanupCommand', () => {
       expect(console.log).toHaveBeenCalledWith('Pipeline branches to delete:');
       expect(console.log).toHaveBeenCalledWith('  - pipeline/test-1');
       expect(console.log).toHaveBeenCalledWith('  - pipeline/test-2');
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Run with --force to delete these branches'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Run with --force to delete these items'));
       expect(mockBranchManager.deleteLocalBranch).not.toHaveBeenCalled();
     });
 
@@ -397,10 +408,10 @@ describe('cleanupCommand', () => {
 
       expect(mockBranchManager.listPipelineBranches).toHaveBeenCalledWith('pipeline');
       expect(console.log).toHaveBeenCalledWith('Pipeline branches to delete:');
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🧹 Cleaning up pipeline branches...'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🧹 Cleaning up branches...'));
       expect(mockBranchManager.deleteLocalBranch).toHaveBeenCalledTimes(2);
-      expect(console.log).toHaveBeenCalledWith('✅ Deleted pipeline/old-1');
-      expect(console.log).toHaveBeenCalledWith('✅ Deleted pipeline/old-2');
+      expect(console.log).toHaveBeenCalledWith('✅ Deleted branch: pipeline/old-1');
+      expect(console.log).toHaveBeenCalledWith('✅ Deleted branch: pipeline/old-2');
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✨ Cleanup complete!'));
     });
 
@@ -415,7 +426,7 @@ describe('cleanupCommand', () => {
 
       await cleanupCommand(tempDir, { force: true });
 
-      expect(console.log).toHaveBeenCalledWith('✅ Deleted pipeline/success');
+      expect(console.log).toHaveBeenCalledWith('✅ Deleted branch: pipeline/success');
       expect(console.error).toHaveBeenCalledWith(expect.stringContaining('❌ Failed to delete pipeline/failure'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✨ Cleanup complete!'));
     });

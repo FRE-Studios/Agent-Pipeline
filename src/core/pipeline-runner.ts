@@ -55,7 +55,6 @@ export class PipelineRunner {
     // Initialize orchestration components
     this.initializer = new PipelineInitializer(
       this.gitManager,
-      this.branchManager,
       this.repoPath,
       this.dryRun,
       this.runtime

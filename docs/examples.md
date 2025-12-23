@@ -26,7 +26,7 @@ Agent Pipeline ships with two ready-to-run examples. Run `agent-pipeline init` t
 **Features**:
 - True parallel execution with DAG dependencies
 - Design diversity from the same requirements
-- `preserveWorkingTree: true` - no git changes during exploration
+- Worktree isolation - your working directory stays untouched
 - `autoCommit: false` - exploration mode
 
 Run it with:

@@ -2,7 +2,6 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { GitManager } from './git-manager.js';
-import { BranchManager } from './branch-manager.js';
 import { WorktreeManager } from './worktree-manager.js';
 import { StageExecutor } from './stage-executor.js';
 import { ParallelExecutor } from './parallel-executor.js';
@@ -29,7 +28,6 @@ export class PipelineInitializer {
 
   constructor(
     private gitManager: GitManager,
-    private branchManager: BranchManager,
     private repoPath: string,
     private dryRun: boolean,
     private runtime: AgentRuntime

@@ -104,7 +104,6 @@ settings:
   autoCommit: true
   commitPrefix: "[pipeline:{{stage}}]"
   failureStrategy: continue
-  preserveWorkingTree: false
 
 agents:
   - name: code-review

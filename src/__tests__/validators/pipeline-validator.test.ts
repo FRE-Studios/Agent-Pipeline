@@ -628,47 +628,49 @@ describe('PipelineValidator', () => {
       });
     });
 
-    describe('validateGitWorkingTree', () => {
-      it('should skip when preserveWorkingTree is not false', async () => {
+    describe('validateDeprecatedSettings', () => {
+      it('should warn when deprecated preserveWorkingTree is set to true', async () => {
         const config: PipelineConfig = {
           ...simplePipelineConfig,
           settings: {
-            preserveWorkingTree: true
+            ...simplePipelineConfig.settings,
           }
         };
+        // Cast to add deprecated setting
+        (config.settings as any).preserveWorkingTree = true;
 
         const errors = await validator.validate(config, tempDir);
 
-        const workingTreeWarnings = errors.filter(e =>
+        const deprecationWarnings = errors.filter(e =>
           e.field === 'settings.preserveWorkingTree' && e.severity === 'warning'
         );
-        expect(workingTreeWarnings).toHaveLength(0);
+        expect(deprecationWarnings).toHaveLength(1);
+        expect(deprecationWarnings[0].message).toContain('deprecated');
       });
 
-      it('should skip when git config is not present', async () => {
+      it('should warn when deprecated preserveWorkingTree is set to false', async () => {
         const config: PipelineConfig = {
           ...simplePipelineConfig,
           settings: {
-            preserveWorkingTree: false
+            ...simplePipelineConfig.settings,
           }
-          // git is omitted
         };
+        // Cast to add deprecated setting
+        (config.settings as any).preserveWorkingTree = false;
 
         const errors = await validator.validate(config, tempDir);
 
-        const workingTreeWarnings = errors.filter(e =>
+        const deprecationWarnings = errors.filter(e =>
           e.field === 'settings.preserveWorkingTree' && e.severity === 'warning'
         );
-        expect(workingTreeWarnings).toHaveLength(0);
+        expect(deprecationWarnings).toHaveLength(1);
+        expect(deprecationWarnings[0].message).toContain('deprecated');
       });
 
-      it('should not warn when working tree is clean (default mock behavior)', async () => {
-        // Default mock simulates clean working tree
+      it('should not warn when preserveWorkingTree is not present', async () => {
+        // Config without deprecated setting
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: {
-            preserveWorkingTree: false
-          },
           git: {
             pullRequest: {
               autoCreate: false
@@ -678,11 +680,10 @@ describe('PipelineValidator', () => {
 
         const errors = await validator.validate(config, tempDir);
 
-        const workingTreeWarnings = errors.filter(e =>
-          e.field === 'settings.preserveWorkingTree' &&
-          e.message.includes('Uncommitted changes')
+        const deprecationWarnings = errors.filter(e =>
+          e.field === 'settings.preserveWorkingTree'
         );
-        expect(workingTreeWarnings).toHaveLength(0);
+        expect(deprecationWarnings).toHaveLength(0);
       });
     });
   });

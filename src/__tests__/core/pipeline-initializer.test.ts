@@ -12,10 +12,13 @@ import { ParallelExecutor } from '../../core/parallel-executor.js';
 // Mock dependencies
 vi.mock('../../core/git-manager.js');
 vi.mock('../../core/branch-manager.js');
+vi.mock('../../core/worktree-manager.js');
 vi.mock('../../core/handover-manager.js');
 vi.mock('../../core/stage-executor.js');
 vi.mock('../../core/parallel-executor.js');
 vi.mock('../../notifications/notification-manager.js');
+
+import { WorktreeManager } from '../../core/worktree-manager.js';
 
 // Helper to create mock runtime
 function createMockRuntime() {
@@ -77,9 +80,18 @@ describe('PipelineInitializer', () => {
       buildContextMessage: vi.fn().mockReturnValue('')
     }));
 
+    // Setup WorktreeManager mock
+    vi.mocked(WorktreeManager).mockImplementation(() => ({
+      setupPipelineWorktree: vi.fn().mockResolvedValue({
+        worktreePath: '/test/repo/.agent-pipeline/worktrees/test-pipeline',
+        branchName: 'pipeline/test-pipeline'
+      }),
+      cleanupWorktree: vi.fn().mockResolvedValue(undefined),
+      listPipelineWorktrees: vi.fn().mockResolvedValue([]),
+    } as unknown as WorktreeManager));
+
     initializer = new PipelineInitializer(
       mockGitManager,
-      mockBranchManager,
       '/test/repo',
       false,
       mockRuntime as any
@@ -160,7 +172,7 @@ describe('PipelineInitializer', () => {
       expect(result.notificationManager).toBe(providedManager);
     });
 
-    it('should save original branch', async () => {
+    it('should return execution repo path', async () => {
       const result = await initializer.initialize(
         mockConfig,
         { interactive: false },
@@ -168,11 +180,11 @@ describe('PipelineInitializer', () => {
         mockStateChangeCallback
       );
 
-      expect(result.originalBranch).toBe('main');
-      expect(mockBranchManager.getCurrentBranch).toHaveBeenCalled();
+      // When no git config, executes in main repo
+      expect(result.executionRepoPath).toBe('/test/repo');
     });
 
-    it('should setup pipeline branch when git config exists', async () => {
+    it('should setup worktree when git config exists', async () => {
       const configWithGit = {
         ...mockConfig,
         git: {
@@ -182,8 +194,6 @@ describe('PipelineInitializer', () => {
         }
       };
 
-      vi.spyOn(mockBranchManager, 'setupPipelineBranch').mockResolvedValue('pipeline/test-pipeline');
-
       const result = await initializer.initialize(
         configWithGit,
         { interactive: false },
@@ -192,13 +202,8 @@ describe('PipelineInitializer', () => {
       );
 
       expect(result.pipelineBranch).toBe('pipeline/test-pipeline');
-      expect(mockBranchManager.setupPipelineBranch).toHaveBeenCalledWith(
-        'test-pipeline',
-        expect.any(String), // runId
-        'develop',
-        'reusable',
-        'pipeline'
-      );
+      expect(result.worktreePath).toBe('/test/repo/.agent-pipeline/worktrees/test-pipeline');
+      expect(result.executionRepoPath).toBe('/test/repo/.agent-pipeline/worktrees/test-pipeline');
     });
 
     it('should not setup branch when git config is missing', async () => {
@@ -215,7 +220,6 @@ describe('PipelineInitializer', () => {
     it('should not setup branch in dry run mode', async () => {
       const dryRunInitializer = new PipelineInitializer(
         mockGitManager,
-        mockBranchManager,
         '/test/repo',
         true, // dryRun = true
         mockRuntime as any
@@ -251,14 +255,15 @@ describe('PipelineInitializer', () => {
         mockStateChangeCallback
       );
 
-      // StageExecutor constructor: (gitManager, dryRun, handoverManager, defaultRuntime?, loopContext?, repoPath?)
+      // StageExecutor constructor: (gitManager, dryRun, handoverManager, defaultRuntime, loopContext, repoPath, executionRepoPath)
       expect(stageExecutorMock).toHaveBeenCalledWith(
         mockGitManager,
         false,  // dryRun
         expect.any(Object),  // handoverManager
         expect.any(Object),  // defaultRuntime (the runtime passed to PipelineInitializer)
         undefined,  // loopContext (not provided in this test)
-        '/test/repo'  // repoPath
+        '/test/repo',  // repoPath (for file-driven instruction loading)
+        '/test/repo'   // executionRepoPath (where agents execute)
       );
       expect(result.stageExecutor).toBe(stageExecutorMock.mock.instances[0]);
 
@@ -351,7 +356,6 @@ describe('PipelineInitializer', () => {
     it('should log dry run message when enabled', async () => {
       const dryRunInitializer = new PipelineInitializer(
         mockGitManager,
-        mockBranchManager,
         '/test/repo',
         true,
         mockRuntime as any
@@ -374,25 +378,19 @@ describe('PipelineInitializer', () => {
     it('should use default git branch settings when not specified', async () => {
       const configWithGit = {
         ...mockConfig,
-        git: {} // Empty git config
+        git: {} // Empty git config - should use defaults
       };
 
-      vi.spyOn(mockBranchManager, 'setupPipelineBranch').mockResolvedValue('pipeline/test-pipeline');
-
-      await initializer.initialize(
+      const result = await initializer.initialize(
         configWithGit,
         { interactive: false },
         mockNotifyCallback,
         mockStateChangeCallback
       );
 
-      expect(mockBranchManager.setupPipelineBranch).toHaveBeenCalledWith(
-        'test-pipeline',
-        expect.any(String),
-        'main', // default baseBranch
-        'reusable', // default branchStrategy
-        'pipeline' // default branchPrefix
-      );
+      // With empty git config, worktree is still set up with default values
+      expect(result.worktreePath).toBeDefined();
+      expect(result.pipelineBranch).toBe('pipeline/test-pipeline');
     });
   });
 });

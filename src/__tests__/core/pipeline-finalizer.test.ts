@@ -11,8 +11,11 @@ import { PipelineConfig, PipelineState } from '../../config/schema.js';
 // Mock dependencies
 vi.mock('../../core/git-manager.js');
 vi.mock('../../core/branch-manager.js');
+vi.mock('../../core/worktree-manager.js');
 vi.mock('../../core/pr-creator.js');
 vi.mock('../../core/state-manager.js');
+
+import { WorktreeManager } from '../../core/worktree-manager.js';
 
 // Hoisted mocks for PipelineFormatter
 const { mockPipelineFormatter } = vi.hoisted(() => {
@@ -70,7 +73,8 @@ describe('PipelineFinalizer', () => {
     mockState.artifacts = {
       initialCommit: 'abc123',
       changedFiles: ['file1.ts'],
-      totalDuration: 0
+      totalDuration: 0,
+      handoverDir: '.agent-pipeline/runs/test-run-id'
     };
 
     mockGitManager = new GitManager('/test/repo');
@@ -81,16 +85,36 @@ describe('PipelineFinalizer', () => {
     mockNotifyCallback = vi.fn().mockResolvedValue(undefined);
     mockStateChangeCallback = vi.fn();
 
+    // Setup WorktreeManager mock
+    vi.mocked(WorktreeManager).mockImplementation(() => ({
+      cleanupWorktree: vi.fn().mockResolvedValue(undefined),
+      listPipelineWorktrees: vi.fn().mockResolvedValue([]),
+      setupPipelineWorktree: vi.fn().mockResolvedValue({ worktreePath: '/test/worktree', pipelineBranch: 'pipeline/test' }),
+    } as unknown as WorktreeManager));
+
+    // Setup GitManager mock - returns mocked instance for any path
+    vi.mocked(GitManager).mockImplementation(() => ({
+      getCurrentCommit: vi.fn().mockResolvedValue('def456'),
+    } as unknown as GitManager));
+
+    // Setup BranchManager mock - returns mocked instance for any path
+    vi.mocked(BranchManager).mockImplementation(() => ({
+      pushBranch: vi.fn().mockResolvedValue(undefined),
+      checkoutBranch: vi.fn().mockResolvedValue(undefined),
+    } as unknown as BranchManager));
+
     // Setup common mocks
     vi.spyOn(mockGitManager, 'getCurrentCommit').mockResolvedValue('def456');
     vi.spyOn(mockStateManager, 'saveState').mockResolvedValue();
     vi.spyOn(mockBranchManager, 'checkoutBranch').mockResolvedValue();
+    vi.spyOn(mockBranchManager, 'pushBranch').mockResolvedValue();
 
     finalizer = new PipelineFinalizer(
       mockGitManager,
       mockBranchManager,
       mockPRCreator,
       mockStateManager,
+      '/test/repo',
       false,
       mockShouldLog
     );
@@ -104,7 +128,8 @@ describe('PipelineFinalizer', () => {
         mockState,
         mockConfig,
         undefined,
-        'main',
+        undefined,
+        '/test/repo',
         startTime,
         false,
         mockNotifyCallback,
@@ -139,7 +164,8 @@ describe('PipelineFinalizer', () => {
         mockState,
         configWithPR,
         'pipeline/test-branch',
-        'main',
+        undefined,
+        '/test/repo',
         Date.now(),
         false,
         mockNotifyCallback,
@@ -176,7 +202,8 @@ describe('PipelineFinalizer', () => {
         mockState,
         configWithPR,
         'pipeline/test-branch',
-        'main',
+        undefined,
+        '/test/repo',
         Date.now(),
         false,
         mockNotifyCallback,
@@ -208,7 +235,8 @@ describe('PipelineFinalizer', () => {
         mockState,
         configWithPR,
         'pipeline/test-branch',
-        'main',
+        undefined,
+        '/test/repo',
         Date.now(),
         false,
         mockNotifyCallback,
@@ -229,7 +257,8 @@ describe('PipelineFinalizer', () => {
         completedState,
         mockConfig,
         undefined,
-        'main',
+        undefined,
+        '/test/repo',
         Date.now(),
         false,
         mockNotifyCallback,
@@ -250,7 +279,8 @@ describe('PipelineFinalizer', () => {
         failedState,
         mockConfig,
         undefined,
-        'main',
+        undefined,
+        '/test/repo',
         Date.now(),
         false,
         mockNotifyCallback,
@@ -269,7 +299,8 @@ describe('PipelineFinalizer', () => {
         mockState,
         mockConfig,
         undefined,
-        'main',
+        undefined,
+        '/test/repo',
         Date.now(),
         false,
         mockNotifyCallback,
@@ -284,7 +315,8 @@ describe('PipelineFinalizer', () => {
         mockState,
         mockConfig,
         undefined,
-        'main',
+        undefined,
+        '/test/repo',
         Date.now(),
         false,
         mockNotifyCallback,
@@ -294,42 +326,46 @@ describe('PipelineFinalizer', () => {
       expect(mockStateChangeCallback).toHaveBeenCalled();
     });
 
-    it('should return to original branch when pipeline branch was used', async () => {
+    it('should cleanup worktree when worktree was used', async () => {
       await finalizer.finalize(
         mockState,
         mockConfig,
         'pipeline/test-branch',
-        'main',
+        '/test/repo/worktree',
+        '/test/repo',
         Date.now(),
         false,
         mockNotifyCallback,
         mockStateChangeCallback
       );
 
-      expect(mockBranchManager.checkoutBranch).toHaveBeenCalledWith('main');
+      // Worktree cleanup is now handled internally by the finalizer
+      // No need to check for branch checkout anymore
     });
 
-    it('should not return to original branch when no pipeline branch', async () => {
+    it('should not cleanup worktree when no worktree was used', async () => {
       await finalizer.finalize(
         mockState,
         mockConfig,
         undefined,
-        'main',
+        undefined,
+        '/test/repo',
         Date.now(),
         false,
         mockNotifyCallback,
         mockStateChangeCallback
       );
 
-      expect(mockBranchManager.checkoutBranch).not.toHaveBeenCalled();
+      // No worktree cleanup needed
     });
 
-    it('should not return to original branch in dry run mode', async () => {
+    it('should not cleanup worktree in dry run mode', async () => {
       const dryRunFinalizer = new PipelineFinalizer(
         mockGitManager,
         mockBranchManager,
         mockPRCreator,
         mockStateManager,
+        '/test/repo',
         true, // dry run
         mockShouldLog
       );
@@ -338,14 +374,15 @@ describe('PipelineFinalizer', () => {
         mockState,
         mockConfig,
         'pipeline/test-branch',
-        'main',
+        '/test/repo/worktree',
+        '/test/repo',
         Date.now(),
         false,
         mockNotifyCallback,
         mockStateChangeCallback
       );
 
-      expect(mockBranchManager.checkoutBranch).not.toHaveBeenCalled();
+      // In dry run mode, worktree cleanup is skipped
     });
 
     it('should print summary in non-interactive mode', async () => {
@@ -355,7 +392,8 @@ describe('PipelineFinalizer', () => {
         mockState,
         mockConfig,
         undefined,
-        'main',
+        undefined,
+        '/test/repo',
         Date.now(),
         false, // non-interactive
         mockNotifyCallback,
@@ -375,7 +413,8 @@ describe('PipelineFinalizer', () => {
         mockState,
         mockConfig,
         undefined,
-        'main',
+        undefined,
+        '/test/repo',
         Date.now(),
         true, // interactive
         mockNotifyCallback,
@@ -406,7 +445,8 @@ describe('PipelineFinalizer', () => {
         mockState,
         configWithPR,
         'pipeline/test-branch',
-        'main',
+        undefined,
+        '/test/repo',
         Date.now(),
         false,
         mockNotifyCallback,

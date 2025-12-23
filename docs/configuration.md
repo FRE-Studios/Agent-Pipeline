@@ -14,7 +14,6 @@ settings:
   autoCommit: true                   # Automatically commit stage changes
   commitPrefix: "[pipeline:{{stage}}]"
   failureStrategy: continue          # stop or continue
-  preserveWorkingTree: false         # Stash and restore local changes
   executionMode: parallel            # parallel (default) or sequential
   claudeAgent:                       # Optional: Claude Agent SDK settings
     model: sonnet                    # haiku, sonnet, or opus
@@ -69,8 +68,29 @@ agents:
 
 - `autoCommit`: stage executor commits any file changes when `true`.
 - `failureStrategy`: controls how the pipeline reacts to a failed stage (`stop` or `continue`). Individual stages can override via `onFail` (`stop`, `continue`, or `warn`).
-- `preserveWorkingTree`: stashes uncommitted changes before the run and restores them after completion.
 - `executionMode`: `parallel` (default) uses the DAG planner to execute independent groups simultaneously; `sequential` forces one stage at a time.
+
+### Worktree Isolation
+
+When a pipeline has a `git` configuration, it automatically executes in a dedicated git worktree. This means:
+
+- Your working directory remains completely untouched during pipeline execution
+- No stashing or restoring of uncommitted changes needed
+- Each pipeline run operates in isolation at `.agent-pipeline/worktrees/<pipeline-name>/`
+- Original branch and working tree are preserved throughout
+
+You can customize the worktree location via settings:
+
+```yaml
+settings:
+  worktree:
+    directory: custom-worktrees   # Custom worktree base directory (relative to repo root)
+```
+
+Worktrees are cleaned up automatically after successful runs. Use `agent-pipeline cleanup` to remove stale worktrees.
+
+### Permission Control
+
 - `permissionMode`: controls how agents handle file operations and permissions. Options:
   - `default`: Prompts for permission based on `.claude/settings.json` rules (interactive workflows)
   - `acceptEdits` (default): Auto-accepts file edits (Write, Edit tools) while respecting allow/deny rules (automated workflows)

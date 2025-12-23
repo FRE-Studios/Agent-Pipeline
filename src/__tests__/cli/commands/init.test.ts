@@ -135,7 +135,6 @@ describe('initCommand', () => {
         expect(parsed.trigger).toBe('manual');
         expect(parsed.settings.executionMode).toBe('parallel');
         expect(parsed.settings.autoCommit).toBe(false);
-        expect(parsed.settings.preserveWorkingTree).toBe(true);
         expect(parsed.agents).toHaveLength(8);
       });
 

@@ -67,7 +67,7 @@ trigger: manual
 ## Rollback and Cleanup
 
 - `rollback [--run-id <id>] [--stages <n>]` – Uses `GitManager` to reset to the starting commit or roll back the last N stage commits. Prompts for confirmation before resetting HEAD.
-- `cleanup [--pipeline <name>] [--force] [--delete-logs]` – Deletes branches created via `BranchManager`. Without `--force`, it prints the branches that would be removed.
+- `cleanup [--pipeline <name>] [--force] [--delete-logs]` – Deletes pipeline branches and worktrees. Without `--force`, it shows what would be removed. Includes worktrees from `.agent-pipeline/worktrees/`.
 
 ## Notifications
 

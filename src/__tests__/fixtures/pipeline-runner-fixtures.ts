@@ -10,7 +10,6 @@ export const gitWorkflowPipelineConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
     executionMode: 'parallel',
   },
   git: {
@@ -54,7 +53,6 @@ export const notificationPipelineConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   notifications: {
     enabled: true,
@@ -81,7 +79,6 @@ export const disabledStagesPipelineConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -106,7 +103,6 @@ export const failureStrategyWarnConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'continue',
-    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -129,7 +125,6 @@ export const stageFailureOverrideConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'continue',
-    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -155,7 +150,6 @@ export const sequentialExecutionConfig: PipelineConfig = {
     commitPrefix: '[pipeline:{{stage}}]',
     executionMode: 'sequential',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   agents: [
     {

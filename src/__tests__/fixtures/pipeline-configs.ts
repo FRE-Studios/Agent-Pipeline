@@ -10,7 +10,6 @@ export const simplePipelineConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -37,7 +36,6 @@ export const parallelPipelineConfig: PipelineConfig = {
     commitPrefix: '[pipeline:{{stage}}]',
     executionMode: 'parallel',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -71,7 +69,6 @@ export const conditionalPipelineConfig: PipelineConfig = {
     commitPrefix: '[pipeline:{{stage}}]',
     executionMode: 'parallel',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -101,7 +98,6 @@ export const retryPipelineConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -192,7 +188,6 @@ export const gitWorkflowConfig: PipelineConfig = {
     commitPrefix: '[pipeline:{{stage}}]',
     executionMode: 'parallel',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   git: {
     baseBranch: 'main',
@@ -230,7 +225,6 @@ export const notificationConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   notifications: {
     enabled: true,
@@ -269,7 +263,6 @@ export const sdkOnlyPipelineConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -302,7 +295,6 @@ export const headlessOnlyPipelineConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -335,7 +327,6 @@ export const mixedRuntimePipelineConfig: PipelineConfig = {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   agents: [
     {
@@ -375,7 +366,6 @@ export const parallelMixedPipelineConfig: PipelineConfig = {
     commitPrefix: '[pipeline:{{stage}}]',
     executionMode: 'parallel',
     failureStrategy: 'stop',
-    preserveWorkingTree: false,
   },
   agents: [
     {

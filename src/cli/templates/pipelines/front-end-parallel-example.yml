@@ -9,7 +9,6 @@ settings:
   autoCommit: false
   commitPrefix: "[design-exploration:{{stage}}]"
   failureStrategy: continue  # Keep going even if one design agent fails
-  preserveWorkingTree: true
   executionMode: parallel  # Enable DAG-based parallelism
   handover:
     directory: pipeline-runs/front-end-parallel-example
