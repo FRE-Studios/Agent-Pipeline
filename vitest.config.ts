@@ -19,6 +19,8 @@ export default defineConfig({
         'src/index.ts', // CLI entry point - tested via integration
         'src/ui/**', // React components - would need separate UI testing
         'src/cli/commands/history.ts', // React component
+        'src/config/schema.ts', // Pure type definitions - no runtime code
+        'src/notifications/types.ts', // Pure type definitions - no runtime code
       ],
       include: ['src/**/*.ts'],
       lines: 80,

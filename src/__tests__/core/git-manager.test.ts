@@ -802,4 +802,443 @@ describe('GitManager', () => {
       );
     });
   });
+
+  describe('listWorktrees', () => {
+    it('should return empty array when no worktrees exist', async () => {
+      mockGit.raw.mockResolvedValue('');
+
+      const result = await gitManager.listWorktrees();
+
+      expect(mockGit.raw).toHaveBeenCalledWith(['worktree', 'list', '--porcelain']);
+      expect(result).toEqual([]);
+    });
+
+    it('should parse single worktree entry', async () => {
+      const porcelainOutput = `worktree /path/to/repo
+HEAD abc123def456
+branch refs/heads/main
+`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.listWorktrees();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        path: '/path/to/repo',
+        head: 'abc123def456',
+        branch: 'main',
+        bare: undefined,
+        detached: undefined,
+      });
+    });
+
+    it('should parse multiple worktree entries', async () => {
+      const porcelainOutput = `worktree /path/to/main
+HEAD abc123
+branch refs/heads/main
+
+worktree /path/to/feature
+HEAD def456
+branch refs/heads/feature-branch`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.listWorktrees();
+
+      expect(result).toHaveLength(2);
+      expect(result[0].path).toBe('/path/to/main');
+      expect(result[0].branch).toBe('main');
+      expect(result[1].path).toBe('/path/to/feature');
+      expect(result[1].branch).toBe('feature-branch');
+    });
+
+    it('should handle bare repository entry', async () => {
+      const porcelainOutput = `worktree /path/to/bare.git
+HEAD abc123
+bare`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.listWorktrees();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].bare).toBe(true);
+      expect(result[0].branch).toBe('');
+    });
+
+    it('should handle detached HEAD state', async () => {
+      const porcelainOutput = `worktree /path/to/repo
+HEAD abc123def456
+detached`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.listWorktrees();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].detached).toBe(true);
+      expect(result[0].branch).toBe('');
+    });
+
+    it('should strip refs/heads/ prefix from branch names', async () => {
+      const porcelainOutput = `worktree /path/to/repo
+HEAD abc123
+branch refs/heads/feature/nested-branch`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.listWorktrees();
+
+      expect(result[0].branch).toBe('feature/nested-branch');
+    });
+
+    it('should skip entries without path or HEAD', async () => {
+      const porcelainOutput = `worktree /valid/path
+HEAD abc123
+branch refs/heads/main
+
+HEAD def456
+branch refs/heads/orphan`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.listWorktrees();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].path).toBe('/valid/path');
+    });
+
+    it('should handle git raw error', async () => {
+      mockGit.raw.mockRejectedValue(new Error('Not a git repository'));
+
+      await expect(gitManager.listWorktrees()).rejects.toThrow('Not a git repository');
+    });
+  });
+
+  describe('isBranchCheckedOut', () => {
+    it('should return path when branch is checked out', async () => {
+      const porcelainOutput = `worktree /path/to/repo
+HEAD abc123
+branch refs/heads/main
+
+worktree /path/to/feature
+HEAD def456
+branch refs/heads/feature-branch`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.isBranchCheckedOut('feature-branch');
+
+      expect(result).toBe('/path/to/feature');
+    });
+
+    it('should return null when branch is not checked out', async () => {
+      const porcelainOutput = `worktree /path/to/repo
+HEAD abc123
+branch refs/heads/main`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.isBranchCheckedOut('non-existent-branch');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return path for main worktree', async () => {
+      const porcelainOutput = `worktree /path/to/repo
+HEAD abc123
+branch refs/heads/main`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.isBranchCheckedOut('main');
+
+      expect(result).toBe('/path/to/repo');
+    });
+
+    it('should return null for detached HEAD worktrees', async () => {
+      const porcelainOutput = `worktree /path/to/repo
+HEAD abc123
+detached`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.isBranchCheckedOut('any-branch');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('worktreeExists', () => {
+    it('should return true when worktree exists at path', async () => {
+      const porcelainOutput = `worktree /path/to/repo
+HEAD abc123
+branch refs/heads/main
+
+worktree /path/to/worktree
+HEAD def456
+branch refs/heads/feature`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.worktreeExists('/path/to/worktree');
+
+      expect(result).toBe(true);
+    });
+
+    it('should return false when worktree does not exist', async () => {
+      const porcelainOutput = `worktree /path/to/repo
+HEAD abc123
+branch refs/heads/main`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.worktreeExists('/non/existent/path');
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false for empty worktree list', async () => {
+      mockGit.raw.mockResolvedValue('');
+
+      const result = await gitManager.worktreeExists('/any/path');
+
+      expect(result).toBe(false);
+    });
+
+    it('should match exact path only', async () => {
+      const porcelainOutput = `worktree /path/to/repo
+HEAD abc123
+branch refs/heads/main`;
+
+      mockGit.raw.mockResolvedValue(porcelainOutput);
+
+      const result = await gitManager.worktreeExists('/path/to');
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('createWorktree', () => {
+    beforeEach(() => {
+      // Default: no worktrees checked out, branch doesn't exist
+      mockGit.raw.mockResolvedValue('');
+      mockGit.branchLocal = vi.fn().mockResolvedValue({ all: [] });
+    });
+
+    it('should create worktree with new branch from remote base', async () => {
+      mockGit.raw
+        .mockResolvedValueOnce('') // listWorktrees (empty)
+        .mockResolvedValueOnce(undefined); // worktree add
+
+      mockGit.branchLocal.mockResolvedValue({ all: [] });
+
+      await gitManager.createWorktree('/path/to/worktree', 'new-branch', 'main');
+
+      expect(mockGit.raw).toHaveBeenCalledWith([
+        'worktree', 'add', '-b', 'new-branch', '/path/to/worktree', 'origin/main'
+      ]);
+    });
+
+    it('should fallback to local base branch if remote fails', async () => {
+      mockGit.raw
+        .mockResolvedValueOnce('') // listWorktrees
+        .mockRejectedValueOnce(new Error('Remote not found')) // remote base fails
+        .mockResolvedValueOnce(undefined); // local base succeeds
+
+      mockGit.branchLocal.mockResolvedValue({ all: [] });
+
+      await gitManager.createWorktree('/path/to/worktree', 'new-branch', 'main');
+
+      expect(mockGit.raw).toHaveBeenCalledWith([
+        'worktree', 'add', '-b', 'new-branch', '/path/to/worktree', 'main'
+      ]);
+    });
+
+    it('should use existing branch without -b flag', async () => {
+      mockGit.raw
+        .mockResolvedValueOnce('') // listWorktrees
+        .mockResolvedValueOnce(undefined); // worktree add
+
+      mockGit.branchLocal.mockResolvedValue({ all: ['existing-branch', 'main'] });
+
+      await gitManager.createWorktree('/path/to/worktree', 'existing-branch');
+
+      expect(mockGit.raw).toHaveBeenCalledWith([
+        'worktree', 'add', '/path/to/worktree', 'existing-branch'
+      ]);
+    });
+
+    it('should throw if branch is already checked out', async () => {
+      const porcelainOutput = `worktree /existing/worktree
+HEAD abc123
+branch refs/heads/feature-branch`;
+
+      mockGit.raw.mockResolvedValueOnce(porcelainOutput);
+
+      await expect(
+        gitManager.createWorktree('/new/path', 'feature-branch')
+      ).rejects.toThrow("Branch 'feature-branch' is already checked out at '/existing/worktree'");
+    });
+
+    it('should throw with helpful message when branch checkout fails', async () => {
+      mockGit.raw
+        .mockResolvedValueOnce('') // listWorktrees
+        .mockRejectedValueOnce(new Error('fatal: invalid reference'));
+
+      mockGit.branchLocal.mockResolvedValue({ all: ['existing-branch'] });
+
+      await expect(
+        gitManager.createWorktree('/path/to/worktree', 'existing-branch')
+      ).rejects.toThrow("Failed to add worktree for existing branch 'existing-branch'");
+    });
+
+    it('should throw with helpful message when new branch creation fails', async () => {
+      mockGit.raw
+        .mockResolvedValueOnce('') // listWorktrees
+        .mockRejectedValueOnce(new Error('Remote not found'))
+        .mockRejectedValueOnce(new Error('fatal: branch already exists'));
+
+      mockGit.branchLocal.mockResolvedValue({ all: [] });
+
+      await expect(
+        gitManager.createWorktree('/path/to/worktree', 'new-branch', 'main')
+      ).rejects.toThrow("Failed to create worktree with new branch 'new-branch' from base 'main'");
+    });
+
+    it('should use default base branch when not specified', async () => {
+      mockGit.raw
+        .mockResolvedValueOnce('') // listWorktrees
+        .mockResolvedValueOnce(undefined); // worktree add
+
+      mockGit.branchLocal.mockResolvedValue({ all: [] });
+
+      await gitManager.createWorktree('/path/to/worktree', 'new-branch');
+
+      expect(mockGit.raw).toHaveBeenCalledWith([
+        'worktree', 'add', '-b', 'new-branch', '/path/to/worktree', 'origin/main'
+      ]);
+    });
+  });
+
+  describe('removeWorktree', () => {
+    it('should remove worktree without force flag', async () => {
+      mockGit.raw.mockResolvedValue(undefined);
+
+      await gitManager.removeWorktree('/path/to/worktree');
+
+      expect(mockGit.raw).toHaveBeenCalledWith([
+        'worktree', 'remove', '/path/to/worktree'
+      ]);
+    });
+
+    it('should remove worktree with force flag', async () => {
+      mockGit.raw.mockResolvedValue(undefined);
+
+      await gitManager.removeWorktree('/path/to/worktree', true);
+
+      expect(mockGit.raw).toHaveBeenCalledWith([
+        'worktree', 'remove', '/path/to/worktree', '--force'
+      ]);
+    });
+
+    it('should throw on removal failure', async () => {
+      mockGit.raw.mockRejectedValue(new Error('Worktree has uncommitted changes'));
+
+      await expect(
+        gitManager.removeWorktree('/path/to/dirty/worktree')
+      ).rejects.toThrow('Worktree has uncommitted changes');
+    });
+
+    it('should throw when worktree does not exist', async () => {
+      mockGit.raw.mockRejectedValue(new Error("'/non/existent' is not a working tree"));
+
+      await expect(
+        gitManager.removeWorktree('/non/existent')
+      ).rejects.toThrow("is not a working tree");
+    });
+  });
+
+  describe('pruneWorktrees', () => {
+    it('should call git worktree prune', async () => {
+      mockGit.raw.mockResolvedValue(undefined);
+
+      await gitManager.pruneWorktrees();
+
+      expect(mockGit.raw).toHaveBeenCalledWith(['worktree', 'prune']);
+    });
+
+    it('should handle prune error', async () => {
+      mockGit.raw.mockRejectedValue(new Error('Prune failed'));
+
+      await expect(gitManager.pruneWorktrees()).rejects.toThrow('Prune failed');
+    });
+  });
+
+  describe('getChangedFiles - additional edge cases', () => {
+    it('should throw error with suggestion for non-recoverable diff failure', async () => {
+      mockGit.diff.mockRejectedValue(new Error('fatal: repository corrupt'));
+
+      await expect(gitManager.getChangedFiles('abc123')).rejects.toThrow();
+    });
+
+    it('should use suggestion from ErrorFactory when available', async () => {
+      // Simulate an error that doesn't match the first-commit patterns
+      const error = new Error('permission denied');
+      mockGit.diff.mockRejectedValue(error);
+
+      await expect(gitManager.getChangedFiles('abc123')).rejects.toThrow('permission denied');
+    });
+  });
+
+  describe('createPipelineCommit - additional edge cases', () => {
+    beforeEach(() => {
+      mockGit.add.mockResolvedValue(undefined);
+      mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
+        isClean: () => false,
+      });
+      mockGit.commit.mockResolvedValue({ commit: 'new-sha' });
+      mockGit.log.mockResolvedValue({
+        latest: { hash: 'pipeline-commit-sha' },
+      });
+    });
+
+    it('should not add extra separator when commitPrefix ends with space', async () => {
+      mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
+        isClean: () => false,
+      });
+
+      await gitManager.createPipelineCommit(
+        'test-stage',
+        'run-123',
+        'Custom message',
+        '[custom:{{stage}}] ' // Note: ends with space
+      );
+
+      const commitCall = mockGit.commit.mock.calls[0][0];
+      expect(commitCall).toContain('[custom:test-stage] Custom message');
+      // Should not have double space
+      expect(commitCall).not.toContain('[custom:test-stage]  Custom message');
+    });
+
+    it('should add separator when commitPrefix does not end with space', async () => {
+      mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
+        isClean: () => false,
+      });
+
+      await gitManager.createPipelineCommit(
+        'test-stage',
+        'run-123',
+        'Custom message',
+        '[custom:{{stage}}]' // Note: no trailing space
+      );
+
+      const commitCall = mockGit.commit.mock.calls[0][0];
+      expect(commitCall).toContain('[custom:test-stage] Custom message');
+    });
+  });
 });
