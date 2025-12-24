@@ -9,7 +9,7 @@ Agent Pipeline delivers an agent-driven CI/CD workflow with full visibility. Exe
 ## Features
 
 - **Pipeline orchestration** – `PipelineRunner` combines DAG planning, conditional gating, and per-stage retries backed by `RetryHandler`.
-- **Git workflow automation** – `BranchManager` and `PRCreator` isolate work on dedicated branches and open PRs via GitHub CLI.
+- **Git workflow automation** – Worktrees isolate runs by default, while `BranchManager` and `PRCreator` manage dedicated branches and PRs.
 - **State & context management** – `StateManager` persists run history while `HandoverManager` enables filesystem-based communication between stages.
 - **Model flexibility** – Mix Haiku, Sonnet, and Opus models per stage for cost optimization (up to 90% savings on simple tasks).
 - **Cost controls** – Set `maxTurns` and `maxThinkingTokens` to prevent runaway agents and enable deep reasoning when needed.
@@ -53,7 +53,7 @@ npm link
 agent-pipeline init
 ```
 
-This scaffolds two example pipelines (`front-end-parallel-example` and `post-commit-example`), required agent definitions, and the directory structure (`.agent-pipeline/`, `.agent-pipeline/agents/`). Agents from installed Claude Code plugins are automatically discovered.
+This scaffolds two robust example pipelines (`front-end-parallel-example` and `post-commit-example`), required agent definitions, and the directory structure (`.agent-pipeline/`, `.agent-pipeline/agents/`). Agents from installed Claude Code plugins are automatically discovered.
 
 ### 2. Run Your First Pipeline
 
@@ -66,6 +66,7 @@ agent-pipeline run post-commit-example
 ```
 
 **What you'll see:** live terminal UI with status badges, real-time agent output streaming, atomic commits per stage, and a pipeline summary with timing and results.
+Runs execute in isolated git worktrees by default, so your working directory stays untouched.
 
 ### 3. Explore Your Pipeline History
 
@@ -148,6 +149,7 @@ Key components:
 - `src/core/group-execution-orchestrator.ts` – Applies conditional logic, executes groups (parallel or sequential), and triggers context reduction.
 - `src/core/stage-executor.ts` – Runs individual agents with retries, token estimation, and git commits.
 - `src/core/state-manager.ts` – Persists pipeline state under `.agent-pipeline/state/runs/`.
+- `src/core/worktree-manager.ts` – Manages git worktrees for default pipeline isolation.
 - `src/core/branch-manager.ts` / `src/core/git-manager.ts` – Handle branch isolation and git commands.
 - `src/core/pr-creator.ts` – Integrates with GitHub CLI for PR automation.
 - `src/utils/token-estimator.ts` – Provides `smartCount()` for context window monitoring.
