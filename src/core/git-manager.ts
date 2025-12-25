@@ -171,8 +171,23 @@ export class GitManager {
       try {
         await this.git.raw(['worktree', 'add', '-b', branch, worktreePath, `origin/${baseBranch}`]);
       } catch (error) {
-        // Fallback to local base branch if remote doesn't exist, OR if previous command failed
-        // Note: If previous command failed because branch exists (race condition), this might also fail.
+        // Check if the first attempt created the branch before failing
+        // (can happen if origin exists but worktree path has issues)
+        const branchesAfterFirstAttempt = await this.git.branchLocal();
+        const branchCreatedByFailedAttempt = branchesAfterFirstAttempt.all.includes(branch);
+
+        if (branchCreatedByFailedAttempt) {
+          // Branch was created by failed attempt, just add worktree without -b
+          try {
+            await this.git.raw(['worktree', 'add', worktreePath, branch]);
+            return;
+          } catch (wtError) {
+            const gitError = ErrorFactory.createGitError(wtError, 'worktree_add');
+            throw new Error(`Failed to add worktree for branch '${branch}': ${gitError.message}`);
+          }
+        }
+
+        // Fallback to local base branch if remote doesn't exist
         try {
           await this.git.raw(['worktree', 'add', '-b', branch, worktreePath, baseBranch]);
         } catch (fallbackError) {

@@ -1120,6 +1120,43 @@ branch refs/heads/feature-branch`;
         'worktree', 'add', '-b', 'new-branch', '/path/to/worktree', 'origin/main'
       ]);
     });
+
+    it('should handle case where first attempt creates branch but fails for other reason', async () => {
+      // Scenario: First attempt with origin/main creates branch but fails (e.g., directory issue)
+      // The fix should detect the branch now exists and add worktree without -b flag
+      mockGit.raw
+        .mockResolvedValueOnce('') // listWorktrees (empty)
+        .mockRejectedValueOnce(new Error('fatal: path already exists')) // first attempt fails after creating branch
+        .mockResolvedValueOnce(undefined); // adding worktree with existing branch succeeds
+
+      // First call: branch doesn't exist
+      // After first failed attempt: branch exists (was created before failure)
+      mockGit.branchLocal
+        .mockResolvedValueOnce({ all: [] }) // before first attempt
+        .mockResolvedValueOnce({ all: ['new-branch'] }); // after failed attempt, branch exists
+
+      await gitManager.createWorktree('/path/to/worktree', 'new-branch', 'main');
+
+      // Should use worktree add without -b since branch now exists
+      expect(mockGit.raw).toHaveBeenCalledWith([
+        'worktree', 'add', '/path/to/worktree', 'new-branch'
+      ]);
+    });
+
+    it('should throw error if worktree add with existing branch fails after first attempt created branch', async () => {
+      mockGit.raw
+        .mockResolvedValueOnce('') // listWorktrees (empty)
+        .mockRejectedValueOnce(new Error('fatal: path already exists')) // first attempt fails
+        .mockRejectedValueOnce(new Error('fatal: worktree add failed')); // second attempt also fails
+
+      mockGit.branchLocal
+        .mockResolvedValueOnce({ all: [] }) // before first attempt
+        .mockResolvedValueOnce({ all: ['new-branch'] }); // branch exists after failed attempt
+
+      await expect(
+        gitManager.createWorktree('/path/to/worktree', 'new-branch', 'main')
+      ).rejects.toThrow("Failed to add worktree for branch 'new-branch'");
+    });
   });
 
   describe('removeWorktree', () => {
