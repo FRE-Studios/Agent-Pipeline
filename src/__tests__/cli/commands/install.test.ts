@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { installCommand } from '../../../cli/commands/install.js';
+import { hooksInstallCommand } from '../../../cli/commands/hooks.js';
 import { PipelineLoader } from '../../../config/pipeline-loader.js';
 import { HookInstaller } from '../../../cli/hooks.js';
 import { createTempDir, cleanupTempDir } from '../../setup.js';
@@ -8,7 +8,10 @@ import { createTempDir, cleanupTempDir } from '../../setup.js';
 vi.mock('../../../config/pipeline-loader.js');
 vi.mock('../../../cli/hooks.js');
 
-describe('installCommand', () => {
+// Alias for backwards compatibility
+const installCommand = hooksInstallCommand;
+
+describe('hooksInstallCommand', () => {
   let tempDir: string;
   let mockLoader: any;
   let mockInstaller: any;

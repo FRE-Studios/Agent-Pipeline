@@ -83,7 +83,7 @@ agent-pipeline analytics --pipeline <name> --days 30
 
 ```bash
 # Install git hooks for automated post-commit reviews
-agent-pipeline install post-commit-example
+agent-pipeline hooks install post-commit-example
 # Requires git.branchStrategy configured in the pipeline
 
 # Clone and customize a pipeline

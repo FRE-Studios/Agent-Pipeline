@@ -25,13 +25,12 @@ import { ClaudeCodeHeadlessRuntime } from './core/agent-runtimes/claude-code-hea
 import { runCommand } from './cli/commands/run.js';
 import { listCommand } from './cli/commands/list.js';
 import { statusCommand } from './cli/commands/status.js';
-import { installCommand } from './cli/commands/install.js';
-import { uninstallCommand } from './cli/commands/uninstall.js';
 import { testCommand } from './cli/commands/test.js';
 import { initCommand } from './cli/commands/init.js';
 import { rollbackCommand } from './cli/commands/rollback.js';
 import { analyticsCommand } from './cli/commands/analytics.js';
 import { cleanupCommand } from './cli/commands/cleanup.js';
+import { hooksListCommand, hooksInstallCommand, hooksUninstallCommand } from './cli/commands/hooks.js';
 import { HistoryBrowser } from './cli/commands/history.js';
 
 // Pipeline commands
@@ -145,31 +144,6 @@ async function main() {
         break;
       }
 
-      case 'install': {
-        if (!subCommand) {
-          console.error('Usage: agent-pipeline install <pipeline-name>');
-          process.exit(1);
-        }
-        await installCommand(repoPath, subCommand);
-        break;
-      }
-
-      case 'uninstall': {
-        const removeAll = args.includes('--all');
-        const pipelineName = subCommand && !subCommand.startsWith('--') ? subCommand : undefined;
-
-        if (removeAll && pipelineName) {
-          console.error('Usage: agent-pipeline uninstall <pipeline-name> OR agent-pipeline uninstall --all');
-          process.exit(1);
-        }
-
-        await uninstallCommand(repoPath, {
-          pipelineName,
-          removeAll: removeAll || !pipelineName
-        });
-        break;
-      }
-
       case 'rollback': {
         const options: { runId?: string; stages?: number } = {};
         for (let i = 1; i < args.length; i++) {
@@ -230,6 +204,49 @@ async function main() {
         }
         const testNotifications = args.includes('--notifications');
         await testCommand(repoPath, subCommand, { notifications: testNotifications });
+        break;
+      }
+
+      case 'hooks': {
+        const hooksSubCommand = subCommand;
+        const hooksArg = args[2];
+
+        switch (hooksSubCommand) {
+          case 'install': {
+            if (!hooksArg) {
+              console.error('Usage: agent-pipeline hooks install <pipeline-name>');
+              process.exit(1);
+            }
+            await hooksInstallCommand(repoPath, hooksArg);
+            break;
+          }
+
+          case 'uninstall': {
+            const removeAll = args.includes('--all');
+            const pipelineName = hooksArg && !hooksArg.startsWith('--') ? hooksArg : undefined;
+
+            if (removeAll && pipelineName) {
+              console.error('Usage: agent-pipeline hooks uninstall <pipeline-name> OR agent-pipeline hooks uninstall --all');
+              process.exit(1);
+            }
+
+            await hooksUninstallCommand(repoPath, {
+              pipelineName,
+              removeAll: removeAll || !pipelineName
+            });
+            break;
+          }
+
+          default: {
+            // Default to list (handles both 'hooks' and 'hooks list')
+            const listOptions: { pipeline?: string } = {};
+            const pipelineIndex = args.indexOf('--pipeline');
+            if (pipelineIndex !== -1 && args[pipelineIndex + 1]) {
+              listOptions.pipeline = args[pipelineIndex + 1];
+            }
+            await hooksListCommand(repoPath, listOptions);
+          }
+        }
         break;
       }
 
@@ -416,10 +433,13 @@ Agent Management:
 Schema:
   schema [options]             Output pipeline configuration template
 
+Git Hooks:
+  hooks                        List installed git hooks
+  hooks install <pipeline>     Install git hook for a pipeline
+  hooks uninstall <pipeline>   Remove git hook for a pipeline
+  hooks uninstall --all        Remove all agent-pipeline git hooks
+
 Git Integration:
-  install <pipeline-name>      Install git hook (respects pipeline trigger)
-  uninstall <pipeline-name>    Remove git hooks for a pipeline
-  uninstall --all              Remove all agent-pipeline git hooks
   rollback [options]           Rollback pipeline commits
   cleanup [options]            Clean up pipeline branches
 
@@ -474,7 +494,7 @@ Examples:
   agent-pipeline analytics --pipeline front-end-parallel-example
   agent-pipeline analytics --loops --days 7
   agent-pipeline cleanup --force --delete-logs
-  agent-pipeline install post-commit-example
+  agent-pipeline hooks install post-commit-example
   agent-pipeline export front-end-parallel-example --include-agents --output backup.yml
   agent-pipeline import https://example.com/pipeline.yml
   agent-pipeline schema

@@ -114,7 +114,7 @@ export async function initCommand(repoPath: string): Promise<void> {
     console.log('  2. For existing projects, try the post-commit workflow:');
     console.log('     agent-pipeline run post-commit-example');
     console.log('  3. Install git hooks (optional):');
-    console.log('     agent-pipeline install post-commit-example');
+    console.log('     agent-pipeline hooks install post-commit-example');
     console.log('  4. Customize agents in .agent-pipeline/agents/');
     console.log(`\n${'='.repeat(60)}\n`);
 

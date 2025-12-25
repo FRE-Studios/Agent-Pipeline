@@ -1,12 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { uninstallCommand } from '../../../cli/commands/uninstall.js';
+import { hooksUninstallCommand } from '../../../cli/commands/hooks.js';
 import { HookInstaller } from '../../../cli/hooks.js';
 import { createTempDir, cleanupTempDir } from '../../setup.js';
 
 // Mock HookInstaller
 vi.mock('../../../cli/hooks.js');
 
-describe('uninstallCommand', () => {
+// Alias for backwards compatibility
+const uninstallCommand = hooksUninstallCommand;
+
+describe('hooksUninstallCommand', () => {
   let tempDir: string;
   let mockInstaller: any;
 
