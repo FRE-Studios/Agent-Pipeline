@@ -221,14 +221,18 @@ export class PipelineRunner {
         if (loopEnabled && loopSession) {
           await this.recordIteration(loopSession.sessionId, lastState, currentMetadata, false);
         }
-        loopTerminationReason = 'failure';
-        const pipelineName = currentMetadata?.sourcePath
-          ? path.basename(currentMetadata.sourcePath, '.yml')
-          : currentConfig.name;
-        if (this.shouldLog(interactive)) {
-          console.log(`Loop: terminating after failure of ${pipelineName}`);
+
+        const failureStrategy = currentConfig.settings?.failureStrategy ?? 'stop';
+        if (failureStrategy === 'stop') {
+          loopTerminationReason = 'failure';
+          const pipelineName = currentMetadata?.sourcePath
+            ? path.basename(currentMetadata.sourcePath, '.yml')
+            : currentConfig.name;
+          if (this.shouldLog(interactive)) {
+            console.log(`Loop: terminating after failure of ${pipelineName}`);
+          }
+          break;
         }
-        break;
       }
 
       // Exit loop if --loop not enabled
@@ -456,6 +460,7 @@ export class PipelineRunner {
     } catch (error) {
       // Send failure notification for initialization errors (e.g., worktree creation failure)
       const errorMessage = error instanceof Error ? error.message : String(error);
+      const now = new Date().toISOString();
       if (this.shouldLog(interactive)) {
         console.error(`\n❌ Pipeline initialization failed: ${errorMessage}\n`);
       }
@@ -467,9 +472,21 @@ export class PipelineRunner {
         trigger: {
           type: config.trigger,
           commitSha: '',
-          timestamp: new Date().toISOString()
+          timestamp: now
         },
-        stages: [],
+        stages: [
+          {
+            stageName: 'pipeline-initialization',
+            status: 'failed',
+            startTime: now,
+            endTime: now,
+            duration: 0,
+            error: {
+              message: errorMessage,
+              timestamp: now
+            }
+          }
+        ],
         status: 'failed',
         artifacts: {
           initialCommit: '',
@@ -485,7 +502,7 @@ export class PipelineRunner {
         metadata: { error: errorMessage }
       });
 
-      throw error;
+      return failedState;
     }
 
     let { state, parallelExecutor, pipelineBranch, worktreePath, executionRepoPath, startTime } = initResult;
