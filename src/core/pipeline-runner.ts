@@ -475,14 +475,14 @@ export class PipelineRunner {
           initialCommit: '',
           changedFiles: [],
           totalDuration: 0,
-          handoverDir: '',
-          error: errorMessage
+          handoverDir: ''
         }
       };
 
       await this.notify({
         event: 'pipeline.failed',
-        pipelineState: failedState
+        pipelineState: failedState,
+        metadata: { error: errorMessage }
       });
 
       throw error;

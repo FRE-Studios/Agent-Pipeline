@@ -191,10 +191,24 @@ export class GitManager {
         try {
           await this.git.raw(['worktree', 'add', '-b', branch, worktreePath, baseBranch]);
         } catch (fallbackError) {
-           const gitError = ErrorFactory.createGitError(fallbackError, 'worktree_create');
-           throw new Error(
-             `Failed to create worktree with new branch '${branch}' from base '${baseBranch}': ${gitError.message}`
-           );
+          const errorMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+
+          // Handle race condition: branch may have been created by concurrent run
+          // or left behind from a previous failed run that branchLocal() missed
+          if (errorMessage.includes('already exists')) {
+            try {
+              await this.git.raw(['worktree', 'add', worktreePath, branch]);
+              return;
+            } catch (existingBranchError) {
+              const gitError = ErrorFactory.createGitError(existingBranchError, 'worktree_add');
+              throw new Error(`Failed to add worktree for existing branch '${branch}': ${gitError.message}`);
+            }
+          }
+
+          const gitError = ErrorFactory.createGitError(fallbackError, 'worktree_create');
+          throw new Error(
+            `Failed to create worktree with new branch '${branch}' from base '${baseBranch}': ${gitError.message}`
+          );
         }
       }
     }
