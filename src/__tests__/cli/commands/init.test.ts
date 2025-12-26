@@ -398,7 +398,7 @@ describe('initCommand', () => {
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Next steps:'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline run front-end-parallel-example'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline run post-commit-example'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline install post-commit-example'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent-pipeline hooks install post-commit-example'));
     });
 
     it('should log plugin agent discovery information', async () => {
