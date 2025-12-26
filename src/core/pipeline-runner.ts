@@ -433,21 +433,60 @@ export class PipelineRunner {
     }
   ): Promise<PipelineState> {
     const { interactive, loopContext, loopSessionId } = options;
-    this.notificationManager = options.notificationManager;
+
+    // Create notification manager early so it's available for init failures
+    this.notificationManager = options.notificationManager ||
+      (config.notifications ? new NotificationManager(config.notifications) : undefined);
 
     // Phase 1: Initialize pipeline
-    const initResult = await this.initializer.initialize(
-      config,
-      {
-        interactive,
-        notificationManager: this.notificationManager,
-        loopContext,
-        loopSessionId,
-        metadata
-      },
-      this.notify.bind(this),
-      this.notifyStateChange.bind(this)
-    );
+    let initResult;
+    try {
+      initResult = await this.initializer.initialize(
+        config,
+        {
+          interactive,
+          notificationManager: this.notificationManager,
+          loopContext,
+          loopSessionId,
+          metadata
+        },
+        this.notify.bind(this),
+        this.notifyStateChange.bind(this)
+      );
+    } catch (error) {
+      // Send failure notification for initialization errors (e.g., worktree creation failure)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (this.shouldLog(interactive)) {
+        console.error(`\n❌ Pipeline initialization failed: ${errorMessage}\n`);
+      }
+
+      // Create minimal failed state for notification
+      const failedState: PipelineState = {
+        runId: 'init-failed',
+        pipelineConfig: config,
+        trigger: {
+          type: config.trigger,
+          commitSha: '',
+          timestamp: new Date().toISOString()
+        },
+        stages: [],
+        status: 'failed',
+        artifacts: {
+          initialCommit: '',
+          changedFiles: [],
+          totalDuration: 0,
+          handoverDir: '',
+          error: errorMessage
+        }
+      };
+
+      await this.notify({
+        event: 'pipeline.failed',
+        pipelineState: failedState
+      });
+
+      throw error;
+    }
 
     let { state, parallelExecutor, pipelineBranch, worktreePath, executionRepoPath, startTime } = initResult;
     this.notificationManager = initResult.notificationManager;
