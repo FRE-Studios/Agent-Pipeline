@@ -415,9 +415,70 @@ describe('PipelineFinalizer', () => {
       expect(mockPipelineFormatter.formatSummary).toHaveBeenCalledWith(
         mockState,
         false, // verbose
-        { totalInput: 0, totalOutput: 0 }
+        { totalProcessed: 0, totalOutput: 0 }
       );
       expect(consoleSpy).toHaveBeenCalledWith('Pipeline Summary Output');
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should calculate total tokens including cache_read tokens', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      // Create state with stages that have token usage including cache_read
+      const stateWithTokens: PipelineState = {
+        ...mockState,
+        stages: [
+          {
+            stageName: 'stage-1',
+            status: 'success',
+            startTime: new Date().toISOString(),
+            tokenUsage: {
+              estimated_input: 1000,
+              actual_input: 5000,  // New tokens
+              output: 2000,
+              cache_read: 10000,  // Cached tokens (should be included in total)
+              cache_creation: 3000
+            }
+          },
+          {
+            stageName: 'stage-2',
+            status: 'success',
+            startTime: new Date().toISOString(),
+            tokenUsage: {
+              estimated_input: 500,
+              actual_input: 8000,
+              output: 3000,
+              cache_read: 5000
+            }
+          }
+        ]
+      };
+
+      await finalizer.finalize(
+        stateWithTokens,
+        mockConfig,
+        undefined,
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false, // non-interactive
+        false, // verbose
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Stage 1: actual_input (5000) + cache_read (10000) + cache_creation (3000, not included since 5000 < 3000 is false) = 18000
+      // Wait, cache_creation check: cacheCreation > 0 && actualInput >= cacheCreation => 3000 > 0 && 5000 >= 3000 = true, so cache_creation IS included
+      // So stage 1 = 5000 + 10000 + 0 = 15000
+      // Stage 2: actual_input (8000) + cache_read (5000) = 13000
+      // Total processed = 15000 + 13000 = 28000
+      // Total output = 2000 + 3000 = 5000
+      expect(mockPipelineFormatter.formatSummary).toHaveBeenCalledWith(
+        stateWithTokens,
+        false,
+        { totalProcessed: 28000, totalOutput: 5000 }
+      );
 
       consoleSpy.mockRestore();
     });

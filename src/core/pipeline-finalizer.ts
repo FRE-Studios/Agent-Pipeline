@@ -181,20 +181,30 @@ export class PipelineFinalizer {
   }
 
   /**
-   * Calculate total tokens across all stages
+   * Calculate total tokens across all stages.
+   * Uses same formula as PipelineFormatter.formatTokenUsage for consistency.
+   * Total processed = actual_input + cache_read + (cache_creation if not already included)
    */
-  private calculateTotalTokens(state: PipelineState): { totalInput: number; totalOutput: number } {
-    let totalInput = 0;
+  private calculateTotalTokens(state: PipelineState): { totalProcessed: number; totalOutput: number } {
+    let totalProcessed = 0;
     let totalOutput = 0;
 
     for (const stage of state.stages) {
       if (stage.tokenUsage) {
-        totalInput += stage.tokenUsage.actual_input || 0;
+        const cacheRead = stage.tokenUsage.cache_read || 0;
+        const cacheCreation = stage.tokenUsage.cache_creation || 0;
+        const actualInput = stage.tokenUsage.actual_input || 0;
+
+        // Some runtimes include cache_creation in actual_input, some don't
+        const cacheCreationIncluded = cacheCreation > 0 && actualInput >= cacheCreation;
+        const stageProcessed = actualInput + cacheRead + (cacheCreationIncluded ? 0 : cacheCreation);
+
+        totalProcessed += stageProcessed;
         totalOutput += stage.tokenUsage.output || 0;
       }
     }
 
-    return { totalInput, totalOutput };
+    return { totalProcessed, totalOutput };
   }
 
   /**

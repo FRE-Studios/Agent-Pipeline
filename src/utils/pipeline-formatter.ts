@@ -19,7 +19,7 @@ export class PipelineFormatter {
   static formatSummary(
     state: PipelineState,
     verbose: boolean = true,
-    totals?: { totalInput: number; totalOutput: number }
+    totals?: { totalProcessed: number; totalOutput: number }
   ): string {
     const lines: string[] = [];
     const separator = '='.repeat(60);
@@ -34,8 +34,8 @@ export class PipelineFormatter {
     lines.push(`Duration: ${state.artifacts.totalDuration.toFixed(2)}s`);
 
     // Always show total tokens in summary (regardless of verbose)
-    if (totals && (totals.totalInput > 0 || totals.totalOutput > 0)) {
-      lines.push(`Total Tokens: ~${this.formatTokenCount(totals.totalInput)} input, ~${this.formatTokenCount(totals.totalOutput)} output`);
+    if (totals && (totals.totalProcessed > 0 || totals.totalOutput > 0)) {
+      lines.push(`Total Tokens: ~${this.formatTokenCount(totals.totalProcessed)} processed, ~${this.formatTokenCount(totals.totalOutput)} output`);
     }
 
     if (verbose) {
