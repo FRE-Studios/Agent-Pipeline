@@ -394,7 +394,12 @@ describe('StageExecutor', () => {
 
     it('should execute in dry-run mode with changes', async () => {
       mockGitManager = createMockGitManager({ hasChanges: true });
-      executor = new StageExecutor(mockGitManager, true, mockHandoverManager, mockRuntime); // dry-run mode
+      // Pass verbose logging context to see log messages
+      executor = new StageExecutor(
+        mockGitManager, true, mockHandoverManager, mockRuntime,
+        undefined, undefined, undefined,
+        { interactive: false, verbose: true }
+      ); // dry-run mode
 
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
@@ -534,7 +539,12 @@ describe('StageExecutor', () => {
       mockRuntime.execute.mockRejectedValue(new Error('Persistent failure'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
+      // Pass verbose logging context to see retry log messages
+      executor = new StageExecutor(
+        mockGitManager, false, mockHandoverManager, mockRuntime,
+        undefined, undefined, undefined,
+        { interactive: false, verbose: true }
+      );
 
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const promise = executor.executeStage(stageWithRetry, runningPipelineState);
@@ -646,7 +656,12 @@ describe('StageExecutor', () => {
       mockRuntime.execute.mockRejectedValue(new Error('Failed after retries'));
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
+      // Pass non-interactive logging context to see error log messages
+      executor = new StageExecutor(
+        mockGitManager, false, mockHandoverManager, mockRuntime,
+        undefined, undefined, undefined,
+        { interactive: false, verbose: false }
+      );
 
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const promise = executor.executeStage(stageWithRetry, runningPipelineState);
@@ -1157,7 +1172,12 @@ describe('StageExecutor', () => {
       });
 
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
+      // Pass verbose logging context to see retry log messages
+      executor = new StageExecutor(
+        mockGitManager, false, mockHandoverManager, mockRuntime,
+        undefined, undefined, undefined,
+        { interactive: false, verbose: true }
+      );
 
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -1356,7 +1376,12 @@ describe('StageExecutor', () => {
   describe('Runtime Resolution (Phase 6.1 Smoke Tests)', () => {
     it('should use stage-level runtime when specified', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
+      // Pass verbose logging context to see runtime resolution logs
+      executor = new StageExecutor(
+        mockGitManager, false, mockHandoverManager, mockRuntime,
+        undefined, undefined, undefined,
+        { interactive: false, verbose: true }
+      );
 
       const stageWithRuntime: AgentStageConfig = {
         ...basicStageConfig,
@@ -1378,7 +1403,12 @@ describe('StageExecutor', () => {
 
     it('should use pipeline-level runtime when stage runtime not specified', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+      // Pass verbose logging context to see runtime resolution logs
+      executor = new StageExecutor(
+        mockGitManager, false, testRunId, testRepoPath,
+        undefined, undefined, undefined,
+        { interactive: false, verbose: true }
+      );
 
       const pipelineWithRuntime: PipelineState = {
         ...runningPipelineState,
@@ -1404,7 +1434,12 @@ describe('StageExecutor', () => {
     it('should use global default runtime (claude-code-headless) when no runtime specified', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
       // Create executor without providing a runtime - it should resolve to the global default
-      executor = new StageExecutor(mockGitManager, false, mockHandoverManager);
+      // Pass verbose logging context to see runtime resolution logs
+      executor = new StageExecutor(
+        mockGitManager, false, mockHandoverManager,
+        undefined, undefined, undefined, undefined,
+        { interactive: false, verbose: true }
+      );
 
       // Create a pipeline state without any runtime config
       const stateWithoutRuntime: PipelineState = {
@@ -1427,7 +1462,12 @@ describe('StageExecutor', () => {
 
     it('should prioritize stage runtime over pipeline runtime', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, testRunId, testRepoPath);
+      // Pass verbose logging context to see runtime resolution logs
+      executor = new StageExecutor(
+        mockGitManager, false, testRunId, testRepoPath,
+        undefined, undefined, undefined,
+        { interactive: false, verbose: true }
+      );
 
       const stageWithRuntime: AgentStageConfig = {
         ...basicStageConfig,

@@ -21,6 +21,7 @@ export interface InitializationResult {
   executionRepoPath: string;
   notificationManager?: NotificationManager;
   startTime: number;
+  verbose: boolean;
 }
 
 export class PipelineInitializer {
@@ -42,6 +43,7 @@ export class PipelineInitializer {
     config: PipelineConfig,
     options: {
       interactive?: boolean;
+      verbose?: boolean;
       notificationManager?: NotificationManager;
       loopContext?: LoopContext;
       loopSessionId?: string;
@@ -50,6 +52,7 @@ export class PipelineInitializer {
     notifyCallback: (context: NotificationContext) => Promise<void>,
     stateChangeCallback: (state: PipelineState) => void
   ): Promise<InitializationResult> {
+    const verbose = options.verbose ?? false;
     const runId = uuidv4();
 
     // Setup notification manager
@@ -106,7 +109,8 @@ export class PipelineInitializer {
       this.runtime,
       options.loopContext,
       this.repoPath,                    // For file-driven instruction loading
-      isolation.executionRepoPath       // Where agents execute (worktree or main repo)
+      isolation.executionRepoPath,      // Where agents execute (worktree or main repo)
+      { interactive: options.interactive ?? true, verbose }
     );
     const parallelExecutor = new ParallelExecutor(
       stageExecutor,
@@ -114,7 +118,7 @@ export class PipelineInitializer {
     );
 
     // Log startup messages
-    this.logStartup(config, state, triggerCommit, isolation, options.interactive || false);
+    this.logStartup(config, state, triggerCommit, isolation, options.interactive || false, verbose);
 
     // Notify initial state
     stateChangeCallback(state);
@@ -136,7 +140,8 @@ export class PipelineInitializer {
       worktreePath: isolation.worktreePath,
       executionRepoPath: isolation.executionRepoPath,
       notificationManager,
-      startTime
+      startTime,
+      verbose
     };
   }
 
@@ -147,7 +152,7 @@ export class PipelineInitializer {
   private async setupWorktreeIsolation(
     config: PipelineConfig,
     runId: string,
-    interactive: boolean
+    _interactive: boolean
   ): Promise<{ worktreePath?: string; branchName?: string; executionRepoPath: string }> {
     // If no git config or dry run, execute in main repo (no isolation)
     if (!config.git || this.dryRun) {
@@ -170,11 +175,6 @@ export class PipelineInitializer {
       config.git.branchStrategy || 'reusable',
       config.git.branchPrefix || 'pipeline'
     );
-
-    if (!interactive) {
-      console.log(`📍 Running in worktree: ${result.worktreePath}`);
-      console.log(`   Branch: ${result.branchName}\n`);
-    }
 
     return {
       worktreePath: result.worktreePath,
@@ -242,21 +242,29 @@ export class PipelineInitializer {
     state: PipelineState,
     triggerCommit: string,
     isolation: { worktreePath?: string; branchName?: string; executionRepoPath: string },
-    interactive: boolean
+    interactive: boolean,
+    verbose: boolean
   ): void {
+    // Skip all logging in interactive mode (UI handles it)
+    if (interactive) {
+      return;
+    }
+
     if (this.dryRun) {
       console.log(`\n🧪 DRY RUN MODE - No commits will be created\n`);
     }
 
-    // Show simple console output if not interactive
-    if (!interactive) {
-      console.log(`\n🚀 Starting pipeline: ${config.name}`);
-      console.log(`📦 Run ID: ${state.runId}`);
+    // Minimal startup message for non-interactive
+    console.log(`\n🚀 ${config.name} (Run: ${state.runId.substring(0, 8)})`);
+
+    // Show detailed info only in verbose mode
+    if (verbose) {
       console.log(`📝 Trigger commit: ${triggerCommit.substring(0, 7)}`);
       if (isolation.worktreePath) {
         console.log(`🌳 Worktree: ${isolation.worktreePath}`);
+        console.log(`   Branch: ${isolation.branchName}`);
       }
-      console.log('');
     }
+    console.log('');
   }
 }

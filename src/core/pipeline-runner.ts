@@ -78,6 +78,11 @@ export class PipelineRunner {
     );
   }
 
+  /**
+   * Determines if console logs should be shown.
+   * Returns true for non-interactive mode (console output) or verbose mode.
+   * Note: verbose flag is passed separately to components for detailed logging control.
+   */
   private shouldLog(interactive: boolean): boolean {
     return !interactive;
   }
@@ -113,12 +118,14 @@ export class PipelineRunner {
     config: PipelineConfig,
     options: {
       interactive?: boolean;
+      verbose?: boolean;
       loop?: boolean;
       loopMetadata?: PipelineMetadata;
       maxLoopIterations?: number;
     } = {}
   ): Promise<PipelineState> {
     const interactive = options.interactive || false;
+    const verbose = options.verbose || false;
     const notificationManager = config.notifications
       ? new NotificationManager(config.notifications)
       : undefined;
@@ -182,6 +189,7 @@ export class PipelineRunner {
         currentMetadata,
         {
           interactive,
+          verbose,
           notificationManager,
           loopContext,
           loopSessionId: loopSession?.sessionId
@@ -431,12 +439,13 @@ export class PipelineRunner {
     metadata: PipelineMetadata | undefined,
     options: {
       interactive: boolean;
+      verbose: boolean;
       notificationManager?: NotificationManager;
       loopContext?: LoopContext;
       loopSessionId?: string;
     }
   ): Promise<PipelineState> {
-    const { interactive, loopContext, loopSessionId } = options;
+    const { interactive, verbose, loopContext, loopSessionId } = options;
 
     // Create notification manager early so it's available for init failures
     this.notificationManager = options.notificationManager ||
@@ -449,6 +458,7 @@ export class PipelineRunner {
         config,
         {
           interactive,
+          verbose,
           notificationManager: this.notificationManager,
           loopContext,
           loopSessionId,
@@ -538,7 +548,8 @@ export class PipelineRunner {
           parallelExecutor,
           interactive,
           initResult.handoverManager,
-          { isFinalGroup }
+          { isFinalGroup },
+          verbose
         );
 
         state = result.state;
@@ -569,6 +580,7 @@ export class PipelineRunner {
       executionRepoPath,
       startTime,
       interactive,
+      verbose,
       this.notify.bind(this),
       this.notifyStateChange.bind(this)
     );

@@ -16,7 +16,11 @@ export class PipelineFormatter {
     return emojiMap[status] || '❓';
   }
 
-  static formatSummary(state: PipelineState): string {
+  static formatSummary(
+    state: PipelineState,
+    verbose: boolean = true,
+    totals?: { totalInput: number; totalOutput: number }
+  ): string {
     const lines: string[] = [];
     const separator = '='.repeat(60);
 
@@ -28,7 +32,15 @@ export class PipelineFormatter {
 
     lines.push(`Status: ${this.getStatusEmoji(state.status)} ${state.status.toUpperCase()}`);
     lines.push(`Duration: ${state.artifacts.totalDuration.toFixed(2)}s`);
-    lines.push(`Commits: ${state.trigger.commitSha.substring(0, 7)} → ${state.artifacts.finalCommit?.substring(0, 7)}`);
+
+    // Always show total tokens in summary (regardless of verbose)
+    if (totals && (totals.totalInput > 0 || totals.totalOutput > 0)) {
+      lines.push(`Total Tokens: ~${this.formatTokenCount(totals.totalInput)} input, ~${this.formatTokenCount(totals.totalOutput)} output`);
+    }
+
+    if (verbose) {
+      lines.push(`Commits: ${state.trigger.commitSha.substring(0, 7)} → ${state.artifacts.finalCommit?.substring(0, 7)}`);
+    }
 
     if (state.artifacts.pullRequest) {
       lines.push(`Pull Request: ${state.artifacts.pullRequest.url}`);
@@ -38,7 +50,7 @@ export class PipelineFormatter {
     lines.push('Stages:');
 
     for (const stage of state.stages) {
-      lines.push(this.formatStageInfo(stage));
+      lines.push(this.formatStageInfo(stage, verbose));
     }
 
     lines.push('');
@@ -48,17 +60,22 @@ export class PipelineFormatter {
     return lines.join('\n');
   }
 
-  static formatStageInfo(stage: StageExecution): string {
+  static formatStageInfo(stage: StageExecution, verbose: boolean = true): string {
     const emoji = this.getStatusEmoji(stage.status);
     const duration = stage.duration ? `(${stage.duration.toFixed(1)}s)` : '';
     const lines: string[] = [`  ${emoji} ${stage.stageName} ${duration}`];
 
-    if (stage.commitSha) {
-      lines.push(`     └─ Commit: ${stage.commitSha.substring(0, 7)}`);
+    // Only show detailed info in verbose mode
+    if (verbose) {
+      if (stage.commitSha) {
+        lines.push(`     └─ Commit: ${stage.commitSha.substring(0, 7)}`);
+      }
+      if (stage.tokenUsage) {
+        lines.push(`     └─ Tokens: ${this.formatTokenUsage(stage.tokenUsage)}`);
+      }
     }
-    if (stage.tokenUsage) {
-      lines.push(`     └─ Tokens: ${this.formatTokenUsage(stage.tokenUsage)}`);
-    }
+
+    // Always show errors (per user request)
     if (stage.error) {
       lines.push(`     └─ Error: ${stage.error.message}`);
     }

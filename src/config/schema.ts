@@ -62,6 +62,16 @@ export interface LoopContext {
   isFinalGroup?: boolean;  // Only inject loop instructions in final group
 }
 
+/**
+ * Logging context for controlling output verbosity
+ * - interactive: true = Ink UI mode, false = console output
+ * - verbose: true = show all details (token stats, cache rates, etc.)
+ */
+export interface LoggingContext {
+  interactive: boolean;
+  verbose: boolean;
+}
+
 export interface GitConfig {
   baseBranch?: string;                    // Branch to PR into (default: 'main')
   branchStrategy?: 'reusable' | 'unique-per-run' | 'unique-and-delete'; // Branch naming strategy (default: 'reusable')

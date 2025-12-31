@@ -731,7 +731,10 @@ describe('GroupExecutionOrchestrator', () => {
           state,
           config,
           mockParallelExecutor,
-          false
+          false,
+          undefined,
+          undefined,
+          true // verbose
         );
 
         expect(consoleSpy).toHaveBeenCalledWith(
@@ -780,7 +783,10 @@ describe('GroupExecutionOrchestrator', () => {
           state,
           config,
           mockParallelExecutor,
-          false
+          false,
+          undefined,
+          undefined,
+          true // verbose
         );
 
         expect(mockParallelExecutor.aggregateResults).toHaveBeenCalled();

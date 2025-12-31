@@ -132,6 +132,7 @@ describe('PipelineFinalizer', () => {
         '/test/repo',
         startTime,
         false,
+        false,
         mockNotifyCallback,
         mockStateChangeCallback
       );
@@ -167,6 +168,7 @@ describe('PipelineFinalizer', () => {
         undefined,
         '/test/repo',
         Date.now(),
+        false,
         false,
         mockNotifyCallback,
         mockStateChangeCallback
@@ -206,6 +208,7 @@ describe('PipelineFinalizer', () => {
         '/test/repo',
         Date.now(),
         false,
+        false,
         mockNotifyCallback,
         mockStateChangeCallback
       );
@@ -239,6 +242,7 @@ describe('PipelineFinalizer', () => {
         '/test/repo',
         Date.now(),
         false,
+        false,
         mockNotifyCallback,
         mockStateChangeCallback
       );
@@ -260,6 +264,7 @@ describe('PipelineFinalizer', () => {
         undefined,
         '/test/repo',
         Date.now(),
+        false,
         false,
         mockNotifyCallback,
         mockStateChangeCallback
@@ -283,6 +288,7 @@ describe('PipelineFinalizer', () => {
         '/test/repo',
         Date.now(),
         false,
+        false,
         mockNotifyCallback,
         mockStateChangeCallback
       );
@@ -303,6 +309,7 @@ describe('PipelineFinalizer', () => {
         '/test/repo',
         Date.now(),
         false,
+        false,
         mockNotifyCallback,
         mockStateChangeCallback
       );
@@ -318,6 +325,7 @@ describe('PipelineFinalizer', () => {
         undefined,
         '/test/repo',
         Date.now(),
+        false,
         false,
         mockNotifyCallback,
         mockStateChangeCallback
@@ -335,6 +343,7 @@ describe('PipelineFinalizer', () => {
         '/test/repo',
         Date.now(),
         false,
+        false,
         mockNotifyCallback,
         mockStateChangeCallback
       );
@@ -351,6 +360,7 @@ describe('PipelineFinalizer', () => {
         undefined,
         '/test/repo',
         Date.now(),
+        false,
         false,
         mockNotifyCallback,
         mockStateChangeCallback
@@ -378,6 +388,7 @@ describe('PipelineFinalizer', () => {
         '/test/repo',
         Date.now(),
         false,
+        false,
         mockNotifyCallback,
         mockStateChangeCallback
       );
@@ -396,11 +407,16 @@ describe('PipelineFinalizer', () => {
         '/test/repo',
         Date.now(),
         false, // non-interactive
+        false, // verbose
         mockNotifyCallback,
         mockStateChangeCallback
       );
 
-      expect(mockPipelineFormatter.formatSummary).toHaveBeenCalledWith(mockState);
+      expect(mockPipelineFormatter.formatSummary).toHaveBeenCalledWith(
+        mockState,
+        false, // verbose
+        { totalInput: 0, totalOutput: 0 }
+      );
       expect(consoleSpy).toHaveBeenCalledWith('Pipeline Summary Output');
 
       consoleSpy.mockRestore();
@@ -417,6 +433,7 @@ describe('PipelineFinalizer', () => {
         '/test/repo',
         Date.now(),
         true, // interactive
+        false, // verbose
         mockNotifyCallback,
         mockStateChangeCallback
       );
@@ -448,6 +465,7 @@ describe('PipelineFinalizer', () => {
         undefined,
         '/test/repo',
         Date.now(),
+        false,
         false,
         mockNotifyCallback,
         mockStateChangeCallback

@@ -255,7 +255,7 @@ describe('PipelineInitializer', () => {
         mockStateChangeCallback
       );
 
-      // StageExecutor constructor: (gitManager, dryRun, handoverManager, defaultRuntime, loopContext, repoPath, executionRepoPath)
+      // StageExecutor constructor: (gitManager, dryRun, handoverManager, defaultRuntime, loopContext, repoPath, executionRepoPath, loggingContext)
       expect(stageExecutorMock).toHaveBeenCalledWith(
         mockGitManager,
         false,  // dryRun
@@ -263,7 +263,8 @@ describe('PipelineInitializer', () => {
         expect.any(Object),  // defaultRuntime (the runtime passed to PipelineInitializer)
         undefined,  // loopContext (not provided in this test)
         '/test/repo',  // repoPath (for file-driven instruction loading)
-        '/test/repo'   // executionRepoPath (where agents execute)
+        '/test/repo',  // executionRepoPath (where agents execute)
+        { interactive: false, verbose: false }  // loggingContext
       );
       expect(result.stageExecutor).toBe(stageExecutorMock.mock.instances[0]);
 
@@ -346,9 +347,9 @@ describe('PipelineInitializer', () => {
         mockStateChangeCallback
       );
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('🚀 Starting pipeline: test-pipeline'));
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('📦 Run ID:'));
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('📝 Trigger commit:'));
+      // New minimal format: pipeline name and run ID in one line
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('🚀 test-pipeline'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Run:'));
 
       consoleSpy.mockRestore();
     });

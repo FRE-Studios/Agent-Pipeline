@@ -42,7 +42,8 @@ export class GroupExecutionOrchestrator {
     parallelExecutor: ParallelExecutor,
     interactive: boolean,
     handoverManager?: HandoverManager,
-    groupContext?: GroupContext
+    groupContext?: GroupContext,
+    verbose: boolean = false
   ): Promise<GroupProcessingResult> {
     // Filter stages by enabled status
     const { enabledStages } = this.filterDisabledStages(
@@ -63,8 +64,8 @@ export class GroupExecutionOrchestrator {
       return { state, shouldStopPipeline: false };
     }
 
-    // Log group info
-    this.logGroupStart(stagesToRun, group, interactive);
+    // Log group info (only in verbose mode)
+    this.logGroupStart(stagesToRun, group, interactive, verbose);
 
     // Execute group (parallel or sequential)
     // Note: ParallelExecutor now manages stage entries directly in state
@@ -111,8 +112,8 @@ export class GroupExecutionOrchestrator {
     await this.stateManager.saveState(state);
     this.stateChangeCallback(state);
 
-    // Log group result
-    this.logGroupResult(groupResult, executionMode, stagesToRun, parallelExecutor, interactive);
+    // Log group result (only in verbose mode)
+    this.logGroupResult(groupResult, executionMode, stagesToRun, parallelExecutor, interactive, verbose);
 
     // Handle group failures
     const shouldStopPipeline = this.handleGroupFailures(
@@ -305,14 +306,16 @@ export class GroupExecutionOrchestrator {
   }
 
   /**
-   * Log group start
+   * Log group start (only in verbose mode)
    */
   private logGroupStart(
     stagesToRun: AgentStageConfig[],
     group: ExecutionGroup,
-    interactive: boolean
+    interactive: boolean,
+    verbose: boolean
   ): void {
-    if (this.shouldLog(interactive) && stagesToRun.length > 1) {
+    // Only show group start message in verbose mode for non-interactive
+    if (this.shouldLog(interactive) && verbose && stagesToRun.length > 1) {
       console.log(
         `🔀 Running ${stagesToRun.length} stages in parallel (group ${group.level})...`
       );
@@ -320,19 +323,21 @@ export class GroupExecutionOrchestrator {
   }
 
   /**
-   * Log group result
+   * Log group result (only in verbose mode)
    */
   private logGroupResult(
     groupResult: any,
     executionMode: 'parallel' | 'sequential',
     stagesToRun: AgentStageConfig[],
     parallelExecutor: ParallelExecutor,
-    interactive: boolean
+    interactive: boolean,
+    verbose: boolean
   ): void {
     const shouldRunParallel =
       executionMode === 'parallel' && stagesToRun.length > 1;
 
-    if (this.shouldLog(interactive) && shouldRunParallel) {
+    // Only show group result in verbose mode for non-interactive
+    if (this.shouldLog(interactive) && verbose && shouldRunParallel) {
       console.log(`📊 ${parallelExecutor.aggregateResults(groupResult)}\n`);
     }
   }

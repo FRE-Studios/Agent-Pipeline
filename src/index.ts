@@ -102,6 +102,7 @@ async function main() {
         // Parse flags
         const dryRun = args.includes('--dry-run');
         const noInteractive = args.includes('--no-interactive');
+        const verbose = args.includes('--verbose');
         const noPr = args.includes('--no-pr');
         const prDraft = args.includes('--pr-draft');
         const prWeb = args.includes('--pr-web');
@@ -123,6 +124,7 @@ async function main() {
         await runCommand(repoPath, subCommand, {
           dryRun,
           interactive: !noInteractive,
+          verbose,
           noPr,
           baseBranch,
           prDraft,
@@ -449,6 +451,7 @@ Testing:
 Run Options:
   --dry-run                    Test without creating commits
   --no-interactive             Disable live UI (use simple console output)
+  --verbose                    Show detailed logs (token stats, cache hit rates, etc.)
   --no-notifications           Disable all notifications
   --no-pr                      Skip PR creation even if configured
   --base-branch <branch>       Override base branch for PR

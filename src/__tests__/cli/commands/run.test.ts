@@ -659,6 +659,7 @@ describe('runCommand', () => {
 
       expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, {
         interactive: true,
+        verbose: false,
         loop: true,
         loopMetadata: metadata,
         maxLoopIterations: undefined
@@ -680,6 +681,7 @@ describe('runCommand', () => {
 
       expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, {
         interactive: true,
+        verbose: false,
         loop: true,
         loopMetadata: metadata,
         maxLoopIterations: 50
@@ -745,6 +747,7 @@ describe('runCommand', () => {
 
       expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, {
         interactive: true,
+        verbose: false,
         loop: undefined,
         loopMetadata: metadata,
         maxLoopIterations: undefined
@@ -784,6 +787,7 @@ describe('runCommand', () => {
         }),
         {
           interactive: false,
+          verbose: false,
           loop: true,
           loopMetadata: metadata,
           maxLoopIterations: 10

@@ -35,6 +35,7 @@ export class PipelineFinalizer {
     executionRepoPath: string,
     startTime: number,
     interactive: boolean,
+    verbose: boolean,
     notifyCallback: (context: NotificationContext) => Promise<void>,
     stateChangeCallback: (state: PipelineState) => void
   ): Promise<PipelineState> {
@@ -55,7 +56,7 @@ export class PipelineFinalizer {
 
     // Print summary if not interactive
     if (this.shouldLog(interactive)) {
-      this.printSummary(state, worktreePath);
+      this.printSummary(state, worktreePath, verbose);
     }
 
     // Handle worktree cleanup based on strategy and status
@@ -167,11 +168,33 @@ export class PipelineFinalizer {
   /**
    * Print summary to console
    */
-  private printSummary(state: PipelineState, worktreePath?: string): void {
-    console.log(PipelineFormatter.formatSummary(state));
-    if (worktreePath) {
+  private printSummary(state: PipelineState, worktreePath?: string, verbose: boolean = false): void {
+    // Calculate total tokens across all stages
+    const totals = this.calculateTotalTokens(state);
+
+    // Print formatted summary with token totals
+    console.log(PipelineFormatter.formatSummary(state, verbose, totals));
+
+    if (worktreePath && verbose) {
       console.log(`\n🌳 Worktree location: ${worktreePath}`);
     }
+  }
+
+  /**
+   * Calculate total tokens across all stages
+   */
+  private calculateTotalTokens(state: PipelineState): { totalInput: number; totalOutput: number } {
+    let totalInput = 0;
+    let totalOutput = 0;
+
+    for (const stage of state.stages) {
+      if (stage.tokenUsage) {
+        totalInput += stage.tokenUsage.actual_input || 0;
+        totalOutput += stage.tokenUsage.output || 0;
+      }
+    }
+
+    return { totalInput, totalOutput };
   }
 
   /**

@@ -6,7 +6,7 @@ import { RetryHandler } from './retry-handler.js';
 import { HandoverManager } from './handover-manager.js';
 import { AgentRuntime, AgentExecutionRequest } from './types/agent-runtime.js';
 import { AgentRuntimeRegistry } from './agent-runtime-registry.js';
-import { AgentStageConfig, StageExecution, PipelineState, LoopContext, ClaudeAgentSettings } from '../config/schema.js';
+import { AgentStageConfig, StageExecution, PipelineState, LoopContext, ClaudeAgentSettings, LoggingContext } from '../config/schema.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { ErrorFactory } from '../utils/error-factory.js';
 import { TokenEstimator } from '../utils/token-estimator.js';
@@ -17,6 +17,7 @@ export class StageExecutor {
   private instructionLoader: InstructionLoader | null;
   private worktreeGitManager: GitManager | null = null;
   private executionCwd: string | undefined;
+  private loggingContext: LoggingContext;
 
   constructor(
     private gitManager: GitManager,
@@ -25,16 +26,34 @@ export class StageExecutor {
     private defaultRuntime?: AgentRuntime,
     private loopContext?: LoopContext,
     repoPath?: string,
-    executionRepoPath?: string
+    executionRepoPath?: string,
+    loggingContext?: LoggingContext
   ) {
     this.retryHandler = new RetryHandler();
     this.instructionLoader = repoPath ? new InstructionLoader(repoPath) : null;
+    this.loggingContext = loggingContext ?? { interactive: true, verbose: false };
 
     // If execution happens in a worktree, create a separate GitManager for it
     if (executionRepoPath && executionRepoPath !== repoPath) {
       this.worktreeGitManager = new GitManager(executionRepoPath);
       this.executionCwd = executionRepoPath;
     }
+  }
+
+  /**
+   * Helper method to determine if a log message should be shown.
+   * Returns true if: non-interactive mode, OR verbose mode is enabled.
+   */
+  private shouldLog(): boolean {
+    return !this.loggingContext.interactive || this.loggingContext.verbose;
+  }
+
+  /**
+   * Helper method to determine if verbose details should be shown.
+   * Returns true only if verbose mode is enabled.
+   */
+  private isVerbose(): boolean {
+    return this.loggingContext.verbose;
   }
 
   /**
@@ -99,25 +118,33 @@ export class StageExecutor {
       // Priority 1: Stage-level runtime
       const stageRuntimeType = stageConfig.runtime?.type;
       if (stageRuntimeType) {
-        console.log(`   Using stage-level runtime: ${stageRuntimeType}`);
+        if (this.isVerbose()) {
+          console.log(`   Using stage-level runtime: ${stageRuntimeType}`);
+        }
         return AgentRuntimeRegistry.getRuntime(stageRuntimeType);
       }
 
       // Priority 2: Pipeline-level runtime
       const pipelineRuntimeType = pipelineState.pipelineConfig.runtime?.type;
       if (pipelineRuntimeType) {
-        console.log(`   Using pipeline-level runtime: ${pipelineRuntimeType}`);
+        if (this.isVerbose()) {
+          console.log(`   Using pipeline-level runtime: ${pipelineRuntimeType}`);
+        }
         return AgentRuntimeRegistry.getRuntime(pipelineRuntimeType);
       }
 
       // Priority 3: Use default runtime if provided (from constructor)
       if (this.defaultRuntime) {
-        console.log(`   Using injected default runtime`);
+        if (this.isVerbose()) {
+          console.log(`   Using injected default runtime`);
+        }
         return this.defaultRuntime;
       }
 
       // Priority 4: Global default (claude-code-headless)
-      console.log(`   Using global default runtime: claude-code-headless`);
+      if (this.isVerbose()) {
+        console.log(`   Using global default runtime: claude-code-headless`);
+      }
       return AgentRuntimeRegistry.getRuntime('claude-code-headless');
     } catch (error) {
       const runtimeType = stageConfig.runtime?.type ||
@@ -189,8 +216,12 @@ export class StageExecutor {
 
       // Run agent using resolved runtime
       const retryInfo = PipelineFormatter.formatRetryInfo(execution.retryAttempt, execution.maxRetries);
-      console.log(`🤖 Running stage: ${stageConfig.name}${retryInfo}...`);
-      console.log(`   Estimated initial input: ~${PipelineFormatter.formatTokenCount(estimatedTokens)} tokens`);
+      if (this.shouldLog()) {
+        console.log(`▶ ${stageConfig.name}${retryInfo}...`);
+        if (this.isVerbose()) {
+          console.log(`   Estimated initial input: ~${PipelineFormatter.formatTokenCount(estimatedTokens)} tokens`);
+        }
+      }
 
       const result = await this.runAgentWithTimeout(
         runtime,
@@ -240,12 +271,16 @@ export class StageExecutor {
         if (commitSha) {
           execution.commitSha = commitSha;
           execution.commitMessage = await execGitManager.getCommitMessage(commitSha);
-          console.log(`✅ Committed changes: ${commitSha.substring(0, 7)}`);
-        } else {
+          if (this.isVerbose()) {
+            console.log(`✅ Committed changes: ${commitSha.substring(0, 7)}`);
+          }
+        } else if (this.isVerbose()) {
           console.log(`ℹ️  No changes to commit`);
         }
       } else if (this.dryRun && await execGitManager.hasUncommittedChanges()) {
-        console.log(`💡 Would commit changes (dry-run mode)`);
+        if (this.isVerbose()) {
+          console.log(`💡 Would commit changes (dry-run mode)`);
+        }
       }
     };
 
@@ -260,11 +295,13 @@ export class StageExecutor {
           const errorMsg = context.lastError instanceof Error
             ? context.lastError.message
             : String(context.lastError);
-          console.log(
-            `⚠️  Stage failed (attempt ${context.attemptNumber + 1}/${context.maxAttempts}). ` +
-              `Retrying in ${RetryHandler.formatDelay(delay)}...`
-          );
-          console.log(`   Error: ${errorMsg}`);
+          if (this.shouldLog()) {
+            console.log(
+              `⚠️  Stage failed (attempt ${context.attemptNumber + 1}/${context.maxAttempts}). ` +
+                `Retrying in ${RetryHandler.formatDelay(delay)}...`
+            );
+            console.log(`   Error: ${errorMsg}`);
+          }
         }
       );
 
@@ -281,11 +318,11 @@ export class StageExecutor {
       );
 
       // Log completion with token usage
-      console.log(`✅ Stage completed: ${stageConfig.name}`);
-      if (execution.tokenUsage) {
-        console.log(`   ${PipelineFormatter.formatTokenUsage(execution.tokenUsage)} | Duration: ${execution.duration.toFixed(1)}s`);
-      } else {
-        console.log(`   Duration: ${execution.duration.toFixed(1)}s`);
+      if (this.shouldLog()) {
+        console.log(`✅ ${stageConfig.name} (${execution.duration.toFixed(0)}s)`);
+        if (this.isVerbose() && execution.tokenUsage) {
+          console.log(`   ${PipelineFormatter.formatTokenUsage(execution.tokenUsage)}`);
+        }
       }
 
       return execution;
@@ -298,17 +335,17 @@ export class StageExecutor {
       const errorDetails = ErrorFactory.createStageError(error, stageConfig.agent);
       execution.error = errorDetails;
 
-      // Pretty print error
-      const retryInfo = execution.retryAttempt && execution.retryAttempt > 0
-        ? ` (after ${execution.retryAttempt} retries)`
-        : '';
-      console.error(`❌ Stage failed: ${stageConfig.name}${retryInfo}`);
-      console.error(`   Error: ${errorDetails.message}`);
-      if (errorDetails.agentPath) {
-        console.error(`   Agent: ${errorDetails.agentPath}`);
-      }
-      if (errorDetails.suggestion) {
-        console.error(`   💡 ${errorDetails.suggestion}`);
+      // Always show error details (even in non-verbose mode, per user request)
+      if (this.shouldLog()) {
+        console.error(`❌ ${stageConfig.name} (${execution.duration.toFixed(0)}s)`);
+        console.error(`   Error: ${errorDetails.message}`);
+        if (errorDetails.suggestion) {
+          console.error(`   💡 ${errorDetails.suggestion}`);
+        }
+        // Only show agent path in verbose mode
+        if (this.isVerbose() && errorDetails.agentPath) {
+          console.error(`   Agent: ${errorDetails.agentPath}`);
+        }
       }
 
       return execution;

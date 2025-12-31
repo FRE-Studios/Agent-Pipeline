@@ -11,6 +11,7 @@ import { PipelineMetadata } from '../../config/schema.js';
 export interface RunOptions {
   dryRun?: boolean;
   interactive?: boolean;
+  verbose?: boolean;
   noPr?: boolean;
   baseBranch?: string;
   prDraft?: boolean;
@@ -77,6 +78,7 @@ export async function runCommand(
   try {
     const result = await runner.runPipeline(config, {
       interactive,
+      verbose: options.verbose ?? false,
       loop: options.loop,
       loopMetadata,
       maxLoopIterations: options.maxLoopIterations
