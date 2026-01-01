@@ -422,8 +422,7 @@ describe('HistoryBrowser', () => {
         'bat',
         expect.arrayContaining([expect.stringContaining('run-123.json')]),
         expect.objectContaining({
-          stdio: 'inherit',
-          shell: true
+          stdio: 'inherit'
         })
       );
     });
@@ -512,8 +511,7 @@ describe('HistoryBrowser', () => {
         expect.any(String),
         expect.arrayContaining([expect.stringContaining('.agent-pipeline/state/runs/run-123.json')]),
         expect.objectContaining({
-          stdio: 'inherit',
-          shell: true
+          stdio: 'inherit'
         })
       );
     });
