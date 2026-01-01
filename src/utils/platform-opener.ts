@@ -54,14 +54,28 @@ export async function openWithSystem(target: string, _type: OpenTarget = 'file')
  */
 export async function openInPager(filePath: string): Promise<void> {
   const pager = process.env.PAGER || 'less';
+  const { command, args } = parseCommand(pager);
 
-  const child = spawn(pager, [filePath], {
-    stdio: 'inherit',
-    shell: true
-  });
+  const child = spawn(command, [...args, filePath], { stdio: 'inherit' });
 
   return new Promise((resolve) => {
     child.on('exit', () => resolve());
     child.on('error', () => resolve());
   });
+}
+
+function parseCommand(input: string): { command: string; args: string[] } {
+  const parts: string[] = [];
+  const regex = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(input)) !== null) {
+    parts.push(match[1] ?? match[2] ?? match[3]);
+  }
+
+  if (parts.length === 0) {
+    return { command: 'less', args: [] };
+  }
+
+  return { command: parts[0], args: parts.slice(1) };
 }

@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
-import { spawn } from 'child_process';
 import * as path from 'path';
 import { StateManager } from '../../core/state-manager.js';
 import { PipelineState } from '../../config/schema.js';
+import { openInPager } from '../../utils/platform-opener.js';
 
 interface HistoryBrowserProps {
   repoPath: string;
@@ -39,26 +39,11 @@ export const HistoryBrowser: React.FC<HistoryBrowserProps> = ({ repoPath }) => {
       `${selectedRun.runId}.json`
     );
 
-    // Determine pager
-    const pager = process.env.PAGER || 'less';
-
     // Exit the Ink app temporarily
     exit();
 
-    // Open log file in pager
-    const child = spawn(pager, [logPath], {
-      stdio: 'inherit',
-      shell: true
-    });
-
-    await new Promise<void>((resolve) => {
-      child.on('exit', () => {
-        resolve();
-      });
-      child.on('error', () => {
-        resolve();
-      });
-    });
+    await new Promise(resolve => setImmediate(resolve));
+    await openInPager(logPath);
 
     // Restart the history browser (this won't work as intended, but we've exited)
     // User will need to run the command again

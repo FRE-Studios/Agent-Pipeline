@@ -1,6 +1,6 @@
 // src/ui/components/interactive-summary.tsx
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Box, Text, Newline, useInput, useApp } from 'ink';
 import TextInput from 'ink-text-input';
 import * as fs from 'fs/promises';
@@ -23,6 +23,7 @@ export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state })
   const [noteText, setNoteText] = useState('');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isExiting, setIsExiting] = useState(false);
+  const statusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Derived availability flags
   const hasHandoverDir = Boolean(state.artifacts.handoverDir);
@@ -33,8 +34,19 @@ export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state })
 
   // Status message timeout helper
   const showStatus = useCallback((message: string, duration = 2000) => {
+    if (statusTimeoutRef.current) {
+      clearTimeout(statusTimeoutRef.current);
+    }
     setStatusMessage(message);
-    setTimeout(() => setStatusMessage(null), duration);
+    statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), duration);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current);
+      }
+    };
   }, []);
 
   // Action handlers
@@ -65,8 +77,8 @@ export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state })
     setIsExiting(true);
     exit();
 
-    // Small delay to ensure Ink cleanup
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // Let Ink restore terminal state before launching pager
+    await new Promise(resolve => setImmediate(resolve));
     await openInPager(logPath);
 
     // After pager closes, process will exit naturally
