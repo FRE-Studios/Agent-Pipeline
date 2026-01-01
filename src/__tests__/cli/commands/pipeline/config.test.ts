@@ -191,8 +191,8 @@ describe('configPipelineCommand', () => {
         git: {
           baseBranch: 'main',
           branchStrategy: 'reusable',
+          mergeStrategy: 'pull-request',
           pullRequest: {
-            autoCreate: true,
             title: 'Test PR',
           },
         },
@@ -295,8 +295,8 @@ describe('configPipelineCommand', () => {
         git: {
           baseBranch: 'develop',
           branchStrategy: 'unique-per-run',
+          mergeStrategy: 'pull-request',
           pullRequest: {
-            autoCreate: true,
             title: '🤖 Automated PR',
             reviewers: ['dev1', 'dev2'],
             labels: ['automated', 'review'],

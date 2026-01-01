@@ -16,8 +16,8 @@ export const gitWorkflowPipelineConfig: PipelineConfig = {
     baseBranch: 'main',
     branchStrategy: 'reusable',
     branchPrefix: 'pipeline',
+    mergeStrategy: 'pull-request',
     pullRequest: {
-      autoCreate: true,
       title: 'Test PR',
       body: 'Test PR body',
       draft: false,

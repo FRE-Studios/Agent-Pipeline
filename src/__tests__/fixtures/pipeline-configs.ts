@@ -193,8 +193,8 @@ export const gitWorkflowConfig: PipelineConfig = {
     baseBranch: 'main',
     branchStrategy: 'reusable',
     branchPrefix: 'pipeline',
+    mergeStrategy: 'pull-request',
     pullRequest: {
-      autoCreate: true,
       title: '🤖 Pipeline: {{pipelineName}}',
       body: 'Automated changes',
       reviewers: ['reviewer1', 'reviewer2'],

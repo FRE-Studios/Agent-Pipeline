@@ -35,8 +35,9 @@ export async function runCommand(
     config.notifications = { enabled: false };
   }
 
-  if (options.noPr && config.git?.pullRequest) {
-    config.git.pullRequest.autoCreate = false;
+  if (options.noPr && config.git) {
+    // Override mergeStrategy to 'none' to skip PR creation
+    config.git.mergeStrategy = 'none';
   }
 
   if (options.baseBranch && config.git) {

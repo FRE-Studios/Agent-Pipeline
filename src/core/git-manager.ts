@@ -113,6 +113,22 @@ export class GitManager {
     await this.git.reset(['--hard', commitSha]);
   }
 
+  /**
+   * Checkout a branch.
+   * @param branch - Branch name to checkout
+   */
+  async checkout(branch: string): Promise<void> {
+    await this.git.checkout(branch);
+  }
+
+  /**
+   * Merge a branch into the current branch.
+   * @param branch - Branch name to merge
+   */
+  async merge(branch: string): Promise<void> {
+    await this.git.merge([branch]);
+  }
+
   async getCommitMessage(commitSha: string): Promise<string> {
     const log = await this.git.log(['-1', commitSha]);
     return log.latest?.message || '';

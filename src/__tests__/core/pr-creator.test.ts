@@ -147,7 +147,7 @@ describe('PRCreator', () => {
         expect(error.message).toContain('GitHub CLI (gh) is not installed');
         expect(error.message).toContain('Install from: https://cli.github.com/');
         expect(error.message).toContain('Or disable PR creation:');
-        expect(error.message).toContain('- Remove git.pullRequest.autoCreate from your pipeline config');
+        expect(error.message).toContain("- Set git.mergeStrategy to 'local-merge' or 'none' in your pipeline config");
         expect(error.message).toContain('- Or run with: agent-pipeline run <pipeline> --no-pr');
       }
     });

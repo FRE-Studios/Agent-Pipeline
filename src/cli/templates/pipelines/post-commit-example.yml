@@ -13,12 +13,12 @@ git:
   baseBranch: main                  # PR base and merge target for the pipeline branch
   branchStrategy: unique-and-delete # Self-cleaning: auto-removes worktree on success, preserves on failure for debugging
   branchPrefix: review-pipeline     # Keeps pipeline branches easy to find/clean up
+  mergeStrategy: pull-request       # Options: 'pull-request' (push + PR), 'local-merge' (merge locally), 'none' (keep on branch)
   pullRequest:
-    autoCreate: true                # Create PR on Pipeline completion. 
-    title: "🤖 Automated Code Review - {{pipelineName}}"  # PR title when autoCreate is enabled
-    reviewers: []                   # Optional reviewers when autoCreate is enabled
+    title: "🤖 Automated Code Review - {{pipelineName}}"  # PR title
+    reviewers: []                   # Optional GitHub usernames to request review from
     labels:
-      - automated                   # Optional PR label when autoCreate is enabled
+      - automated                   # Optional PR labels
       - code-review
 
 # Notification configuration (optional)

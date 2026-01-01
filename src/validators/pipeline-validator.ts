@@ -44,9 +44,12 @@ export class PipelineValidator {
     }
 
     // P0: GitHub CLI availability (conditional - only if PR creation enabled)
-    if (config.git?.pullRequest?.autoCreate === true) {
+    if (config.git?.mergeStrategy === 'pull-request') {
       await this.validateGitHubCLI();
     }
+
+    // P0: Validate git strategy combinations
+    this.validateGitStrategies(config);
 
     // P1: Slack webhook (conditional - only if Slack notifications enabled)
     if (config.notifications?.channels?.slack?.enabled) {
@@ -271,24 +274,67 @@ export class PipelineValidator {
   }
 
   /**
+   * Validate git strategy combinations.
+   * Ensures branchStrategy and mergeStrategy are compatible.
+   */
+  private validateGitStrategies(config: PipelineConfig): void {
+    if (!config.git) return;
+
+    const branchStrategy = config.git.branchStrategy || 'reusable';
+    const mergeStrategy = config.git.mergeStrategy || 'none';
+
+    // unique-and-delete + none = work would be lost
+    if (branchStrategy === 'unique-and-delete' && mergeStrategy === 'none') {
+      this.errors.push({
+        field: 'git.branchStrategy',
+        message:
+          "Cannot use 'unique-and-delete' with 'none' merge strategy - work would be lost. " +
+          "Use 'pull-request' or 'local-merge' to preserve work, or change branchStrategy to 'reusable' or 'unique-per-run'.",
+        severity: 'error'
+      });
+    }
+
+    // Validate mergeStrategy value
+    const validMergeStrategies = ['pull-request', 'local-merge', 'none'];
+    if (config.git.mergeStrategy && !validMergeStrategies.includes(config.git.mergeStrategy)) {
+      this.errors.push({
+        field: 'git.mergeStrategy',
+        message: `Invalid merge strategy: ${config.git.mergeStrategy}. Must be one of: ${validMergeStrategies.join(', ')}`,
+        severity: 'error'
+      });
+    }
+
+    // Warn if pullRequest config exists but mergeStrategy is not 'pull-request'
+    if (config.git.pullRequest && mergeStrategy !== 'pull-request') {
+      this.errors.push({
+        field: 'git.pullRequest',
+        message:
+          "pullRequest settings are configured but mergeStrategy is not 'pull-request'. " +
+          "These settings will be ignored.",
+        severity: 'warning'
+      });
+    }
+  }
+
+  /**
    * Validate GitHub CLI availability for PR creation.
-   * Checks if gh CLI is installed and authenticated when autoCreate is enabled.
+   * Checks if gh CLI is installed and authenticated when mergeStrategy is 'pull-request'.
    */
   private async validateGitHubCLI(): Promise<void> {
     const ghStatus = await checkGHCLI();
 
     if (!ghStatus.installed) {
       this.errors.push({
-        field: 'git.pullRequest.autoCreate',
+        field: 'git.mergeStrategy',
         message:
-          'GitHub CLI (gh) is not installed. Install from https://cli.github.com/ or set autoCreate to false',
+          "GitHub CLI (gh) is not installed. Install from https://cli.github.com/ or change mergeStrategy to 'local-merge' or 'none'",
         severity: 'error'
       });
     } else if (!ghStatus.authenticated) {
       this.errors.push({
-        field: 'git.pullRequest.autoCreate',
+        field: 'git.mergeStrategy',
         message:
-          "GitHub CLI is not authenticated. Run 'gh auth login' or set autoCreate to false",
+          "GitHub CLI is not authenticated. Run 'gh auth login' or change mergeStrategy to 'local-merge' or 'none'",
         severity: 'error'
       });
     }

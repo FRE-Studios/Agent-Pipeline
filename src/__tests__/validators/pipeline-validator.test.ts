@@ -672,9 +672,7 @@ describe('PipelineValidator', () => {
         const config: PipelineConfig = {
           ...simplePipelineConfig,
           git: {
-            pullRequest: {
-              autoCreate: false
-            }
+            mergeStrategy: 'none'
           }
         };
 
@@ -988,43 +986,39 @@ describe('PipelineValidator', () => {
       vi.restoreAllMocks();
     });
 
-    it('should not validate GitHub CLI when autoCreate is false', async () => {
+    it('should not validate GitHub CLI when mergeStrategy is not pull-request', async () => {
       const checkGHCLISpy = vi.spyOn(ghCliChecker, 'checkGHCLI');
 
       const config: PipelineConfig = {
         ...simplePipelineConfig,
         git: {
-          pullRequest: {
-            autoCreate: false
-          }
+          mergeStrategy: 'none'
         }
       };
 
       const errors = await validator.validate(config, tempDir);
 
-      // checkGHCLI should not be called when autoCreate is false
+      // checkGHCLI should not be called when mergeStrategy is not pull-request
       expect(checkGHCLISpy).not.toHaveBeenCalled();
-      const ghErrors = errors.filter(e => e.field === 'git.pullRequest.autoCreate');
+      const ghErrors = errors.filter(e => e.field === 'git.mergeStrategy');
       expect(ghErrors).toHaveLength(0);
     });
 
-    it('should not validate GitHub CLI when autoCreate is undefined', async () => {
+    it('should not validate GitHub CLI when mergeStrategy is undefined', async () => {
       const checkGHCLISpy = vi.spyOn(ghCliChecker, 'checkGHCLI');
 
       const config: PipelineConfig = {
         ...simplePipelineConfig,
         git: {
-          pullRequest: {
-            // autoCreate is undefined
-          }
+          // mergeStrategy is undefined
         }
       };
 
       const errors = await validator.validate(config, tempDir);
 
-      // checkGHCLI should not be called when autoCreate is undefined
+      // checkGHCLI should not be called when mergeStrategy is undefined
       expect(checkGHCLISpy).not.toHaveBeenCalled();
-      const ghErrors = errors.filter(e => e.field === 'git.pullRequest.autoCreate');
+      const ghErrors = errors.filter(e => e.field === 'git.mergeStrategy');
       expect(ghErrors).toHaveLength(0);
     });
 
@@ -1040,11 +1034,11 @@ describe('PipelineValidator', () => {
 
       // checkGHCLI should not be called when git config is omitted
       expect(checkGHCLISpy).not.toHaveBeenCalled();
-      const ghErrors = errors.filter(e => e.field === 'git.pullRequest.autoCreate');
+      const ghErrors = errors.filter(e => e.field === 'git.mergeStrategy');
       expect(ghErrors).toHaveLength(0);
     });
 
-    it('should error when autoCreate is true but gh not installed', async () => {
+    it('should error when mergeStrategy is pull-request but gh not installed', async () => {
       vi.spyOn(ghCliChecker, 'checkGHCLI').mockResolvedValue({
         installed: false,
         authenticated: false
@@ -1053,23 +1047,21 @@ describe('PipelineValidator', () => {
       const config: PipelineConfig = {
         ...simplePipelineConfig,
         git: {
-          pullRequest: {
-            autoCreate: true
-          }
+          mergeStrategy: 'pull-request'
         }
       };
 
       const errors = await validator.validate(config, tempDir);
 
       const ghErrors = errors.filter(e =>
-        e.field === 'git.pullRequest.autoCreate' && e.severity === 'error'
+        e.field === 'git.mergeStrategy' && e.severity === 'error'
       );
       expect(ghErrors.length).toBeGreaterThan(0);
       expect(ghErrors[0].message).toContain('GitHub CLI (gh) is not installed');
       expect(ghErrors[0].message).toContain('https://cli.github.com/');
     });
 
-    it('should error when autoCreate is true but gh not authenticated', async () => {
+    it('should error when mergeStrategy is pull-request but gh not authenticated', async () => {
       vi.spyOn(ghCliChecker, 'checkGHCLI').mockResolvedValue({
         installed: true,
         authenticated: false
@@ -1078,23 +1070,21 @@ describe('PipelineValidator', () => {
       const config: PipelineConfig = {
         ...simplePipelineConfig,
         git: {
-          pullRequest: {
-            autoCreate: true
-          }
+          mergeStrategy: 'pull-request'
         }
       };
 
       const errors = await validator.validate(config, tempDir);
 
       const ghErrors = errors.filter(e =>
-        e.field === 'git.pullRequest.autoCreate' && e.severity === 'error'
+        e.field === 'git.mergeStrategy' && e.severity === 'error'
       );
       expect(ghErrors.length).toBeGreaterThan(0);
       expect(ghErrors[0].message).toContain('GitHub CLI is not authenticated');
       expect(ghErrors[0].message).toContain('gh auth login');
     });
 
-    it('should pass when autoCreate is true and gh is installed and authenticated', async () => {
+    it('should pass when mergeStrategy is pull-request and gh is installed and authenticated', async () => {
       vi.spyOn(ghCliChecker, 'checkGHCLI').mockResolvedValue({
         installed: true,
         authenticated: true
@@ -1103,15 +1093,13 @@ describe('PipelineValidator', () => {
       const config: PipelineConfig = {
         ...simplePipelineConfig,
         git: {
-          pullRequest: {
-            autoCreate: true
-          }
+          mergeStrategy: 'pull-request'
         }
       };
 
       const errors = await validator.validate(config, tempDir);
 
-      const ghErrors = errors.filter(e => e.field === 'git.pullRequest.autoCreate');
+      const ghErrors = errors.filter(e => e.field === 'git.mergeStrategy');
       expect(ghErrors).toHaveLength(0);
     });
   });

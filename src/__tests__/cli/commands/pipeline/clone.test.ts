@@ -588,8 +588,8 @@ describe('clonePipelineCommand', () => {
         git: {
           baseBranch: 'main',
           branchStrategy: 'reusable',
+          mergeStrategy: 'pull-request',
           pullRequest: {
-            autoCreate: true,
             title: 'Test PR',
           },
         },

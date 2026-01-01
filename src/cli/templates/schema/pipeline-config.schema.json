@@ -105,6 +105,10 @@
         "branchPrefix": {
           "type": "string"
         },
+        "mergeStrategy": {
+          "type": "string",
+          "enum": ["pull-request", "local-merge", "none"]
+        },
         "pullRequest": {
           "$ref": "#/definitions/PRConfig"
         }
@@ -114,9 +118,6 @@
     "PRConfig": {
       "type": "object",
       "properties": {
-        "autoCreate": {
-          "type": "boolean"
-        },
         "title": {
           "type": "string"
         },

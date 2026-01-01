@@ -72,15 +72,25 @@ export interface LoggingContext {
   verbose: boolean;
 }
 
+/**
+ * Merge strategy for pipeline completion
+ * - pull-request: Push branch and create GitHub PR
+ * - local-merge: Merge branch to baseBranch locally (no remote interaction)
+ * - none: No merge action (work stays in branch/worktree)
+ *
+ * Note: 'unique-and-delete' branchStrategy cannot be used with 'none' mergeStrategy
+ */
+export type MergeStrategy = 'pull-request' | 'local-merge' | 'none';
+
 export interface GitConfig {
   baseBranch?: string;                    // Branch to PR into (default: 'main')
   branchStrategy?: 'reusable' | 'unique-per-run' | 'unique-and-delete'; // Branch naming strategy (default: 'reusable')
   branchPrefix?: string;                  // Custom branch prefix (default: 'pipeline')
-  pullRequest?: PRConfig;                 // Pull request configuration
+  mergeStrategy?: MergeStrategy;          // How to handle completed pipeline (default: 'none')
+  pullRequest?: PRConfig;                 // Pull request settings (only used when mergeStrategy: 'pull-request')
 }
 
 export interface PRConfig {
-  autoCreate?: boolean;                   // Auto-create PR when pipeline completes
   title?: string;                         // Custom PR title (has smart default)
   body?: string;                          // Custom PR body (has smart default with stage summary)
   reviewers?: string[];                   // GitHub usernames to request review from

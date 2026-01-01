@@ -150,8 +150,8 @@ describe('PipelineLoader', () => {
         git: {
           baseBranch: 'main',
           branchStrategy: 'reusable',
+          mergeStrategy: 'pull-request',
           pullRequest: {
-            autoCreate: true,
             title: 'Test PR',
             reviewers: ['user1'],
           },
@@ -168,7 +168,7 @@ describe('PipelineLoader', () => {
 
       expect(config.git).toBeDefined();
       expect(config.git?.baseBranch).toBe('main');
-      expect(config.git?.pullRequest?.autoCreate).toBe(true);
+      expect(config.git?.mergeStrategy).toBe('pull-request');
     });
 
     it('should handle pipeline with notifications', async () => {

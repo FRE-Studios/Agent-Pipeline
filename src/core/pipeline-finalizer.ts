@@ -6,7 +6,7 @@ import { WorktreeManager } from './worktree-manager.js';
 import { PRCreator } from './pr-creator.js';
 import { StateManager } from './state-manager.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
-import { PipelineConfig, PipelineState } from '../config/schema.js';
+import { PipelineConfig, PipelineState, MergeStrategy } from '../config/schema.js';
 import { NotificationContext } from '../notifications/types.js';
 
 export class PipelineFinalizer {
@@ -42,9 +42,18 @@ export class PipelineFinalizer {
     // Calculate metrics (use worktree git manager if executing in worktree)
     await this.calculateMetrics(state, startTime, executionRepoPath);
 
-    // Handle PR creation if configured (push from worktree)
-    if (pipelineBranch && config.git?.pullRequest?.autoCreate) {
-      await this.handlePRCreation(config, pipelineBranch, state, executionRepoPath, interactive, notifyCallback);
+    // Handle merge strategy (pull-request, local-merge, or none)
+    if (pipelineBranch && config.git) {
+      const mergeStrategy = config.git.mergeStrategy || 'none';
+      await this.handleMergeStrategy(
+        mergeStrategy,
+        config,
+        pipelineBranch,
+        state,
+        executionRepoPath,
+        interactive,
+        notifyCallback
+      );
     }
 
     // Save final state
@@ -84,9 +93,37 @@ export class PipelineFinalizer {
   }
 
   /**
-   * Handle PR creation (push and create)
+   * Handle merge strategy dispatch
    */
-  private async handlePRCreation(
+  private async handleMergeStrategy(
+    strategy: MergeStrategy,
+    config: PipelineConfig,
+    branchName: string,
+    state: PipelineState,
+    executionRepoPath: string,
+    interactive: boolean,
+    notifyCallback: (context: NotificationContext) => Promise<void>
+  ): Promise<void> {
+    switch (strategy) {
+      case 'pull-request':
+        await this.handlePullRequest(config, branchName, state, executionRepoPath, interactive, notifyCallback);
+        break;
+      case 'local-merge':
+        await this.handleLocalMerge(config, branchName, executionRepoPath, interactive);
+        break;
+      case 'none':
+        // No merge action - work stays in worktree/branch
+        if (this.shouldLog(interactive)) {
+          console.log(`\n📍 Work preserved on branch: ${branchName}`);
+        }
+        break;
+    }
+  }
+
+  /**
+   * Handle pull-request merge strategy: push branch and create PR
+   */
+  private async handlePullRequest(
     config: PipelineConfig,
     branchName: string,
     state: PipelineState,
@@ -111,8 +148,8 @@ export class PipelineFinalizer {
         return;
       }
 
-      // Create PR
-      const prConfig = config.git!.pullRequest!;
+      // Create PR (use empty config if pullRequest not specified)
+      const prConfig = config.git?.pullRequest || {};
       const result = await this.prCreator.createPR(
         branchName,
         config.git?.baseBranch || 'main',
@@ -147,6 +184,48 @@ export class PipelineFinalizer {
         console.log(`   Branch ${branchName} has been pushed to remote.`);
         console.log(`   You can create the PR manually with: gh pr create`);
       }
+    }
+  }
+
+  /**
+   * Handle local-merge strategy: merge branch to baseBranch locally
+   */
+  private async handleLocalMerge(
+    config: PipelineConfig,
+    branchName: string,
+    executionRepoPath: string,
+    interactive: boolean
+  ): Promise<void> {
+    const baseBranch = config.git?.baseBranch || 'main';
+
+    try {
+      // Use the git manager for the execution repo (worktree or main)
+      const execGitManager = executionRepoPath !== this.repoPath
+        ? new GitManager(executionRepoPath)
+        : this.gitManager;
+
+      // First, checkout the base branch
+      if (this.shouldLog(interactive)) {
+        console.log(`\n🔀 Merging ${branchName} into ${baseBranch}...`);
+      }
+
+      await execGitManager.checkout(baseBranch);
+
+      // Merge the pipeline branch
+      await execGitManager.merge(branchName);
+
+      if (this.shouldLog(interactive)) {
+        console.log(`✅ Successfully merged ${branchName} into ${baseBranch}`);
+      }
+    } catch (error) {
+      if (this.shouldLog(interactive)) {
+        console.error(
+          `\n❌ Failed to merge: ${error instanceof Error ? error.message : String(error)}`
+        );
+        console.log(`   Branch ${branchName} still exists with your changes.`);
+        console.log(`   You can merge manually with: git checkout ${baseBranch} && git merge ${branchName}`);
+      }
+      throw error; // Re-throw so caller knows merge failed
     }
   }
 

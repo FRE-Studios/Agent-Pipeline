@@ -171,7 +171,7 @@ describe('runCommand', () => {
         trigger: 'manual',
         agents: [],
         git: {
-          pullRequest: { autoCreate: true },
+          mergeStrategy: 'pull-request',
         },
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -187,9 +187,7 @@ describe('runCommand', () => {
       expect(mockValidator.validateAndReport).toHaveBeenCalledWith(
         expect.objectContaining({
           git: expect.objectContaining({
-            pullRequest: expect.objectContaining({
-              autoCreate: false,
-            }),
+            mergeStrategy: 'none',
           }),
         }),
         tempDir
@@ -310,7 +308,8 @@ describe('runCommand', () => {
         notifications: { enabled: true },
         git: {
           baseBranch: 'main',
-          pullRequest: { autoCreate: true, draft: false },
+          mergeStrategy: 'pull-request',
+          pullRequest: { draft: false },
         },
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -335,8 +334,8 @@ describe('runCommand', () => {
           notifications: { enabled: false },
           git: expect.objectContaining({
             baseBranch: 'staging',
+            mergeStrategy: 'none',
             pullRequest: expect.objectContaining({
-              autoCreate: false,
               draft: true,
             }),
           }),
@@ -904,7 +903,7 @@ describe('runCommand', () => {
         ],
         git: {
           baseBranch: 'main',
-          pullRequest: { autoCreate: true },
+          mergeStrategy: 'pull-request',
         },
       };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
@@ -953,7 +952,8 @@ describe('runCommand', () => {
         agents: [],
         git: {
           baseBranch: 'main',
-          pullRequest: { autoCreate: true, draft: false },
+          mergeStrategy: 'pull-request',
+          pullRequest: { draft: false },
         },
         notifications: { enabled: true },
       };
@@ -981,8 +981,8 @@ describe('runCommand', () => {
         expect.objectContaining({
           git: expect.objectContaining({
             baseBranch: 'develop',
+            mergeStrategy: 'none',
             pullRequest: expect.objectContaining({
-              autoCreate: false,
               draft: true,
               web: true,
             }),

@@ -75,14 +75,18 @@ definitions:
           - unique-and-delete
       branchPrefix:
         type: string
+      mergeStrategy:
+        type: string
+        enum:
+          - pull-request
+          - local-merge
+          - none
       pullRequest:
         $ref: "#/definitions/PRConfig"
     additionalProperties: false
   PRConfig:
     type: object
     properties:
-      autoCreate:
-        type: boolean
       title:
         type: string
       body:

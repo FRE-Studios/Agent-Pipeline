@@ -154,8 +154,8 @@ describe('PipelineFinalizer', () => {
         ...mockConfig,
         git: {
           baseBranch: 'main',
+          mergeStrategy: 'pull-request' as const,
           pullRequest: {
-            autoCreate: true,
             title: 'Test PR'
           }
         }
@@ -194,9 +194,7 @@ describe('PipelineFinalizer', () => {
       const configWithPR = {
         ...mockConfig,
         git: {
-          pullRequest: {
-            autoCreate: true
-          }
+          mergeStrategy: 'pull-request' as const
         }
       };
 
@@ -228,9 +226,7 @@ describe('PipelineFinalizer', () => {
       const configWithPR = {
         ...mockConfig,
         git: {
-          pullRequest: {
-            autoCreate: true
-          }
+          mergeStrategy: 'pull-request' as const
         }
       };
 
@@ -513,9 +509,7 @@ describe('PipelineFinalizer', () => {
       const configWithPR = {
         ...mockConfig,
         git: {
-          pullRequest: {
-            autoCreate: true
-          }
+          mergeStrategy: 'pull-request' as const
         }
       };
 

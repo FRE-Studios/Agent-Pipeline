@@ -3,7 +3,6 @@ import { PipelineState } from '../config/schema.js';
 import { checkGHCLI } from '../utils/gh-cli-checker.js';
 
 export interface PRConfig {
-  autoCreate?: boolean;
   title?: string;
   body?: string;
   reviewers?: string[];
@@ -71,7 +70,7 @@ export class PRCreator {
       throw new Error(
         'GitHub CLI (gh) is not installed. Install from: https://cli.github.com/\n\n' +
         'Or disable PR creation:\n' +
-        '- Remove git.pullRequest.autoCreate from your pipeline config\n' +
+        "- Set git.mergeStrategy to 'local-merge' or 'none' in your pipeline config\n" +
         '- Or run with: agent-pipeline run <pipeline> --no-pr'
       );
     }
