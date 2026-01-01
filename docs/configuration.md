@@ -24,8 +24,8 @@ git:
   baseBranch: main
   branchStrategy: reusable           # reusable, unique-per-run, or unique-and-delete
   branchPrefix: pipeline
-  pullRequest:
-    autoCreate: true
+  mergeStrategy: pull-request        # pull-request, local-merge, or none (default: none)
+  pullRequest:                       # Only used when mergeStrategy: pull-request
     title: "🤖 Pipeline: {{pipelineName}}"
     reviewers: [alice, bob]
     labels: [automated, needs-review]
@@ -168,7 +168,12 @@ runtime:
 Branch isolation and PR creation are handled by `BranchManager` and `PRCreator`:
 
 - `branchStrategy`: `reusable` keeps a predictable branch name (`pipeline/<name>`), `unique-per-run` appends the run ID, and `unique-and-delete` appends the run ID and auto-cleans on success.
-- `pullRequest.autoCreate`: when `true`, the pipeline attempts to open a PR with GitHub CLI (`gh`). Additional metadata such as `labels`, `assignees`, and `milestone` map directly to CLI flags.
+- `mergeStrategy`: controls how pipeline work is merged after completion:
+  - `pull-request`: push branch to remote and create a GitHub PR (requires `gh` CLI)
+  - `local-merge`: merge branch to `baseBranch` locally without remote interaction
+  - `none` (default): no merge action; work stays on the pipeline branch
+  - **Note:** `unique-and-delete` branchStrategy cannot be used with `mergeStrategy: none` (validation error)
+- `pullRequest`: only used when `mergeStrategy: pull-request`. Supports `title`, `labels`, `reviewers`, `assignees`, `milestone`, and `draft` flags.
 - Use `agent-pipeline run <pipeline> --no-pr`, `--pr-draft`, `--pr-web`, or `--base-branch <branch>` for on-demand overrides.
 
 ### Notifications
