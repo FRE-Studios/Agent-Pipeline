@@ -11,6 +11,7 @@ import { ExecutionGroup } from './components/execution-group.js';
 import { StatusBadge } from './components/status-badge.js';
 import { SummaryLine } from './components/summary-line.js';
 import { LiveTimer } from './components/live-timer.js';
+import { InteractiveSummary } from './components/interactive-summary.js';
 
 interface PipelineUIProps {
   onStateChange: (callback: (state: PipelineState) => void) => void;
@@ -51,16 +52,6 @@ const getExecutionGroups = (pipelineConfig: PipelineConfig) => {
 
   return groups;
 };
-
-const FinalSummary: React.FC<{ state: PipelineState }> = ({ state }) => (
-  <Box flexDirection="column" marginTop={1} borderStyle="round" padding={1}>
-    <Text bold>Pipeline {state.status}</Text>
-    <Newline />
-    <SummaryLine label="Total Duration" value={`${state.artifacts.totalDuration.toFixed(1)}s`} />
-    <SummaryLine label="Total Commits" value={`${state.stages.filter(s => s.commitSha).length}`} />
-    <SummaryLine label="PR" value={state.artifacts.pullRequest?.url} color="cyan" />
-  </Box>
-);
 
 export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange }) => {
   const [state, setState] = useState<PipelineState | null>(null);
@@ -113,7 +104,7 @@ export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange }) => {
         />
       ))}
 
-      {isFinished && <FinalSummary state={state} />}
+      {isFinished && <InteractiveSummary state={state} />}
 
       {!isFinished && (
         <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
