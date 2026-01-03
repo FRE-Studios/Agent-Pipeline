@@ -1405,8 +1405,8 @@ describe('StageExecutor', () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
       // Pass verbose logging context to see runtime resolution logs
       executor = new StageExecutor(
-        mockGitManager, false, testRunId, testRepoPath,
-        undefined, undefined, undefined,
+        mockGitManager, false, mockHandoverManager,
+        undefined, undefined, undefined, undefined,
         { interactive: false, verbose: true }
       );
 
@@ -1464,8 +1464,8 @@ describe('StageExecutor', () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
       // Pass verbose logging context to see runtime resolution logs
       executor = new StageExecutor(
-        mockGitManager, false, testRunId, testRepoPath,
-        undefined, undefined, undefined,
+        mockGitManager, false, mockHandoverManager,
+        undefined, undefined, undefined, undefined,
         { interactive: false, verbose: true }
       );
 

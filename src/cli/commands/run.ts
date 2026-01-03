@@ -7,6 +7,7 @@ import { PipelineLoader } from '../../config/pipeline-loader.js';
 import { PipelineValidator } from '../../validators/pipeline-validator.js';
 import { PipelineUI } from '../../ui/pipeline-ui.js';
 import { PipelineMetadata } from '../../config/schema.js';
+import { openInPager } from '../../utils/platform-opener.js';
 
 export interface RunOptions {
   dryRun?: boolean;
@@ -58,6 +59,9 @@ export async function runCommand(
   // Compute loop metadata (use explicit metadata or default from loader)
   const loopMetadata = options.loopMetadata ?? metadata;
 
+  // Track if user requested to open logs (set by callback before Ink exits)
+  let pendingLogPath: string | null = null;
+
   // Render UI if interactive
   let uiInstance;
   if (interactive) {
@@ -65,6 +69,9 @@ export async function runCommand(
       React.createElement(PipelineUI, {
         onStateChange: (callback) => {
           runner.onStateChange(callback);
+        },
+        onOpenLogs: (logPath) => {
+          pendingLogPath = logPath;
         }
       })
     );
@@ -87,6 +94,11 @@ export async function runCommand(
     // In interactive mode, wait for user to dismiss the summary before exiting
     if (uiInstance) {
       await uiInstance.waitUntilExit();
+    }
+
+    // If user requested to view logs, open pager before exiting
+    if (pendingLogPath) {
+      await openInPager(pendingLogPath);
     }
 
     process.exit(exitCode);

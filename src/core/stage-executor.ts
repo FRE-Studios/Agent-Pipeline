@@ -202,6 +202,9 @@ export class StageExecutor {
     // Resolve runtime for this stage (stage → pipeline → default)
     const runtime = this.resolveStageRuntime(stageConfig, pipelineState);
 
+    // Pre-create stage output directory so agent can write to it immediately
+    await this.handoverManager.createStageDirectory(stageConfig.name);
+
     // Define the core execution logic
     const executeAttempt = async (): Promise<void> => {
       // Load agent prompts
