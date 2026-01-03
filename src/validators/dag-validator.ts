@@ -13,8 +13,7 @@ export class DAGValidator implements Validator {
 
   shouldRun(context: ValidationContext): boolean {
     const hasAgents = (context.config.agents?.length ?? 0) > 0;
-    const hasNoErrors = !context.errors.some((e) => e.severity === 'error');
-    return hasAgents && hasNoErrors;
+    return hasAgents;
   }
 
   async validate(context: ValidationContext): Promise<void> {
@@ -54,7 +53,13 @@ export class DAGValidator implements Validator {
     errors: ValidationContext['errors'],
     planner: DAGPlanner
   ): void {
-    const graph = planner.buildExecutionPlan(config);
+    let graph;
+    try {
+      graph = planner.buildExecutionPlan(config);
+    } catch {
+      // Skip parallel limit checks if the execution plan can't be built.
+      return;
+    }
     const maxParallel = graph.plan.maxParallelism;
 
     if (maxParallel > 10) {

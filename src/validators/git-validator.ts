@@ -51,8 +51,6 @@ export class GitValidator implements Validator {
         message: 'Not a git repository. Initialize with: git init',
         severity: 'error',
       });
-      // Critical failure - skip remaining validators
-      context.skipRemainingValidators = true;
     }
   }
 
