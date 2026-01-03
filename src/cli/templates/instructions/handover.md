@@ -1,6 +1,6 @@
 ## Pipeline Handover Context
 
-**Handover Directory:** `{{handoverDir}}`
+**Handover Directory:** `{{handoverDir}}` *(absolute path - use exactly as shown)*
 
 ### Required Reading
 Before starting your task, read these files to understand the current state:
@@ -15,6 +15,8 @@ Before starting your task, read these files to understand the current state:
 **output.md is a summary file only.** Keep it minimal and to the point.
 
 Save your summary to: `{{handoverDir}}/stages/{{stageName}}/output.md`
+
+> **Note:** This is an absolute path. You have permission to write here regardless of your current working directory.
 
 ```markdown
 # Stage: {{stageName}}

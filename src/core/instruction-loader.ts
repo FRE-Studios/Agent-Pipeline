@@ -109,7 +109,7 @@ export class InstructionLoader {
   private getBuiltInHandoverTemplate(): string {
     return `## Pipeline Handover Context
 
-**Handover Directory:** \`{{handoverDir}}\`
+**Handover Directory:** \`{{handoverDir}}\` *(absolute path - use exactly as shown)*
 
 ### Required Reading
 Before starting your task, read these files to understand the current state:
@@ -122,6 +122,8 @@ Before starting your task, read these files to understand the current state:
 ### Your Output Requirements
 When you complete your task, save your output to:
 \`{{handoverDir}}/stages/{{stageName}}/output.md\`
+
+> **Note:** This is an absolute path. You have permission to write here regardless of your current working directory.
 
 Use this format:
 \`\`\`markdown

@@ -17,6 +17,7 @@ export class StageExecutor {
   private instructionLoader: InstructionLoader | null;
   private worktreeGitManager: GitManager | null = null;
   private executionCwd: string | undefined;
+  private mainRepoPath: string | undefined;
   private loggingContext: LoggingContext;
 
   constructor(
@@ -31,6 +32,7 @@ export class StageExecutor {
   ) {
     this.retryHandler = new RetryHandler();
     this.instructionLoader = repoPath ? new InstructionLoader(repoPath) : null;
+    this.mainRepoPath = repoPath;
     this.loggingContext = loggingContext ?? { interactive: true, verbose: false };
 
     // If execution happens in a worktree, create a separate GitManager for it
@@ -380,6 +382,9 @@ export class StageExecutor {
       ? `## User Inputs to Help with Your Task\n${Object.entries(stageConfig.inputs).map(([key, value]) => `- **${key}**: ${value}`).join('\n')}`
       : '';
 
+    // Build execution environment section (critical for worktree execution)
+    const executionEnvSection = this.buildExecutionEnvironmentSection();
+
     // Construct full context
     const context = `
 # Pipeline Context
@@ -387,6 +392,8 @@ export class StageExecutor {
 **Pipeline Run ID:** ${pipelineState.runId}
 **Current Stage:** ${stageConfig.name}
 **Trigger Commit:** ${pipelineState.trigger.commitSha}
+
+${executionEnvSection}
 
 ${handoverContext}
 
@@ -396,6 +403,30 @@ ${inputsSection}
     `.trim();
 
     return context;
+  }
+
+  /**
+   * Build execution environment section to inform agents about filesystem context.
+   * This is critical when running in worktrees to avoid path confusion.
+   */
+  private buildExecutionEnvironmentSection(): string {
+    const workingDir = this.executionCwd || this.mainRepoPath || process.cwd();
+    const isWorktree = !!this.executionCwd;
+
+    let section = `## Execution Environment
+
+**Working Directory:** \`${workingDir}\``;
+
+    if (isWorktree && this.mainRepoPath) {
+      section += `
+**Main Repository:** \`${this.mainRepoPath}\`
+**Execution Mode:** Worktree isolation (your changes are made in an isolated copy)
+
+> **Important:** All handover paths below are **absolute paths** that point to the main repository.
+> You have full permission to read/write these paths. Use them exactly as shown.`;
+    }
+
+    return section;
   }
 
   /**
