@@ -15,6 +15,7 @@ import { InteractiveSummary } from './components/interactive-summary.js';
 
 interface PipelineUIProps {
   onStateChange: (callback: (state: PipelineState) => void) => void;
+  onOpenLogs?: (logPath: string) => void;
 }
 
 // Helper to group stages by dependencies for visualization
@@ -53,7 +54,7 @@ const getExecutionGroups = (pipelineConfig: PipelineConfig) => {
   return groups;
 };
 
-export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange }) => {
+export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange, onOpenLogs }) => {
   const [state, setState] = useState<PipelineState | null>(null);
 
   useEffect(() => {
@@ -104,7 +105,7 @@ export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange }) => {
         />
       ))}
 
-      {isFinished && <InteractiveSummary state={state} />}
+      {isFinished && <InteractiveSummary state={state} onOpenLogs={onOpenLogs} />}
 
       {!isFinished && (
         <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>

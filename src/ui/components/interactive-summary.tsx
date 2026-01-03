@@ -13,11 +13,12 @@ import { openWithSystem, openInPager } from '../../utils/platform-opener.js';
 
 interface InteractiveSummaryProps {
   state: PipelineState;
+  onOpenLogs?: (logPath: string) => void;
 }
 
 type InputMode = 'navigation' | 'input';
 
-export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state }) => {
+export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state, onOpenLogs }) => {
   const { exit } = useApp();
   const [mode, setMode] = useState<InputMode>('navigation');
   const [noteText, setNoteText] = useState('');
@@ -73,16 +74,19 @@ export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state })
   const handleOpenLogs = useCallback(async () => {
     if (!logPath) return;
 
-    // Must exit Ink before spawning pager (same pattern as history.tsx)
     setIsExiting(true);
-    exit();
 
-    // Let Ink restore terminal state before launching pager
-    await new Promise(resolve => setImmediate(resolve));
-    await openInPager(logPath);
-
-    // After pager closes, process will exit naturally
-  }, [logPath, exit]);
+    if (onOpenLogs) {
+      // Caller will handle opening the pager after Ink exits
+      onOpenLogs(logPath);
+      exit();
+    } else {
+      // Fallback: try to open pager directly (may not work in all contexts)
+      exit();
+      await new Promise(resolve => setImmediate(resolve));
+      await openInPager(logPath);
+    }
+  }, [logPath, exit, onOpenLogs]);
 
   const handleAddNote = useCallback(async () => {
     if (!logPath || !noteText.trim()) {
