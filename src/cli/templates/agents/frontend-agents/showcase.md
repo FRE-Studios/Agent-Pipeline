@@ -72,8 +72,16 @@ Output a single `showcase.html` file:
     .showcase-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      max-width: calc(400px * 3 + 2px); /* Limit to 3 columns */
       gap: 1px;
       background: #222;
+      margin: 0 auto;
+    }
+    
+    @media (min-width: 1203px) {
+      .showcase-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
     }
     
     .prototype-card {
@@ -146,6 +154,43 @@ Output a single `showcase.html` file:
       align-items: center;
     }
     
+    .fullscreen-nav {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    
+    .fullscreen-nav-btn {
+      background: none;
+      border: 1px solid #333;
+      color: #fafafa;
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    
+    .fullscreen-nav-btn:hover:not(:disabled) {
+      border-color: #666;
+    }
+    
+    .fullscreen-nav-btn:disabled {
+      color: #444;
+      border-color: #222;
+      cursor: not-allowed;
+    }
+    
+    .fullscreen-title {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    
+    .fullscreen-counter {
+      font-size: 0.75rem;
+      color: #666;
+    }
+    
     .fullscreen-close {
       background: none;
       border: 1px solid #333;
@@ -175,7 +220,7 @@ Output a single `showcase.html` file:
   <main class="showcase-grid">
     
     <!-- Repeat for each prototype -->
-    <article class="prototype-card">
+    <article class="prototype-card" data-index="0">
       <div class="prototype-header">
         <span class="prototype-name">[Design Name]</span>
         <span class="prototype-agent">[Agent Name]</span>
@@ -183,7 +228,7 @@ Output a single `showcase.html` file:
       <iframe src="[prototype-file.html]" class="prototype-frame"></iframe>
       <div class="prototype-actions">
         <a href="[prototype-file.html]" target="_blank">Open in new tab ↗</a>
-        <a href="#" onclick="openFullscreen('[prototype-file.html]', '[Design Name]')">Fullscreen</a>
+        <a href="#" onclick="openFullscreen(0)">Fullscreen</a>
       </div>
     </article>
     <!-- End repeat -->
@@ -193,17 +238,33 @@ Output a single `showcase.html` file:
   <!-- Fullscreen viewer -->
   <div class="fullscreen" id="fullscreen">
     <div class="fullscreen-header">
-      <span id="fullscreen-title"></span>
+      <div class="fullscreen-nav">
+        <button class="fullscreen-nav-btn" id="prev-btn" onclick="navigateFullscreen(-1)">← Previous</button>
+        <button class="fullscreen-nav-btn" id="next-btn" onclick="navigateFullscreen(1)">Next →</button>
+      </div>
+      <div class="fullscreen-title">
+        <span id="fullscreen-title"></span>
+        <span class="fullscreen-counter" id="fullscreen-counter"></span>
+      </div>
       <button class="fullscreen-close" onclick="closeFullscreen()">Close ✕</button>
     </div>
     <iframe id="fullscreen-frame"></iframe>
   </div>
 
   <script>
-    function openFullscreen(src, title) {
+    // Store prototype data for navigation
+    const prototypes = [
+      // Populated during generation:
+      // { src: 'brutalist_prototype.html', title: 'Brutalist Purist' },
+      // { src: 'luxury_prototype.html', title: 'Luxury Editorial' },
+    ];
+    
+    let currentIndex = 0;
+    
+    function openFullscreen(index) {
+      currentIndex = index;
+      updateFullscreenView();
       document.getElementById('fullscreen').classList.add('active');
-      document.getElementById('fullscreen-frame').src = src;
-      document.getElementById('fullscreen-title').textContent = title;
     }
     
     function closeFullscreen() {
@@ -211,8 +272,32 @@ Output a single `showcase.html` file:
       document.getElementById('fullscreen-frame').src = '';
     }
     
+    function navigateFullscreen(direction) {
+      const newIndex = currentIndex + direction;
+      if (newIndex >= 0 && newIndex < prototypes.length) {
+        currentIndex = newIndex;
+        updateFullscreenView();
+      }
+    }
+    
+    function updateFullscreenView() {
+      const prototype = prototypes[currentIndex];
+      document.getElementById('fullscreen-frame').src = prototype.src;
+      document.getElementById('fullscreen-title').textContent = prototype.title;
+      document.getElementById('fullscreen-counter').textContent = 
+        `${currentIndex + 1} / ${prototypes.length}`;
+      
+      // Update button states
+      document.getElementById('prev-btn').disabled = currentIndex === 0;
+      document.getElementById('next-btn').disabled = currentIndex === prototypes.length - 1;
+    }
+    
     document.addEventListener('keydown', (e) => {
+      if (!document.getElementById('fullscreen').classList.contains('active')) return;
+      
       if (e.key === 'Escape') closeFullscreen();
+      if (e.key === 'ArrowLeft') navigateFullscreen(-1);
+      if (e.key === 'ArrowRight') navigateFullscreen(1);
     });
   </script>
 </body>
@@ -240,7 +325,8 @@ cyberpunk_prototype.html
 1. Read the list of prototype files from the pipeline
 2. Extract the agent name from filename (e.g., `brutalist_prototype.html` → "Brutalist Purist")
 3. Generate the showcase HTML with one card per prototype
-4. Output `showcase.html`
+4. Populate the `prototypes` array in the script with all prototype data
+5. Output `showcase.html`
 
 ---
 
