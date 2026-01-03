@@ -19,6 +19,7 @@ notifications:
   events:
     - pipeline.completed           # Notify on successful runs
     - pipeline.failed              # Notify on failures
+    - pr.created                   # Notify on new PR
   channels:
     local:
       enabled: true                # Desktop notifications (macOS/Linux)

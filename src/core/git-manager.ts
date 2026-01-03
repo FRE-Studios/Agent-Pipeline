@@ -169,9 +169,10 @@ export class GitManager {
       );
     }
 
-    // Check if the branch exists locally
-    const branches = await this.git.branchLocal();
-    const branchExists = branches.all.includes(branch);
+    // Check if the branch (and baseBranch) exists locally
+    const localBranches = await this.git.branchLocal();
+    const branchExists = localBranches.all.includes(branch);
+    const baseBranchExistsLocally = localBranches.all.includes(baseBranch);
 
     if (branchExists) {
       // Add worktree with existing branch
@@ -183,34 +184,17 @@ export class GitManager {
       }
     } else {
       // Create new branch and worktree from base
-      // Try remote base first, fall back to local
-      try {
-        await this.git.raw(['worktree', 'add', '-b', branch, worktreePath, `origin/${baseBranch}`]);
-      } catch (error) {
-        // Check if the first attempt created the branch before failing
-        // (can happen if origin exists but worktree path has issues)
-        const branchesAfterFirstAttempt = await this.git.branchLocal();
-        const branchCreatedByFailedAttempt = branchesAfterFirstAttempt.all.includes(branch);
+      // Prefer local baseBranch (faster, works for unpushed feature branches)
+      // Fall back to origin/baseBranch if local doesn't exist
 
-        if (branchCreatedByFailedAttempt) {
-          // Branch was created by failed attempt, just add worktree without -b
-          try {
-            await this.git.raw(['worktree', 'add', worktreePath, branch]);
-            return;
-          } catch (wtError) {
-            const gitError = ErrorFactory.createGitError(wtError, 'worktree_add');
-            throw new Error(`Failed to add worktree for branch '${branch}': ${gitError.message}`);
-          }
-        }
-
-        // Fallback to local base branch if remote doesn't exist
+      if (baseBranchExistsLocally) {
+        // Use local baseBranch directly
         try {
           await this.git.raw(['worktree', 'add', '-b', branch, worktreePath, baseBranch]);
-        } catch (fallbackError) {
-          const errorMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
 
           // Handle race condition: branch may have been created by concurrent run
-          // or left behind from a previous failed run that branchLocal() missed
           if (errorMessage.includes('already exists')) {
             try {
               await this.git.raw(['worktree', 'add', worktreePath, branch]);
@@ -221,9 +205,48 @@ export class GitManager {
             }
           }
 
-          const gitError = ErrorFactory.createGitError(fallbackError, 'worktree_create');
+          const gitError = ErrorFactory.createGitError(error, 'worktree_create');
           throw new Error(
             `Failed to create worktree with new branch '${branch}' from base '${baseBranch}': ${gitError.message}`
+          );
+        }
+      } else {
+        // Local baseBranch doesn't exist, try origin/baseBranch
+        try {
+          await this.git.raw(['worktree', 'add', '-b', branch, worktreePath, `origin/${baseBranch}`]);
+        } catch (error) {
+          // Check if the first attempt created the branch before failing
+          // (can happen if origin exists but worktree path has issues)
+          const branchesAfterFirstAttempt = await this.git.branchLocal();
+          const branchCreatedByFailedAttempt = branchesAfterFirstAttempt.all.includes(branch);
+
+          if (branchCreatedByFailedAttempt) {
+            // Branch was created by failed attempt, just add worktree without -b
+            try {
+              await this.git.raw(['worktree', 'add', worktreePath, branch]);
+              return;
+            } catch (wtError) {
+              const gitError = ErrorFactory.createGitError(wtError, 'worktree_add');
+              throw new Error(`Failed to add worktree for branch '${branch}': ${gitError.message}`);
+            }
+          }
+
+          const errorMessage = error instanceof Error ? error.message : String(error);
+
+          // Handle race condition: branch may have been created by concurrent run
+          if (errorMessage.includes('already exists')) {
+            try {
+              await this.git.raw(['worktree', 'add', worktreePath, branch]);
+              return;
+            } catch (existingBranchError) {
+              const gitError = ErrorFactory.createGitError(existingBranchError, 'worktree_add');
+              throw new Error(`Failed to add worktree for existing branch '${branch}': ${gitError.message}`);
+            }
+          }
+
+          throw new Error(
+            `Failed to create worktree: branch '${baseBranch}' not found locally or at origin/${baseBranch}. ` +
+            `Ensure the baseBranch exists or check your git configuration.`
           );
         }
       }

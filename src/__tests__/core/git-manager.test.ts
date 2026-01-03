@@ -1027,32 +1027,33 @@ branch refs/heads/main`;
       mockGit.branchLocal = vi.fn().mockResolvedValue({ all: [] });
     });
 
-    it('should create worktree with new branch from remote base', async () => {
+    it('should prefer local baseBranch over remote when it exists', async () => {
       mockGit.raw
         .mockResolvedValueOnce('') // listWorktrees (empty)
         .mockResolvedValueOnce(undefined); // worktree add
 
+      // Local 'main' exists - should use it directly, not origin/main
+      mockGit.branchLocal.mockResolvedValue({ all: ['main'] });
+
+      await gitManager.createWorktree('/path/to/worktree', 'new-branch', 'main');
+
+      expect(mockGit.raw).toHaveBeenCalledWith([
+        'worktree', 'add', '-b', 'new-branch', '/path/to/worktree', 'main'
+      ]);
+    });
+
+    it('should use origin/baseBranch when local baseBranch does not exist', async () => {
+      mockGit.raw
+        .mockResolvedValueOnce('') // listWorktrees (empty)
+        .mockResolvedValueOnce(undefined); // worktree add
+
+      // No local branches - should try origin/main
       mockGit.branchLocal.mockResolvedValue({ all: [] });
 
       await gitManager.createWorktree('/path/to/worktree', 'new-branch', 'main');
 
       expect(mockGit.raw).toHaveBeenCalledWith([
         'worktree', 'add', '-b', 'new-branch', '/path/to/worktree', 'origin/main'
-      ]);
-    });
-
-    it('should fallback to local base branch if remote fails', async () => {
-      mockGit.raw
-        .mockResolvedValueOnce('') // listWorktrees
-        .mockRejectedValueOnce(new Error('Remote not found')) // remote base fails
-        .mockResolvedValueOnce(undefined); // local base succeeds
-
-      mockGit.branchLocal.mockResolvedValue({ all: [] });
-
-      await gitManager.createWorktree('/path/to/worktree', 'new-branch', 'main');
-
-      expect(mockGit.raw).toHaveBeenCalledWith([
-        'worktree', 'add', '-b', 'new-branch', '/path/to/worktree', 'main'
       ]);
     });
 
@@ -1094,13 +1095,29 @@ branch refs/heads/feature-branch`;
       ).rejects.toThrow("Failed to add worktree for existing branch 'existing-branch'");
     });
 
-    it('should handle race condition when branch already exists during fallback', async () => {
-      // Scenario: branchLocal says branch doesn't exist, but another process creates it
+    it('should handle race condition when branch already exists (local baseBranch path)', async () => {
+      // Scenario: local baseBranch exists, but another process creates pipeline branch
       // before we can. We should gracefully use the existing branch.
       mockGit.raw
         .mockResolvedValueOnce('') // listWorktrees
-        .mockRejectedValueOnce(new Error('Remote not found')) // remote base fails
-        .mockRejectedValueOnce(new Error('fatal: a branch named \'new-branch\' already exists')) // local base fails - race condition
+        .mockRejectedValueOnce(new Error('fatal: a branch named \'new-branch\' already exists')) // race condition
+        .mockResolvedValueOnce(undefined); // worktree add with existing branch succeeds
+
+      mockGit.branchLocal.mockResolvedValue({ all: ['main'] });
+
+      await gitManager.createWorktree('/path/to/worktree', 'new-branch', 'main');
+
+      // Should have tried worktree add without -b after detecting branch exists
+      expect(mockGit.raw).toHaveBeenCalledWith([
+        'worktree', 'add', '/path/to/worktree', 'new-branch'
+      ]);
+    });
+
+    it('should handle race condition when branch already exists (origin path)', async () => {
+      // Scenario: no local baseBranch, origin fails with race condition
+      mockGit.raw
+        .mockResolvedValueOnce('') // listWorktrees
+        .mockRejectedValueOnce(new Error('fatal: a branch named \'new-branch\' already exists')) // race condition
         .mockResolvedValueOnce(undefined); // worktree add with existing branch succeeds
 
       mockGit.branchLocal.mockResolvedValue({ all: [] });
@@ -1113,24 +1130,50 @@ branch refs/heads/feature-branch`;
       ]);
     });
 
-    it('should throw when branch creation fails for non-race-condition reasons', async () => {
+    it('should throw when local baseBranch creation fails for non-race-condition reasons', async () => {
       mockGit.raw
         .mockResolvedValueOnce('') // listWorktrees
-        .mockRejectedValueOnce(new Error('Remote not found'))
         .mockRejectedValueOnce(new Error('fatal: invalid reference'));
 
-      mockGit.branchLocal.mockResolvedValue({ all: [] });
+      // Local 'main' exists but worktree creation fails
+      mockGit.branchLocal.mockResolvedValue({ all: ['main'] });
 
       await expect(
         gitManager.createWorktree('/path/to/worktree', 'new-branch', 'main')
       ).rejects.toThrow("Failed to create worktree with new branch 'new-branch' from base 'main'");
     });
 
-    it('should throw when race condition recovery also fails', async () => {
+    it('should throw with helpful message when baseBranch not found anywhere', async () => {
+      mockGit.raw
+        .mockResolvedValueOnce('') // listWorktrees
+        .mockRejectedValueOnce(new Error('fatal: invalid reference: origin/main'));
+
+      // No local branches - origin also fails
+      mockGit.branchLocal.mockResolvedValue({ all: [] });
+
+      await expect(
+        gitManager.createWorktree('/path/to/worktree', 'new-branch', 'main')
+      ).rejects.toThrow("branch 'main' not found locally or at origin/main");
+    });
+
+    it('should throw when race condition recovery also fails (local baseBranch path)', async () => {
       // Scenario: branch exists (race condition), but worktree add also fails
       mockGit.raw
         .mockResolvedValueOnce('') // listWorktrees
-        .mockRejectedValueOnce(new Error('Remote not found')) // remote base fails
+        .mockRejectedValueOnce(new Error('fatal: a branch named \'new-branch\' already exists')) // race condition
+        .mockRejectedValueOnce(new Error('fatal: path already exists')); // worktree add with existing branch fails
+
+      mockGit.branchLocal.mockResolvedValue({ all: ['main'] });
+
+      await expect(
+        gitManager.createWorktree('/path/to/worktree', 'new-branch', 'main')
+      ).rejects.toThrow("Failed to add worktree for existing branch 'new-branch'");
+    });
+
+    it('should throw when race condition recovery also fails (origin path)', async () => {
+      // Scenario: no local baseBranch, origin race condition, recovery fails
+      mockGit.raw
+        .mockResolvedValueOnce('') // listWorktrees
         .mockRejectedValueOnce(new Error('fatal: a branch named \'new-branch\' already exists')) // race condition
         .mockRejectedValueOnce(new Error('fatal: path already exists')); // worktree add with existing branch fails
 
