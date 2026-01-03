@@ -202,7 +202,7 @@ describe('initCommand', () => {
         const agent = parsed.agents.find((a: any) => a.name === 'code-review');
         expect(agent).toBeDefined();
         expect(agent.agent).toBe('.agent-pipeline/agents/code-reviewer.md');
-        expect(agent.timeout).toBe(300);
+        expect(agent.timeout).toBe(900);
       });
 
       it('should have sequential execution with correct dependencies', async () => {

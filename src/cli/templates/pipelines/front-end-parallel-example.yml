@@ -28,7 +28,7 @@ agents:
   # Stage 1: Transform user input into structured requirements
   - name: product-owner
     agent: .agent-pipeline/agents/product_owner.md
-    timeout: 120
+    timeout: 300
     inputs:
       prompt: "A high-end mountain exploration technology company that makes rugged GPS devices, satellite communicators, and avalanche safety gear for elite alpinists and expedition teams"
 
@@ -37,37 +37,37 @@ agents:
     agent: .agent-pipeline/agents/retro_90s_webmaster.md
     dependsOn: 
       - product-owner
-    timeout: 300
+    timeout: 600
 
   - name: brutalist
     agent: .agent-pipeline/agents/brutalist_purist.md
     dependsOn:
       - product-owner
-    timeout: 300
+    timeout: 600
 
   - name: luxury-editorial
     agent: .agent-pipeline/agents/luxury_editorial.md
     dependsOn:
       - product-owner
-    timeout: 300
+    timeout: 600
 
   - name: indie-game
     agent: .agent-pipeline/agents/indie_game_dev.md
     dependsOn: 
       - product-owner
-    timeout: 300
+    timeout: 600
 
   - name: cyberpunk
     agent: .agent-pipeline/agents/cyberpunk_hacker.md
     dependsOn: 
       - product-owner
-    timeout: 300
+    timeout: 600
 
   - name: swiss-modernist
     agent: .agent-pipeline/agents/swiss_modernist.md
     dependsOn: 
       - product-owner
-    timeout: 300
+    timeout: 600
 
   # Stage 3: Collect all prototypes into a showcase
   - name: showcase
@@ -79,4 +79,4 @@ agents:
       - indie-game
       - cyberpunk
       - swiss-modernist
-    timeout: 180
+    timeout: 300
