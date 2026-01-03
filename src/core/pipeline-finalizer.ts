@@ -169,7 +169,9 @@ export class PipelineFinalizer {
       );
 
       if (this.shouldLog(interactive)) {
-        console.log(`\n✅ Pull Request created: ${result.url}`);
+        const statusIcon = state.status === 'completed' ? '✅' : '⚠️';
+        const statusSuffix = state.status === 'partial' ? ' (partial success)' : '';
+        console.log(`\n${statusIcon} Pull Request created${statusSuffix}: ${result.url}`);
       }
 
       // Save PR info to state
