@@ -420,10 +420,9 @@ ${inputsSection}
     if (isWorktree && this.mainRepoPath) {
       section += `
 **Main Repository:** \`${this.mainRepoPath}\`
-**Execution Mode:** Worktree isolation (your changes are made in an isolated copy)
+**Execution Mode:** Worktree isolation
 
-> **Important:** All handover paths below are **absolute paths** that point to the main repository.
-> You have full permission to read/write these paths. Use them exactly as shown.`;
+You are running in a git worktree located within the main repository directory. Your code changes go in the working directory. Handover files (output.md) use absolute paths pointing to the main repository—write to them directly as shown below.`;
     }
 
     return section;
