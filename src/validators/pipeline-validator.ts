@@ -56,9 +56,6 @@ export class PipelineValidator {
       this.validateSlackWebhook(config);
     }
 
-    // Check for deprecated preserveWorkingTree setting
-    this.checkDeprecatedSettings(config);
-
     // P2: Retry configuration sanity (conditional - only if retries configured)
     this.validateRetryConfiguration(config);
 
@@ -275,7 +272,7 @@ export class PipelineValidator {
 
   /**
    * Validate git strategy combinations.
-   * Ensures branchStrategy and mergeStrategy are compatible.
+   * Ensures branchStrategy and mergeStrategy are compatible and have valid values.
    */
   private validateGitStrategies(config: PipelineConfig): void {
     if (!config.git) return;
@@ -283,13 +280,12 @@ export class PipelineValidator {
     const branchStrategy = config.git.branchStrategy || 'reusable';
     const mergeStrategy = config.git.mergeStrategy || 'none';
 
-    // unique-and-delete + none = work would be lost
-    if (branchStrategy === 'unique-and-delete' && mergeStrategy === 'none') {
+    // Validate branchStrategy value
+    const validBranchStrategies = ['reusable', 'unique-per-run', 'unique-and-delete'];
+    if (config.git.branchStrategy && !validBranchStrategies.includes(config.git.branchStrategy)) {
       this.errors.push({
         field: 'git.branchStrategy',
-        message:
-          "Cannot use 'unique-and-delete' with 'none' merge strategy - work would be lost. " +
-          "Use 'pull-request' or 'local-merge' to preserve work, or change branchStrategy to 'reusable' or 'unique-per-run'.",
+        message: `Invalid branch strategy: ${config.git.branchStrategy}. Must be one of: ${validBranchStrategies.join(', ')}`,
         severity: 'error'
       });
     }
@@ -300,6 +296,17 @@ export class PipelineValidator {
       this.errors.push({
         field: 'git.mergeStrategy',
         message: `Invalid merge strategy: ${config.git.mergeStrategy}. Must be one of: ${validMergeStrategies.join(', ')}`,
+        severity: 'error'
+      });
+    }
+
+    // unique-and-delete + none = work would be lost
+    if (branchStrategy === 'unique-and-delete' && mergeStrategy === 'none') {
+      this.errors.push({
+        field: 'git.branchStrategy',
+        message:
+          "Cannot use 'unique-and-delete' with 'none' merge strategy - work would be lost. " +
+          "Use 'pull-request' or 'local-merge' to preserve work, or change branchStrategy to 'reusable' or 'unique-per-run'.",
         severity: 'error'
       });
     }
@@ -461,23 +468,6 @@ export class PipelineValidator {
         message:
           'Invalid Slack webhook URL. Must start with https://hooks.slack.com/. Get webhook: https://api.slack.com/messaging/webhooks',
         severity: 'error'
-      });
-    }
-  }
-
-  /**
-   * Check for deprecated settings and emit warnings.
-   */
-  private checkDeprecatedSettings(config: PipelineConfig): void {
-    // Check for deprecated preserveWorkingTree
-    // This setting is no longer used - worktree isolation is now the default
-    if ((config.settings as any)?.preserveWorkingTree !== undefined) {
-      this.errors.push({
-        field: 'settings.preserveWorkingTree',
-        message:
-          "The 'preserveWorkingTree' setting is deprecated. Pipelines now execute in git worktrees by default, " +
-          "leaving your working directory untouched. This setting will be ignored.",
-        severity: 'warning'
       });
     }
   }

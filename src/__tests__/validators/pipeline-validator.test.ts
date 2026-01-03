@@ -628,47 +628,103 @@ describe('PipelineValidator', () => {
       });
     });
 
-    describe('validateDeprecatedSettings', () => {
-      it('should warn when deprecated preserveWorkingTree is set to true', async () => {
+    describe('validateGitStrategies', () => {
+      it('should error on invalid branchStrategy', async () => {
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: {
-            ...simplePipelineConfig.settings,
+          git: {
+            branchStrategy: 'invalid-strategy' as any
           }
         };
-        // Cast to add deprecated setting
-        (config.settings as any).preserveWorkingTree = true;
 
         const errors = await validator.validate(config, tempDir);
 
-        const deprecationWarnings = errors.filter(e =>
-          e.field === 'settings.preserveWorkingTree' && e.severity === 'warning'
+        const branchErrors = errors.filter(e =>
+          e.field === 'git.branchStrategy' && e.severity === 'error'
         );
-        expect(deprecationWarnings).toHaveLength(1);
-        expect(deprecationWarnings[0].message).toContain('deprecated');
+        expect(branchErrors.length).toBeGreaterThan(0);
+        expect(branchErrors[0].message).toContain('Invalid branch strategy');
+        expect(branchErrors[0].message).toContain('reusable, unique-per-run, unique-and-delete');
       });
 
-      it('should warn when deprecated preserveWorkingTree is set to false', async () => {
+      it('should error on invalid mergeStrategy', async () => {
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: {
-            ...simplePipelineConfig.settings,
+          git: {
+            mergeStrategy: 'invalid-strategy' as any
           }
         };
-        // Cast to add deprecated setting
-        (config.settings as any).preserveWorkingTree = false;
 
         const errors = await validator.validate(config, tempDir);
 
-        const deprecationWarnings = errors.filter(e =>
-          e.field === 'settings.preserveWorkingTree' && e.severity === 'warning'
+        const mergeErrors = errors.filter(e =>
+          e.field === 'git.mergeStrategy' && e.severity === 'error'
         );
-        expect(deprecationWarnings).toHaveLength(1);
-        expect(deprecationWarnings[0].message).toContain('deprecated');
+        expect(mergeErrors.length).toBeGreaterThan(0);
+        expect(mergeErrors[0].message).toContain('Invalid merge strategy');
+        expect(mergeErrors[0].message).toContain('pull-request, local-merge, none');
       });
 
-      it('should not warn when preserveWorkingTree is not present', async () => {
-        // Config without deprecated setting
+      it('should accept all valid branchStrategy values', async () => {
+        const validStrategies: Array<'reusable' | 'unique-per-run' | 'unique-and-delete'> = [
+          'reusable',
+          'unique-per-run',
+          'unique-and-delete'
+        ];
+
+        for (const strategy of validStrategies) {
+          const config: PipelineConfig = {
+            ...simplePipelineConfig,
+            git: {
+              branchStrategy: strategy,
+              mergeStrategy: strategy === 'unique-and-delete' ? 'local-merge' : 'none'
+            }
+          };
+
+          const errors = await validator.validate(config, tempDir);
+          const branchErrors = errors.filter(e =>
+            e.field === 'git.branchStrategy' &&
+            e.severity === 'error' &&
+            e.message.includes('Invalid branch strategy')
+          );
+          expect(branchErrors).toHaveLength(0);
+        }
+      });
+
+      it('should accept all valid mergeStrategy values', async () => {
+        const validStrategies: Array<'pull-request' | 'local-merge' | 'none'> = [
+          'pull-request',
+          'local-merge',
+          'none'
+        ];
+
+        for (const strategy of validStrategies) {
+          // Mock gh CLI for pull-request strategy
+          if (strategy === 'pull-request') {
+            vi.spyOn(ghCliChecker, 'checkGHCLI').mockResolvedValue({
+              installed: true,
+              authenticated: true
+            });
+          }
+
+          const config: PipelineConfig = {
+            ...simplePipelineConfig,
+            git: {
+              mergeStrategy: strategy
+            }
+          };
+
+          const errors = await validator.validate(config, tempDir);
+          const mergeErrors = errors.filter(e =>
+            e.field === 'git.mergeStrategy' &&
+            e.severity === 'error' &&
+            e.message.includes('Invalid merge strategy')
+          );
+          expect(mergeErrors).toHaveLength(0);
+        }
+      });
+
+      it('should allow omitting branchStrategy (uses default)', async () => {
         const config: PipelineConfig = {
           ...simplePipelineConfig,
           git: {
@@ -678,10 +734,26 @@ describe('PipelineValidator', () => {
 
         const errors = await validator.validate(config, tempDir);
 
-        const deprecationWarnings = errors.filter(e =>
-          e.field === 'settings.preserveWorkingTree'
+        const branchErrors = errors.filter(e =>
+          e.field === 'git.branchStrategy' && e.message.includes('Invalid branch strategy')
         );
-        expect(deprecationWarnings).toHaveLength(0);
+        expect(branchErrors).toHaveLength(0);
+      });
+
+      it('should allow omitting mergeStrategy (uses default)', async () => {
+        const config: PipelineConfig = {
+          ...simplePipelineConfig,
+          git: {
+            branchStrategy: 'reusable'
+          }
+        };
+
+        const errors = await validator.validate(config, tempDir);
+
+        const mergeErrors = errors.filter(e =>
+          e.field === 'git.mergeStrategy' && e.message.includes('Invalid merge strategy')
+        );
+        expect(mergeErrors).toHaveLength(0);
       });
     });
   });
