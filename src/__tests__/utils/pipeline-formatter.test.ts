@@ -478,37 +478,10 @@ describe('PipelineFormatter', () => {
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
         // Total input = actual_input (25234) + cache_read (2000) = 27234 = 27.2k
-        expect(result).toContain('Input: 27.2k tokens');
-        expect(result).toContain('Output: 13.1k');
-        expect(result).toContain('Cache created: 5k');
+        expect(result).toContain('~27.2k processed');
+        expect(result).toContain('~13.1k output');
         // Cache read is now shown as cache hit percentage
         expect(result).toContain('Cache: 7% hit');
-      });
-
-      it('should show estimation comparison when difference > 5%', () => {
-        const tokenUsage = {
-          estimated_input: 20000,
-          actual_input: 25000,
-          output: 13000
-        };
-
-        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
-
-        expect(result).toContain('Input: 25k tokens');
-        expect(result).toContain('(est. 20k)');
-      });
-
-      it('should NOT show estimation comparison when difference <= 5%', () => {
-        const tokenUsage = {
-          estimated_input: 24000,
-          actual_input: 25000,
-          output: 13000
-        };
-
-        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
-
-        expect(result).toContain('Input: 25k tokens');
-        expect(result).not.toContain('(est.');
       });
     });
 
@@ -522,8 +495,8 @@ describe('PipelineFormatter', () => {
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
-        expect(result).toContain('Input: 25k tokens');
-        expect(result).toContain('Output: 13k');
+        expect(result).toContain('~25k processed');
+        expect(result).toContain('~13k output');
         expect(result).not.toContain('Cache');
       });
 
@@ -536,26 +509,12 @@ describe('PipelineFormatter', () => {
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
-        expect(result).toContain('Input: 25k tokens');
-        expect(result).not.toContain('(est.');
-        expect(result).toContain('Output: 13k');
+        expect(result).toContain('~25k processed');
+        expect(result).toContain('~13k output');
       });
     });
 
     describe('Cache Token Handling', () => {
-      it('should include cache_creation when present', () => {
-        const tokenUsage = {
-          estimated_input: 25000,
-          actual_input: 25000,
-          output: 13000,
-          cache_creation: 5000
-        };
-
-        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
-
-        expect(result).toContain('Cache created: 5k');
-      });
-
       it('should include cache_read as percentage when present', () => {
         const tokenUsage = {
           estimated_input: 25000,
@@ -567,11 +526,11 @@ describe('PipelineFormatter', () => {
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
         // Total input = 25000 + 2000 = 27000; cache hit = 2000/27000 = 7%
-        expect(result).toContain('Input: 27k tokens');
+        expect(result).toContain('~27k processed');
         expect(result).toContain('Cache: 7% hit');
       });
 
-      it('should include both cache fields when present', () => {
+      it('should include cache_read in total processed and show hit ratio', () => {
         const tokenUsage = {
           estimated_input: 25000,
           actual_input: 25000,
@@ -583,8 +542,7 @@ describe('PipelineFormatter', () => {
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
         // Total input = 25000 + 2000 = 27000
-        expect(result).toContain('Input: 27k tokens');
-        expect(result).toContain('Cache created: 5k');
+        expect(result).toContain('~27k processed');
         expect(result).toContain('Cache: 7% hit');
       });
 
@@ -600,14 +558,14 @@ describe('PipelineFormatter', () => {
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
         // Total input = 5000 + 40000 + 20000 = 65000
-        expect(result).toContain('Input: 65k tokens');
+        expect(result).toContain('~65k processed');
         // Cache hit = 40000 / 65000 = ~62%
         expect(result).toContain('Cache: 62% hit');
       });
     });
 
-    describe('num_turns and thinking_tokens Fields', () => {
-      it('should display num_turns when present', () => {
+    describe('num_turns Field', () => {
+      it('should display num_turns when present and > 0', () => {
         const tokenUsage = {
           estimated_input: 25000,
           actual_input: 25000,
@@ -617,56 +575,26 @@ describe('PipelineFormatter', () => {
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
-        expect(result).toContain('Est. initial: 25k');
+        expect(result).toContain('~25k processed');
         expect(result).toContain('Turns: 3');
       });
 
-      it('should display thinking_tokens when present and > 0', () => {
-        const tokenUsage = {
-          estimated_input: 25000,
-          actual_input: 25000,
-          output: 13000,
-          thinking_tokens: 12500
-        };
-
-        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
-
-        expect(result).toContain('Thinking: 12.5k');
-      });
-
-      it('should not display thinking_tokens when zero', () => {
-        const tokenUsage = {
-          estimated_input: 25000,
-          actual_input: 25000,
-          output: 13000,
-          thinking_tokens: 0
-        };
-
-        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
-
-        expect(result).not.toContain('Thinking:');
-      });
-
-      it('should display all fields including num_turns and thinking_tokens', () => {
+      it('should display all fields with turns and cache', () => {
         const tokenUsage = {
           estimated_input: 23000,
           actual_input: 25000,
           output: 13000,
           cache_creation: 5000,
           cache_read: 2000,
-          num_turns: 4,
-          thinking_tokens: 8000
+          num_turns: 4
         };
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
         // Total input = 25000 + 2000 = 27000
-        expect(result).toContain('Input: 27k tokens');
-        expect(result).toContain('Est. initial: 23k');
-        expect(result).toContain('Output: 13k');
-        expect(result).toContain('Thinking: 8k');
+        expect(result).toContain('~27k processed');
+        expect(result).toContain('~13k output');
         expect(result).toContain('Turns: 4');
-        expect(result).toContain('Cache created: 5k');
         expect(result).toContain('Cache: 7% hit');
       });
 
@@ -674,32 +602,15 @@ describe('PipelineFormatter', () => {
         const tokenUsage = {
           estimated_input: 25000,
           actual_input: 25000,
-          output: 13000,
-          thinking_tokens: 5000
+          output: 13000
         };
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
         expect(result).not.toContain('Turns:');
-        expect(result).toContain('Thinking: 5k');
       });
 
-      it('should not display thinking_tokens when missing', () => {
-        const tokenUsage = {
-          estimated_input: 25000,
-          actual_input: 25000,
-          output: 13000,
-          num_turns: 2
-        };
-
-        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
-
-        expect(result).toContain('Est. initial: 25k');
-        expect(result).toContain('Turns: 2');
-        expect(result).not.toContain('Thinking:');
-      });
-
-      it('should display zero num_turns', () => {
+      it('should not display num_turns when zero', () => {
         const tokenUsage = {
           estimated_input: 25000,
           actual_input: 25000,
@@ -709,20 +620,7 @@ describe('PipelineFormatter', () => {
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
-        expect(result).toContain('Turns: 0');
-      });
-
-      it('should format large thinking_tokens values correctly', () => {
-        const tokenUsage = {
-          estimated_input: 25000,
-          actual_input: 25000,
-          output: 13000,
-          thinking_tokens: 125000  // 125k
-        };
-
-        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
-
-        expect(result).toContain('Thinking: 125k');
+        expect(result).not.toContain('Turns:');
       });
     });
 
@@ -742,8 +640,8 @@ describe('PipelineFormatter', () => {
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
-        expect(result).toContain('Input: 600 tokens');
-        expect(result).toContain('Output: 300');
+        expect(result).toContain('~600 processed');
+        expect(result).toContain('~300 output');
       });
 
       it('should use pipe separators between parts', () => {
@@ -751,7 +649,7 @@ describe('PipelineFormatter', () => {
           estimated_input: 23000,
           actual_input: 25000,
           output: 13000,
-          cache_creation: 5000
+          num_turns: 2
         };
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
@@ -762,30 +660,17 @@ describe('PipelineFormatter', () => {
       });
     });
 
-    describe('Estimation Difference Threshold', () => {
-      it('should show estimation for exactly 5% difference', () => {
+    describe('Format Consistency', () => {
+      it('should use consistent format: ~Xk processed | ~Yk output', () => {
         const tokenUsage = {
-          estimated_input: 23750,  // 5% less than 25000
+          estimated_input: 25000,
           actual_input: 25000,
           output: 13000
         };
 
         const result = PipelineFormatter.formatTokenUsage(tokenUsage);
 
-        // 5% should NOT show (needs to be > 5%)
-        expect(result).not.toContain('(est.');
-      });
-
-      it('should show estimation for >5% difference', () => {
-        const tokenUsage = {
-          estimated_input: 23000,  // ~8% less than 25000
-          actual_input: 25000,
-          output: 13000
-        };
-
-        const result = PipelineFormatter.formatTokenUsage(tokenUsage);
-
-        expect(result).toContain('(est. 23k)');
+        expect(result).toBe('~25k processed | ~13k output');
       });
     });
   });

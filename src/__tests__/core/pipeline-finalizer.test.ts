@@ -478,7 +478,7 @@ describe('PipelineFinalizer', () => {
       expect(mockPipelineFormatter.formatSummary).toHaveBeenCalledWith(
         mockState,
         false, // verbose
-        { totalProcessed: 0, totalOutput: 0 }
+        { totalProcessed: 0, totalOutput: 0, totalTurns: 0, totalCacheRead: 0 }
       );
       expect(consoleSpy).toHaveBeenCalledWith('Pipeline Summary Output');
 
@@ -537,10 +537,11 @@ describe('PipelineFinalizer', () => {
       // Stage 2: actual_input (8000) + cache_read (5000) = 13000
       // Total processed = 15000 + 13000 = 28000
       // Total output = 2000 + 3000 = 5000
+      // Total cache_read = 10000 + 5000 = 15000
       expect(mockPipelineFormatter.formatSummary).toHaveBeenCalledWith(
         stateWithTokens,
         false,
-        { totalProcessed: 28000, totalOutput: 5000 }
+        { totalProcessed: 28000, totalOutput: 5000, totalTurns: 0, totalCacheRead: 15000 }
       );
 
       consoleSpy.mockRestore();

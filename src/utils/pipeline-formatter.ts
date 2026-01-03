@@ -19,7 +19,7 @@ export class PipelineFormatter {
   static formatSummary(
     state: PipelineState,
     verbose: boolean = true,
-    totals?: { totalProcessed: number; totalOutput: number }
+    totals?: { totalProcessed: number; totalOutput: number; totalTurns: number; totalCacheRead: number }
   ): string {
     const lines: string[] = [];
     const separator = '='.repeat(60);
@@ -35,7 +35,13 @@ export class PipelineFormatter {
 
     // Always show total tokens in summary (regardless of verbose)
     if (totals && (totals.totalProcessed > 0 || totals.totalOutput > 0)) {
-      lines.push(`Total Tokens: ~${this.formatTokenCount(totals.totalProcessed)} processed, ~${this.formatTokenCount(totals.totalOutput)} output`);
+      lines.push(`Total Tokens: ${this.formatTokenLine(
+        totals.totalProcessed,
+        totals.totalOutput,
+        totals.totalTurns,
+        totals.totalCacheRead,
+        totals.totalProcessed
+      )}`);
     }
 
     if (verbose) {
@@ -105,7 +111,7 @@ export class PipelineFormatter {
 
   /**
    * Format token usage information
-   * Example: "Input: 25.2k tokens | Output: 13.1k | Turns: 3/10 | Thinking: 2.5k"
+   * Example: "~25.2k processed | ~13.1k output | Turns: 3 | Cache: 50% hit"
    *
    * Note: Claude API reports input_tokens as only NEW (non-cached) tokens.
    * Total input = actual_input + cache_read (tokens retrieved from cache).
@@ -113,8 +119,6 @@ export class PipelineFormatter {
    */
   static formatTokenUsage(tokenUsage: StageExecution['tokenUsage']): string {
     if (!tokenUsage) return '';
-
-    const parts: string[] = [];
 
     const cacheRead = tokenUsage.cache_read || 0;
     const cacheCreation = tokenUsage.cache_creation || 0;
@@ -124,51 +128,41 @@ export class PipelineFormatter {
     const cacheCreationIncluded = cacheCreation > 0 && tokenUsage.actual_input >= cacheCreation;
     const totalInput = tokenUsage.actual_input + cacheRead + (cacheCreationIncluded ? 0 : cacheCreation);
 
-    // Show total input tokens
-    parts.push(`Input: ${this.formatTokenCount(totalInput)} tokens`);
+    return this.formatTokenLine(
+      totalInput,
+      tokenUsage.output,
+      tokenUsage.num_turns,
+      cacheRead,
+      totalInput
+    );
+  }
 
-    const estimatedInput = tokenUsage.estimated_input;
-    const numTurns = tokenUsage.num_turns;
+  /**
+   * Format a standardized token usage line
+   * Used by both per-stage and summary totals for consistent output
+   */
+  static formatTokenLine(
+    processed: number,
+    output: number,
+    turns?: number,
+    cacheRead?: number,
+    totalForCacheRatio?: number
+  ): string {
+    const parts: string[] = [];
 
-    if (estimatedInput > 0) {
-      if (numTurns !== undefined && numTurns > 1) {
-        // Estimated input only reflects the initial prompt; avoid comparing across turns.
-        parts.push(`Est. initial: ${this.formatTokenCount(estimatedInput)}`);
-      } else {
-        // Show estimation comparison if they differ significantly (>5%)
-        const estimationDiff = Math.abs(totalInput - estimatedInput);
-        const estimationDiffPct = totalInput > 0 ? (estimationDiff / totalInput) * 100 : 0;
-        if (estimationDiffPct > 5) {
-          parts.push(`(est. ${this.formatTokenCount(estimatedInput)})`);
-        }
-      }
-    }
-
-    // Output tokens
-    parts.push(`Output: ${this.formatTokenCount(tokenUsage.output)}`);
-
-    // Thinking tokens if present (extended thinking models)
-    if (tokenUsage.thinking_tokens && tokenUsage.thinking_tokens > 0) {
-      parts.push(`Thinking: ${this.formatTokenCount(tokenUsage.thinking_tokens)}`);
-    }
+    // Processed and output tokens
+    parts.push(`~${this.formatTokenCount(processed)} processed`);
+    parts.push(`~${this.formatTokenCount(output)} output`);
 
     // Conversation turns if present
-    if (numTurns !== undefined) {
-      parts.push(`Turns: ${numTurns}`);
+    if (turns !== undefined && turns > 0) {
+      parts.push(`Turns: ${turns}`);
     }
 
-    // Cache efficiency breakdown (if caching was used)
-    if (cacheRead > 0) {
-      // Show cache hit ratio for transparency
-      const cacheHitRatio = totalInput > 0
-        ? Math.round((cacheRead / totalInput) * 100)
-        : 0;
+    // Cache efficiency (if caching was used)
+    if (cacheRead && cacheRead > 0 && totalForCacheRatio && totalForCacheRatio > 0) {
+      const cacheHitRatio = Math.round((cacheRead / totalForCacheRatio) * 100);
       parts.push(`Cache: ${cacheHitRatio}% hit`);
-    }
-
-    // Cache creation tokens (new content being cached)
-    if (tokenUsage.cache_creation && tokenUsage.cache_creation > 0) {
-      parts.push(`Cache created: ${this.formatTokenCount(tokenUsage.cache_creation)}`);
     }
 
     return parts.join(' | ');

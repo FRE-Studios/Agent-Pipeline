@@ -27,6 +27,7 @@ notifications:
   events:
     - pipeline.completed           # Notify on successful runs
     - pipeline.failed              # Notify on failures
+    - pr.created                   # Notify on new PR
   channels:
     local:
       enabled: true                # Desktop notifications (macOS/Linux)
@@ -38,13 +39,13 @@ agents:
   # Each stage builds on the previous stage's results
   - name: code-review
     agent: .agent-pipeline/agents/code-reviewer.md
-    timeout: 300                    # Hard limit per agent run (seconds)
+    timeout: 600                    # Hard limit per agent run (seconds)
 
   - name: quality-check
     agent: .agent-pipeline/agents/quality-checker.md
     dependsOn:
       - code-review
-    timeout: 300                    # Hard limit per agent run (seconds)
+    timeout: 600                    # Hard limit per agent run (seconds)
     onFail: warn                    # Non-blocking: log but keep running
 
   - name: doc-updater
