@@ -148,7 +148,8 @@ export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state })
   // Build keyboard hints based on available options
   const hints: KeyboardHint[] = [
     { key: 'o', label: 'Open directory', disabled: !hasHandoverDir },
-    { key: 'p', label: 'Open PR', disabled: !hasPrUrl },
+    // Only show PR option when a PR was actually created
+    ...(hasPrUrl ? [{ key: 'p', label: 'Open PR' }] : []),
     { key: 'n', label: 'Add note', disabled: !hasHandoverDir },
     { key: 'l', label: 'View logs', disabled: !hasHandoverDir },
     { key: 'q', label: 'Exit' },
