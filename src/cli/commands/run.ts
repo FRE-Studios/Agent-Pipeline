@@ -12,7 +12,6 @@ export interface RunOptions {
   dryRun?: boolean;
   interactive?: boolean;
   verbose?: boolean;
-  noPr?: boolean;
   baseBranch?: string;
   prDraft?: boolean;
   prWeb?: boolean;
@@ -33,11 +32,6 @@ export async function runCommand(
   // Apply CLI flag overrides
   if (options.noNotifications) {
     config.notifications = { enabled: false };
-  }
-
-  if (options.noPr && config.git) {
-    // Override mergeStrategy to 'none' to skip PR creation
-    config.git.mergeStrategy = 'none';
   }
 
   if (options.baseBranch && config.git) {

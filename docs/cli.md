@@ -8,7 +8,7 @@ All commands are routed through `src/index.ts`. Use `agent-pipeline <command> [o
   - `--dry-run`: skip commits and PR creation.
   - `--no-interactive`: disable the Ink UI and log to stdout.
   - `--no-notifications`: suppress notification delivery.
-  - `--no-pr`, `--pr-draft`, `--pr-web`, `--base-branch <branch>`: override git workflow settings.
+  - `--pr-draft`, `--pr-web`, `--base-branch <branch>`: override git workflow settings.
 - `list` – Show available pipeline definitions.
 - `status` – Print the most recent run summary.
 - `history` – Launch the interactive history browser (Ink UI).
@@ -62,7 +62,7 @@ trigger: manual
 - Hooks run `npx agent-pipeline run <pipeline>` via `nohup` so your commits are non-blocking.
 - Hooks skip commits that include the `Pipeline-Run-ID` trailer.
 - Hook installs warn if `branchStrategy` is `reusable` or if `autoCommit` is enabled.
-- Use git workflow flags during `run` to control PR creation dynamically (`--no-pr`, `--pr-draft`, `--pr-web`, `--base-branch`).
+- Use git workflow flags during `run` to control PR creation dynamically (`--pr-draft`, `--pr-web`, `--base-branch`).
 
 ## Rollback and Cleanup
 

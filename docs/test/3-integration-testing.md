@@ -970,7 +970,7 @@ After implementing integration tests, manually verify:
   - Commit Hygiene: Inspect the atomic commits (git log --oneline --decorate --graph) to confirm stage-specific prefixes
     and messages.
   - PR Integration: With gh installed, run agent-pipeline run git-workflow-example --pr-draft. Expect a draft PR attempt;
-    if credentials are missing, verify the CLI logs a graceful fallback. Repeat with --no-pr to ensure the override
+    if credentials are missing, verify the CLI logs a graceful fallback.
     suppresses PR creation.
   - Cleanup & Rollback: Run agent-pipeline cleanup --force and agent-pipeline rollback --stages 1. Confirm branches are
     removed or reset with confirmation prompts and no unintended HEAD resets.

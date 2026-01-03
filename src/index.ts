@@ -103,7 +103,6 @@ async function main() {
         const dryRun = args.includes('--dry-run');
         const noInteractive = args.includes('--no-interactive');
         const verbose = args.includes('--verbose');
-        const noPr = args.includes('--no-pr');
         const prDraft = args.includes('--pr-draft');
         const prWeb = args.includes('--pr-web');
         const noNotifications = args.includes('--no-notifications');
@@ -125,7 +124,6 @@ async function main() {
           dryRun,
           interactive: !noInteractive,
           verbose,
-          noPr,
           baseBranch,
           prDraft,
           prWeb,
@@ -453,7 +451,6 @@ Run Options:
   --no-interactive             Disable live UI (use simple console output)
   --verbose                    Show detailed logs (token stats, cache hit rates, etc.)
   --no-notifications           Disable all notifications
-  --no-pr                      Skip PR creation even if configured
   --base-branch <branch>       Override base branch for PR
   --pr-draft                   Create PR as draft
   --pr-web                     Open PR in browser for editing

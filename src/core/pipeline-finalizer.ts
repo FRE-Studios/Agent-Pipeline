@@ -1,5 +1,7 @@
 // src/core/pipeline-finalizer.ts
 
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import { GitManager } from './git-manager.js';
 import { BranchManager } from './branch-manager.js';
 import { WorktreeManager } from './worktree-manager.js';
@@ -109,7 +111,7 @@ export class PipelineFinalizer {
         await this.handlePullRequest(config, branchName, state, executionRepoPath, interactive, notifyCallback);
         break;
       case 'local-merge':
-        await this.handleLocalMerge(config, branchName, executionRepoPath, interactive);
+        await this.handleLocalMerge(config, branchName, interactive);
         break;
       case 'none':
         // No merge action - work stays in worktree/branch
@@ -193,26 +195,41 @@ export class PipelineFinalizer {
   private async handleLocalMerge(
     config: PipelineConfig,
     branchName: string,
-    executionRepoPath: string,
     interactive: boolean
   ): Promise<void> {
     const baseBranch = config.git?.baseBranch || 'main';
+    const baseCheckedOutPath = await this.gitManager.isBranchCheckedOut(baseBranch);
+    let mergeWorktreePath: string | null = null;
 
     try {
-      // Use the git manager for the execution repo (worktree or main)
-      const execGitManager = executionRepoPath !== this.repoPath
-        ? new GitManager(executionRepoPath)
-        : this.gitManager;
+      if (baseCheckedOutPath) {
+        throw new Error(
+          `Base branch '${baseBranch}' is currently checked out at '${baseCheckedOutPath}'. ` +
+          'Switch to a different branch or use mergeStrategy: pull-request.'
+        );
+      }
 
-      // First, checkout the base branch
+      const worktreeBaseDir = this.worktreeManager.getWorktreeBaseDir();
+      await fs.mkdir(worktreeBaseDir, { recursive: true });
+
+      const safeBranchName = branchName.replace(/[\\/]/g, '-');
+      mergeWorktreePath = path.join(
+        worktreeBaseDir,
+        `merge-${safeBranchName}-${Date.now()}`
+      );
+
+      await this.worktreeManager.createWorktree(mergeWorktreePath, baseBranch, baseBranch);
+      const mergeGitManager = new GitManager(mergeWorktreePath);
+
       if (this.shouldLog(interactive)) {
         console.log(`\n🔀 Merging ${branchName} into ${baseBranch}...`);
       }
 
-      await execGitManager.checkout(baseBranch);
+      await mergeGitManager.merge(branchName);
 
-      // Merge the pipeline branch
-      await execGitManager.merge(branchName);
+      await this.worktreeManager.removeWorktree(mergeWorktreePath, true);
+      await this.worktreeManager.pruneWorktrees();
+      mergeWorktreePath = null;
 
       if (this.shouldLog(interactive)) {
         console.log(`✅ Successfully merged ${branchName} into ${baseBranch}`);
@@ -224,6 +241,9 @@ export class PipelineFinalizer {
         );
         console.log(`   Branch ${branchName} still exists with your changes.`);
         console.log(`   You can merge manually with: git checkout ${baseBranch} && git merge ${branchName}`);
+        if (mergeWorktreePath) {
+          console.log(`   Merge worktree preserved at: ${mergeWorktreePath}`);
+        }
       }
       throw error; // Re-throw so caller knows merge failed
     }

@@ -70,8 +70,7 @@ export class PRCreator {
       throw new Error(
         'GitHub CLI (gh) is not installed. Install from: https://cli.github.com/\n\n' +
         'Or disable PR creation:\n' +
-        "- Set git.mergeStrategy to 'local-merge' or 'none' in your pipeline config\n" +
-        '- Or run with: agent-pipeline run <pipeline> --no-pr'
+        "- Set git.mergeStrategy to 'local-merge' or 'none' in your pipeline config"
       );
     }
 
@@ -79,7 +78,7 @@ export class PRCreator {
       throw new Error(
         'GitHub CLI is not authenticated. Run: gh auth login\n\n' +
         'Or disable PR creation:\n' +
-        '- Run with: agent-pipeline run <pipeline> --no-pr'
+        "- Set git.mergeStrategy to 'local-merge' or 'none' in your pipeline config"
       );
     }
 

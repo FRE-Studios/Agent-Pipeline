@@ -165,35 +165,6 @@ describe('runCommand', () => {
       );
     });
 
-    it('should disable PR creation when --no-pr flag set', async () => {
-      const config = {
-        name: 'test-pipeline',
-        trigger: 'manual',
-        agents: [],
-        git: {
-          mergeStrategy: 'pull-request',
-        },
-      };
-      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
-      mockValidator.validateAndReport.mockResolvedValue(true);
-      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
-
-      try {
-        await runCommand(tempDir, 'test-pipeline', { noPr: true });
-      } catch (error) {
-        // Expected
-      }
-
-      expect(mockValidator.validateAndReport).toHaveBeenCalledWith(
-        expect.objectContaining({
-          git: expect.objectContaining({
-            mergeStrategy: 'none',
-          }),
-        }),
-        tempDir
-      );
-    });
-
     it('should override base branch when --base-branch flag set', async () => {
       const config = {
         name: 'test-pipeline',
@@ -319,7 +290,6 @@ describe('runCommand', () => {
       try {
         await runCommand(tempDir, 'test-pipeline', {
           noNotifications: true,
-          noPr: true,
           baseBranch: 'staging',
           prDraft: true,
           dryRun: true,
@@ -334,7 +304,6 @@ describe('runCommand', () => {
           notifications: { enabled: false },
           git: expect.objectContaining({
             baseBranch: 'staging',
-            mergeStrategy: 'none',
             pullRequest: expect.objectContaining({
               draft: true,
             }),
@@ -616,7 +585,7 @@ describe('runCommand', () => {
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
       try {
-        await runCommand(tempDir, 'test-pipeline', { noPr: true });
+        await runCommand(tempDir, 'test-pipeline');
       } catch (error) {
         // Expected
       }
@@ -965,7 +934,6 @@ describe('runCommand', () => {
         await runCommand(tempDir, 'test-pipeline', {
           dryRun: true,
           interactive: false,
-          noPr: true,
           baseBranch: 'develop',
           prDraft: true,
           prWeb: true,
@@ -981,7 +949,6 @@ describe('runCommand', () => {
         expect.objectContaining({
           git: expect.objectContaining({
             baseBranch: 'develop',
-            mergeStrategy: 'none',
             pullRequest: expect.objectContaining({
               draft: true,
               web: true,

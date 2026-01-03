@@ -174,7 +174,7 @@ Branch isolation and PR creation are handled by `BranchManager` and `PRCreator`:
   - `none` (default): no merge action; work stays on the pipeline branch
   - **Note:** `unique-and-delete` branchStrategy cannot be used with `mergeStrategy: none` (validation error)
 - `pullRequest`: only used when `mergeStrategy: pull-request`. Supports `title`, `labels`, `reviewers`, `assignees`, `milestone`, and `draft` flags.
-- Use `agent-pipeline run <pipeline> --no-pr`, `--pr-draft`, `--pr-web`, or `--base-branch <branch>` for on-demand overrides.
+- Use `agent-pipeline run <pipeline> --pr-draft`, `--pr-web`, or `--base-branch <branch>` for on-demand overrides.
 
 ### Notifications
 
