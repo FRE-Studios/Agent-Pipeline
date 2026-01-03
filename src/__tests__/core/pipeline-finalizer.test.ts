@@ -8,26 +8,58 @@ import { PRCreator } from '../../core/pr-creator.js';
 import { StateManager } from '../../core/state-manager.js';
 import { PipelineConfig, PipelineState } from '../../config/schema.js';
 
-// Mock dependencies
-vi.mock('../../core/git-manager.js');
-vi.mock('../../core/branch-manager.js');
-vi.mock('../../core/worktree-manager.js');
-vi.mock('../../core/pr-creator.js');
-vi.mock('../../core/state-manager.js');
-
-import { WorktreeManager } from '../../core/worktree-manager.js';
-
-// Hoisted mocks for PipelineFormatter
-const { mockPipelineFormatter } = vi.hoisted(() => {
+// Hoisted mocks - these persist across vi.clearAllMocks()
+const { mockGitManagerInstance, mockWorktreeManagerInstance, mockBranchManagerInstance, mockPipelineFormatter } = vi.hoisted(() => {
   return {
+    mockGitManagerInstance: {
+      getCurrentCommit: vi.fn().mockResolvedValue('def456'),
+      isBranchCheckedOut: vi.fn().mockResolvedValue(null),
+      merge: vi.fn().mockResolvedValue(undefined),
+    },
+    mockWorktreeManagerInstance: {
+      cleanupWorktree: vi.fn().mockResolvedValue(undefined),
+      listPipelineWorktrees: vi.fn().mockResolvedValue([]),
+      setupPipelineWorktree: vi.fn().mockResolvedValue({ worktreePath: '/test/worktree', pipelineBranch: 'pipeline/test' }),
+      getWorktreeBaseDir: vi.fn().mockReturnValue('/test/repo/.agent-pipeline/worktrees'),
+      createWorktree: vi.fn().mockResolvedValue(undefined),
+      removeWorktree: vi.fn().mockResolvedValue(undefined),
+      pruneWorktrees: vi.fn().mockResolvedValue(undefined),
+    },
+    mockBranchManagerInstance: {
+      pushBranch: vi.fn().mockResolvedValue(undefined),
+      checkoutBranch: vi.fn().mockResolvedValue(undefined),
+    },
     mockPipelineFormatter: {
       formatSummary: vi.fn().mockReturnValue('Pipeline Summary Output')
     }
   };
 });
 
+// Mock dependencies with hoisted factories
+vi.mock('../../core/git-manager.js', () => ({
+  GitManager: vi.fn(() => mockGitManagerInstance)
+}));
+
+vi.mock('../../core/worktree-manager.js', () => ({
+  WorktreeManager: vi.fn(() => mockWorktreeManagerInstance)
+}));
+
+vi.mock('../../core/branch-manager.js', () => ({
+  BranchManager: vi.fn(() => mockBranchManagerInstance)
+}));
+
+vi.mock('../../core/pr-creator.js');
+vi.mock('../../core/state-manager.js');
+
+import { WorktreeManager } from '../../core/worktree-manager.js';
+
 vi.mock('../../utils/pipeline-formatter.js', () => ({
   PipelineFormatter: mockPipelineFormatter
+}));
+
+// Mock fs for local-merge tests
+vi.mock('fs/promises', () => ({
+  mkdir: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe('PipelineFinalizer', () => {
@@ -68,6 +100,16 @@ describe('PipelineFinalizer', () => {
 
     // Re-setup hoisted mock return values after clearAllMocks
     mockPipelineFormatter.formatSummary.mockReturnValue('Pipeline Summary Output');
+    mockGitManagerInstance.getCurrentCommit.mockResolvedValue('def456');
+    mockGitManagerInstance.isBranchCheckedOut.mockResolvedValue(null);
+    mockGitManagerInstance.merge.mockResolvedValue(undefined);
+    mockWorktreeManagerInstance.getWorktreeBaseDir.mockReturnValue('/test/repo/.agent-pipeline/worktrees');
+    mockWorktreeManagerInstance.createWorktree.mockResolvedValue(undefined);
+    mockWorktreeManagerInstance.removeWorktree.mockResolvedValue(undefined);
+    mockWorktreeManagerInstance.pruneWorktrees.mockResolvedValue(undefined);
+    mockWorktreeManagerInstance.cleanupWorktree.mockResolvedValue(undefined);
+    mockBranchManagerInstance.pushBranch.mockResolvedValue(undefined);
+    mockBranchManagerInstance.checkoutBranch.mockResolvedValue(undefined);
 
     // Reset mockState to fresh state (remove any modifications from previous tests)
     mockState.artifacts = {
@@ -85,29 +127,8 @@ describe('PipelineFinalizer', () => {
     mockNotifyCallback = vi.fn().mockResolvedValue(undefined);
     mockStateChangeCallback = vi.fn();
 
-    // Setup WorktreeManager mock
-    vi.mocked(WorktreeManager).mockImplementation(() => ({
-      cleanupWorktree: vi.fn().mockResolvedValue(undefined),
-      listPipelineWorktrees: vi.fn().mockResolvedValue([]),
-      setupPipelineWorktree: vi.fn().mockResolvedValue({ worktreePath: '/test/worktree', pipelineBranch: 'pipeline/test' }),
-    } as unknown as WorktreeManager));
-
-    // Setup GitManager mock - returns mocked instance for any path
-    vi.mocked(GitManager).mockImplementation(() => ({
-      getCurrentCommit: vi.fn().mockResolvedValue('def456'),
-    } as unknown as GitManager));
-
-    // Setup BranchManager mock - returns mocked instance for any path
-    vi.mocked(BranchManager).mockImplementation(() => ({
-      pushBranch: vi.fn().mockResolvedValue(undefined),
-      checkoutBranch: vi.fn().mockResolvedValue(undefined),
-    } as unknown as BranchManager));
-
-    // Setup common mocks
-    vi.spyOn(mockGitManager, 'getCurrentCommit').mockResolvedValue('def456');
+    // Setup common mocks on PRCreator and StateManager (still using auto-mock)
     vi.spyOn(mockStateManager, 'saveState').mockResolvedValue();
-    vi.spyOn(mockBranchManager, 'checkoutBranch').mockResolvedValue();
-    vi.spyOn(mockBranchManager, 'pushBranch').mockResolvedValue();
 
     finalizer = new PipelineFinalizer(
       mockGitManager,
@@ -143,7 +164,6 @@ describe('PipelineFinalizer', () => {
     });
 
     it('should create PR when configured', async () => {
-      vi.spyOn(mockBranchManager, 'pushBranch').mockResolvedValue();
       vi.spyOn(mockPRCreator, 'prExists').mockResolvedValue(false);
       vi.spyOn(mockPRCreator, 'createPR').mockResolvedValue({
         url: 'https://github.com/test/repo/pull/123',
@@ -174,7 +194,7 @@ describe('PipelineFinalizer', () => {
         mockStateChangeCallback
       );
 
-      expect(mockBranchManager.pushBranch).toHaveBeenCalledWith('pipeline/test-branch');
+      expect(mockBranchManagerInstance.pushBranch).toHaveBeenCalledWith('pipeline/test-branch');
       expect(mockPRCreator.createPR).toHaveBeenCalled();
       expect(mockState.artifacts.pullRequest).toEqual({
         url: 'https://github.com/test/repo/pull/123',
@@ -184,7 +204,6 @@ describe('PipelineFinalizer', () => {
     });
 
     it('should not create PR if already exists', async () => {
-      vi.spyOn(mockBranchManager, 'pushBranch').mockResolvedValue();
       vi.spyOn(mockPRCreator, 'prExists').mockResolvedValue(true);
       vi.spyOn(mockPRCreator, 'createPR').mockResolvedValue({
         url: 'https://github.com/test/repo/pull/123',
@@ -215,7 +234,6 @@ describe('PipelineFinalizer', () => {
     });
 
     it('should handle PR creation failure gracefully', async () => {
-      vi.spyOn(mockBranchManager, 'pushBranch').mockResolvedValue();
       vi.spyOn(mockPRCreator, 'prExists').mockResolvedValue(false);
       vi.spyOn(mockPRCreator, 'createPR').mockRejectedValue(
         new Error('gh command not found')
@@ -499,7 +517,6 @@ describe('PipelineFinalizer', () => {
     });
 
     it('should notify PR created event when PR is created', async () => {
-      vi.spyOn(mockBranchManager, 'pushBranch').mockResolvedValue();
       vi.spyOn(mockPRCreator, 'prExists').mockResolvedValue(false);
       vi.spyOn(mockPRCreator, 'createPR').mockResolvedValue({
         url: 'https://github.com/test/repo/pull/123',
@@ -532,6 +549,221 @@ describe('PipelineFinalizer', () => {
         pipelineState: expect.any(Object),
         prUrl: 'https://github.com/test/repo/pull/123'
       });
+    });
+  });
+
+  describe('handleLocalMerge', () => {
+    it('should merge branch to baseBranch via worktree', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const configWithLocalMerge: PipelineConfig = {
+        ...mockConfig,
+        git: {
+          baseBranch: 'main',
+          mergeStrategy: 'local-merge'
+        }
+      };
+
+      await finalizer.finalize(
+        mockState,
+        configWithLocalMerge,
+        'pipeline/feature-branch',
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should check if base branch is checked out
+      expect(mockGitManagerInstance.isBranchCheckedOut).toHaveBeenCalledWith('main');
+
+      // Should create worktree for merge
+      expect(mockWorktreeManagerInstance.getWorktreeBaseDir).toHaveBeenCalled();
+      expect(mockWorktreeManagerInstance.createWorktree).toHaveBeenCalledWith(
+        expect.stringContaining('merge-pipeline-feature-branch-'),
+        'main',
+        'main'
+      );
+
+      // Should merge the feature branch
+      expect(mockGitManagerInstance.merge).toHaveBeenCalledWith('pipeline/feature-branch');
+
+      // Should cleanup merge worktree
+      expect(mockWorktreeManagerInstance.removeWorktree).toHaveBeenCalledWith(
+        expect.stringContaining('merge-pipeline-feature-branch-'),
+        true
+      );
+      expect(mockWorktreeManagerInstance.pruneWorktrees).toHaveBeenCalled();
+
+      // Should log success
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Merging pipeline/feature-branch into main')
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Successfully merged')
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should throw error when base branch is checked out', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      // Base branch is checked out at a path
+      mockGitManagerInstance.isBranchCheckedOut.mockResolvedValue('/test/repo');
+
+      const configWithLocalMerge: PipelineConfig = {
+        ...mockConfig,
+        git: {
+          baseBranch: 'main',
+          mergeStrategy: 'local-merge'
+        }
+      };
+
+      await expect(
+        finalizer.finalize(
+          mockState,
+          configWithLocalMerge,
+          'pipeline/feature-branch',
+          undefined,
+          '/test/repo',
+          Date.now(),
+          false,
+          false,
+          mockNotifyCallback,
+          mockStateChangeCallback
+        )
+      ).rejects.toThrow("Base branch 'main' is currently checked out");
+
+      // Should NOT create worktree or attempt merge
+      expect(mockWorktreeManagerInstance.createWorktree).not.toHaveBeenCalled();
+      expect(mockGitManagerInstance.merge).not.toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle merge failure and preserve worktree', async () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      // Merge fails with conflict
+      mockGitManagerInstance.merge.mockRejectedValue(new Error('Merge conflict'));
+
+      const configWithLocalMerge: PipelineConfig = {
+        ...mockConfig,
+        git: {
+          baseBranch: 'main',
+          mergeStrategy: 'local-merge'
+        }
+      };
+
+      await expect(
+        finalizer.finalize(
+          mockState,
+          configWithLocalMerge,
+          'pipeline/feature-branch',
+          undefined,
+          '/test/repo',
+          Date.now(),
+          false,
+          false,
+          mockNotifyCallback,
+          mockStateChangeCallback
+        )
+      ).rejects.toThrow('Merge conflict');
+
+      // Should NOT cleanup worktree on failure (for debugging)
+      expect(mockWorktreeManagerInstance.removeWorktree).not.toHaveBeenCalled();
+
+      // Should log error with helpful message
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to merge')
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Branch pipeline/feature-branch still exists')
+      );
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Merge worktree preserved at')
+      );
+
+      consoleSpy.mockRestore();
+      consoleLogSpy.mockRestore();
+    });
+
+    it('should use default baseBranch when not specified', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const configWithLocalMerge: PipelineConfig = {
+        ...mockConfig,
+        git: {
+          mergeStrategy: 'local-merge'
+          // baseBranch not specified, should default to 'main'
+        }
+      };
+
+      await finalizer.finalize(
+        mockState,
+        configWithLocalMerge,
+        'pipeline/feature-branch',
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should check default 'main' branch
+      expect(mockGitManagerInstance.isBranchCheckedOut).toHaveBeenCalledWith('main');
+
+      // Should create worktree for 'main'
+      expect(mockWorktreeManagerInstance.createWorktree).toHaveBeenCalledWith(
+        expect.any(String),
+        'main',
+        'main'
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should not log in interactive mode', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      mockShouldLog.mockReturnValue(false);
+
+      const configWithLocalMerge: PipelineConfig = {
+        ...mockConfig,
+        git: {
+          baseBranch: 'main',
+          mergeStrategy: 'local-merge'
+        }
+      };
+
+      await finalizer.finalize(
+        mockState,
+        configWithLocalMerge,
+        'pipeline/feature-branch',
+        undefined,
+        '/test/repo',
+        Date.now(),
+        true, // interactive
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should NOT log merge messages in interactive mode
+      expect(consoleSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Merging')
+      );
+      expect(consoleSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('Successfully merged')
+      );
+
+      consoleSpy.mockRestore();
     });
   });
 });
