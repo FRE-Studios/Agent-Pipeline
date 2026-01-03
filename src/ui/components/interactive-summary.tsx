@@ -168,6 +168,20 @@ export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state })
 
       <Newline />
 
+      {/* Error message for failed pipelines */}
+      {state.status === 'failed' && state.stages.some(s => s.error) && (
+        <Box flexDirection="column" marginBottom={1}>
+          {state.stages
+            .filter(s => s.error)
+            .map((stage, idx) => (
+              <Box key={idx} flexDirection="column">
+                <Text color="red" bold>Error in {stage.stageName}:</Text>
+                <Text color="red">{stage.error?.message}</Text>
+              </Box>
+            ))}
+        </Box>
+      )}
+
       {/* Summary stats */}
       <SummaryLine
         label="Total Duration"

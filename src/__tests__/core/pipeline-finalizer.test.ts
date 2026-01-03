@@ -118,6 +118,13 @@ describe('PipelineFinalizer', () => {
       totalDuration: 0,
       handoverDir: '.agent-pipeline/runs/test-run-id'
     };
+    // Include a stage with commitSha so PR/merge operations proceed
+    mockState.stages = [{
+      stageName: 'test-stage',
+      status: 'success',
+      duration: 1.5,
+      commitSha: 'stage-commit-abc123'
+    }];
 
     mockGitManager = new GitManager('/test/repo');
     mockBranchManager = new BranchManager('/test/repo');
@@ -231,6 +238,48 @@ describe('PipelineFinalizer', () => {
       );
 
       expect(mockPRCreator.createPR).not.toHaveBeenCalled();
+    });
+
+    it('should skip PR creation when no commits were made', async () => {
+      vi.spyOn(mockPRCreator, 'prExists').mockResolvedValue(false);
+      vi.spyOn(mockPRCreator, 'createPR').mockResolvedValue({
+        url: 'https://github.com/test/repo/pull/123',
+        number: 123
+      });
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const configWithPR = {
+        ...mockConfig,
+        git: {
+          mergeStrategy: 'pull-request' as const
+        }
+      };
+
+      // Set stages to empty (no commits)
+      const stateWithNoCommits = { ...mockState, stages: [] };
+
+      await finalizer.finalize(
+        stateWithNoCommits,
+        configWithPR,
+        'pipeline/test-branch',
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should not push or create PR
+      expect(mockBranchManagerInstance.pushBranch).not.toHaveBeenCalled();
+      expect(mockPRCreator.createPR).not.toHaveBeenCalled();
+      // Should log the skip message
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('No commits to merge')
+      );
+
+      consoleSpy.mockRestore();
     });
 
     it('should handle PR creation failure gracefully', async () => {

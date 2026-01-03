@@ -106,6 +106,15 @@ export class PipelineFinalizer {
     interactive: boolean,
     notifyCallback: (context: NotificationContext) => Promise<void>
   ): Promise<void> {
+    // Skip merge strategies if no commits were made
+    const hasCommits = state.stages.some(s => s.commitSha);
+    if (!hasCommits && (strategy === 'pull-request' || strategy === 'local-merge')) {
+      if (this.shouldLog(interactive)) {
+        console.log(`\n📍 No commits to merge. Work preserved on branch: ${branchName}`);
+      }
+      return;
+    }
+
     switch (strategy) {
       case 'pull-request':
         await this.handlePullRequest(config, branchName, state, executionRepoPath, interactive, notifyCallback);

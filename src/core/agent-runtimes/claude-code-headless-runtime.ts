@@ -220,7 +220,8 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
     if (options.runtimeOptions) {
       for (const [key, value] of Object.entries(options.runtimeOptions)) {
         // Skip tool options - already handled above
-        if (key === 'allowedTools' || key === 'disallowedTools') {
+        // Skip cwd - it's passed to spawn(), not as a CLI argument
+        if (key === 'allowedTools' || key === 'disallowedTools' || key === 'cwd') {
           continue;
         }
 

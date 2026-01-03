@@ -342,6 +342,41 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       expect(args).toContain('--allowedTools');
       expect(args).toContain('Bash,Read,Edit');
     });
+
+    it('should pass cwd to spawn options, not as CLI argument', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {
+          runtimeOptions: {
+            cwd: '/custom/working/directory'
+          }
+        }
+      };
+
+      setTimeout(() => {
+        mockProcess.stdout.emit(
+          'data',
+          Buffer.from(JSON.stringify({ result: 'Output' }))
+        );
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      const args = mockSpawn.mock.calls[0][1];
+      const spawnOptions = mockSpawn.mock.calls[0][2];
+
+      // cwd should NOT be passed as a CLI argument
+      expect(args).not.toContain('--cwd');
+      expect(args).not.toContain('/custom/working/directory');
+
+      // cwd SHOULD be passed to spawn options
+      expect(spawnOptions.cwd).toBe('/custom/working/directory');
+    });
   });
 
   describe('execute() - Successful Execution', () => {
