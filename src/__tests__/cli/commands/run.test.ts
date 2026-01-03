@@ -12,6 +12,7 @@ vi.mock('../../../core/pipeline-runner.js');
 vi.mock('ink', () => ({
   render: vi.fn(() => ({
     unmount: vi.fn(),
+    waitUntilExit: vi.fn(() => Promise.resolve()),
   })),
 }));
 
@@ -391,7 +392,7 @@ describe('runCommand', () => {
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
       const mockUnmount = vi.fn();
-      mockRender.mockReturnValue({ unmount: mockUnmount });
+      mockRender.mockReturnValue({ unmount: mockUnmount, waitUntilExit: vi.fn(() => Promise.resolve()) });
 
       try {
         await runCommand(tempDir, 'test-pipeline');
@@ -409,7 +410,7 @@ describe('runCommand', () => {
       mockRunner.runPipeline.mockRejectedValue(new Error('Pipeline failed'));
 
       const mockUnmount = vi.fn();
-      mockRender.mockReturnValue({ unmount: mockUnmount });
+      mockRender.mockReturnValue({ unmount: mockUnmount, waitUntilExit: vi.fn(() => Promise.resolve()) });
 
       try {
         await runCommand(tempDir, 'test-pipeline');
@@ -493,7 +494,7 @@ describe('runCommand', () => {
       mockRunner.runPipeline.mockRejectedValue(new Error('Runner error'));
 
       const mockUnmount = vi.fn();
-      mockRender.mockReturnValue({ unmount: mockUnmount });
+      mockRender.mockReturnValue({ unmount: mockUnmount, waitUntilExit: vi.fn(() => Promise.resolve()) });
 
       await expect(
         runCommand(tempDir, 'test-pipeline')
@@ -508,7 +509,7 @@ describe('runCommand', () => {
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockRejectedValue(new Error('Custom error'));
 
-      mockRender.mockReturnValue({ unmount: vi.fn() });
+      mockRender.mockReturnValue({ unmount: vi.fn(), waitUntilExit: vi.fn(() => Promise.resolve()) });
 
       await expect(
         runCommand(tempDir, 'test-pipeline')
@@ -772,7 +773,7 @@ describe('runCommand', () => {
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
       const mockUnmount = vi.fn();
-      mockRender.mockReturnValue({ unmount: mockUnmount });
+      mockRender.mockReturnValue({ unmount: mockUnmount, waitUntilExit: vi.fn(() => Promise.resolve()) });
 
       try {
         await runCommand(tempDir, 'test-pipeline', { interactive: true, loop: true });
@@ -828,7 +829,7 @@ describe('runCommand', () => {
       mockRunner.runPipeline.mockRejectedValue(new Error('Pipeline execution failed'));
 
       const mockUnmount = vi.fn();
-      mockRender.mockReturnValue({ unmount: mockUnmount });
+      mockRender.mockReturnValue({ unmount: mockUnmount, waitUntilExit: vi.fn(() => Promise.resolve()) });
 
       try {
         await runCommand(tempDir, 'test-pipeline', { interactive: true });
@@ -848,7 +849,7 @@ describe('runCommand', () => {
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
       const mockUnmount = vi.fn();
-      mockRender.mockReturnValue({ unmount: mockUnmount });
+      mockRender.mockReturnValue({ unmount: mockUnmount, waitUntilExit: vi.fn(() => Promise.resolve()) });
 
       try {
         await runCommand(tempDir, 'test-pipeline', { interactive: false });
@@ -879,7 +880,7 @@ describe('runCommand', () => {
       mockValidator.validateAndReport.mockResolvedValue(true);
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
-      mockRender.mockReturnValue({ unmount: vi.fn() });
+      mockRender.mockReturnValue({ unmount: vi.fn(), waitUntilExit: vi.fn(() => Promise.resolve()) });
 
       try {
         await runCommand(tempDir, 'full-pipeline');

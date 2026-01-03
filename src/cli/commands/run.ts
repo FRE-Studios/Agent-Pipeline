@@ -84,11 +84,16 @@ export async function runCommand(
       ? (result.loopContext?.terminationReason === 'limit-reached' ? 1 : 0)
       : 1;
 
+    // In interactive mode, wait for user to dismiss the summary before exiting
+    if (uiInstance) {
+      await uiInstance.waitUntilExit();
+    }
+
     process.exit(exitCode);
   } catch (error) {
     throw error;
   } finally {
-    // Only unmount UI after entire loop completes (or on error)
+    // Only unmount UI on error (normal exit is handled by InteractiveSummary)
     if (uiInstance) {
       uiInstance.unmount();
     }
