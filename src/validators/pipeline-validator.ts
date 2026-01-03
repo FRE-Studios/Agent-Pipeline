@@ -59,11 +59,14 @@ export class PipelineValidator {
     // P2: Retry configuration sanity (conditional - only if retries configured)
     this.validateRetryConfiguration(config);
 
-    // P2: Parallel execution limits (conditional - only if parallel stages exist)
-    await this.validateParallelExecutionLimits(config);
-
-    // Validate agents configuration
+    // Validate agents configuration (must run before DAG validation)
     this.validateAgents(config);
+
+    // Validate DAG structure (dependencies, cycles)
+    this.validateDAG(config);
+
+    // P2: Parallel execution limits (must run after DAG validation)
+    await this.validateParallelExecutionLimits(config);
 
     return this.errors;
   }
@@ -513,22 +516,20 @@ export class PipelineValidator {
   private async validateParallelExecutionLimits(config: PipelineConfig): Promise<void> {
     if (!config.agents || config.agents.length === 0) return;
 
-    try {
-      const planner = new DAGPlanner();
-      const graph = planner.buildExecutionPlan(config);
+    // Skip if there are already errors (from validateAgents or validateDAG)
+    const hasErrors = this.errors.some(e => e.severity === 'error');
+    if (hasErrors) return;
 
-      // Use maxParallelism from the execution plan
-      const maxParallel = graph.plan.maxParallelism;
+    const planner = new DAGPlanner();
+    const graph = planner.buildExecutionPlan(config);
+    const maxParallel = graph.plan.maxParallelism;
 
-      if (maxParallel > 10) {
-        this.errors.push({
-          field: 'agents',
-          message: `Pipeline has ${maxParallel} stages running in parallel. Consider adding dependencies to limit concurrency and avoid rate limits`,
-          severity: 'warning'
-        });
-      }
-    } catch (error) {
-      // DAG planning errors will be caught during execution
+    if (maxParallel > 10) {
+      this.errors.push({
+        field: 'agents',
+        message: `Pipeline has ${maxParallel} stages running in parallel. Consider adding dependencies to limit concurrency and avoid rate limits`,
+        severity: 'warning'
+      });
     }
   }
 
@@ -594,6 +595,32 @@ export class PipelineValidator {
           });
         }
       }
+    }
+  }
+
+  /**
+   * Validate DAG structure including missing dependencies and cycles.
+   */
+  private validateDAG(config: PipelineConfig): void {
+    if (!config.agents || config.agents.length === 0) return;
+
+    const planner = new DAGPlanner();
+    const dagValidation = planner.validateDAG(config);
+
+    for (const error of dagValidation.errors) {
+      this.errors.push({
+        field: 'agents.dependsOn',
+        message: error,
+        severity: 'error'
+      });
+    }
+
+    for (const warning of dagValidation.warnings) {
+      this.errors.push({
+        field: 'agents.dependsOn',
+        message: warning,
+        severity: 'warning'
+      });
     }
   }
 
