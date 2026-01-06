@@ -568,6 +568,14 @@ export class PipelineRunner {
 
         state = result.state;
 
+        if (abortController?.aborted) {
+          state.status = 'aborted';
+          if (this.shouldLog(interactive)) {
+            console.log(`\n⚠️  Pipeline aborted at group ${groupIndex + 1}/${totalGroups}\n`);
+          }
+          break;
+        }
+
         if (result.shouldStopPipeline) {
           state.status = 'failed';
           break;
@@ -575,7 +583,7 @@ export class PipelineRunner {
       }
 
       // Set final status if still running
-      if (state.status === 'running') {
+      if (state.status === 'running' && !abortController?.aborted) {
         state.status = 'completed';
       }
     } catch (error) {

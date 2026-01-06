@@ -105,9 +105,6 @@ export async function runCommand(
       abortController
     });
 
-    // Clean up SIGINT handler
-    process.off('SIGINT', handleSigint);
-
     // Determine exit code based on status and termination reason
     const exitCode = result.status === 'completed'
       ? (result.loopContext?.terminationReason === 'limit-reached' ? 1 : 0)
@@ -127,6 +124,8 @@ export async function runCommand(
   } catch (error) {
     throw error;
   } finally {
+    // Clean up SIGINT handler
+    process.off('SIGINT', handleSigint);
     // Only unmount UI on error (normal exit is handled by InteractiveSummary)
     if (uiInstance) {
       uiInstance.unmount();

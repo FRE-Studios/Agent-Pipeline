@@ -147,6 +147,12 @@ export class ParallelExecutor {
         this.emitStateChange(pipelineState);
         return execution;
       } catch (error) {
+        if (error instanceof PipelineAbortError) {
+          const abortedExecution = this.createFailedExecution(stageConfig, error);
+          this.updateStageInState(abortedExecution, pipelineState);
+          this.emitStateChange(pipelineState);
+          throw error;
+        }
         // Don't rethrow - return the failed execution directly
         const failedExecution = this.createFailedExecution(stageConfig, error);
         this.updateStageInState(failedExecution, pipelineState);
@@ -230,7 +236,7 @@ export class ParallelExecutor {
           executions.push(abortedExecution);
           this.updateStageInState(abortedExecution, pipelineState);
           this.emitStateChange(pipelineState);
-          break; // Stop processing more stages
+          throw error;
         }
 
         const failedExecution = this.createFailedExecution(stageConfig, error);
