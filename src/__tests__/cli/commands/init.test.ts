@@ -9,22 +9,17 @@ import { simpleGit } from 'simple-git';
 import { AgentRuntimeRegistry } from '../../../core/agent-runtime-registry.js';
 import { ClaudeCodeHeadlessRuntime } from '../../../core/agent-runtimes/claude-code-headless-runtime.js';
 
-// Expected agents for each pipeline
+// Expected agents for each pipeline (only active/non-commented agents)
 const FRONTEND_AGENTS = [
   'brutalist_purist.md',
   'cyberpunk_hacker.md',
   'indie_game_dev.md',
-  'luxury_editorial.md',
   'product_owner.md',
-  'retro_90s_webmaster.md',
-  'showcase.md',
-  'swiss_modernist.md'
+  'showcase.md'
 ];
 
 const POST_COMMIT_AGENTS = [
-  'code-reviewer.md',
-  'doc-updater.md',
-  'quality-checker.md'
+  'doc-updater.md'
 ];
 
 const ALL_EXPECTED_AGENTS = [...FRONTEND_AGENTS, ...POST_COMMIT_AGENTS].sort();
@@ -135,7 +130,7 @@ describe('initCommand', () => {
         expect(parsed.trigger).toBe('manual');
         expect(parsed.settings.executionMode).toBe('parallel');
         expect(parsed.settings.autoCommit).toBe(false);
-        expect(parsed.agents).toHaveLength(8);
+        expect(parsed.agents).toHaveLength(5); // Default: product-owner, 3 design agents, showcase
       });
 
       it('should include design agents with correct structure', async () => {
@@ -171,9 +166,11 @@ describe('initCommand', () => {
         // Design agents depend on product-owner
         expect(brutalist.dependsOn).toEqual(['product-owner']);
 
-        // Showcase depends on all design agents
+        // Showcase depends on active design agents (3 by default)
         expect(showcase.dependsOn).toContain('brutalist');
-        expect(showcase.dependsOn).toContain('retro-90s');
+        expect(showcase.dependsOn).toContain('indie-game');
+        expect(showcase.dependsOn).toContain('cyberpunk');
+        expect(showcase.dependsOn).toHaveLength(3);
       });
     });
 
@@ -189,37 +186,33 @@ describe('initCommand', () => {
         expect(parsed.trigger).toBe('post-commit');
         expect(parsed.settings.executionMode).toBe('sequential');
         expect(parsed.settings.failureStrategy).toBe('continue');
-        expect(parsed.agents).toHaveLength(3);
+        expect(parsed.agents).toHaveLength(1); // Default: doc-updater only
       });
 
-      it('should include code-review agent', async () => {
+      it('should include doc-updater agent by default', async () => {
         await initCommand(tempDir);
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-commit-example.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
         const parsed = YAML.parse(content);
 
-        const agent = parsed.agents.find((a: any) => a.name === 'code-review');
+        const agent = parsed.agents.find((a: any) => a.name === 'doc-updater');
         expect(agent).toBeDefined();
-        expect(agent.agent).toBe('.agent-pipeline/agents/code-reviewer.md');
-        expect(agent.timeout).toBe(900);
+        expect(agent.agent).toBe('.agent-pipeline/agents/doc-updater.md');
+        expect(agent.timeout).toBe(300);
       });
 
-      it('should have sequential execution with correct dependencies', async () => {
+      it('should have doc-updater with no dependencies by default', async () => {
         await initCommand(tempDir);
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-commit-example.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
         const parsed = YAML.parse(content);
 
-        const codeReview = parsed.agents.find((a: any) => a.name === 'code-review');
-        const qualityCheck = parsed.agents.find((a: any) => a.name === 'quality-check');
         const docUpdater = parsed.agents.find((a: any) => a.name === 'doc-updater');
 
-        // Verify sequential chain: code-review → quality-check → doc-updater
-        expect(codeReview.dependsOn).toBeUndefined();
-        expect(qualityCheck.dependsOn).toEqual(['code-review']);
-        expect(docUpdater.dependsOn).toEqual(['quality-check']);
+        // doc-updater runs alone by default (full sequential flow is commented out)
+        expect(docUpdater.dependsOn).toBeUndefined();
       });
     });
   });
@@ -259,10 +252,10 @@ describe('initCommand', () => {
       }
     });
 
-    it('should include valid markdown in code-reviewer agent', async () => {
+    it('should include valid markdown in doc-updater agent', async () => {
       await initCommand(tempDir);
 
-      const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', 'code-reviewer.md');
+      const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', 'doc-updater.md');
       const content = await fs.readFile(agentPath, 'utf-8');
 
       // Agent may have YAML frontmatter (---) or markdown header
@@ -281,22 +274,22 @@ describe('initCommand', () => {
     });
 
     it('should not create agents that already exist', async () => {
-      // Pre-create code-reviewer.md to simulate existing agent
+      // Pre-create doc-updater.md to simulate existing agent
       const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
       await fs.mkdir(agentsDir, { recursive: true });
-      await fs.writeFile(path.join(agentsDir, 'code-reviewer.md'), '# Existing Reviewer', 'utf-8');
+      await fs.writeFile(path.join(agentsDir, 'doc-updater.md'), '# Existing Updater', 'utf-8');
 
       await initCommand(tempDir);
 
-      // Verify code-reviewer.md was NOT overwritten
-      const content = await fs.readFile(path.join(agentsDir, 'code-reviewer.md'), 'utf-8');
-      expect(content).toContain('# Existing Reviewer');
+      // Verify doc-updater.md was NOT overwritten
+      const content = await fs.readFile(path.join(agentsDir, 'doc-updater.md'), 'utf-8');
+      expect(content).toContain('# Existing Updater');
     });
 
     it('should create agents with proper markdown structure', async () => {
       await initCommand(tempDir);
 
-      const agentNames = ['code-reviewer.md', 'product_owner.md', 'showcase.md'];
+      const agentNames = ['doc-updater.md', 'product_owner.md', 'showcase.md'];
 
       for (const agentName of agentNames) {
         const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', agentName);
@@ -432,16 +425,16 @@ describe('initCommand', () => {
     });
 
     it('should not create agents that already exist from plugins', async () => {
-      // Pre-create code-reviewer.md to simulate existing agent
+      // Pre-create doc-updater.md to simulate existing agent
       const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
       await fs.mkdir(agentsDir, { recursive: true });
-      await fs.writeFile(path.join(agentsDir, 'code-reviewer.md'), '# Plugin Agent', 'utf-8');
+      await fs.writeFile(path.join(agentsDir, 'doc-updater.md'), '# Plugin Agent', 'utf-8');
 
       vi.spyOn(AgentImporter, 'discoverPluginAgents').mockResolvedValue([]);
       await initCommand(tempDir);
 
-      // Verify code-reviewer.md was NOT overwritten
-      const content = await fs.readFile(path.join(agentsDir, 'code-reviewer.md'), 'utf-8');
+      // Verify doc-updater.md was NOT overwritten
+      const content = await fs.readFile(path.join(agentsDir, 'doc-updater.md'), 'utf-8');
       expect(content).toContain('# Plugin Agent');
     });
 
@@ -544,7 +537,7 @@ describe('initCommand', () => {
       const parsed = YAML.parse(content);
 
       expect(parsed.name).toBe('front-end-parallel-example');
-      expect(parsed.agents).toHaveLength(8);
+      expect(parsed.agents).toHaveLength(5); // Default: product-owner, 3 design agents, showcase
 
       const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
       const files = await fs.readdir(pipelinesDir);

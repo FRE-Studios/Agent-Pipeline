@@ -1,3 +1,8 @@
+# Post-Commit Review Pipeline
+# Automated code review triggered after each commit
+# Default: 1 agent (doc-updater). Uncomment the full flow below for comprehensive review.
+# Docs: https://github.com/FRE-Studios/agent-pipeline
+
 name: post-commit-example
 trigger: post-commit
 
@@ -35,21 +40,30 @@ notifications:
 
 # Agent stages
 agents:
-  # Sequential execution: code-review → quality-check → doc-updater
-  # Each stage builds on the previous stage's results
-  - name: code-review
-    agent: .agent-pipeline/agents/code-reviewer.md
-    timeout: 900                    # Hard limit per agent run (seconds)
 
-  - name: quality-check
-    agent: .agent-pipeline/agents/quality-checker.md
-    dependsOn:
-      - code-review
-    timeout: 900                    # Hard limit per agent run (seconds)
-    onFail: warn                    # Non-blocking: log but keep running
-
+  # # Example Single Agent  
   - name: doc-updater
     agent: .agent-pipeline/agents/doc-updater.md
-    dependsOn:
-      - quality-check
-    timeout: 300                    # Hard limit per agent run (seconds)
+    timeout: 300        
+
+  # # Example Flow - Remove comments to run full pipeline 
+  # # Warning - Pipelines may use many tokens, use with caution. 
+
+  # # Sequential execution: code-review → quality-check → doc-updater
+  # # Each stage builds on the previous stage's results
+  # - name: code-review
+  #   agent: .agent-pipeline/agents/code-reviewer.md
+  #   timeout: 900                    # Hard limit per agent run (seconds)
+
+  # - name: quality-check
+  #   agent: .agent-pipeline/agents/quality-checker.md
+  #   dependsOn:
+  #     - code-review
+  #   timeout: 900                    # Hard limit per agent run (seconds)
+  #   onFail: warn                    # Non-blocking: log but keep running
+
+  # - name: doc-updater
+  #   agent: .agent-pipeline/agents/doc-updater.md
+  #   dependsOn:
+  #     - quality-check
+  #   timeout: 300                    # Hard limit per agent run (seconds)

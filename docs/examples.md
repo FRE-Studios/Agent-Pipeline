@@ -1,26 +1,28 @@
 # Example Pipelines
 
-Agent Pipeline ships with two ready-to-run examples. Run `agent-pipeline init` to create both.
+Agent Pipeline ships with two ready-to-run examples. Run `agent-pipeline init` to create both. Both examples are configured with sensible defaults to minimize token usage - uncomment additional agents to unlock full capabilities.
 
 ## Front-End Parallel Example (`front-end-parallel-example.yml`)
 
-**Purpose**: Rapid design exploration demonstrating DAG-based parallelism. Six design agents interpret the same requirements through different aesthetic lenses, producing diverse prototypes in parallel.
+**Purpose**: Rapid design exploration demonstrating DAG-based parallelism. Design agents interpret the same requirements through different aesthetic lenses, producing diverse prototypes in parallel.
 
 **Trigger**: `manual`
 
-**Agents** (8 micro-agents):
+**Default Agents** (5 active):
 1. `product_owner` - Transforms user input into structured requirements
-2. `retro_90s_webmaster` - 90s web aesthetic interpretation
-3. `brutalist_purist` - Brutalist design approach
-4. `luxury_editorial` - High-end editorial style
-5. `indie_game_dev` - Game-inspired visual design
-6. `cyberpunk_hacker` - Cyberpunk visual language
-7. `swiss_modernist` - Swiss modernist design system
-8. `showcase` - Collects all prototypes into a unified showcase
+2. `brutalist_purist` - Brutalist design approach
+3. `indie_game_dev` - Game-inspired visual design
+4. `cyberpunk_hacker` - Cyberpunk visual language
+5. `showcase` - Collects all prototypes into a unified showcase
+
+**Additional Agents** (commented out - uncomment to enable):
+- `retro_90s_webmaster` - 90s web aesthetic interpretation
+- `luxury_editorial` - High-end editorial style
+- `swiss_modernist` - Swiss modernist design system
 
 **Execution Flow**:
 - Stage 1: Product owner creates structured requirements
-- Stage 2: Six design agents run in parallel (DAG-based parallelism)
+- Stage 2: Design agents run in parallel (DAG-based parallelism)
 - Stage 3: Showcase collects and presents all designs
 
 **Features**:
@@ -41,17 +43,17 @@ agent-pipeline run front-end-parallel-example
 
 **Trigger**: `post-commit`
 
-**Agents** (3 micro-agents):
-1. `code-reviewer` - Expert code reviewer with confidence-based filtering (only reports issues ≥80% confidence)
-2. `quality-checker` - Code simplification specialist focused on clarity and maintainability
-3. `doc-updater` - Maintains memory files (CLAUDE.md, README, CHANGELOG)
+**Default Agent** (1 active):
+- `doc-updater` - Maintains memory files (CLAUDE.md, README, CHANGELOG)
 
-**Execution Flow**:
-- Sequential: `code-review` → `quality-check` → `doc-updater`
-- Each agent builds on previous stage results
+**Full Flow** (commented out - uncomment for comprehensive review):
+1. `code-reviewer` - Expert code reviewer with confidence-based filtering
+2. `quality-checker` - Code simplification specialist
+3. `doc-updater` - Documentation maintainer
+
+When the full flow is enabled, agents run sequentially: `code-review` → `quality-check` → `doc-updater`
 
 **Features**:
-- Sequential execution ensuring comprehensive analysis
 - `failureStrategy: continue` - keeps going if a stage fails
 - `onFail: warn` on quality-check - non-blocking improvements
 - Automated commits with `[pipeline:{{stage}}]` prefix
@@ -75,10 +77,11 @@ All examples use focused micro-agents from `.agent-pipeline/agents/`:
 
 **Design Agents** (front-end-parallel-example):
 - `product_owner` - Requirements transformation
-- `retro_90s_webmaster`, `brutalist_purist`, `luxury_editorial`, `indie_game_dev`, `cyberpunk_hacker`, `swiss_modernist` - Design interpretations
+- `brutalist_purist`, `indie_game_dev`, `cyberpunk_hacker` - Active design agents
+- `retro_90s_webmaster`, `luxury_editorial`, `swiss_modernist` - Additional design agents (commented out)
 - `showcase` - Prototype collection
 
 **Code Quality Agents** (post-commit-example):
-- `code-reviewer` - Reviews code for bugs, security, and project conventions
-- `quality-checker` - Analyzes complexity, code smells, and simplification opportunities
-- `doc-updater` - Maintains documentation in sync with code changes
+- `doc-updater` - Maintains documentation in sync with code changes (active by default)
+- `code-reviewer` - Reviews code for bugs, security, and project conventions (commented out)
+- `quality-checker` - Analyzes complexity, code smells, and simplification opportunities (commented out)
