@@ -34,6 +34,8 @@ settings:
 agents:
   - name: analyze
     agent: .agent-pipeline/agents/analyzer.md
+    inputs:
+      prompt: "Additional context for analyzer.md agent"
     # timeout: 900           # Max seconds (default: 900)
     # onFail: continue       # stop | continue | warn
 

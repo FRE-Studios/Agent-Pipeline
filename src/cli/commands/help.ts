@@ -6,6 +6,21 @@ Agent Pipeline - Intelligent agent orchestration for Claude Code
 
 Intelligent agent orchestration with parallel execution, conditional logic, git workflow automation, and multi-channel notifications for Claude Code
 
+### Quick Start Example Pipeline ### 
+name: my-pipeline
+trigger: manual  # pre-commit | post-commit | pre-push | post-merge | manual
+
+agents:
+  - name: analyze
+    agent: .agent-pipeline/agents/analyzer.md  # agents are markdown files on disk
+    inputs:
+      prompt: "Additional context for analyzer.md agent"
+  - name: implement
+    agent: .agent-pipeline/agents/implementer.md
+    dependsOn:
+      - analyze              # Runs after 'analyze' completes
+### End of Example ###
+
 Usage:
   agent-pipeline <command> [options]
 
