@@ -17,6 +17,7 @@ import { EventEmitter } from 'events';
 export class PipelineAbortController extends EventEmitter {
   private _aborted = false;
   private childProcesses: Set<ChildProcess> = new Set();
+  private killTimers: Map<ChildProcess, NodeJS.Timeout> = new Map();
 
   /**
    * Whether abort has been requested
@@ -33,6 +34,12 @@ export class PipelineAbortController extends EventEmitter {
     this.childProcesses.add(process);
     process.on('exit', () => {
       this.childProcesses.delete(process);
+      // Clear any pending SIGKILL timer for this process
+      const timer = this.killTimers.get(process);
+      if (timer) {
+        clearTimeout(timer);
+        this.killTimers.delete(process);
+      }
     });
   }
 
@@ -56,11 +63,13 @@ export class PipelineAbortController extends EventEmitter {
         proc.kill('SIGTERM');
 
         // Force kill after 5 seconds if still running
-        setTimeout(() => {
+        const timer = setTimeout(() => {
           if (!proc.killed) {
             proc.kill('SIGKILL');
           }
+          this.killTimers.delete(proc);
         }, 5000);
+        this.killTimers.set(proc, timer);
       }
     }
   }

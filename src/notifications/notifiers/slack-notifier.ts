@@ -185,6 +185,24 @@ export class SlackNotifier extends BaseNotifier {
         color = 'danger';
         break;
 
+      case 'pipeline.aborted':
+        blocks.push({
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: `⚠️ Pipeline Aborted: ${pipelineState.pipelineConfig.name}`
+          }
+        });
+        blocks.push({
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `Pipeline was aborted by user after ${this.formatDuration(pipelineState.artifacts.totalDuration || 0)}`
+          }
+        });
+        color = 'warning';
+        break;
+
       case 'stage.completed':
         if (stage) {
           blocks.push({

@@ -8,7 +8,7 @@ export interface LoopSession {
   sessionId: string;
   startTime: string;
   endTime?: string;
-  status: 'running' | 'completed' | 'failed' | 'limit-reached';
+  status: 'running' | 'completed' | 'failed' | 'aborted' | 'limit-reached';
   maxIterations: number;
   totalIterations: number;
   iterations: IterationSummary[];
@@ -18,7 +18,7 @@ export interface IterationSummary {
   iterationNumber: number;
   pipelineName: string;
   runId: string;
-  status: 'completed' | 'failed';
+  status: 'completed' | 'failed' | 'aborted';
   duration: number;
   triggeredNext: boolean;
 }
@@ -68,7 +68,7 @@ export class LoopStateManager {
    */
   async completeSession(
     sessionId: string,
-    status: 'completed' | 'failed' | 'limit-reached'
+    status: 'completed' | 'failed' | 'aborted' | 'limit-reached'
   ): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) {

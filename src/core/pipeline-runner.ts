@@ -226,6 +226,17 @@ export class PipelineRunner {
         }
       }
 
+      // Handle abort - always terminate immediately
+      if (lastState.status === 'aborted') {
+        if (loopEnabled && loopSession) {
+          await this.recordIteration(loopSession.sessionId, lastState, currentMetadata, false);
+        }
+        if (this.shouldLog(interactive)) {
+          console.log('Loop: terminating due to abort');
+        }
+        break;
+      }
+
       // Handle failures (after file movement)
       if (lastState.status === 'failed') {
         // Record iteration with triggeredNext=false
@@ -319,7 +330,8 @@ export class PipelineRunner {
 
     // Complete loop session if loop mode was enabled
     if (loopEnabled && loopSession) {
-      const sessionStatus = loopTerminationReason === 'natural' ? 'completed' :
+      const sessionStatus = lastState.status === 'aborted' ? 'aborted' :
+                           loopTerminationReason === 'natural' ? 'completed' :
                            loopTerminationReason === 'limit-reached' ? 'limit-reached' :
                            'failed';
       await this.loopStateManager.completeSession(loopSession.sessionId, sessionStatus);
@@ -542,13 +554,13 @@ export class PipelineRunner {
 
       // Phase 2: Execute each group in order
       const totalGroups = executionGraph.plan.groups.length;
+      let abortedAtGroup: number | undefined;
+
       for (let groupIndex = 0; groupIndex < totalGroups; groupIndex++) {
         // Check for abort before starting next group
         if (abortController?.aborted) {
           state.status = 'aborted';
-          if (this.shouldLog(interactive)) {
-            console.log(`\n⚠️  Pipeline aborted at group ${groupIndex + 1}/${totalGroups}\n`);
-          }
+          abortedAtGroup = groupIndex + 1;
           break;
         }
 
@@ -568,11 +580,10 @@ export class PipelineRunner {
 
         state = result.state;
 
+        // Check for abort after group execution (may have been triggered during execution)
         if (abortController?.aborted) {
           state.status = 'aborted';
-          if (this.shouldLog(interactive)) {
-            console.log(`\n⚠️  Pipeline aborted at group ${groupIndex + 1}/${totalGroups}\n`);
-          }
+          abortedAtGroup = groupIndex + 1;
           break;
         }
 
@@ -582,12 +593,17 @@ export class PipelineRunner {
         }
       }
 
+      // Log abort once after the loop
+      if (abortedAtGroup !== undefined && this.shouldLog(interactive)) {
+        console.log(`\n⚠️  Pipeline aborted at group ${abortedAtGroup}/${totalGroups}\n`);
+      }
+
       // Set final status if still running
       if (state.status === 'running' && !abortController?.aborted) {
         state.status = 'completed';
       }
     } catch (error) {
-      // Handle abort error specially
+      // Handle abort error specially (thrown from deeper in the call stack)
       if (error instanceof PipelineAbortError || abortController?.aborted) {
         state.status = 'aborted';
         if (this.shouldLog(interactive)) {
@@ -635,7 +651,7 @@ export class PipelineRunner {
       iterationNumber: state.loopContext?.currentIteration ?? 1,
       pipelineName,
       runId: state.runId,
-      status: state.status === 'completed' ? 'completed' : 'failed',
+      status: state.status === 'completed' ? 'completed' : state.status === 'aborted' ? 'aborted' : 'failed',
       duration: state.artifacts.totalDuration,
       triggeredNext
     });

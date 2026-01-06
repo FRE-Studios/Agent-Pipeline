@@ -65,9 +65,8 @@ export class PipelineFinalizer {
       await this.stateManager.saveState(state);
       stateChangeCallback(state);
       await notifyCallback({
-        event: 'pipeline.failed',
-        pipelineState: state,
-        metadata: { aborted: true }
+        event: 'pipeline.aborted',
+        pipelineState: state
       });
       return state;
     }

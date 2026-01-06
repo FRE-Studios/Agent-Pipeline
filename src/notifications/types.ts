@@ -6,6 +6,7 @@ export type NotificationEvent =
   | 'pipeline.started'
   | 'pipeline.completed'
   | 'pipeline.failed'
+  | 'pipeline.aborted'
   | 'stage.completed'
   | 'stage.failed'
   | 'pr.created';

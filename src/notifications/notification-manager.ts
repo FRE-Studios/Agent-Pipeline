@@ -17,7 +17,7 @@ export class NotificationManager {
 
   constructor(private config?: NotificationConfig) {
     this.enabledEvents = new Set<NotificationEvent>(
-      config?.events || ['pipeline.completed', 'pipeline.failed', 'pr.created']
+      config?.events || ['pipeline.completed', 'pipeline.failed', 'pipeline.aborted', 'pr.created']
     );
 
     this.initializeNotifiers();

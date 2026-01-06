@@ -120,6 +120,23 @@ export class ParallelExecutor {
   ): Promise<ParallelExecutionResult> {
     const startTime = Date.now();
 
+    // Check if abort was requested before starting any stages
+    if (this.isAborted()) {
+      const skipTimestamp = new Date().toISOString();
+      const skippedExecutions: StageExecution[] = stages.map(stage => ({
+        stageName: stage.name,
+        status: 'skipped' as const,
+        startTime: skipTimestamp,
+        endTime: skipTimestamp,
+        duration: 0
+      }));
+      for (const execution of skippedExecutions) {
+        pipelineState.stages.push(execution);
+      }
+      this.emitStateChange(pipelineState);
+      return this.buildExecutionResult(skippedExecutions, startTime);
+    }
+
     // Update loop context with group position (for final-group-only loop injection)
     if (groupContext?.isFinalGroup !== undefined) {
       this.stageExecutor.updateLoopContext({ isFinalGroup: groupContext.isFinalGroup });

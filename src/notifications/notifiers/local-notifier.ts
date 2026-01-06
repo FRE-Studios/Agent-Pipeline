@@ -71,6 +71,11 @@ export class LocalNotifier extends BaseNotifier {
         message = `${pipelineState.pipelineConfig.name} failed at stage: ${failedStages[0]?.stageName || 'unknown'}`;
         break;
 
+      case 'pipeline.aborted':
+        title = '⚠️ Pipeline Aborted';
+        message = `${pipelineState.pipelineConfig.name} was aborted by user`;
+        break;
+
       case 'stage.completed':
         title = `✅ Stage Completed`;
         message = `${stage?.stageName} completed in ${this.formatDuration(stage?.duration || 0)}`;
