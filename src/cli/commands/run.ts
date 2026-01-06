@@ -8,6 +8,7 @@ import { PipelineValidator } from '../../validators/pipeline-validator.js';
 import { PipelineUI } from '../../ui/pipeline-ui.js';
 import { PipelineMetadata } from '../../config/schema.js';
 import { openInPager } from '../../utils/platform-opener.js';
+import { PipelineAbortController } from '../../core/abort-controller.js';
 
 export interface RunOptions {
   dryRun?: boolean;
@@ -56,6 +57,23 @@ export async function runCommand(
   const runner = new PipelineRunner(repoPath, options.dryRun);
   const interactive = options.interactive ?? true;
 
+  // Create abort controller for graceful pipeline cancellation
+  const abortController = new PipelineAbortController();
+
+  // Handle SIGINT (Ctrl+C) for graceful abort
+  let sigintHandled = false;
+  const handleSigint = () => {
+    if (sigintHandled) {
+      // Second Ctrl+C - force exit
+      console.log('\n⚠️  Force exiting...');
+      process.exit(1);
+    }
+    sigintHandled = true;
+    console.log('\n⚠️  Aborting pipeline... (Press Ctrl+C again to force exit)');
+    abortController.abort();
+  };
+  process.on('SIGINT', handleSigint);
+
   // Compute loop metadata (use explicit metadata or default from loader)
   const loopMetadata = options.loopMetadata ?? metadata;
 
@@ -83,13 +101,17 @@ export async function runCommand(
       verbose: options.verbose ?? false,
       loop: options.loop,
       loopMetadata,
-      maxLoopIterations: options.maxLoopIterations
+      maxLoopIterations: options.maxLoopIterations,
+      abortController
     });
+
+    // Clean up SIGINT handler
+    process.off('SIGINT', handleSigint);
 
     // Determine exit code based on status and termination reason
     const exitCode = result.status === 'completed'
       ? (result.loopContext?.terminationReason === 'limit-reached' ? 1 : 0)
-      : 1;
+      : (result.status === 'aborted' ? 130 : 1); // 130 is standard for SIGINT
 
     // In interactive mode, wait for user to dismiss the summary before exiting
     if (uiInstance) {

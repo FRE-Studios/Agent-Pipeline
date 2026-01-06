@@ -3,6 +3,7 @@
 import { AgentStageConfig, StageExecution, PipelineState } from '../config/schema.js';
 import { StageExecutor } from './stage-executor.js';
 import { ErrorFactory } from '../utils/error-factory.js';
+import { PipelineAbortController, PipelineAbortError } from './abort-controller.js';
 
 export interface ParallelExecutionResult {
   executions: StageExecution[];
@@ -14,13 +15,21 @@ export interface ParallelExecutionResult {
 export class ParallelExecutor {
   constructor(
     private stageExecutor: StageExecutor,
-    private onStateChange?: (state: PipelineState) => void
+    private onStateChange?: (state: PipelineState) => void,
+    private abortController?: PipelineAbortController
   ) {}
 
   private emitStateChange(state: PipelineState): void {
     if (this.onStateChange) {
       this.onStateChange(state);
     }
+  }
+
+  /**
+   * Check if abort has been requested
+   */
+  private isAborted(): boolean {
+    return this.abortController?.aborted ?? false;
   }
 
   private createFailedExecution(
@@ -175,6 +184,23 @@ export class ParallelExecutor {
     }
 
     for (const stageConfig of stages) {
+      // Check if abort was requested before starting next stage
+      if (this.isAborted()) {
+        // Skip remaining stages - mark them as skipped
+        const skipTimestamp = new Date().toISOString();
+        const skippedExecution: StageExecution = {
+          stageName: stageConfig.name,
+          status: 'skipped',
+          startTime: skipTimestamp,
+          endTime: skipTimestamp,
+          duration: 0
+        };
+        executions.push(skippedExecution);
+        pipelineState.stages.push(skippedExecution);
+        this.emitStateChange(pipelineState);
+        continue; // Skip to next stage (which will also be skipped)
+      }
+
       // Add stage as 'running' before execution starts
       this.addRunningStage(stageConfig, pipelineState);
       this.emitStateChange(pipelineState);
@@ -191,6 +217,22 @@ export class ParallelExecutor {
         this.updateStageInState(execution, pipelineState);
         this.emitStateChange(pipelineState);
       } catch (error) {
+        // Check if this is an abort error
+        if (error instanceof PipelineAbortError) {
+          const abortedExecution: StageExecution = {
+            stageName: stageConfig.name,
+            status: 'failed',
+            startTime: new Date().toISOString(),
+            endTime: new Date().toISOString(),
+            duration: 0,
+            error: { message: 'Stage aborted', timestamp: new Date().toISOString() }
+          };
+          executions.push(abortedExecution);
+          this.updateStageInState(abortedExecution, pipelineState);
+          this.emitStateChange(pipelineState);
+          break; // Stop processing more stages
+        }
+
         const failedExecution = this.createFailedExecution(stageConfig, error);
         executions.push(failedExecution);
         this.updateStageInState(failedExecution, pipelineState);

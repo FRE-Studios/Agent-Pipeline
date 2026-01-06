@@ -13,6 +13,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
     completed: 'green',
     failed: 'red',
     partial: 'yellow',
+    aborted: 'magenta',
     skipped: 'gray',
     pending: 'gray',
   };

@@ -44,6 +44,34 @@ export class PipelineFinalizer {
     // Calculate metrics (use worktree git manager if executing in worktree)
     await this.calculateMetrics(state, startTime, executionRepoPath);
 
+    // Handle aborted status specially - skip merge but preserve work
+    if (state.status === 'aborted') {
+      if (this.shouldLog(interactive)) {
+        console.log(`\n⚠️  Pipeline aborted. Work preserved on branch: ${pipelineBranch || '(current)'}`);
+        if (worktreePath) {
+          console.log(`   Worktree preserved for recovery: ${worktreePath}`);
+        }
+      }
+      // Still copy handover directory if it exists
+      if (worktreePath && state.artifacts.mainRepoHandoverDir) {
+        await this.copyHandoverToMainRepo(
+          state.artifacts.handoverDir,
+          state.artifacts.mainRepoHandoverDir,
+          interactive
+        );
+        state.artifacts.handoverDir = state.artifacts.mainRepoHandoverDir;
+      }
+      // Save state and notify
+      await this.stateManager.saveState(state);
+      stateChangeCallback(state);
+      await notifyCallback({
+        event: 'pipeline.failed',
+        pipelineState: state,
+        metadata: { aborted: true }
+      });
+      return state;
+    }
+
     // Handle merge strategy (pull-request, local-merge, or none)
     if (pipelineBranch && config.git) {
       const mergeStrategy = config.git.mergeStrategy || 'none';

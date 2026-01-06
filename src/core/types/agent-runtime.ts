@@ -1,5 +1,7 @@
 // src/core/types/agent-runtime.ts
 
+import { PipelineAbortController } from '../abort-controller.js';
+
 /**
  * Agent Runtime Abstraction Layer
  *
@@ -22,10 +24,12 @@ export interface AgentRuntime {
    * Execute an agent with the given request and return normalized results.
    *
    * @param request - The execution request containing prompt and options
+   * @param abortController - Optional abort controller for cancellation support
    * @returns Promise resolving to normalized execution result
    * @throws Error if execution fails or times out
+   * @throws PipelineAbortError if execution is aborted
    */
-  execute(request: AgentExecutionRequest): Promise<AgentExecutionResult>;
+  execute(request: AgentExecutionRequest, abortController?: PipelineAbortController): Promise<AgentExecutionResult>;
 
   /**
    * Get runtime capabilities to determine what features are supported.

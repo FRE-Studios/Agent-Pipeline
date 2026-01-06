@@ -9,6 +9,7 @@ import {
   ValidationResult,
   TokenUsage
 } from '../types/agent-runtime.js';
+import { PipelineAbortController, PipelineAbortError } from '../abort-controller.js';
 
 /**
  * Claude Code Headless Runtime Implementation
@@ -29,9 +30,19 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
    * Execute an agent using the Claude CLI in headless mode
    *
    * @param request - Normalized execution request
+   * @param abortController - Optional abort controller for cancellation support
    * @returns Normalized execution result with text, extracted data, and token usage
+   * @throws PipelineAbortError if execution is aborted
    */
-  async execute(request: AgentExecutionRequest): Promise<AgentExecutionResult> {
+  async execute(
+    request: AgentExecutionRequest,
+    abortController?: PipelineAbortController
+  ): Promise<AgentExecutionResult> {
+    // Check if already aborted before starting
+    if (abortController?.aborted) {
+      throw new PipelineAbortError('Pipeline aborted before agent execution started');
+    }
+
     const { options } = request;
 
     // Build CLI arguments from request
@@ -41,7 +52,8 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
     const cliResult = await this.executeClaudeCLI(args, {
       timeout: options.timeout ? options.timeout * 1000 : 120000,
       onOutputUpdate: options.onOutputUpdate,
-      cwd: options.runtimeOptions?.cwd as string | undefined
+      cwd: options.runtimeOptions?.cwd as string | undefined,
+      abortController
     });
 
     // Parse JSON output
@@ -242,18 +254,24 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
    * Execute the Claude CLI with given arguments
    *
    * @param args - CLI arguments
-   * @param options - Execution options (timeout, streaming callback)
+   * @param options - Execution options (timeout, streaming callback, abort controller)
    * @returns Process output (stdout, stderr, exit code)
    */
   private async executeClaudeCLI(
     args: string[],
-    options: { timeout?: number; onOutputUpdate?: (output: string) => void; cwd?: string }
+    options: {
+      timeout?: number;
+      onOutputUpdate?: (output: string) => void;
+      cwd?: string;
+      abortController?: PipelineAbortController;
+    }
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     return new Promise((resolve, reject) => {
       const timeout = options.timeout || 120000;
       let stdout = '';
       let stderr = '';
       let timedOut = false;
+      let aborted = false;
       let child: ChildProcess | null = null;
 
       // Set up timeout
@@ -270,6 +288,24 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
         }
       }, timeout);
 
+      // Set up abort handler
+      const abortHandler = () => {
+        aborted = true;
+        if (child && !child.killed) {
+          child.kill('SIGTERM');
+          // Force kill after 5 seconds if still running
+          setTimeout(() => {
+            if (child && !child.killed) {
+              child.kill('SIGKILL');
+            }
+          }, 5000);
+        }
+      };
+
+      if (options.abortController) {
+        options.abortController.on('abort', abortHandler);
+      }
+
       try {
         // Spawn claude CLI
         child = spawn('claude', args, {
@@ -277,6 +313,11 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
           shell: false,
           cwd: options.cwd || process.cwd()
         });
+
+        // Register with abort controller for tracking
+        if (options.abortController) {
+          options.abortController.registerProcess(child);
+        }
 
         // Collect stdout
         child.stdout?.on('data', (data: Buffer) => {
@@ -320,6 +361,16 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
         child.on('exit', (code) => {
           clearTimeout(timer);
 
+          // Remove abort listener
+          if (options.abortController) {
+            options.abortController.off('abort', abortHandler);
+          }
+
+          if (aborted) {
+            reject(new PipelineAbortError('Agent execution aborted'));
+            return;
+          }
+
           if (timedOut) {
             reject(
               new Error(
@@ -343,6 +394,10 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
         // Handle spawn errors
         child.on('error', (err) => {
           clearTimeout(timer);
+          // Remove abort listener
+          if (options.abortController) {
+            options.abortController.off('abort', abortHandler);
+          }
           reject(
             new Error(
               `Failed to spawn claude CLI: ${err.message}. ` +
@@ -352,6 +407,10 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
         });
       } catch (err) {
         clearTimeout(timer);
+        // Remove abort listener
+        if (options.abortController) {
+          options.abortController.off('abort', abortHandler);
+        }
         reject(err);
       }
     });

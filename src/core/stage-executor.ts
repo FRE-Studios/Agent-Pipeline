@@ -11,6 +11,7 @@ import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { ErrorFactory } from '../utils/error-factory.js';
 import { TokenEstimator } from '../utils/token-estimator.js';
 import { InstructionLoader, InstructionContext } from './instruction-loader.js';
+import { PipelineAbortController } from './abort-controller.js';
 
 export class StageExecutor {
   private retryHandler: RetryHandler;
@@ -19,6 +20,7 @@ export class StageExecutor {
   private executionCwd: string | undefined;
   private mainRepoPath: string | undefined;
   private loggingContext: LoggingContext;
+  private abortController?: PipelineAbortController;
 
   constructor(
     private gitManager: GitManager,
@@ -28,12 +30,14 @@ export class StageExecutor {
     private loopContext?: LoopContext,
     repoPath?: string,
     executionRepoPath?: string,
-    loggingContext?: LoggingContext
+    loggingContext?: LoggingContext,
+    abortController?: PipelineAbortController
   ) {
     this.retryHandler = new RetryHandler();
     this.instructionLoader = repoPath ? new InstructionLoader(repoPath) : null;
     this.mainRepoPath = repoPath;
     this.loggingContext = loggingContext ?? { interactive: true, verbose: false };
+    this.abortController = abortController;
 
     // If execution happens in a worktree, create a separate GitManager for it
     if (executionRepoPath && executionRepoPath !== repoPath) {
@@ -511,6 +515,9 @@ Create a pipeline in the pending directory ONLY when:
     };
     numTurns?: number;
   }> {
+    // Check if already aborted before starting
+    this.abortController?.throwIfAborted();
+
     const timeout = (timeoutSeconds || 900) * 1000; // Default 15 minutes
 
     // Tiered warning thresholds (non-blocking)
@@ -549,7 +556,7 @@ Create a pipeline in the pending directory ONLY when:
       };
 
       // Execute using resolved runtime (handles MCP tools and/or CLI execution based on runtime type)
-      const result = await runtime.execute(request);
+      const result = await runtime.execute(request, this.abortController);
 
       // Clean up warning timers on successful completion
       warningTimers.forEach(timer => clearTimeout(timer));

@@ -186,7 +186,7 @@ export interface PipelineState {
 
   stages: StageExecution[];
 
-  status: 'running' | 'completed' | 'failed' | 'partial';
+  status: 'running' | 'completed' | 'failed' | 'partial' | 'aborted';
 
   artifacts: {
     handoverDir: string;                  // Path to handover directory (worktree path if in worktree mode)

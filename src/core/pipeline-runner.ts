@@ -16,6 +16,7 @@ import { PipelineLoader } from '../config/pipeline-loader.js';
 import { LoopStateManager, LoopSession } from './loop-state-manager.js';
 import { AgentRuntimeRegistry } from './agent-runtime-registry.js';
 import { AgentRuntime } from './types/agent-runtime.js';
+import { PipelineAbortController, PipelineAbortError } from './abort-controller.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -122,6 +123,7 @@ export class PipelineRunner {
       loop?: boolean;
       loopMetadata?: PipelineMetadata;
       maxLoopIterations?: number;
+      abortController?: PipelineAbortController;
     } = {}
   ): Promise<PipelineState> {
     const interactive = options.interactive || false;
@@ -192,7 +194,8 @@ export class PipelineRunner {
           verbose,
           notificationManager,
           loopContext,
-          loopSessionId: loopSession?.sessionId
+          loopSessionId: loopSession?.sessionId,
+          abortController: options.abortController
         }
       );
 
@@ -443,9 +446,10 @@ export class PipelineRunner {
       notificationManager?: NotificationManager;
       loopContext?: LoopContext;
       loopSessionId?: string;
+      abortController?: PipelineAbortController;
     }
   ): Promise<PipelineState> {
-    const { interactive, verbose, loopContext, loopSessionId } = options;
+    const { interactive, verbose, loopContext, loopSessionId, abortController } = options;
 
     // Create notification manager early so it's available for init failures
     this.notificationManager = options.notificationManager ||
@@ -462,7 +466,8 @@ export class PipelineRunner {
           notificationManager: this.notificationManager,
           loopContext,
           loopSessionId,
-          metadata
+          metadata,
+          abortController
         },
         this.notify.bind(this),
         this.notifyStateChange.bind(this)
@@ -538,6 +543,15 @@ export class PipelineRunner {
       // Phase 2: Execute each group in order
       const totalGroups = executionGraph.plan.groups.length;
       for (let groupIndex = 0; groupIndex < totalGroups; groupIndex++) {
+        // Check for abort before starting next group
+        if (abortController?.aborted) {
+          state.status = 'aborted';
+          if (this.shouldLog(interactive)) {
+            console.log(`\n⚠️  Pipeline aborted at group ${groupIndex + 1}/${totalGroups}\n`);
+          }
+          break;
+        }
+
         const group = executionGraph.plan.groups[groupIndex];
         const isFinalGroup = groupIndex === totalGroups - 1;
 
@@ -565,9 +579,17 @@ export class PipelineRunner {
         state.status = 'completed';
       }
     } catch (error) {
-      state.status = 'failed';
-      if (this.shouldLog(interactive)) {
-        console.error(`\n❌ Pipeline failed: ${error}\n`);
+      // Handle abort error specially
+      if (error instanceof PipelineAbortError || abortController?.aborted) {
+        state.status = 'aborted';
+        if (this.shouldLog(interactive)) {
+          console.log(`\n⚠️  Pipeline aborted\n`);
+        }
+      } else {
+        state.status = 'failed';
+        if (this.shouldLog(interactive)) {
+          console.error(`\n❌ Pipeline failed: ${error}\n`);
+        }
       }
     }
 

@@ -10,6 +10,7 @@ import { AgentRuntime } from './types/agent-runtime.js';
 import { PipelineConfig, PipelineState, LoopContext, PipelineMetadata } from '../config/schema.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
+import { PipelineAbortController } from './abort-controller.js';
 
 export interface InitializationResult {
   state: PipelineState;
@@ -48,6 +49,7 @@ export class PipelineInitializer {
       loopContext?: LoopContext;
       loopSessionId?: string;
       metadata?: PipelineMetadata;
+      abortController?: PipelineAbortController;
     },
     notifyCallback: (context: NotificationContext) => Promise<void>,
     stateChangeCallback: (state: PipelineState) => void
@@ -125,11 +127,13 @@ export class PipelineInitializer {
       options.loopContext,
       this.repoPath,                    // For file-driven instruction loading
       isolation.executionRepoPath,      // Where agents execute (worktree or main repo)
-      { interactive: options.interactive ?? true, verbose }
+      { interactive: options.interactive ?? true, verbose },
+      options.abortController
     );
     const parallelExecutor = new ParallelExecutor(
       stageExecutor,
-      stateChangeCallback
+      stateChangeCallback,
+      options.abortController
     );
 
     // Log startup messages

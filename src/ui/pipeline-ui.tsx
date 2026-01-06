@@ -66,7 +66,7 @@ export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange, onOpenLog
   }
 
   const executionGroups = getExecutionGroups(state.pipelineConfig);
-  const isFinished = state.status === 'completed' || state.status === 'failed' || state.status === 'partial';
+  const isFinished = state.status === 'completed' || state.status === 'failed' || state.status === 'partial' || state.status === 'aborted';
 
   return (
     <Box flexDirection="column" padding={1}>
@@ -108,7 +108,7 @@ export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange, onOpenLog
       {isFinished && <InteractiveSummary state={state} onOpenLogs={onOpenLogs} />}
 
       {!isFinished && (
-        <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1}>
+        <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1} flexDirection="column">
           <Text>
             {state.loopContext && <Text color="magenta">🔁 Loop {state.loopContext.currentIteration} | </Text>}
             Status: <StatusBadge status={state.status} /> | Duration:{' '}
@@ -120,6 +120,7 @@ export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange, onOpenLog
             {' '}| Commits:{' '}
             {state.stages.filter((s) => s.commitSha).length}
           </Text>
+          <Text dimColor>Press Ctrl+C to abort</Text>
         </Box>
       )}
     </Box>

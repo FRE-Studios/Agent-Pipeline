@@ -485,21 +485,16 @@ describe('StageExecutor', () => {
       // The runtime execute should be called with context containing inputs
       expect(mockRuntime.execute).toHaveBeenCalled();
 
-      // Check that execute was called with proper request structure
-      expect(mockRuntime.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userPrompt: expect.stringContaining('targetFile'),
-          systemPrompt: expect.any(String),
-          options: expect.any(Object)
-        })
-      );
+      // Check that execute was called with proper request structure (2 params: request, abortController)
+      const executeCall = mockRuntime.execute.mock.calls[0];
+      expect(executeCall[0]).toMatchObject({
+        userPrompt: expect.stringContaining('targetFile'),
+        systemPrompt: expect.any(String),
+        options: expect.any(Object)
+      });
 
       // Also verify the specific input values are in the context
-      expect(mockRuntime.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userPrompt: expect.stringContaining('src/main.ts')
-        })
-      );
+      expect(executeCall[0].userPrompt).toContain('src/main.ts');
     });
 
     it('should include previous stages in context via handover manager', async () => {
@@ -995,13 +990,8 @@ describe('StageExecutor', () => {
       );
 
       // Verify callback was passed to runtime in options
-      expect(mockRuntime.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          options: expect.objectContaining({
-            onOutputUpdate: callback
-          })
-        })
-      );
+      const executeCall = mockRuntime.execute.mock.calls[0];
+      expect(executeCall[0].options.onOutputUpdate).toBe(callback);
     });
   });
 
@@ -1294,13 +1284,8 @@ describe('StageExecutor', () => {
       const state = { ...runningPipelineState };
       await executor.executeStage(basicStageConfig, state);
 
-      expect(mockRuntime.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          options: expect.objectContaining({
-            permissionMode: 'acceptEdits'
-          })
-        })
-      );
+      const executeCall = mockRuntime.execute.mock.calls[0];
+      expect(executeCall[0].options.permissionMode).toBe('acceptEdits');
     });
 
     it('should use configured permission mode from pipeline settings', async () => {
@@ -1317,13 +1302,8 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, state);
 
-      expect(mockRuntime.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          options: expect.objectContaining({
-            permissionMode: 'default'
-          })
-        })
-      );
+      const executeCall = mockRuntime.execute.mock.calls[0];
+      expect(executeCall[0].options.permissionMode).toBe('default');
     });
 
     it('should support plan permission mode', async () => {
@@ -1340,13 +1320,8 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, state);
 
-      expect(mockRuntime.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          options: expect.objectContaining({
-            permissionMode: 'plan'
-          })
-        })
-      );
+      const executeCall = mockRuntime.execute.mock.calls[0];
+      expect(executeCall[0].options.permissionMode).toBe('plan');
     });
 
     it('should support bypassPermissions mode', async () => {
@@ -1363,13 +1338,8 @@ describe('StageExecutor', () => {
 
       await executor.executeStage(basicStageConfig, state);
 
-      expect(mockRuntime.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          options: expect.objectContaining({
-            permissionMode: 'bypassPermissions'
-          })
-        })
-      );
+      const executeCall = mockRuntime.execute.mock.calls[0];
+      expect(executeCall[0].options.permissionMode).toBe('bypassPermissions');
     });
   });
 

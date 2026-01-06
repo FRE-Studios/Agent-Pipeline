@@ -856,13 +856,9 @@ describe('Runtime Resolution Integration Tests - Phase 7.3', () => {
       const result = await executor.executeStage(stageConfig, pipelineState);
 
       expect(result.status).toBe('success');
-      expect(mockSdkRuntime.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          options: expect.objectContaining({
-            permissionMode: 'acceptEdits'
-          })
-        })
-      );
+      // Check the first parameter of the execute call
+      const executeCall = mockSdkRuntime.execute.mock.calls[0];
+      expect(executeCall[0].options.permissionMode).toBe('acceptEdits');
     });
   });
 });

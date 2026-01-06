@@ -135,7 +135,8 @@ describe('runCommand', () => {
       }
 
       expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, expect.objectContaining({
-        interactive: true
+        interactive: true,
+        abortController: expect.anything()
       }));
     });
   });
@@ -330,7 +331,8 @@ describe('runCommand', () => {
 
       expect(mockRender).toHaveBeenCalled();
       expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, expect.objectContaining({
-        interactive: true
+        interactive: true,
+        abortController: expect.anything()
       }));
     });
 
@@ -348,7 +350,8 @@ describe('runCommand', () => {
 
       expect(mockRender).not.toHaveBeenCalled();
       expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, expect.objectContaining({
-        interactive: false
+        interactive: false,
+        abortController: expect.anything()
       }));
     });
 
@@ -631,7 +634,8 @@ describe('runCommand', () => {
         verbose: false,
         loop: true,
         loopMetadata: metadata,
-        maxLoopIterations: undefined
+        maxLoopIterations: undefined,
+        abortController: expect.anything()
       });
     });
 
@@ -653,7 +657,8 @@ describe('runCommand', () => {
         verbose: false,
         loop: true,
         loopMetadata: metadata,
-        maxLoopIterations: 50
+        maxLoopIterations: 50,
+        abortController: expect.anything()
       });
     });
 
@@ -672,7 +677,8 @@ describe('runCommand', () => {
 
       expect(mockRunner.runPipeline).toHaveBeenCalledWith(config,
         expect.objectContaining({
-          loopMetadata: metadata
+          loopMetadata: metadata,
+          abortController: expect.anything()
         })
       );
     });
@@ -696,7 +702,8 @@ describe('runCommand', () => {
 
       expect(mockRunner.runPipeline).toHaveBeenCalledWith(config,
         expect.objectContaining({
-          loopMetadata: customMetadata
+          loopMetadata: customMetadata,
+          abortController: expect.anything()
         })
       );
     });
@@ -719,7 +726,8 @@ describe('runCommand', () => {
         verbose: false,
         loop: undefined,
         loopMetadata: metadata,
-        maxLoopIterations: undefined
+        maxLoopIterations: undefined,
+        abortController: expect.anything()
       });
     });
 
@@ -759,7 +767,8 @@ describe('runCommand', () => {
           verbose: false,
           loop: true,
           loopMetadata: metadata,
-          maxLoopIterations: 10
+          maxLoopIterations: 10,
+          abortController: expect.anything()
         }
       );
     });
@@ -893,7 +902,8 @@ describe('runCommand', () => {
       expect(mockValidator.validateAndReport).toHaveBeenCalledWith(config, tempDir);
       expect(PipelineRunner).toHaveBeenCalledWith(tempDir, undefined);
       expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, expect.objectContaining({
-        interactive: true
+        interactive: true,
+        abortController: expect.anything()
       }));
       expect(processExitSpy).toHaveBeenCalledWith(0);
     });
@@ -958,7 +968,8 @@ describe('runCommand', () => {
           notifications: { enabled: false },
         }),
         expect.objectContaining({
-          interactive: false
+          interactive: false,
+          abortController: expect.anything()
         })
       );
     });
