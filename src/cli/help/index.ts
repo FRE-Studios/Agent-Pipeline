@@ -1,6 +1,28 @@
 // src/cli/help/index.ts
 
+import chalk from 'chalk';
 import type { CommandHelp, OptionHelp, ExampleHelp } from './types.js';
+
+// ============================================================================
+// Color Utilities
+// ============================================================================
+
+const c = {
+  // Headers and titles
+  title: chalk.bold.cyan,
+  header: chalk.bold.white,
+  // Commands and code
+  cmd: chalk.green,
+  arg: chalk.cyan,
+  // Options and flags
+  flag: chalk.yellow,
+  // Descriptions and secondary text
+  desc: chalk.white,
+  dim: chalk.dim,
+  // Special
+  highlight: chalk.bold.green,
+  muted: chalk.gray,
+};
 
 // ============================================================================
 // Command Help Registry
@@ -322,10 +344,10 @@ const commandRegistry: Record<string, CommandHelp> = {
 function formatOptions(options: OptionHelp[]): string {
   if (options.length === 0) return '';
 
-  const lines = ['Options:'];
+  const lines = [c.header('Options:')];
   for (const opt of options) {
-    const defaultStr = opt.default ? ` (default: ${opt.default})` : '';
-    lines.push(`  ${opt.flags.padEnd(28)} ${opt.description}${defaultStr}`);
+    const defaultStr = opt.default ? c.dim(` (default: ${opt.default})`) : '';
+    lines.push(`  ${c.flag(opt.flags.padEnd(28))} ${c.desc(opt.description)}${defaultStr}`);
   }
   return lines.join('\n');
 }
@@ -333,10 +355,10 @@ function formatOptions(options: OptionHelp[]): string {
 function formatExamples(examples: ExampleHelp[]): string {
   if (examples.length === 0) return '';
 
-  const lines = ['Examples:'];
+  const lines = [c.header('Examples:')];
   for (const ex of examples) {
-    lines.push(`  ${ex.command}`);
-    lines.push(`      ${ex.description}`);
+    lines.push(`  ${c.cmd(ex.command)}`);
+    lines.push(`      ${c.dim(ex.description)}`);
   }
   return lines.join('\n');
 }
@@ -345,13 +367,13 @@ function formatCommandHelp(cmd: CommandHelp): string {
   const sections: string[] = [];
 
   // Description
-  sections.push(cmd.description);
+  sections.push(c.desc(cmd.description));
   sections.push('');
 
   // Usage
-  sections.push('Usage:');
+  sections.push(c.header('Usage:'));
   for (const usage of cmd.usage) {
-    sections.push(`  ${usage}`);
+    sections.push(`  ${c.cmd(usage)}`);
   }
 
   // Options
@@ -369,7 +391,7 @@ function formatCommandHelp(cmd: CommandHelp): string {
   // See also
   if (cmd.seeAlso && cmd.seeAlso.length > 0) {
     sections.push('');
-    sections.push(`See also: ${cmd.seeAlso.join(', ')}`);
+    sections.push(`${c.dim('See also:')} ${cmd.seeAlso.map(s => c.cmd(s)).join(', ')}`);
   }
 
   return sections.join('\n');
@@ -380,155 +402,158 @@ function formatCommandHelp(cmd: CommandHelp): string {
 // ============================================================================
 
 function showOverview(): void {
-  console.log(`Agent Pipeline - Orchestrate Claude agents with parallel execution and git automation
+  const title = c.title('Agent Pipeline');
+  const tagline = c.dim('Orchestrate Claude agents with parallel execution and git automation');
 
-Quick Start:
-  agent-pipeline init                    Set up example pipelines
-  agent-pipeline run <pipeline>          Execute a pipeline
-  agent-pipeline list                    Show available pipelines
+  console.log(`${title} - ${tagline}
 
-Commands:
-  run <pipeline>     Execute a pipeline
-  list               Show available pipelines
-  status             Show last run status
-  history            Browse run history
-  analytics          View performance metrics
-  init               Initialize project
+${c.header('Quick Start:')}
+  ${c.cmd('agent-pipeline init')}                    ${c.dim('Set up example pipelines')}
+  ${c.cmd('agent-pipeline run')} ${c.arg('<pipeline>')}          ${c.dim('Execute a pipeline')}
+  ${c.cmd('agent-pipeline list')}                    ${c.dim('Show available pipelines')}
 
-  create             Create new pipeline
-  edit <pipeline>    Edit pipeline config
-  clone <src> [dst]  Duplicate a pipeline
-  delete <pipeline>  Remove a pipeline
-  validate           Check pipeline syntax
-  config             View pipeline config
-  export             Export pipeline to file
-  import             Import from file/URL
+${c.header('Commands:')}
+  ${c.cmd('run')} ${c.arg('<pipeline>')}     ${c.dim('Execute a pipeline')}
+  ${c.cmd('list')}               ${c.dim('Show available pipelines')}
+  ${c.cmd('status')}             ${c.dim('Show last run status')}
+  ${c.cmd('history')}            ${c.dim('Browse run history')}
+  ${c.cmd('analytics')}          ${c.dim('View performance metrics')}
+  ${c.cmd('init')}               ${c.dim('Initialize project')}
 
-  agent list         List available agents
-  agent info <name>  Show agent details
-  agent pull         Import plugin agents
+  ${c.cmd('create')}             ${c.dim('Create new pipeline')}
+  ${c.cmd('edit')} ${c.arg('<pipeline>')}    ${c.dim('Edit pipeline config')}
+  ${c.cmd('clone')} ${c.arg('<src> [dst]')}  ${c.dim('Duplicate a pipeline')}
+  ${c.cmd('delete')} ${c.arg('<pipeline>')}  ${c.dim('Remove a pipeline')}
+  ${c.cmd('validate')}           ${c.dim('Check pipeline syntax')}
+  ${c.cmd('config')}             ${c.dim('View pipeline config')}
+  ${c.cmd('export')}             ${c.dim('Export pipeline to file')}
+  ${c.cmd('import')}             ${c.dim('Import from file/URL')}
 
-  hooks              Manage git hooks
-  schema             Show config template
-  cleanup            Remove pipeline branches
-  rollback           Undo pipeline commits
-  test               Test pipeline config
+  ${c.cmd('agent list')}         ${c.dim('List available agents')}
+  ${c.cmd('agent info')} ${c.arg('<name>')}  ${c.dim('Show agent details')}
+  ${c.cmd('agent pull')}         ${c.dim('Import plugin agents')}
 
-Run 'agent-pipeline help <command>' for detailed options.
-Run 'agent-pipeline help examples' for usage examples.
-Run 'agent-pipeline help quickstart' for getting started guide.
-Run 'agent-pipeline help cheatsheet' for quick reference.`);
+  ${c.cmd('hooks')}              ${c.dim('Manage git hooks')}
+  ${c.cmd('schema')}             ${c.dim('Show config template')}
+  ${c.cmd('cleanup')}            ${c.dim('Remove pipeline branches')}
+  ${c.cmd('rollback')}           ${c.dim('Undo pipeline commits')}
+  ${c.cmd('test')}               ${c.dim('Test pipeline config')}
+
+${c.dim("Run 'agent-pipeline help <command>' for detailed options.")}
+${c.dim("Run 'agent-pipeline help examples' for usage examples.")}
+${c.dim("Run 'agent-pipeline help quickstart' for getting started guide.")}
+${c.dim("Run 'agent-pipeline help cheatsheet' for quick reference.")}`);
 }
 
 function showQuickstart(): void {
-  console.log(`Getting Started with Agent Pipeline
+  console.log(`${c.title('Getting Started with Agent Pipeline')}
 
-1. Initialize your project:
+${c.header('1.')} Initialize your project:
 
-   agent-pipeline init
+   ${c.cmd('agent-pipeline init')}
 
-   Creates .agent-pipeline/ with example pipelines and agents.
+   ${c.dim('Creates .agent-pipeline/ with example pipelines and agents.')}
 
-2. Explore the examples:
+${c.header('2.')} Explore the examples:
 
-   agent-pipeline list
-   agent-pipeline config front-end-parallel-example
+   ${c.cmd('agent-pipeline list')}
+   ${c.cmd('agent-pipeline config front-end-parallel-example')}
 
-3. Run your first pipeline:
+${c.header('3.')} Run your first pipeline:
 
-   agent-pipeline run front-end-parallel-example
+   ${c.cmd('agent-pipeline run front-end-parallel-example')}
 
-   Watch the live UI as agents execute in parallel.
+   ${c.dim('Watch the live UI as agents execute in parallel.')}
 
-4. Check the results:
+${c.header('4.')} Check the results:
 
-   agent-pipeline status
-   agent-pipeline history
+   ${c.cmd('agent-pipeline status')}
+   ${c.cmd('agent-pipeline history')}
 
-5. Create your own pipeline:
+${c.header('5.')} Create your own pipeline:
 
-   agent-pipeline create
+   ${c.cmd('agent-pipeline create')}
 
-   Or copy an example:
-   agent-pipeline clone front-end-parallel-example my-pipeline
+   ${c.dim('Or copy an example:')}
+   ${c.cmd('agent-pipeline clone front-end-parallel-example my-pipeline')}
 
-Next Steps:
-  - Run 'agent-pipeline schema' to see configuration options
-  - Run 'agent-pipeline schema --examples' for common patterns
-  - Read docs/configuration.md for advanced settings
-  - Set up git hooks: agent-pipeline hooks install <pipeline>`);
+${c.header('Next Steps:')}
+  ${c.dim('-')} Run ${c.cmd("'agent-pipeline schema'")} to see configuration options
+  ${c.dim('-')} Run ${c.cmd("'agent-pipeline schema --examples'")} for common patterns
+  ${c.dim('-')} Read ${c.arg('docs/configuration.md')} for advanced settings
+  ${c.dim('-')} Set up git hooks: ${c.cmd('agent-pipeline hooks install <pipeline>')}`);
 }
 
 function showExamples(): void {
-  console.log(`Common Workflows
+  console.log(`${c.title('Common Workflows')}
 
-Getting Started:
-  agent-pipeline init                              Create example pipelines
-  agent-pipeline list                              See what's available
-  agent-pipeline run front-end-parallel-example    Try the demo
+${c.header('Getting Started:')}
+  ${c.cmd('agent-pipeline init')}                              ${c.dim('Create example pipelines')}
+  ${c.cmd('agent-pipeline list')}                              ${c.dim("See what's available")}
+  ${c.cmd('agent-pipeline run front-end-parallel-example')}    ${c.dim('Try the demo')}
 
-Development Workflow:
-  agent-pipeline run code-review                   Review recent changes
-  agent-pipeline run code-review --dry-run         Test without commits
-  agent-pipeline status                            Check last run result
+${c.header('Development Workflow:')}
+  ${c.cmd('agent-pipeline run code-review')}                   ${c.dim('Review recent changes')}
+  ${c.cmd('agent-pipeline run code-review --dry-run')}         ${c.dim('Test without commits')}
+  ${c.cmd('agent-pipeline status')}                            ${c.dim('Check last run result')}
 
-Git Hook Automation:
-  agent-pipeline hooks install post-commit-review  Auto-run on commits
-  agent-pipeline hooks                             List installed hooks
-  agent-pipeline hooks uninstall --all             Remove all hooks
+${c.header('Git Hook Automation:')}
+  ${c.cmd('agent-pipeline hooks install post-commit-review')}  ${c.dim('Auto-run on commits')}
+  ${c.cmd('agent-pipeline hooks')}                             ${c.dim('List installed hooks')}
+  ${c.cmd('agent-pipeline hooks uninstall --all')}             ${c.dim('Remove all hooks')}
 
-Pipeline Management:
-  agent-pipeline create                            Interactive wizard
-  agent-pipeline clone my-pipeline my-pipeline-v2  Duplicate for editing
-  agent-pipeline validate my-pipeline              Check for errors
-  agent-pipeline export my-pipeline -o backup.yml  Backup config
+${c.header('Pipeline Management:')}
+  ${c.cmd('agent-pipeline create')}                            ${c.dim('Interactive wizard')}
+  ${c.cmd('agent-pipeline clone my-pipeline my-pipeline-v2')}  ${c.dim('Duplicate for editing')}
+  ${c.cmd('agent-pipeline validate my-pipeline')}              ${c.dim('Check for errors')}
+  ${c.cmd('agent-pipeline export my-pipeline -o backup.yml')}  ${c.dim('Backup config')}
 
-Maintenance:
-  agent-pipeline cleanup --force                   Remove old branches
-  agent-pipeline rollback --stages 2               Undo last 2 stages
-  agent-pipeline analytics --days 7                Weekly performance
+${c.header('Maintenance:')}
+  ${c.cmd('agent-pipeline cleanup --force')}                   ${c.dim('Remove old branches')}
+  ${c.cmd('agent-pipeline rollback --stages 2')}               ${c.dim('Undo last 2 stages')}
+  ${c.cmd('agent-pipeline analytics --days 7')}                ${c.dim('Weekly performance')}
 
-CI/CD Integration:
-  agent-pipeline run deploy --no-interactive       Headless mode for CI
-  agent-pipeline run tests --no-notifications      Silent execution`);
+${c.header('CI/CD Integration:')}
+  ${c.cmd('agent-pipeline run deploy --no-interactive')}       ${c.dim('Headless mode for CI')}
+  ${c.cmd('agent-pipeline run tests --no-notifications')}      ${c.dim('Silent execution')}`);
 }
 
 function showCheatsheet(): void {
-  console.log(`agent-pipeline cheatsheet
+  console.log(`${c.title('agent-pipeline cheatsheet')}
 
-init                         Setup project
-run <pipeline>               Execute pipeline
-run <p> --dry-run            Test without commits
-list                         Show pipelines
-status                       Last run result
-history                      Browse runs (interactive)
-analytics                    Performance metrics
+${c.cmd('init')}                         ${c.dim('Setup project')}
+${c.cmd('run')} ${c.arg('<pipeline>')}               ${c.dim('Execute pipeline')}
+${c.cmd('run')} ${c.arg('<p>')} ${c.flag('--dry-run')}            ${c.dim('Test without commits')}
+${c.cmd('list')}                         ${c.dim('Show pipelines')}
+${c.cmd('status')}                       ${c.dim('Last run result')}
+${c.cmd('history')}                      ${c.dim('Browse runs (interactive)')}
+${c.cmd('analytics')}                    ${c.dim('Performance metrics')}
 
-create                       New pipeline wizard
-edit <pipeline>              Open in editor
-clone <src> [dst]            Duplicate pipeline
-delete <pipeline>            Remove pipeline
-validate <pipeline>          Check syntax
-config <pipeline>            View config
-export <pipeline>            Export to file
-import <file>                Import pipeline
+${c.cmd('create')}                       ${c.dim('New pipeline wizard')}
+${c.cmd('edit')} ${c.arg('<pipeline>')}              ${c.dim('Open in editor')}
+${c.cmd('clone')} ${c.arg('<src> [dst]')}            ${c.dim('Duplicate pipeline')}
+${c.cmd('delete')} ${c.arg('<pipeline>')}            ${c.dim('Remove pipeline')}
+${c.cmd('validate')} ${c.arg('<pipeline>')}          ${c.dim('Check syntax')}
+${c.cmd('config')} ${c.arg('<pipeline>')}            ${c.dim('View config')}
+${c.cmd('export')} ${c.arg('<pipeline>')}            ${c.dim('Export to file')}
+${c.cmd('import')} ${c.arg('<file>')}                ${c.dim('Import pipeline')}
 
-agent list                   Show agents
-agent info <name>            Agent details
-agent pull                   Import from plugins
+${c.cmd('agent list')}                   ${c.dim('Show agents')}
+${c.cmd('agent info')} ${c.arg('<name>')}            ${c.dim('Agent details')}
+${c.cmd('agent pull')}                   ${c.dim('Import from plugins')}
 
-hooks                        List git hooks
-hooks install <pipeline>     Add git hook
-hooks uninstall --all        Remove all hooks
+${c.cmd('hooks')}                        ${c.dim('List git hooks')}
+${c.cmd('hooks install')} ${c.arg('<pipeline>')}     ${c.dim('Add git hook')}
+${c.cmd('hooks uninstall')} ${c.flag('--all')}        ${c.dim('Remove all hooks')}
 
-schema                       Config template
-schema --full                Complete JSON schema
-schema --examples            Example configs
-schema --field <name>        Explain a field
+${c.cmd('schema')}                       ${c.dim('Config template')}
+${c.cmd('schema')} ${c.flag('--full')}                ${c.dim('Complete JSON schema')}
+${c.cmd('schema')} ${c.flag('--examples')}            ${c.dim('Example configs')}
+${c.cmd('schema')} ${c.flag('--field')} ${c.arg('<name>')}        ${c.dim('Explain a field')}
 
-cleanup --force              Delete branches
-rollback --stages <n>        Undo commits
-test <pipeline>              Test config`);
+${c.cmd('cleanup')} ${c.flag('--force')}              ${c.dim('Delete branches')}
+${c.cmd('rollback')} ${c.flag('--stages')} ${c.arg('<n>')}        ${c.dim('Undo commits')}
+${c.cmd('test')} ${c.arg('<pipeline>')}              ${c.dim('Test config')}`);
 }
 
 // ============================================================================
@@ -562,7 +587,7 @@ export function showHelp(args: string[] = []): void {
 
   // Unknown topic
   if (topic && !['--help', '-h'].includes(topic)) {
-    console.log(`Unknown command: ${topic}\n`);
+    console.log(c.flag(`Unknown command: ${topic}\n`));
   }
 
   // Default: show overview

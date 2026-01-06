@@ -31,7 +31,7 @@ agents:
     agent: .agent-pipeline/agents/product_owner.md
     timeout: 300
     inputs:
-      prompt: "Design a compelling landing page for the Agent Pipeline cli tool. Run bash `agent-pipeline help` to get up to date capabilities of this tool."
+      prompt: "Design a compelling landing page for the Agent Pipeline cli tool. Run bash `agent-pipeline help` and `agent-pipeline schema` to get up to date capabilities of this tool."
 
   # Stage 2: Design agents run in parallel, each interpreting requirements differently
   - name: brutalist

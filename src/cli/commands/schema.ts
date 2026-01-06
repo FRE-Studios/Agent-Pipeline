@@ -4,9 +4,139 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import * as YAML from 'yaml';
+import chalk from 'chalk';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Color utilities
+const c = {
+  title: chalk.bold.cyan,
+  header: chalk.bold.white,
+  field: chalk.green,
+  value: chalk.yellow,
+  dim: chalk.dim,
+  code: chalk.cyan,
+  key: chalk.green,
+  string: chalk.yellow,
+  number: chalk.magenta,
+  boolean: chalk.cyan,
+  comment: chalk.dim,
+  separator: chalk.dim,
+};
+
+/**
+ * Colorize YAML content for terminal display
+ */
+function colorizeYaml(yaml: string): string {
+  const lines = yaml.split('\n');
+  const result: string[] = [];
+
+  for (const line of lines) {
+    // Document separator
+    if (line === '---') {
+      result.push(c.separator(line));
+      continue;
+    }
+
+    // Section header comments (with ===)
+    if (line.includes('====')) {
+      result.push(c.header(line));
+      continue;
+    }
+
+    // Title comments (Example N: ...)
+    if (/^#\s*Example \d+:/.test(line)) {
+      result.push(c.title(line));
+      continue;
+    }
+
+    // Regular comments
+    if (/^\s*#/.test(line)) {
+      result.push(c.comment(line));
+      continue;
+    }
+
+    // Key-value pairs
+    const kvMatch = line.match(/^(\s*)([\w-]+)(:)(.*)$/);
+    if (kvMatch) {
+      const [, indent, key, colon, rest] = kvMatch;
+
+      // Check if there's an inline comment
+      const commentMatch = rest.match(/^(\s*)(\S.*?)(\s+#.*)$/);
+      if (commentMatch) {
+        const [, space, val, comment] = commentMatch;
+        result.push(`${indent}${c.key(key)}${colon}${space}${colorizeValue(val)}${c.comment(comment)}`);
+      } else if (rest.trim()) {
+        result.push(`${indent}${c.key(key)}${colon}${colorizeValue(rest)}`);
+      } else {
+        result.push(`${indent}${c.key(key)}${colon}`);
+      }
+      continue;
+    }
+
+    // List items
+    const listMatch = line.match(/^(\s*)(-)(\s*)(.*)$/);
+    if (listMatch) {
+      const [, indent, dash, space, val] = listMatch;
+
+      // Check for key-value in list item
+      const listKvMatch = val.match(/^([\w-]+)(:)(.*)$/);
+      if (listKvMatch) {
+        const [, k, col, v] = listKvMatch;
+        result.push(`${indent}${c.dim(dash)}${space}${c.key(k)}${col}${colorizeValue(v)}`);
+      } else {
+        result.push(`${indent}${c.dim(dash)}${space}${colorizeValue(val)}`);
+      }
+      continue;
+    }
+
+    result.push(line);
+  }
+
+  return result.join('\n');
+}
+
+/**
+ * Colorize a YAML value
+ */
+function colorizeValue(val: string): string {
+  const trimmed = val.trim();
+
+  // Empty
+  if (!trimmed) return val;
+
+  // Preserve leading whitespace
+  const leadingSpace = val.match(/^\s*/)?.[0] || '';
+
+  // Boolean
+  if (/^(true|false)$/i.test(trimmed)) {
+    return leadingSpace + c.boolean(trimmed);
+  }
+
+  // Number
+  if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    return leadingSpace + c.number(trimmed);
+  }
+
+  // Quoted string
+  if (/^["'].*["']$/.test(trimmed)) {
+    return leadingSpace + c.string(trimmed);
+  }
+
+  // Array notation
+  if (/^\[.*\]$/.test(trimmed)) {
+    return leadingSpace + c.string(trimmed);
+  }
+
+  // Environment variable
+  if (/^\$\w+/.test(trimmed)) {
+    return leadingSpace + c.value(trimmed);
+  }
+
+  // Path or identifier
+  return leadingSpace + c.string(trimmed);
+}
 
 export interface SchemaCommandOptions {
   format?: 'json' | 'yaml';
@@ -436,30 +566,94 @@ const fieldDocs: Record<string, string> = {
         dependsOn: [lint, test]   # Runs after both complete`,
 };
 
+function colorizeFieldDoc(doc: string): string {
+  // Colorize the field documentation
+  const lines = doc.split('\n');
+  const result: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // First line is the field name and requirement
+    if (i === 0) {
+      const match = line.match(/^(\S+)\s+\((\w+)\)$/);
+      if (match) {
+        result.push(`${c.title(match[1])} ${c.dim(`(${match[2]})`)}`);
+        continue;
+      }
+    }
+
+    // Section headers like "Fields:", "Rules:", "Example:", "Values:", "Examples:"
+    if (/^\s*(Fields|Rules|Example|Values|Examples|Available variables|The \w+):/.test(line)) {
+      result.push(line.replace(/^(\s*)(\S[^:]+):/, (_, indent, header) => `${indent}${c.header(header + ':')}`));
+      continue;
+    }
+
+    // Field definitions (indented field names with descriptions)
+    if (/^\s{4}\w+\s+/.test(line) && !line.trim().startsWith('-')) {
+      const match = line.match(/^(\s{4})(\w+)(\s+)(.+)$/);
+      if (match) {
+        const defaultMatch = match[4].match(/^(.+?)(\(default: .+\))$/);
+        if (defaultMatch) {
+          result.push(`${match[1]}${c.field(match[2])}${match[3]}${defaultMatch[1]}${c.dim(defaultMatch[2])}`);
+        } else {
+          result.push(`${match[1]}${c.field(match[2])}${match[3]}${match[4]}`);
+        }
+        continue;
+      }
+    }
+
+    // Values like "manual", "pre-commit" etc with descriptions
+    if (/^\s{4}\S+\s{2,}/.test(line) && !line.includes(':')) {
+      const match = line.match(/^(\s{4})(\S+)(\s{2,})(.+)$/);
+      if (match) {
+        result.push(`${match[1]}${c.value(match[2])}${match[3]}${c.dim(match[4])}`);
+        continue;
+      }
+    }
+
+    // YAML code blocks (indented with 4+ spaces after Example:)
+    if (/^\s{4}[\w-]+:/.test(line) || /^\s{6}-\s/.test(line) || /^\s{6}\w+:/.test(line) || /^\s{8}\w+:/.test(line)) {
+      result.push(c.code(line));
+      continue;
+    }
+
+    // Bullet points
+    if (/^\s+-\s/.test(line)) {
+      result.push(line.replace(/^(\s+-)(\s.+)$/, (_, bullet, text) => `${c.dim(bullet)}${text}`));
+      continue;
+    }
+
+    result.push(line);
+  }
+
+  return result.join('\n');
+}
+
 function formatFieldHelp(field: string): string {
   // Handle nested fields like "settings.loop"
   const normalizedField = field.toLowerCase().replace(/\./g, '');
 
   // Direct match
   if (fieldDocs[field]) {
-    return fieldDocs[field];
+    return colorizeFieldDoc(fieldDocs[field]);
   }
 
   // Try normalized match
   for (const key of Object.keys(fieldDocs)) {
     if (key.toLowerCase().replace(/\./g, '') === normalizedField) {
-      return fieldDocs[key];
+      return colorizeFieldDoc(fieldDocs[key]);
     }
   }
 
   // List available fields
-  const available = Object.keys(fieldDocs).sort().join(', ');
-  return `Unknown field: ${field}
+  const available = Object.keys(fieldDocs).sort().map(f => c.field(f)).join(', ');
+  return `${c.value(`Unknown field: ${field}`)}
 
-Available fields:
+${c.header('Available fields:')}
   ${available}
 
-Use 'agent-pipeline schema --field <name>' to learn about a specific field.`;
+${c.dim("Use 'agent-pipeline schema --field <name>' to learn about a specific field.")}`;
 }
 
 export async function schemaCommand(
@@ -471,9 +665,10 @@ export async function schemaCommand(
     const examples = formatExamples();
     if (options.output) {
       await fs.writeFile(options.output, examples, 'utf-8');
-      console.log(`Examples exported to: ${options.output}`);
+      console.log(`${c.field('Examples exported to:')} ${options.output}`);
     } else {
-      console.log(examples);
+      // Colorize for terminal display
+      console.log(colorizeYaml(examples));
     }
     return;
   }
@@ -489,9 +684,10 @@ export async function schemaCommand(
     const template = formatMinimalTemplate();
     if (options.output) {
       await fs.writeFile(options.output, template, 'utf-8');
-      console.log(`Template exported to: ${options.output}`);
+      console.log(`${c.field('Template exported to:')} ${options.output}`);
     } else {
-      console.log(template);
+      // Colorize for terminal display
+      console.log(colorizeYaml(template));
     }
     return;
   }
@@ -505,7 +701,7 @@ export async function schemaCommand(
   try {
     schemaContent = await fs.readFile(schemaPath, 'utf-8');
   } catch (error) {
-    console.error('Schema file not found. Run "npm run generate:schema" to generate it.');
+    console.error(c.value('Schema file not found.') + ' Run "npm run generate:schema" to generate it.');
     process.exit(1);
   }
 
@@ -521,7 +717,7 @@ export async function schemaCommand(
   // Write to file or stdout
   if (options.output) {
     await fs.writeFile(options.output, output, 'utf-8');
-    console.log(`Schema exported to: ${options.output}`);
+    console.log(`${c.field('Schema exported to:')} ${options.output}`);
   } else {
     console.log(output);
   }
