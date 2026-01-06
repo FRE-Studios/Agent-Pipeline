@@ -89,9 +89,12 @@ export class PipelineInitializer {
       state.artifacts.worktreePath = isolation.worktreePath;
     }
 
-    // Create and initialize handover manager (always in main repo)
+    // Create and initialize handover manager
+    // In worktree mode: create in worktree (respects agent sandbox), copy to main repo after
+    // In non-worktree mode: create directly in main repo
+    const handoverRepoPath = isolation.worktreePath || this.repoPath;
     const handoverManager = new HandoverManager(
-      this.repoPath,
+      handoverRepoPath,
       config.name,
       runId,
       config.settings?.handover
@@ -99,7 +102,19 @@ export class PipelineInitializer {
     await handoverManager.initialize();
 
     // Store handover directory in state
+    // In worktree mode, this is the worktree path; finalizer will copy to main repo
     state.artifacts.handoverDir = handoverManager.getHandoverDir();
+
+    // Track the main repo destination for copying (only needed in worktree mode)
+    if (isolation.worktreePath) {
+      const mainRepoHandoverManager = new HandoverManager(
+        this.repoPath,
+        config.name,
+        runId,
+        config.settings?.handover
+      );
+      state.artifacts.mainRepoHandoverDir = mainRepoHandoverManager.getHandoverDir();
+    }
 
     // Create executors with worktree-aware configuration
     const stageExecutor = new StageExecutor(

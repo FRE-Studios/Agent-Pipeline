@@ -58,6 +58,17 @@ export class PipelineFinalizer {
       );
     }
 
+    // Copy handover directory from worktree to main repo (if in worktree mode)
+    if (worktreePath && state.artifacts.mainRepoHandoverDir) {
+      await this.copyHandoverToMainRepo(
+        state.artifacts.handoverDir,
+        state.artifacts.mainRepoHandoverDir,
+        interactive
+      );
+      // Update state to point to main repo path (for persistence and future reference)
+      state.artifacts.handoverDir = state.artifacts.mainRepoHandoverDir;
+    }
+
     // Save final state
     await this.stateManager.saveState(state);
     stateChangeCallback(state);
@@ -324,6 +335,37 @@ export class PipelineFinalizer {
     }
 
     return { totalProcessed, totalOutput, totalTurns, totalCacheRead };
+  }
+
+  /**
+   * Copy handover directory from worktree to main repo.
+   * This preserves agent outputs after worktree cleanup.
+   */
+  private async copyHandoverToMainRepo(
+    sourcePath: string,
+    destPath: string,
+    interactive: boolean
+  ): Promise<void> {
+    try {
+      // Ensure destination parent directory exists
+      await fs.mkdir(path.dirname(destPath), { recursive: true });
+
+      // Copy the entire handover directory
+      await fs.cp(sourcePath, destPath, { recursive: true });
+
+      if (this.shouldLog(interactive)) {
+        console.log(`\n📋 Copied handover files to: ${destPath}`);
+      }
+    } catch (error) {
+      // Non-fatal: log warning but don't fail pipeline
+      if (this.shouldLog(interactive)) {
+        console.warn(
+          `\n⚠️  Could not copy handover directory: ${error instanceof Error ? error.message : String(error)}`
+        );
+        console.log(`   Source: ${sourcePath}`);
+        console.log(`   Destination: ${destPath}`);
+      }
+    }
   }
 
   /**

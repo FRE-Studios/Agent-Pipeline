@@ -189,7 +189,8 @@ export interface PipelineState {
   status: 'running' | 'completed' | 'failed' | 'partial';
 
   artifacts: {
-    handoverDir: string;                  // Path to handover directory
+    handoverDir: string;                  // Path to handover directory (worktree path if in worktree mode)
+    mainRepoHandoverDir?: string;         // Main repo handover path (set only in worktree mode, for copying)
     initialCommit: string;
     finalCommit?: string;
     changedFiles: string[];

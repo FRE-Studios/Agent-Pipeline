@@ -3,7 +3,6 @@
     "allow": [
       "Bash(npm test:*)",
       "Bash(git mv:*)",
-      "Bash(xargs:*)",
       "Bash(npm run build:*)",
       "Bash(cat:*)",
       "Bash(git show:*)",

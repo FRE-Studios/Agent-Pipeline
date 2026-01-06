@@ -39,7 +39,7 @@ export class GitValidator implements Validator {
   private async validateRepository(
     repoPath: string,
     errors: ValidationContext['errors'],
-    context: ValidationContext
+    _context: ValidationContext
   ): Promise<void> {
     try {
       const git = simpleGit(repoPath);

@@ -250,6 +250,8 @@ async function updateGitignore(repoPath: string): Promise<void> {
   const agentPipelineEntry = `
 # Agent Pipeline
 .agent-pipeline/state/
+.agent-pipeline/runs/
+.agent-pipeline/worktrees/
 `;
 
   try {
