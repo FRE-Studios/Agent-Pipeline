@@ -51,8 +51,9 @@ import { pullAgentsCommand } from './cli/commands/agent/pull.js';
 // Schema command
 import { schemaCommand } from './cli/commands/schema.js';
 
-// Help command
-import { helpCommand } from './cli/commands/help.js';
+// Help system
+import { showHelp, showCommandHelp } from './cli/help/index.js';
+import * as fs from 'fs/promises';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -95,6 +96,29 @@ async function main() {
   }
 
   try {
+    // Handle --version flag
+    if (command === '-v' || command === '--version') {
+      const pkgPath = new URL('../package.json', import.meta.url);
+      const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf-8'));
+      console.log(`agent-pipeline v${pkg.version}`);
+      return;
+    }
+
+    // Handle help command with subcommands
+    if (command === 'help') {
+      showHelp(args.slice(1));
+      return;
+    }
+
+    // Check for --help flag on any command
+    if (args.includes('--help') || args.includes('-h')) {
+      if (command && showCommandHelp(command)) {
+        return;
+      }
+      showHelp();
+      return;
+    }
+
     switch (command) {
       case 'run': {
         if (!subCommand) {
@@ -385,6 +409,8 @@ Examples:
         let format: 'json' | 'yaml' = 'json';
         let output: string | undefined;
         let full = false;
+        let examples = false;
+        let field: string | undefined;
 
         for (let i = 1; i < args.length; i++) {
           if (args[i] === '--format' || args[i] === '-f') {
@@ -396,15 +422,19 @@ Examples:
             output = args[++i];
           } else if (args[i] === '--full') {
             full = true;
+          } else if (args[i] === '--examples') {
+            examples = true;
+          } else if (args[i] === '--field') {
+            field = args[++i];
           }
         }
 
-        await schemaCommand(repoPath, { format, output, full });
+        await schemaCommand(repoPath, { format, output, full, examples, field });
         break;
       }
 
       default: {
-        helpCommand();
+        showHelp();
       }
     }
   } catch (error) {

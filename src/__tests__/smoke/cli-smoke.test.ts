@@ -34,7 +34,7 @@ describe('CLI Smoke Tests', () => {
 
       expect(exitCode).toBe(0);
       expect(stdout).toContain('Agent Pipeline');
-      expect(stdout).toContain('Usage:');
+      expect(stdout).toContain('Quick Start:');
       expect(stdout).toContain('Commands:');
     }, 10000);
 
@@ -43,7 +43,7 @@ describe('CLI Smoke Tests', () => {
       const { exitCode, stdout } = await execCLI(['nonexistent-command']);
 
       expect(exitCode).toBe(0);
-      expect(stdout).toContain('Usage:');
+      expect(stdout).toContain('Quick Start:');
       expect(stdout).toContain('Commands:');
     }, 10000);
 
