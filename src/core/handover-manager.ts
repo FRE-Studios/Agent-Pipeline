@@ -46,6 +46,16 @@ export class HandoverManager {
     await fs.mkdir(this.handoverDir, { recursive: true });
     await fs.mkdir(path.join(this.handoverDir, 'stages'), { recursive: true });
 
+    // Ensure .agent-pipeline/runs/ is gitignored (prevents committing handover artifacts)
+    const runsDir = path.dirname(this.handoverDir);
+    const runsGitignore = path.join(runsDir, '.gitignore');
+    try {
+      await fs.access(runsGitignore);
+    } catch {
+      // .gitignore doesn't exist, create it
+      await fs.writeFile(runsGitignore, '# Ignore all pipeline run artifacts\n*\n!.gitignore\n');
+    }
+
     // Create initial HANDOVER.md
     await fs.writeFile(
       path.join(this.handoverDir, 'HANDOVER.md'),
