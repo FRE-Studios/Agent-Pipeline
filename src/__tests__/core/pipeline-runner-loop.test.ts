@@ -6,7 +6,7 @@ import { AgentRuntimeRegistry } from '../../core/agent-runtime-registry.js';
 import { ClaudeSDKRuntime } from '../../core/agent-runtimes/claude-sdk-runtime.js';
 import { ClaudeCodeHeadlessRuntime } from '../../core/agent-runtimes/claude-code-headless-runtime.js';
 import { PipelineLoader } from '../../config/pipeline-loader.js';
-import { PipelineConfig, PipelineState, ResolvedLoopingConfig } from '../../config/schema.js';
+import { PipelineConfig, PipelineState, ResolvedLoopingConfig, LoopContext } from '../../config/schema.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { tmpdir } from 'os';
@@ -886,6 +886,76 @@ describe('PipelineRunner - Loop Mode', () => {
     });
   });
 
+  describe('Loop Directory Mapping', () => {
+    it('should map repo-relative custom directories into worktree and default missing entries', () => {
+      const runner = new PipelineRunner(tempDir);
+      const worktreePath = path.join(tempDir, 'worktree');
+      const sessionId = 'session-123';
+
+      const loopContext: LoopContext = {
+        enabled: true,
+        sessionId,
+        directories: {
+          pending: path.join(tempDir, 'custom', 'pending'),
+          running: path.join(tempDir, 'custom', 'running'),
+          finished: '',
+          failed: '',
+        },
+      };
+
+      const result = (runner as any).resolveLoopDirectories(
+        loopContext,
+        worktreePath,
+        worktreePath
+      );
+
+      expect(result.mainDirs.pending).toBe(path.join(tempDir, 'custom', 'pending'));
+      expect(result.mainDirs.running).toBe(path.join(tempDir, 'custom', 'running'));
+      expect(result.mainDirs.finished).toBe(
+        path.join(tempDir, '.agent-pipeline', 'loops', sessionId, 'finished')
+      );
+      expect(result.mainDirs.failed).toBe(
+        path.join(tempDir, '.agent-pipeline', 'loops', sessionId, 'failed')
+      );
+
+      expect(result.executionDirs.pending).toBe(path.join(worktreePath, 'custom', 'pending'));
+      expect(result.executionDirs.running).toBe(path.join(worktreePath, 'custom', 'running'));
+      expect(result.executionDirs.finished).toBe(
+        path.join(worktreePath, '.agent-pipeline', 'loops', sessionId, 'finished')
+      );
+      expect(result.executionDirs.failed).toBe(
+        path.join(worktreePath, '.agent-pipeline', 'loops', sessionId, 'failed')
+      );
+    });
+
+    it('should fall back to session directories when custom paths are outside the repo', () => {
+      const runner = new PipelineRunner(tempDir);
+      const worktreePath = path.join(tempDir, 'worktree');
+      const sessionId = 'session-456';
+      const externalPending = path.join(tmpdir(), 'external-loop', 'pending');
+
+      const loopContext: LoopContext = {
+        enabled: true,
+        sessionId,
+        directories: {
+          pending: externalPending,
+          running: '',
+          finished: '',
+          failed: '',
+        },
+      };
+
+      const result = (runner as any).resolveLoopDirectories(
+        loopContext,
+        worktreePath,
+        worktreePath
+      );
+
+      expect(result.mainDirs.pending).toBe(externalPending);
+      expect(result.executionDirs.pending).toBe(result.sessionExecutionDirs.pending);
+    });
+  });
+
   describe('File System Error Handling', () => {
     it('should exit gracefully when pending directory becomes inaccessible', async () => {
       const runner = new PipelineRunner(tempDir);
@@ -912,7 +982,7 @@ describe('PipelineRunner - Loop Mode', () => {
       // Delete the pending directory mid-execution
       await fs.rm(pendingDir, { recursive: true, force: true });
 
-      const nextFile = await (runner as any)._findNextPipelineFile(mockLoopingConfig);
+      const nextFile = await (runner as any)._findNextPipelineFile(mockLoopingConfig.directories);
 
       expect(nextFile).toBeUndefined();
     });

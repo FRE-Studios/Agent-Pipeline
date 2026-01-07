@@ -34,6 +34,8 @@ export class PipelineRunner {
   private runtime: AgentRuntime;
   private stateUpdateCallbacks: Array<(state: PipelineState) => void> = [];
   private loopStateManager: LoopStateManager;
+  private loopExecutionDirs?: ResolvedLoopingConfig['directories'];
+  private loopMainDirs?: ResolvedLoopingConfig['directories'];
 
   constructor(repoPath: string, dryRun: boolean = false) {
     this.repoPath = repoPath;
@@ -129,6 +131,10 @@ export class PipelineRunner {
       ? new NotificationManager(config.notifications)
       : undefined;
 
+    // Reset per-run loop directory tracking
+    this.loopExecutionDirs = undefined;
+    this.loopMainDirs = undefined;
+
     // Create loop session first if loop mode might be enabled
     // We need the sessionId to scope directories
     let loopSession: LoopSession | undefined;
@@ -181,6 +187,7 @@ export class PipelineRunner {
 
     // Track loop directory paths for worktree copy (set in first iteration)
     let loopDirCreated = false;
+    let loopDirs = loopingConfig.directories;
 
     // Main loop
     while (true) {
@@ -207,7 +214,7 @@ export class PipelineRunner {
       const loopContext: LoopContext | undefined = loopEnabled && loopingConfig.enabled
         ? {
             enabled: true,
-            directories: loopingConfig.directories,
+            directories: loopDirs,
             currentIteration: iterationCount,
             maxIterations,
             sessionId: loopSession?.sessionId
@@ -232,14 +239,8 @@ export class PipelineRunner {
       // After first iteration, mark directories as created and capture resolved paths
       if (loopEnabled && !loopDirCreated && loopContext) {
         loopDirCreated = true;
-        // Update loopingConfig with resolved directories from the iteration
-        // (they were set based on worktree/main repo path)
-        if (lastState.artifacts.loopDir) {
-          loopingConfig = {
-            ...loopingConfig,
-            directories: loopContext.directories
-          };
-        }
+        // Update active loop directories with resolved execution paths
+        loopDirs = loopContext.directories;
       }
 
       // Emit state update for UI (this resets the UI for next iteration)
@@ -254,8 +255,8 @@ export class PipelineRunner {
       if (currentMetadata?.sourceType === 'loop-pending') {
         try {
           const destDir = lastState.status === 'completed'
-            ? loopingConfig.directories.finished
-            : loopingConfig.directories.failed;
+            ? loopDirs.finished
+            : loopDirs.failed;
           const fileName = path.basename(currentMetadata.sourcePath);
           await this._moveFile(currentMetadata.sourcePath, destDir, fileName);
 
@@ -310,7 +311,7 @@ export class PipelineRunner {
       }
 
       // Find next pipeline
-      const nextFile = await this._findNextPipelineFile(loopingConfig);
+      const nextFile = await this._findNextPipelineFile(loopDirs);
       const triggeredNext = nextFile !== undefined;
 
       // Record iteration with correct triggeredNext status
@@ -331,7 +332,7 @@ export class PipelineRunner {
       try {
         runningPath = await this._moveFile(
           nextFile,
-          loopingConfig.directories.running,
+          loopDirs.running,
           fileName
         );
       } catch (error) {
@@ -351,7 +352,7 @@ export class PipelineRunner {
         try {
           await this._moveFile(
             runningPath,
-            loopingConfig.directories.failed,
+            loopDirs.failed,
             fileName
           );
         } catch (moveError) {
@@ -372,18 +373,20 @@ export class PipelineRunner {
     }
 
     // Copy loop directory from worktree to main repo if in worktree mode
-    if (loopEnabled && lastState.artifacts.loopDir && lastState.artifacts.mainRepoLoopDir) {
+    if (
+      loopEnabled &&
+      lastState.artifacts.worktreePath &&
+      this.loopExecutionDirs &&
+      this.loopMainDirs
+    ) {
       try {
-        await fs.mkdir(path.dirname(lastState.artifacts.mainRepoLoopDir), { recursive: true });
-        await fs.cp(lastState.artifacts.loopDir, lastState.artifacts.mainRepoLoopDir, { recursive: true });
+        await this.copyLoopDirectories(this.loopExecutionDirs, this.loopMainDirs);
         if (this.shouldLog(interactive)) {
-          console.log(`📋 Copied loop session to: ${lastState.artifacts.mainRepoLoopDir}`);
+          console.log('📋 Copied loop directories to main repo');
         }
-        // Update artifact to point to main repo path
-        lastState.artifacts.loopDir = lastState.artifacts.mainRepoLoopDir;
       } catch (error) {
         // Non-fatal: log warning but don't fail
-        console.warn(`⚠️  Could not copy loop directory: ${error instanceof Error ? error.message : String(error)}`);
+        console.warn(`⚠️  Could not copy loop directories: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
 
@@ -449,22 +452,119 @@ export class PipelineRunner {
     return {
       enabled: true,
       maxIterations: 100,
-      directories: {
-        pending: path.resolve(this.repoPath, `${baseDir}/pending`),
-        running: path.resolve(this.repoPath, `${baseDir}/running`),
-        finished: path.resolve(this.repoPath, `${baseDir}/finished`),
-        failed: path.resolve(this.repoPath, `${baseDir}/failed`),
-      },
+      directories: this.getSessionLoopDirs(this.repoPath, baseDir),
     };
+  }
+
+  private getSessionLoopDirs(
+    basePath: string,
+    sessionBaseDir: string
+  ): ResolvedLoopingConfig['directories'] {
+    return {
+      pending: path.resolve(basePath, `${sessionBaseDir}/pending`),
+      running: path.resolve(basePath, `${sessionBaseDir}/running`),
+      finished: path.resolve(basePath, `${sessionBaseDir}/finished`),
+      failed: path.resolve(basePath, `${sessionBaseDir}/failed`),
+    };
+  }
+
+  private resolveLoopDirectories(
+    loopContext: LoopContext,
+    executionRepoPath: string,
+    worktreePath?: string
+  ): {
+    executionDirs: ResolvedLoopingConfig['directories'];
+    mainDirs: ResolvedLoopingConfig['directories'];
+    sessionExecutionDirs: ResolvedLoopingConfig['directories'];
+  } {
+    const sessionId = loopContext.sessionId ?? 'default';
+    const sessionBaseDir = `.agent-pipeline/loops/${sessionId}`;
+    const sessionMainDirs = this.getSessionLoopDirs(this.repoPath, sessionBaseDir);
+    const sessionExecutionDirs = this.getSessionLoopDirs(executionRepoPath, sessionBaseDir);
+
+    const providedDirs = loopContext.directories;
+    const mainDirs = {
+      pending: providedDirs.pending || sessionMainDirs.pending,
+      running: providedDirs.running || sessionMainDirs.running,
+      finished: providedDirs.finished || sessionMainDirs.finished,
+      failed: providedDirs.failed || sessionMainDirs.failed,
+    };
+
+    if (!worktreePath) {
+      return { executionDirs: mainDirs, mainDirs, sessionExecutionDirs };
+    }
+
+    const executionDirs = {
+      pending: this.mapToExecutionDir(mainDirs.pending, executionRepoPath, sessionExecutionDirs.pending),
+      running: this.mapToExecutionDir(mainDirs.running, executionRepoPath, sessionExecutionDirs.running),
+      finished: this.mapToExecutionDir(mainDirs.finished, executionRepoPath, sessionExecutionDirs.finished),
+      failed: this.mapToExecutionDir(mainDirs.failed, executionRepoPath, sessionExecutionDirs.failed),
+    };
+
+    return { executionDirs, mainDirs, sessionExecutionDirs };
+  }
+
+  private mapToExecutionDir(
+    mainDir: string,
+    executionRepoPath: string,
+    fallbackDir: string
+  ): string {
+    const relativePath = path.relative(this.repoPath, mainDir);
+    const isInsideRepo = relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
+    if (!isInsideRepo) {
+      return fallbackDir;
+    }
+    return path.resolve(executionRepoPath, relativePath);
+  }
+
+  private areSameLoopDirs(
+    left: ResolvedLoopingConfig['directories'],
+    right: ResolvedLoopingConfig['directories']
+  ): boolean {
+    return left.pending === right.pending &&
+      left.running === right.running &&
+      left.finished === right.finished &&
+      left.failed === right.failed;
+  }
+
+  private async ensureLoopDirectoriesExist(
+    directories: ResolvedLoopingConfig['directories']
+  ): Promise<void> {
+    const dirs = [
+      directories.pending,
+      directories.running,
+      directories.finished,
+      directories.failed,
+    ];
+    await Promise.all(dirs.map(dir => fs.mkdir(dir, { recursive: true })));
+  }
+
+  private async copyLoopDirectories(
+    executionDirs: ResolvedLoopingConfig['directories'],
+    mainDirs: ResolvedLoopingConfig['directories']
+  ): Promise<void> {
+    const dirPairs: Array<{ source: string; dest: string }> = [
+      { source: executionDirs.pending, dest: mainDirs.pending },
+      { source: executionDirs.running, dest: mainDirs.running },
+      { source: executionDirs.finished, dest: mainDirs.finished },
+      { source: executionDirs.failed, dest: mainDirs.failed },
+    ];
+
+    for (const { source, dest } of dirPairs) {
+      await fs.mkdir(path.dirname(dest), { recursive: true });
+      await fs.cp(source, dest, { recursive: true, force: true });
+    }
   }
 
   /**
    * Finds the next pipeline file in the pending directory.
    * Returns the oldest file by modification time, or undefined if directory is empty.
    */
-  private async _findNextPipelineFile(loopingConfig: ResolvedLoopingConfig): Promise<string | undefined> {
+  private async _findNextPipelineFile(
+    loopDirs: ResolvedLoopingConfig['directories']
+  ): Promise<string | undefined> {
     try {
-      const pendingDir = loopingConfig.directories.pending;
+      const pendingDir = loopDirs.pending;
       const files = await fs.readdir(pendingDir);
 
       // Filter for YAML files only
@@ -620,28 +720,31 @@ export class PipelineRunner {
 
     // Create loop directories on first iteration (after we know worktree path)
     if (isFirstLoopIteration && loopContext?.sessionId) {
-      const dirs = await this.loopStateManager.createSessionDirectories(
-        loopContext.sessionId,
-        executionRepoPath
-      );
-      // Update loopContext directories with resolved paths
-      loopContext.directories = dirs;
+      const {
+        executionDirs,
+        mainDirs,
+        sessionExecutionDirs
+      } = this.resolveLoopDirectories(loopContext, executionRepoPath, worktreePath);
 
-      // Track loop directory paths for worktree copy
-      state.artifacts.loopDir = this.loopStateManager.getSessionQueueDir(
-        loopContext.sessionId,
-        executionRepoPath
-      );
-      if (worktreePath) {
-        // In worktree mode, also track main repo path for copying after session
-        state.artifacts.mainRepoLoopDir = this.loopStateManager.getSessionQueueDir(
-          loopContext.sessionId,
-          this.repoPath
-        );
+      const usesSessionDirs = this.areSameLoopDirs(executionDirs, sessionExecutionDirs);
+      if (usesSessionDirs) {
+        await this.loopStateManager.createSessionDirectories(loopContext.sessionId, executionRepoPath);
+      } else {
+        await this.ensureLoopDirectoriesExist(executionDirs);
       }
 
+      // Update loopContext with execution paths (worktree-aware)
+      loopContext.directories = executionDirs;
+
+      // Track loop directories for post-run copy
+      this.loopExecutionDirs = executionDirs;
+      this.loopMainDirs = mainDirs;
+
       if (this.shouldLog(interactive)) {
-        console.log(`📁 Created loop directories: ${state.artifacts.loopDir}`);
+        const baseDir = usesSessionDirs
+          ? this.loopStateManager.getSessionQueueDir(loopContext.sessionId, executionRepoPath)
+          : executionRepoPath;
+        console.log(`📁 Created loop directories under: ${baseDir}`);
       }
     }
 

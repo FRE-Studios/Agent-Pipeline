@@ -90,18 +90,13 @@ export class PipelineLoader {
   resolveLoopingConfig(looping: LoopingConfig): ResolvedLoopingConfig {
     const dirs = looping.directories;
 
-    // If directories explicitly configured, resolve them to absolute paths
-    // If not configured, return empty strings as placeholders for PipelineRunner to override
-    const resolvedDirs = dirs ? {
-      pending: this.resolvePath(dirs.pending || ''),
-      running: this.resolvePath(dirs.running || ''),
-      finished: this.resolvePath(dirs.finished || ''),
-      failed: this.resolvePath(dirs.failed || ''),
-    } : {
-      pending: '',
-      running: '',
-      finished: '',
-      failed: '',
+    // Only resolve explicitly provided directories.
+    // Missing entries are left empty for PipelineRunner to fill with session defaults.
+    const resolvedDirs = {
+      pending: dirs?.pending ? this.resolvePath(dirs.pending) : '',
+      running: dirs?.running ? this.resolvePath(dirs.running) : '',
+      finished: dirs?.finished ? this.resolvePath(dirs.finished) : '',
+      failed: dirs?.failed ? this.resolvePath(dirs.failed) : '',
     };
 
     return {

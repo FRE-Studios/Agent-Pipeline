@@ -206,6 +206,41 @@ describe('PipelineLoader', () => {
 
   });
 
+  describe('resolveLoopingConfig', () => {
+    it('should resolve only explicitly provided directories', () => {
+      const loopingConfig = {
+        enabled: true,
+        maxIterations: 50,
+        directories: {
+          pending: 'custom/pending',
+        },
+      };
+
+      const result = loader.resolveLoopingConfig(loopingConfig);
+
+      expect(result.directories.pending).toBe(path.join(tempDir, 'custom/pending'));
+      expect(result.directories.running).toBe('');
+      expect(result.directories.finished).toBe('');
+      expect(result.directories.failed).toBe('');
+      expect(result.maxIterations).toBe(50);
+      expect(result.enabled).toBe(true);
+    });
+
+    it('should return empty directories when none are configured', () => {
+      const loopingConfig = {
+        enabled: true,
+      };
+
+      const result = loader.resolveLoopingConfig(loopingConfig);
+
+      expect(result.directories.pending).toBe('');
+      expect(result.directories.running).toBe('');
+      expect(result.directories.finished).toBe('');
+      expect(result.directories.failed).toBe('');
+      expect(result.maxIterations).toBe(100);
+    });
+  });
+
   describe('listPipelines', () => {
     it('should list all pipeline files', async () => {
       // Create multiple pipeline files
