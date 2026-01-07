@@ -430,6 +430,103 @@ describe('GitValidator', () => {
     });
   });
 
+  describe('validateStrategies - looping + unique-and-delete combination', () => {
+    it('should error when looping is enabled and branchStrategy is unique-and-delete', async () => {
+      const config: PipelineConfig = {
+        ...baseConfig,
+        git: {
+          branchStrategy: 'unique-and-delete',
+          mergeStrategy: 'pull-request',
+        },
+        looping: {
+          enabled: true,
+          maxIterations: 10,
+          directories: {
+            pending: '',
+            running: '',
+            finished: '',
+            failed: '',
+          },
+        },
+      };
+      vi.spyOn(ghCliChecker, 'checkGHCLI').mockResolvedValue({
+        installed: true,
+        authenticated: true,
+      });
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      expect(context.errors).toContainEqual({
+        field: 'git.branchStrategy',
+        message:
+          "Cannot use 'unique-and-delete' with looping enabled - worktree cleanup would delete " +
+          "loop session files before they can be copied to the main repo. " +
+          "Use 'reusable' or 'unique-per-run' branchStrategy instead.",
+        severity: 'error',
+      });
+    });
+
+    it('should pass when looping is enabled with reusable branchStrategy', async () => {
+      const config: PipelineConfig = {
+        ...baseConfig,
+        git: {
+          branchStrategy: 'reusable',
+        },
+        looping: {
+          enabled: true,
+          maxIterations: 10,
+          directories: {
+            pending: '',
+            running: '',
+            finished: '',
+            failed: '',
+          },
+        },
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      const loopingErrors = context.errors.filter(e =>
+        e.field === 'git.branchStrategy' && e.message.includes('looping')
+      );
+      expect(loopingErrors).toHaveLength(0);
+    });
+
+    it('should pass when looping is disabled with unique-and-delete branchStrategy', async () => {
+      const config: PipelineConfig = {
+        ...baseConfig,
+        git: {
+          branchStrategy: 'unique-and-delete',
+          mergeStrategy: 'pull-request',
+        },
+        looping: {
+          enabled: false,
+          maxIterations: 10,
+          directories: {
+            pending: '',
+            running: '',
+            finished: '',
+            failed: '',
+          },
+        },
+      };
+      vi.spyOn(ghCliChecker, 'checkGHCLI').mockResolvedValue({
+        installed: true,
+        authenticated: true,
+      });
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      const loopingErrors = context.errors.filter(e =>
+        e.field === 'git.branchStrategy' && e.message.includes('looping')
+      );
+      expect(loopingErrors).toHaveLength(0);
+    });
+  });
+
   describe('validateStrategies - pullRequest config warning', () => {
     it('should warn when pullRequest config exists but mergeStrategy is not pull-request', async () => {
       const config: PipelineConfig = {

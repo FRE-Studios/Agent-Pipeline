@@ -254,4 +254,102 @@ describe('LoopStateManager', () => {
       expect(loaded!.iterations[0]).toEqual(iteration);
     });
   });
+
+  describe('createSessionDirectories', () => {
+    it('should create all four directories', async () => {
+      const session = manager.startSession(100);
+      const dirs = await manager.createSessionDirectories(session.sessionId, testRepoPath);
+
+      expect(dirs.pending).toContain(session.sessionId);
+      expect(dirs.running).toContain(session.sessionId);
+      expect(dirs.finished).toContain(session.sessionId);
+      expect(dirs.failed).toContain(session.sessionId);
+
+      // Verify directories exist
+      await expect(fs.access(dirs.pending)).resolves.toBeUndefined();
+      await expect(fs.access(dirs.running)).resolves.toBeUndefined();
+      await expect(fs.access(dirs.finished)).resolves.toBeUndefined();
+      await expect(fs.access(dirs.failed)).resolves.toBeUndefined();
+    });
+
+    it('should create directories under .agent-pipeline/loops/{sessionId}/', async () => {
+      const session = manager.startSession(100);
+      const dirs = await manager.createSessionDirectories(session.sessionId, testRepoPath);
+
+      const expectedBase = path.join(testRepoPath, '.agent-pipeline', 'loops', session.sessionId);
+      expect(dirs.pending).toBe(path.join(expectedBase, 'pending'));
+      expect(dirs.running).toBe(path.join(expectedBase, 'running'));
+      expect(dirs.finished).toBe(path.join(expectedBase, 'finished'));
+      expect(dirs.failed).toBe(path.join(expectedBase, 'failed'));
+    });
+
+    it('should create .gitignore in session directory', async () => {
+      const session = manager.startSession(100);
+      await manager.createSessionDirectories(session.sessionId, testRepoPath);
+
+      const gitignorePath = path.join(
+        testRepoPath,
+        '.agent-pipeline',
+        'loops',
+        session.sessionId,
+        '.gitignore'
+      );
+
+      const content = await fs.readFile(gitignorePath, 'utf-8');
+      expect(content).toContain('*');
+      expect(content).toContain('!.gitignore');
+    });
+
+    it('should not overwrite existing .gitignore', async () => {
+      const session = manager.startSession(100);
+      const sessionDir = path.join(testRepoPath, '.agent-pipeline', 'loops', session.sessionId);
+      const gitignorePath = path.join(sessionDir, '.gitignore');
+
+      // Create directory and custom .gitignore first
+      await fs.mkdir(sessionDir, { recursive: true });
+      await fs.writeFile(gitignorePath, 'custom content');
+
+      await manager.createSessionDirectories(session.sessionId, testRepoPath);
+
+      // Verify custom content is preserved
+      const content = await fs.readFile(gitignorePath, 'utf-8');
+      expect(content).toBe('custom content');
+    });
+
+    it('should work with different base paths (worktree support)', async () => {
+      const session = manager.startSession(100);
+
+      // Create directories in a different base path (simulating worktree)
+      const worktreePath = path.join(testRepoPath, 'worktree-test');
+      await fs.mkdir(worktreePath, { recursive: true });
+
+      const dirs = await manager.createSessionDirectories(session.sessionId, worktreePath);
+
+      const expectedBase = path.join(worktreePath, '.agent-pipeline', 'loops', session.sessionId);
+      expect(dirs.pending).toBe(path.join(expectedBase, 'pending'));
+
+      // Verify directories exist in worktree path
+      await expect(fs.access(dirs.pending)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('getSessionQueueDir', () => {
+    it('should return correct session queue directory path', () => {
+      const session = manager.startSession(100);
+      const queueDir = manager.getSessionQueueDir(session.sessionId, testRepoPath);
+
+      const expected = path.join(testRepoPath, '.agent-pipeline', 'loops', session.sessionId);
+      expect(queueDir).toBe(expected);
+    });
+
+    it('should work with different base paths (worktree support)', () => {
+      const session = manager.startSession(100);
+      const worktreePath = '/some/worktree/path';
+
+      const queueDir = manager.getSessionQueueDir(session.sessionId, worktreePath);
+
+      const expected = path.join(worktreePath, '.agent-pipeline', 'loops', session.sessionId);
+      expect(queueDir).toBe(expected);
+    });
+  });
 });

@@ -6,6 +6,12 @@
 # No --loop CLI flag needed! The final stage agent receives instructions
 # to create new pipeline files in the pending directory when needed.
 #
+# Loop directories are automatically created per session at:
+#   .agent-pipeline/loops/{sessionId}/pending|running|finished|failed
+#
+# In worktree mode, directories are created in the worktree during execution
+# and copied to the main repo after the loop session completes.
+#
 # Usage:
 #   agent-pipeline run loop-example           # Auto-loops
 #   agent-pipeline run loop-example --no-loop # Force single run
@@ -25,12 +31,12 @@ settings:
 # When enabled: true, pipeline automatically runs in loop mode
 looping:
   enabled: true
-  maxIterations: 10                 # Safety limit (default: 100)
-  directories:                      # Optional - these are the defaults
-    pending: next/pending           # Agents write new pipeline YAMLs here
-    running: next/running           # Currently executing pipeline
-    finished: next/finished         # Successfully completed pipelines
-    failed: next/failed             # Failed pipeline files
+  maxIterations: 5                 # Safety limit (default: 100)
+  # directories:                   # Uncomment to override session-scoped defaults
+  #   pending: custom/pending      # Agents write new pipeline YAMLs here
+  #   running: custom/running      # Currently executing pipeline
+  #   finished: custom/finished    # Successfully completed pipelines
+  #   failed: custom/failed        # Failed pipeline files
 
 notifications:
   enabled: true

@@ -81,28 +81,33 @@ export class PipelineLoader {
   }
 
   /**
-   * Resolve looping config paths relative to repo root
-   * Applies defaults for missing directories
+   * Resolve looping config paths relative to repo root.
+   * Only resolves explicitly provided directories.
+   *
+   * If directories are not explicitly configured, returns empty strings as placeholders.
+   * PipelineRunner will detect empty directories and create session-scoped defaults.
    */
   resolveLoopingConfig(looping: LoopingConfig): ResolvedLoopingConfig {
-    const defaultDirs = {
-      pending: 'next/pending',
-      running: 'next/running',
-      finished: 'next/finished',
-      failed: 'next/failed',
-    };
+    const dirs = looping.directories;
 
-    const dirs = looping.directories || {};
+    // If directories explicitly configured, resolve them to absolute paths
+    // If not configured, return empty strings as placeholders for PipelineRunner to override
+    const resolvedDirs = dirs ? {
+      pending: this.resolvePath(dirs.pending || ''),
+      running: this.resolvePath(dirs.running || ''),
+      finished: this.resolvePath(dirs.finished || ''),
+      failed: this.resolvePath(dirs.failed || ''),
+    } : {
+      pending: '',
+      running: '',
+      finished: '',
+      failed: '',
+    };
 
     return {
       enabled: looping.enabled,
       maxIterations: looping.maxIterations ?? 100,
-      directories: {
-        pending: this.resolvePath(dirs.pending ?? defaultDirs.pending),
-        running: this.resolvePath(dirs.running ?? defaultDirs.running),
-        finished: this.resolvePath(dirs.finished ?? defaultDirs.finished),
-        failed: this.resolvePath(dirs.failed ?? defaultDirs.failed),
-      },
+      directories: resolvedDirs,
     };
   }
 

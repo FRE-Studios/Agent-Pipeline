@@ -129,6 +129,10 @@ export class PipelineRunner {
       ? new NotificationManager(config.notifications)
       : undefined;
 
+    // Create loop session first if loop mode might be enabled
+    // We need the sessionId to scope directories
+    let loopSession: LoopSession | undefined;
+
     // Determine looping enabled state
     // Priority: CLI flag (explicit) > pipeline config > disabled
     let loopEnabled: boolean;
@@ -141,26 +145,31 @@ export class PipelineRunner {
     } else if (options.loop === true) {
       // --loop flag: force enable
       loopEnabled = true;
+      // Create session now to get sessionId for directory scoping
+      loopSession = this.loopStateManager.startSession(options.maxLoopIterations ?? config.looping?.maxIterations ?? 100);
       if (config.looping?.enabled) {
-        // Use pipeline's resolved looping config
+        // Use pipeline's resolved looping config (but directories will be created per-session)
         loopingConfig = config.looping as ResolvedLoopingConfig;
       } else {
-        // No looping config in pipeline - use defaults
+        // No looping config in pipeline - use defaults with sessionId
         console.warn('⚠️  Loop mode requested but no looping config in pipeline. Using defaults.');
-        loopingConfig = this.getDefaultLoopingConfig();
+        loopingConfig = this.getDefaultLoopingConfig(loopSession.sessionId);
       }
     } else {
       // No CLI flag: auto-loop if pipeline config has looping.enabled: true
       loopEnabled = config.looping?.enabled ?? false;
-      loopingConfig = loopEnabled
-        ? (config.looping as ResolvedLoopingConfig)
-        : this.getDefaultLoopingConfig();
+      if (loopEnabled) {
+        // Create session now to get sessionId for directory scoping
+        loopSession = this.loopStateManager.startSession(config.looping?.maxIterations ?? 100);
+        loopingConfig = config.looping as ResolvedLoopingConfig;
+      } else {
+        loopingConfig = this.getDefaultLoopingConfig();
+      }
     }
 
-    // Create directories if looping is enabled
-    if (loopEnabled) {
-      await this.ensureLoopDirectoriesExist(loopingConfig.directories);
-    }
+    // Note: Loop directories are now created in _executeSinglePipeline after init,
+    // when we know the worktree path (if any). This enables session-scoped directories
+    // in the correct location (worktree or main repo).
 
     // Set up loop tracking variables
     const maxIterations = options.maxLoopIterations ?? loopingConfig.maxIterations;
@@ -170,11 +179,8 @@ export class PipelineRunner {
     let currentMetadata = options.loopMetadata;
     let loopTerminationReason: 'natural' | 'limit-reached' | 'failure' = 'natural';
 
-    // Create loop session if loop mode is enabled
-    let loopSession: LoopSession | undefined;
-    if (loopEnabled) {
-      loopSession = this.loopStateManager.startSession(maxIterations);
-    }
+    // Track loop directory paths for worktree copy (set in first iteration)
+    let loopDirCreated = false;
 
     // Main loop
     while (true) {
@@ -196,12 +202,15 @@ export class PipelineRunner {
       }
 
       // Build loop context for this iteration
+      // Note: directories will be updated in _executeSinglePipeline after init
+      // when we know the worktree path
       const loopContext: LoopContext | undefined = loopEnabled && loopingConfig.enabled
         ? {
             enabled: true,
             directories: loopingConfig.directories,
             currentIteration: iterationCount,
-            maxIterations
+            maxIterations,
+            sessionId: loopSession?.sessionId
           }
         : undefined;
 
@@ -215,9 +224,23 @@ export class PipelineRunner {
           notificationManager,
           loopContext,
           loopSessionId: loopSession?.sessionId,
-          abortController: options.abortController
+          abortController: options.abortController,
+          isFirstLoopIteration: loopEnabled && !loopDirCreated
         }
       );
+
+      // After first iteration, mark directories as created and capture resolved paths
+      if (loopEnabled && !loopDirCreated && loopContext) {
+        loopDirCreated = true;
+        // Update loopingConfig with resolved directories from the iteration
+        // (they were set based on worktree/main repo path)
+        if (lastState.artifacts.loopDir) {
+          loopingConfig = {
+            ...loopingConfig,
+            directories: loopContext.directories
+          };
+        }
+      }
 
       // Emit state update for UI (this resets the UI for next iteration)
       this.notifyStateChange(lastState);
@@ -348,6 +371,22 @@ export class PipelineRunner {
       lastState.loopContext.terminationReason = loopTerminationReason;
     }
 
+    // Copy loop directory from worktree to main repo if in worktree mode
+    if (loopEnabled && lastState.artifacts.loopDir && lastState.artifacts.mainRepoLoopDir) {
+      try {
+        await fs.mkdir(path.dirname(lastState.artifacts.mainRepoLoopDir), { recursive: true });
+        await fs.cp(lastState.artifacts.loopDir, lastState.artifacts.mainRepoLoopDir, { recursive: true });
+        if (this.shouldLog(interactive)) {
+          console.log(`📋 Copied loop session to: ${lastState.artifacts.mainRepoLoopDir}`);
+        }
+        // Update artifact to point to main repo path
+        lastState.artifacts.loopDir = lastState.artifacts.mainRepoLoopDir;
+      } catch (error) {
+        // Non-fatal: log warning but don't fail
+        console.warn(`⚠️  Could not copy loop directory: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
     // Complete loop session if loop mode was enabled
     if (loopEnabled && loopSession) {
       const sessionStatus = lastState.status === 'aborted' ? 'aborted' :
@@ -397,40 +436,26 @@ export class PipelineRunner {
   }
 
   /**
-   * Get default looping config with resolved paths
+   * Get default looping config with resolved paths.
+   * Uses session-scoped directories under .agent-pipeline/loops/{sessionId}/
+   *
+   * @param sessionId - Optional session ID for directory scoping. If not provided,
+   *                    uses 'default' as a fallback (for backward compatibility).
    */
-  private getDefaultLoopingConfig(): ResolvedLoopingConfig {
+  private getDefaultLoopingConfig(sessionId?: string): ResolvedLoopingConfig {
+    const baseDir = sessionId
+      ? `.agent-pipeline/loops/${sessionId}`
+      : '.agent-pipeline/loops/default';
     return {
       enabled: true,
       maxIterations: 100,
       directories: {
-        pending: path.resolve(this.repoPath, 'next/pending'),
-        running: path.resolve(this.repoPath, 'next/running'),
-        finished: path.resolve(this.repoPath, 'next/finished'),
-        failed: path.resolve(this.repoPath, 'next/failed'),
+        pending: path.resolve(this.repoPath, `${baseDir}/pending`),
+        running: path.resolve(this.repoPath, `${baseDir}/running`),
+        finished: path.resolve(this.repoPath, `${baseDir}/finished`),
+        failed: path.resolve(this.repoPath, `${baseDir}/failed`),
       },
     };
-  }
-
-  /**
-   * Create looping directories if they don't exist
-   */
-  private async ensureLoopDirectoriesExist(
-    directories: ResolvedLoopingConfig['directories']
-  ): Promise<void> {
-    const dirs = [
-      directories.pending,
-      directories.running,
-      directories.finished,
-      directories.failed,
-    ];
-    for (const dir of dirs) {
-      try {
-        await fs.mkdir(dir, { recursive: true });
-      } catch {
-        // Ignore if exists
-      }
-    }
   }
 
   /**
@@ -516,9 +541,10 @@ export class PipelineRunner {
       loopContext?: LoopContext;
       loopSessionId?: string;
       abortController?: PipelineAbortController;
+      isFirstLoopIteration?: boolean;
     }
   ): Promise<PipelineState> {
-    const { interactive, verbose, loopContext, loopSessionId, abortController } = options;
+    const { interactive, verbose, loopContext, loopSessionId, abortController, isFirstLoopIteration } = options;
 
     // Create notification manager early so it's available for init failures
     this.notificationManager = options.notificationManager ||
@@ -591,6 +617,33 @@ export class PipelineRunner {
 
     let { state, parallelExecutor, pipelineBranch, worktreePath, executionRepoPath, startTime } = initResult;
     this.notificationManager = initResult.notificationManager;
+
+    // Create loop directories on first iteration (after we know worktree path)
+    if (isFirstLoopIteration && loopContext?.sessionId) {
+      const dirs = await this.loopStateManager.createSessionDirectories(
+        loopContext.sessionId,
+        executionRepoPath
+      );
+      // Update loopContext directories with resolved paths
+      loopContext.directories = dirs;
+
+      // Track loop directory paths for worktree copy
+      state.artifacts.loopDir = this.loopStateManager.getSessionQueueDir(
+        loopContext.sessionId,
+        executionRepoPath
+      );
+      if (worktreePath) {
+        // In worktree mode, also track main repo path for copying after session
+        state.artifacts.mainRepoLoopDir = this.loopStateManager.getSessionQueueDir(
+          loopContext.sessionId,
+          this.repoPath
+        );
+      }
+
+      if (this.shouldLog(interactive)) {
+        console.log(`📁 Created loop directories: ${state.artifacts.loopDir}`);
+      }
+    }
 
     try {
       // Build execution plan using DAG planner

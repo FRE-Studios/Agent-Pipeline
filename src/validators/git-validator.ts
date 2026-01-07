@@ -132,6 +132,18 @@ export class GitValidator implements Validator {
         severity: 'warning',
       });
     }
+
+    // Looping + unique-and-delete = loop files would be lost before copying to main repo
+    if (config.looping?.enabled && branchStrategy === 'unique-and-delete') {
+      errors.push({
+        field: 'git.branchStrategy',
+        message:
+          "Cannot use 'unique-and-delete' with looping enabled - worktree cleanup would delete " +
+          "loop session files before they can be copied to the main repo. " +
+          "Use 'reusable' or 'unique-per-run' branchStrategy instead.",
+        severity: 'error',
+      });
+    }
   }
 
   private async validateGitHubCLI(errors: ValidationContext['errors']): Promise<void> {

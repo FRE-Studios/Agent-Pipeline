@@ -3,6 +3,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import { ResolvedLoopingConfig } from '../config/schema.js';
 
 export interface LoopSession {
   sessionId: string;
@@ -24,7 +25,7 @@ export interface IterationSummary {
 }
 
 export class LoopStateManager {
-  private loopsDir: string;
+  private loopsDir: string;           // State JSON: .agent-pipeline/state/loops/
   private sessions: Map<string, LoopSession> = new Map();
 
   constructor(repoPath: string) {
@@ -131,5 +132,50 @@ export class LoopStateManager {
 
     const filePath = path.join(this.loopsDir, `${session.sessionId}.json`);
     await fs.writeFile(filePath, JSON.stringify(session, null, 2), 'utf-8');
+  }
+
+  /**
+   * Creates loop queue directories for a session.
+   * Creates pending/, running/, finished/, failed/ subdirectories.
+   *
+   * @param sessionId - The loop session UUID
+   * @param basePath - Base path (repoPath or worktreePath for worktree mode)
+   * @returns Resolved directory paths (absolute)
+   */
+  async createSessionDirectories(
+    sessionId: string,
+    basePath: string
+  ): Promise<ResolvedLoopingConfig['directories']> {
+    const sessionDir = path.join(basePath, '.agent-pipeline', 'loops', sessionId);
+    const dirs = {
+      pending: path.join(sessionDir, 'pending'),
+      running: path.join(sessionDir, 'running'),
+      finished: path.join(sessionDir, 'finished'),
+      failed: path.join(sessionDir, 'failed'),
+    };
+
+    // Create all directories in parallel
+    await Promise.all(Object.values(dirs).map(d => fs.mkdir(d, { recursive: true })));
+
+    // Add .gitignore to the session directory to exclude queue contents from git
+    const gitignorePath = path.join(sessionDir, '.gitignore');
+    try {
+      await fs.access(gitignorePath);
+    } catch {
+      await fs.writeFile(gitignorePath, '# Ignore loop queue contents\n*\n!.gitignore\n');
+    }
+
+    return dirs;
+  }
+
+  /**
+   * Get the session queue directory path.
+   *
+   * @param sessionId - The loop session UUID
+   * @param basePath - Base path (repoPath or worktreePath)
+   * @returns Absolute path to session queue directory
+   */
+  getSessionQueueDir(sessionId: string, basePath: string): string {
+    return path.join(basePath, '.agent-pipeline', 'loops', sessionId);
   }
 }

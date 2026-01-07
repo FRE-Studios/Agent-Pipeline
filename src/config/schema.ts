@@ -40,11 +40,11 @@ export interface RuntimeConfig {
 export interface LoopingConfig {
   enabled: boolean;
   maxIterations?: number;  // Default: 100
-  directories?: {          // Optional - defaults applied by pipeline loader
-    pending?: string;      // Default: 'next/pending' (relative to repo root)
-    running?: string;      // Default: 'next/running'
-    finished?: string;     // Default: 'next/finished'
-    failed?: string;       // Default: 'next/failed'
+  directories?: {          // Optional - defaults to .agent-pipeline/loops/{sessionId}/
+    pending?: string;      // Default: .agent-pipeline/loops/{sessionId}/pending
+    running?: string;      // Default: .agent-pipeline/loops/{sessionId}/running
+    finished?: string;     // Default: .agent-pipeline/loops/{sessionId}/finished
+    failed?: string;       // Default: .agent-pipeline/loops/{sessionId}/failed
   };
 }
 
@@ -75,6 +75,7 @@ export interface LoopContext {
   currentIteration?: number;
   maxIterations?: number;
   isFinalGroup?: boolean;  // Only inject loop instructions in final group
+  sessionId?: string;      // Loop session UUID for directory scoping
 }
 
 /**
@@ -209,6 +210,8 @@ export interface PipelineState {
   artifacts: {
     handoverDir: string;                  // Path to handover directory (worktree path if in worktree mode)
     mainRepoHandoverDir?: string;         // Main repo handover path (set only in worktree mode, for copying)
+    loopDir?: string;                     // Loop session dir (worktree path if in worktree mode, only set when looping)
+    mainRepoLoopDir?: string;             // Main repo loop dir (set only in worktree mode, for copying after session)
     initialCommit: string;
     finalCommit?: string;
     changedFiles: string[];
