@@ -616,29 +616,6 @@ describe('runCommand', () => {
   });
 
   describe('Loop Options', () => {
-    it('should pass loop flag to runner when --loop provided', async () => {
-      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
-      const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
-      mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
-      mockValidator.validateAndReport.mockResolvedValue(true);
-      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
-
-      try {
-        await runCommand(tempDir, 'test-pipeline', { loop: true });
-      } catch (error) {
-        // Expected
-      }
-
-      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, {
-        interactive: true,
-        verbose: false,
-        loop: true,
-        loopMetadata: metadata,
-        maxLoopIterations: undefined,
-        abortController: expect.anything()
-      });
-    });
-
     it('should pass maxLoopIterations to runner when provided', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
       const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
@@ -647,7 +624,7 @@ describe('runCommand', () => {
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
       try {
-        await runCommand(tempDir, 'test-pipeline', { loop: true, maxLoopIterations: 50 });
+        await runCommand(tempDir, 'test-pipeline', { maxLoopIterations: 50 });
       } catch (error) {
         // Expected
       }
@@ -655,14 +632,14 @@ describe('runCommand', () => {
       expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, {
         interactive: true,
         verbose: false,
-        loop: true,
+        loop: undefined,
         loopMetadata: metadata,
         maxLoopIterations: 50,
         abortController: expect.anything()
       });
     });
 
-    it('should use metadata from loader as loopMetadata when not provided', async () => {
+    it('should use metadata from loader as loopMetadata', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
       const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
@@ -670,7 +647,7 @@ describe('runCommand', () => {
       mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
 
       try {
-        await runCommand(tempDir, 'test-pipeline', { loop: true });
+        await runCommand(tempDir, 'test-pipeline', {});
       } catch (error) {
         // Expected
       }
@@ -693,7 +670,6 @@ describe('runCommand', () => {
 
       try {
         await runCommand(tempDir, 'test-pipeline', {
-          loop: true,
           loopMetadata: customMetadata
         });
       } catch (error) {

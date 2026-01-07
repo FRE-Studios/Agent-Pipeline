@@ -140,7 +140,7 @@ export class PipelineRunner {
     let loopSession: LoopSession | undefined;
 
     // Determine looping enabled state
-    // Priority: CLI flag (explicit) > pipeline config > disabled
+    // Priority: --no-loop flag (explicit disable) > pipeline config > disabled
     let loopEnabled: boolean;
     let loopingConfig: ResolvedLoopingConfig;
 
@@ -148,25 +148,12 @@ export class PipelineRunner {
       // --no-loop flag: force disable
       loopEnabled = false;
       loopingConfig = this.getDefaultLoopingConfig();
-    } else if (options.loop === true) {
-      // --loop flag: force enable
-      loopEnabled = true;
-      // Create session now to get sessionId for directory scoping
-      loopSession = this.loopStateManager.startSession(options.maxLoopIterations ?? config.looping?.maxIterations ?? 100);
-      if (config.looping?.enabled) {
-        // Use pipeline's resolved looping config (but directories will be created per-session)
-        loopingConfig = config.looping as ResolvedLoopingConfig;
-      } else {
-        // No looping config in pipeline - use defaults with sessionId
-        console.warn('⚠️  Loop mode requested but no looping config in pipeline. Using defaults.');
-        loopingConfig = this.getDefaultLoopingConfig(loopSession.sessionId);
-      }
     } else {
-      // No CLI flag: auto-loop if pipeline config has looping.enabled: true
+      // Use pipeline config to determine looping
       loopEnabled = config.looping?.enabled ?? false;
       if (loopEnabled) {
         // Create session now to get sessionId for directory scoping
-        loopSession = this.loopStateManager.startSession(config.looping?.maxIterations ?? 100);
+        loopSession = this.loopStateManager.startSession(options.maxLoopIterations ?? config.looping?.maxIterations ?? 100);
         loopingConfig = config.looping as ResolvedLoopingConfig;
       } else {
         loopingConfig = this.getDefaultLoopingConfig();

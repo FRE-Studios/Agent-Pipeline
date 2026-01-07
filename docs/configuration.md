@@ -201,10 +201,9 @@ looping:
 ```
 
 **Behavior:**
-- When `looping.enabled: true`, the pipeline automatically runs in loop mode without needing the `--loop` CLI flag
+- When `looping.enabled: true`, the pipeline automatically runs in loop mode
 - Directories are created automatically when looping is enabled
-- Use `--no-loop` CLI flag to force-disable looping for a single run
-- Use `--loop` CLI flag to force-enable looping even if not configured in the pipeline
+- Use `--no-loop` CLI flag to force-disable looping for a single run (useful for testing)
 
 **Agent Instructions:**
 Agents in the final stage group receive loop instructions automatically, directing them to create new pipeline YAML files in the pending directory when continuation is needed.

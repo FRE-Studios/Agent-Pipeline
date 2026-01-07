@@ -589,41 +589,15 @@ describe('PipelineRunner - Loop Mode', () => {
   });
 
   describe('Config Validation', () => {
-    it('should warn when --loop used but no looping config in pipeline', async () => {
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      // Create pipeline config without looping
-      const configWithoutLooping: PipelineConfig = {
-        name: 'test-pipeline',
-        trigger: 'manual',
-        agents: [{ name: 'test-agent', agent: 'test-agent.md' }],
-      };
-
-      const runner = new PipelineRunner(tempDir);
-
-      vi.spyOn(runner as any, '_executeSinglePipeline')
-        .mockResolvedValue(mockPipelineState);
-
-      await runner.runPipeline(configWithoutLooping, {
-        loop: true, // Force loop via CLI
-        interactive: false,
-      });
-
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('no looping config in pipeline')
-      );
-    });
-
-    it('should auto-loop when pipeline has looping.enabled: true (no --loop flag needed)', async () => {
+    it('should auto-loop when pipeline has looping.enabled: true', async () => {
       const runner = new PipelineRunner(tempDir);
 
       const executeSingleSpy = vi.spyOn(runner as any, '_executeSinglePipeline')
         .mockResolvedValue(mockPipelineState);
 
-      // Run without --loop flag - should auto-loop because mockPipelineConfig has looping.enabled: true
+      // Should auto-loop because mockPipelineConfig has looping.enabled: true
       await runner.runPipeline(mockPipelineConfig, {
         interactive: false,
-        // Note: no loop: true here!
       });
 
       // The pipeline has looping.enabled: true, so it should enter loop mode

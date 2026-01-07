@@ -20,11 +20,10 @@ All commands are routed through `src/index.ts`. Use `agent-pipeline <command> [o
   - `--verbose`: show token stats, cache hit rates, and debug info.
   - `--no-notifications`: suppress notification delivery.
   - `--pr-draft`, `--pr-web`, `--base-branch <branch>`: override git workflow settings.
-  - `--loop`: force-enable pipeline looping (overrides `looping.enabled: false` in config).
-  - `--no-loop`: force-disable pipeline looping (overrides `looping.enabled: true` in config).
+  - `--no-loop`: force-disable pipeline looping (useful for testing loop-enabled pipelines).
   - `--max-loop-iterations <n>`: set maximum loop iterations (default: 100).
 
-  **Note:** Pipelines with `looping.enabled: true` auto-loop without needing `--loop`. CLI flags serve as overrides.
+  **Note:** Enable looping via `looping.enabled: true` in pipeline config. Use `--no-loop` to test in single-run mode.
 - `list` – Show available pipeline definitions.
 - `status` – Print the most recent run summary.
 - `history` – Launch the interactive history browser (Ink UI).

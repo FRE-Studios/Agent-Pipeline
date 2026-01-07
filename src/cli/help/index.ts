@@ -42,7 +42,7 @@ const commandRegistry: Record<string, CommandHelp> = {
       { flags: '--base-branch <branch>', description: 'Override PR target branch' },
       { flags: '--pr-draft', description: 'Create PR as draft' },
       { flags: '--pr-web', description: 'Open PR in browser after creation' },
-      { flags: '--loop', description: 'Enable pipeline looping mode' },
+      { flags: '--no-loop', description: 'Force-disable looping (for testing)' },
       { flags: '--max-loop-iterations <n>', description: 'Set max iterations', default: '100' },
     ],
     examples: [
