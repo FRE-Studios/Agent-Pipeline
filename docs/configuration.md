@@ -185,6 +185,30 @@ Branch isolation and PR creation are handled by `BranchManager` and `PRCreator`:
 - Slack notifications require a webhook URL and optional channel overrides or failure mentions.
 - Test configurations with `agent-pipeline test <pipeline> --notifications`.
 
+### Looping
+
+Pipeline-level looping enables continuous execution where agents can queue the next pipeline iteration:
+
+```yaml
+looping:
+  enabled: true                    # Auto-enable loop mode for this pipeline
+  maxIterations: 100               # Safety limit (default: 100)
+  directories:                     # Optional: custom directory paths (relative to repo)
+    pending: next/pending          # Where agents drop new pipeline YAMLs
+    running: next/running          # Currently executing pipeline
+    finished: next/finished        # Successfully completed pipelines
+    failed: next/failed            # Failed pipeline files
+```
+
+**Behavior:**
+- When `looping.enabled: true`, the pipeline automatically runs in loop mode without needing the `--loop` CLI flag
+- Directories are created automatically when looping is enabled
+- Use `--no-loop` CLI flag to force-disable looping for a single run
+- Use `--loop` CLI flag to force-enable looping even if not configured in the pipeline
+
+**Agent Instructions:**
+Agents in the final stage group receive loop instructions automatically, directing them to create new pipeline YAML files in the pending directory when continuation is needed.
+
 ### Stage Configuration
 
 Each entry in `agents:` maps to a stage executed by `StageExecutor`:

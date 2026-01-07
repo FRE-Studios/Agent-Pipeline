@@ -38,10 +38,11 @@ export async function initCommand(repoPath: string): Promise<void> {
       console.log('   Use "agent-pipeline agent pull" to import.\n');
     }
 
-    // Create both example pipelines
+    // Create example pipelines
     const pipelinesToCreate: string[] = [
       'front-end-parallel-example',
-      'post-commit-example'
+      'post-commit-example',
+      'loop-example'
     ];
 
     // Copy pipeline templates

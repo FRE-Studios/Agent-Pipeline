@@ -40,8 +40,23 @@ export interface RuntimeConfig {
 export interface LoopingConfig {
   enabled: boolean;
   maxIterations?: number;  // Default: 100
+  directories?: {          // Optional - defaults applied by pipeline loader
+    pending?: string;      // Default: 'next/pending' (relative to repo root)
+    running?: string;      // Default: 'next/running'
+    finished?: string;     // Default: 'next/finished'
+    failed?: string;       // Default: 'next/failed'
+  };
+}
+
+/**
+ * Resolved looping config with all paths as absolute
+ * Used internally after pipeline loader processes the config
+ */
+export interface ResolvedLoopingConfig {
+  enabled: boolean;
+  maxIterations: number;
   directories: {
-    pending: string;    // Absolute paths
+    pending: string;
     running: string;
     finished: string;
     failed: string;
@@ -56,7 +71,7 @@ export interface PipelineMetadata {
 
 export interface LoopContext {
   enabled: boolean;
-  directories: LoopingConfig['directories'];
+  directories: ResolvedLoopingConfig['directories'];
   currentIteration?: number;
   maxIterations?: number;
   isFinalGroup?: boolean;  // Only inject loop instructions in final group
@@ -118,6 +133,9 @@ export interface PipelineConfig {
 
   // Notification settings (optional)
   notifications?: NotificationConfig;
+
+  // Looping settings (optional) - enables continuous pipeline execution
+  looping?: LoopingConfig;
 
   // Runtime configuration (optional, defaults to claude-code-headless)
   runtime?: RuntimeConfig;

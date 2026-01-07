@@ -22,7 +22,11 @@ const POST_COMMIT_AGENTS = [
   'doc-updater.md'
 ];
 
-const ALL_EXPECTED_AGENTS = [...FRONTEND_AGENTS, ...POST_COMMIT_AGENTS].sort();
+const LOOP_AGENTS = [
+  'story_writer.md'
+];
+
+const ALL_EXPECTED_AGENTS = [...FRONTEND_AGENTS, ...POST_COMMIT_AGENTS, ...LOOP_AGENTS].sort();
 
 describe('initCommand', () => {
   let tempDir: string;
@@ -93,7 +97,7 @@ describe('initCommand', () => {
   });
 
   describe('Pipeline Creation', () => {
-    it('should create both example pipelines by default', async () => {
+    it('should create all example pipelines by default', async () => {
       await initCommand(tempDir);
 
       const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
@@ -102,6 +106,7 @@ describe('initCommand', () => {
 
       expect(ymlFiles).toEqual([
         'front-end-parallel-example.yml',
+        'loop-example.yml',
         'post-commit-example.yml'
       ]);
     });
@@ -502,7 +507,7 @@ describe('initCommand', () => {
       // Verify both pipelines are created
       const pipelineFiles = await fs.readdir(pipelinesDir);
       const ymlFiles = pipelineFiles.filter(f => f.endsWith('.yml')).sort();
-      expect(ymlFiles).toEqual(['front-end-parallel-example.yml', 'post-commit-example.yml']);
+      expect(ymlFiles).toEqual(['front-end-parallel-example.yml', 'loop-example.yml', 'post-commit-example.yml']);
 
       // Verify all required agents are created
       const agentFiles = await fs.readdir(agentsDir);
@@ -541,7 +546,7 @@ describe('initCommand', () => {
 
       const pipelinesDir = path.join(tempDir, '.agent-pipeline', 'pipelines');
       const files = await fs.readdir(pipelinesDir);
-      expect(files.filter(f => f.endsWith('.yml'))).toHaveLength(2);
+      expect(files.filter(f => f.endsWith('.yml'))).toHaveLength(3);
     });
 
     it('should create files with correct encoding', async () => {
@@ -562,10 +567,11 @@ describe('initCommand', () => {
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Validating pipelines'));
     });
 
-    it('should show valid status for both pipelines', async () => {
+    it('should show valid status for all pipelines', async () => {
       await initCommand(tempDir);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('front-end-parallel-example: valid'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('loop-example: valid'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('post-commit-example: valid'));
     });
 

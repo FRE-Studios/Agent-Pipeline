@@ -8,10 +8,9 @@ import { DAGPlanner } from './dag-planner.js';
 import { PipelineInitializer } from './pipeline-initializer.js';
 import { GroupExecutionOrchestrator } from './group-execution-orchestrator.js';
 import { PipelineFinalizer } from './pipeline-finalizer.js';
-import { PipelineConfig, PipelineState, PipelineMetadata, LoopingConfig, LoopContext } from '../config/schema.js';
+import { PipelineConfig, PipelineState, PipelineMetadata, ResolvedLoopingConfig, LoopContext } from '../config/schema.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
-import { ProjectConfigLoader } from '../config/project-config-loader.js';
 import { PipelineLoader } from '../config/pipeline-loader.js';
 import { LoopStateManager, LoopSession } from './loop-state-manager.js';
 import { AgentRuntimeRegistry } from './agent-runtime-registry.js';
@@ -34,7 +33,6 @@ export class PipelineRunner {
   private repoPath: string;
   private runtime: AgentRuntime;
   private stateUpdateCallbacks: Array<(state: PipelineState) => void> = [];
-  private projectConfigLoader: ProjectConfigLoader;
   private loopStateManager: LoopStateManager;
 
   constructor(repoPath: string, dryRun: boolean = false) {
@@ -45,7 +43,6 @@ export class PipelineRunner {
     this.prCreator = new PRCreator();
     this.stateManager = new StateManager(repoPath);
     this.dagPlanner = new DAGPlanner();
-    this.projectConfigLoader = new ProjectConfigLoader(repoPath);
     this.loopStateManager = new LoopStateManager(repoPath);
 
     // Get Claude Code Headless runtime as the default (primary agent harness)
@@ -132,18 +129,41 @@ export class PipelineRunner {
       ? new NotificationManager(config.notifications)
       : undefined;
 
-    // Load and validate looping config
-    const loopingConfig = await this.projectConfigLoader.loadLoopingConfig();
+    // Determine looping enabled state
+    // Priority: CLI flag (explicit) > pipeline config > disabled
+    let loopEnabled: boolean;
+    let loopingConfig: ResolvedLoopingConfig;
 
-    // Short-circuit if --loop set but config disables it
-    let loopEnabled = options.loop || false;
-    if (loopEnabled && !loopingConfig.enabled) {
-      console.warn('⚠️  Loop mode requested but looping is disabled in config');
+    if (options.loop === false) {
+      // --no-loop flag: force disable
       loopEnabled = false;
+      loopingConfig = this.getDefaultLoopingConfig();
+    } else if (options.loop === true) {
+      // --loop flag: force enable
+      loopEnabled = true;
+      if (config.looping?.enabled) {
+        // Use pipeline's resolved looping config
+        loopingConfig = config.looping as ResolvedLoopingConfig;
+      } else {
+        // No looping config in pipeline - use defaults
+        console.warn('⚠️  Loop mode requested but no looping config in pipeline. Using defaults.');
+        loopingConfig = this.getDefaultLoopingConfig();
+      }
+    } else {
+      // No CLI flag: auto-loop if pipeline config has looping.enabled: true
+      loopEnabled = config.looping?.enabled ?? false;
+      loopingConfig = loopEnabled
+        ? (config.looping as ResolvedLoopingConfig)
+        : this.getDefaultLoopingConfig();
+    }
+
+    // Create directories if looping is enabled
+    if (loopEnabled) {
+      await this.ensureLoopDirectoriesExist(loopingConfig.directories);
     }
 
     // Set up loop tracking variables
-    const maxIterations = options.maxLoopIterations ?? loopingConfig.maxIterations ?? 100;
+    const maxIterations = options.maxLoopIterations ?? loopingConfig.maxIterations;
     let iterationCount = 0;
     let lastState: PipelineState | undefined;
     let currentConfig = config;
@@ -377,10 +397,47 @@ export class PipelineRunner {
   }
 
   /**
+   * Get default looping config with resolved paths
+   */
+  private getDefaultLoopingConfig(): ResolvedLoopingConfig {
+    return {
+      enabled: true,
+      maxIterations: 100,
+      directories: {
+        pending: path.resolve(this.repoPath, 'next/pending'),
+        running: path.resolve(this.repoPath, 'next/running'),
+        finished: path.resolve(this.repoPath, 'next/finished'),
+        failed: path.resolve(this.repoPath, 'next/failed'),
+      },
+    };
+  }
+
+  /**
+   * Create looping directories if they don't exist
+   */
+  private async ensureLoopDirectoriesExist(
+    directories: ResolvedLoopingConfig['directories']
+  ): Promise<void> {
+    const dirs = [
+      directories.pending,
+      directories.running,
+      directories.finished,
+      directories.failed,
+    ];
+    for (const dir of dirs) {
+      try {
+        await fs.mkdir(dir, { recursive: true });
+      } catch {
+        // Ignore if exists
+      }
+    }
+  }
+
+  /**
    * Finds the next pipeline file in the pending directory.
    * Returns the oldest file by modification time, or undefined if directory is empty.
    */
-  private async _findNextPipelineFile(loopingConfig: LoopingConfig): Promise<string | undefined> {
+  private async _findNextPipelineFile(loopingConfig: ResolvedLoopingConfig): Promise<string | undefined> {
     try {
       const pendingDir = loopingConfig.directories.pending;
       const files = await fs.readdir(pendingDir);

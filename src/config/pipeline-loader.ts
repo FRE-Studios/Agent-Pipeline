@@ -3,7 +3,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as YAML from 'yaml';
-import { PipelineConfig, PipelineMetadata } from './schema.js';
+import { PipelineConfig, PipelineMetadata, LoopingConfig, ResolvedLoopingConfig } from './schema.js';
 
 export interface PipelineLoadResult {
   config: PipelineConfig;
@@ -72,7 +72,48 @@ export class PipelineLoader {
       config.runtime = { type: 'claude-code-headless' };
     }
 
+    // Resolve looping directories to absolute paths if looping is configured
+    if (config.looping) {
+      (config as any).looping = this.resolveLoopingConfig(config.looping);
+    }
+
     return config;
+  }
+
+  /**
+   * Resolve looping config paths relative to repo root
+   * Applies defaults for missing directories
+   */
+  resolveLoopingConfig(looping: LoopingConfig): ResolvedLoopingConfig {
+    const defaultDirs = {
+      pending: 'next/pending',
+      running: 'next/running',
+      finished: 'next/finished',
+      failed: 'next/failed',
+    };
+
+    const dirs = looping.directories || {};
+
+    return {
+      enabled: looping.enabled,
+      maxIterations: looping.maxIterations ?? 100,
+      directories: {
+        pending: this.resolvePath(dirs.pending ?? defaultDirs.pending),
+        running: this.resolvePath(dirs.running ?? defaultDirs.running),
+        finished: this.resolvePath(dirs.finished ?? defaultDirs.finished),
+        failed: this.resolvePath(dirs.failed ?? defaultDirs.failed),
+      },
+    };
+  }
+
+  /**
+   * Resolve a path relative to repo root, or return as-is if already absolute
+   */
+  private resolvePath(relativePath: string): string {
+    if (path.isAbsolute(relativePath)) {
+      return relativePath;
+    }
+    return path.resolve(this.repoPath, relativePath);
   }
 
   async listPipelines(): Promise<string[]> {

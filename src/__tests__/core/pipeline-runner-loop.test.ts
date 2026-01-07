@@ -5,9 +5,8 @@ import { PipelineRunner } from '../../core/pipeline-runner.js';
 import { AgentRuntimeRegistry } from '../../core/agent-runtime-registry.js';
 import { ClaudeSDKRuntime } from '../../core/agent-runtimes/claude-sdk-runtime.js';
 import { ClaudeCodeHeadlessRuntime } from '../../core/agent-runtimes/claude-code-headless-runtime.js';
-import { ProjectConfigLoader } from '../../config/project-config-loader.js';
 import { PipelineLoader } from '../../config/pipeline-loader.js';
-import { PipelineConfig, PipelineState, LoopingConfig } from '../../config/schema.js';
+import { PipelineConfig, PipelineState, ResolvedLoopingConfig } from '../../config/schema.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { tmpdir } from 'os';
@@ -21,7 +20,6 @@ vi.mock('../../core/dag-planner.js');
 vi.mock('../../core/pipeline-initializer.js');
 vi.mock('../../core/group-execution-orchestrator.js');
 vi.mock('../../core/pipeline-finalizer.js');
-vi.mock('../../config/project-config-loader.js');
 vi.mock('../../config/pipeline-loader.js');
 
 describe('PipelineRunner - Loop Mode', () => {
@@ -30,7 +28,7 @@ describe('PipelineRunner - Loop Mode', () => {
   let runningDir: string;
   let finishedDir: string;
   let failedDir: string;
-  let mockLoopingConfig: LoopingConfig;
+  let mockLoopingConfig: ResolvedLoopingConfig;
   let mockPipelineConfig: PipelineConfig;
   let mockPipelineState: PipelineState;
 
@@ -66,10 +64,11 @@ describe('PipelineRunner - Loop Mode', () => {
       },
     };
 
-    // Setup mock pipeline config
+    // Setup mock pipeline config with looping enabled (pipeline-level config)
     mockPipelineConfig = {
       name: 'test-pipeline',
       trigger: 'manual',
+      looping: mockLoopingConfig, // Pipeline-level looping config
       agents: [
         {
           name: 'test-agent',
@@ -104,18 +103,11 @@ describe('PipelineRunner - Loop Mode', () => {
       },
     };
 
-    // Mock ProjectConfigLoader
-    vi.mocked(ProjectConfigLoader).mockImplementation(() => ({
-      loadLoopingConfig: vi.fn().mockResolvedValue(mockLoopingConfig),
-    } as any));
-
     // Mock PipelineLoader - will be customized per test
     vi.mocked(PipelineLoader).mockImplementation(() => ({
       loadPipelineFromPath: vi.fn(),
+      resolveLoopingConfig: vi.fn().mockReturnValue(mockLoopingConfig),
     } as any));
-
-    // Clear all module-level caches
-    ProjectConfigLoader.clearCache?.();
   });
 
   afterEach(async () => {
@@ -142,7 +134,14 @@ describe('PipelineRunner - Loop Mode', () => {
       expect(result.status).toBe('completed');
     });
 
-    it('should not check pending directory without --loop', async () => {
+    it('should not check pending directory without --loop and no looping config', async () => {
+      // Create config WITHOUT looping to test non-loop behavior
+      const configWithoutLooping: PipelineConfig = {
+        name: 'test-pipeline',
+        trigger: 'manual',
+        agents: [{ name: 'test-agent', agent: 'test-agent.md' }],
+      };
+
       const runner = new PipelineRunner(tempDir);
 
       vi.spyOn(runner as any, '_executeSinglePipeline')
@@ -150,7 +149,7 @@ describe('PipelineRunner - Loop Mode', () => {
 
       const findNextSpy = vi.spyOn(runner as any, '_findNextPipelineFile');
 
-      await runner.runPipeline(mockPipelineConfig, {
+      await runner.runPipeline(configWithoutLooping, {
         interactive: false,
       });
 
@@ -590,33 +589,65 @@ describe('PipelineRunner - Loop Mode', () => {
   });
 
   describe('Config Validation', () => {
-    it('should warn and disable loop when config disables looping', async () => {
+    it('should warn when --loop used but no looping config in pipeline', async () => {
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      // Mock disabled config
-      vi.mocked(ProjectConfigLoader).mockImplementation(() => ({
-        loadLoopingConfig: vi.fn().mockResolvedValue({
-          ...mockLoopingConfig,
-          enabled: false,
-        }),
-      } as any));
+      // Create pipeline config without looping
+      const configWithoutLooping: PipelineConfig = {
+        name: 'test-pipeline',
+        trigger: 'manual',
+        agents: [{ name: 'test-agent', agent: 'test-agent.md' }],
+      };
 
+      const runner = new PipelineRunner(tempDir);
+
+      vi.spyOn(runner as any, '_executeSinglePipeline')
+        .mockResolvedValue(mockPipelineState);
+
+      await runner.runPipeline(configWithoutLooping, {
+        loop: true, // Force loop via CLI
+        interactive: false,
+      });
+
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('no looping config in pipeline')
+      );
+    });
+
+    it('should auto-loop when pipeline has looping.enabled: true (no --loop flag needed)', async () => {
       const runner = new PipelineRunner(tempDir);
 
       const executeSingleSpy = vi.spyOn(runner as any, '_executeSinglePipeline')
         .mockResolvedValue(mockPipelineState);
 
+      // Run without --loop flag - should auto-loop because mockPipelineConfig has looping.enabled: true
       await runner.runPipeline(mockPipelineConfig, {
-        loop: true,
+        interactive: false,
+        // Note: no loop: true here!
+      });
+
+      // The pipeline has looping.enabled: true, so it should enter loop mode
+      // and execute once (no pending files)
+      expect(executeSingleSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('should respect --no-loop to disable looping even when pipeline config enables it', async () => {
+      const runner = new PipelineRunner(tempDir);
+
+      const executeSingleSpy = vi.spyOn(runner as any, '_executeSinglePipeline')
+        .mockResolvedValue(mockPipelineState);
+
+      const findNextSpy = vi.spyOn(runner as any, '_findNextPipelineFile');
+
+      // Run with loop: false (--no-loop flag)
+      await runner.runPipeline(mockPipelineConfig, {
+        loop: false,
         interactive: false,
       });
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('looping is disabled in config')
-      );
-
-      // Should execute only once (no loop)
       expect(executeSingleSpy).toHaveBeenCalledTimes(1);
+      // Should not look for next files when loop is disabled
+      expect(findNextSpy).not.toHaveBeenCalled();
     });
   });
 

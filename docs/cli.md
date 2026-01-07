@@ -20,15 +20,19 @@ All commands are routed through `src/index.ts`. Use `agent-pipeline <command> [o
   - `--verbose`: show token stats, cache hit rates, and debug info.
   - `--no-notifications`: suppress notification delivery.
   - `--pr-draft`, `--pr-web`, `--base-branch <branch>`: override git workflow settings.
-  - `--loop`: enable pipeline looping mode.
+  - `--loop`: force-enable pipeline looping (overrides `looping.enabled: false` in config).
+  - `--no-loop`: force-disable pipeline looping (overrides `looping.enabled: true` in config).
   - `--max-loop-iterations <n>`: set maximum loop iterations (default: 100).
+
+  **Note:** Pipelines with `looping.enabled: true` auto-loop without needing `--loop`. CLI flags serve as overrides.
 - `list` – Show available pipeline definitions.
 - `status` – Print the most recent run summary.
 - `history` – Launch the interactive history browser (Ink UI).
 - `analytics [--pipeline <name>] [--days <n>] [--loops]` – Generate success-rate and duration metrics from stored run state.
-- `init` – Scaffold `.agent-pipeline/` with both example pipelines.
+- `init` – Scaffold `.agent-pipeline/` with example pipelines.
   - Creates `front-end-parallel-example.yml` (parallel design exploration with 8 agents)
   - Creates `post-commit-example.yml` (sequential code review workflow for existing projects)
+  - Creates `loop-example.yml` (collaborative storytelling with auto-loop enabled)
   - Automatically creates only the fallback agents required by the pipelines.
 
 ## Pipeline Management

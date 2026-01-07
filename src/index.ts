@@ -133,7 +133,17 @@ async function main() {
         const prDraft = args.includes('--pr-draft');
         const prWeb = args.includes('--pr-web');
         const noNotifications = args.includes('--no-notifications');
-        const loop = args.includes('--loop');
+        const loopFlag = args.includes('--loop');
+        const noLoopFlag = args.includes('--no-loop');
+
+        // Determine loop option: undefined (use pipeline config), true (force on), false (force off)
+        let loop: boolean | undefined;
+        if (noLoopFlag) {
+          loop = false;
+        } else if (loopFlag) {
+          loop = true;
+        }
+        // else loop remains undefined - use pipeline's looping.enabled config
 
         let baseBranch: string | undefined;
         const baseBranchIndex = args.indexOf('--base-branch');
