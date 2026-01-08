@@ -6,12 +6,14 @@ import {
   AgentStageConfig,
   PipelineConfig,
   PipelineState,
+  IterationHistoryEntry,
 } from '../config/schema.js';
 import { ExecutionGroup } from './components/execution-group.js';
 import { StatusBadge } from './components/status-badge.js';
 import { SummaryLine } from './components/summary-line.js';
 import { LiveTimer } from './components/live-timer.js';
 import { InteractiveSummary } from './components/interactive-summary.js';
+import { LoopIterationHistory } from './components/loop-iteration-history.js';
 
 interface PipelineUIProps {
   onStateChange: (callback: (state: PipelineState) => void) => void;
@@ -56,9 +58,17 @@ const getExecutionGroups = (pipelineConfig: PipelineConfig) => {
 
 export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange, onOpenLogs }) => {
   const [state, setState] = useState<PipelineState | null>(null);
+  // Track iteration history across state resets (persists between loop iterations)
+  const [iterationHistory, setIterationHistory] = useState<IterationHistoryEntry[]>([]);
 
   useEffect(() => {
-    onStateChange(setState);
+    onStateChange((newState) => {
+      // Update iteration history if present in state
+      if (newState.loopIterationHistory && newState.loopIterationHistory.length > 0) {
+        setIterationHistory(newState.loopIterationHistory);
+      }
+      setState(newState);
+    });
   }, [onStateChange]);
 
   if (!state) {
@@ -94,6 +104,11 @@ export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange, onOpenLog
       </Box>
 
       <Newline />
+
+      {/* Loop iteration history (shown when in loop mode with history) */}
+      {state.loopContext && iterationHistory.length > 0 && (
+        <LoopIterationHistory iterations={iterationHistory} />
+      )}
 
       {/* Stages */}
       {executionGroups.map((group, index) => (

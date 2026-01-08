@@ -39,7 +39,8 @@ export class PipelineFinalizer {
     interactive: boolean,
     verbose: boolean,
     notifyCallback: (context: NotificationContext) => Promise<void>,
-    stateChangeCallback: (state: PipelineState) => void
+    stateChangeCallback: (state: PipelineState) => void,
+    options?: { suppressCompletionNotification?: boolean }
   ): Promise<PipelineState> {
     // Calculate metrics (use worktree git manager if executing in worktree)
     await this.calculateMetrics(state, startTime, executionRepoPath);
@@ -100,8 +101,10 @@ export class PipelineFinalizer {
     await this.stateManager.saveState(state);
     stateChangeCallback(state);
 
-    // Notify completion or failure
-    await this.notifyCompletion(state, notifyCallback);
+    // Notify completion or failure (skip in loop mode - handled at session end)
+    if (!options?.suppressCompletionNotification) {
+      await this.notifyCompletion(state, notifyCallback);
+    }
 
     // Print summary if not interactive
     if (this.shouldLog(interactive)) {

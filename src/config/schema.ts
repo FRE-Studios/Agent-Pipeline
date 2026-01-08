@@ -79,6 +79,18 @@ export interface LoopContext {
 }
 
 /**
+ * Iteration history entry for loop UI tracking
+ * Used to display completed iterations while current pipeline runs
+ */
+export interface IterationHistoryEntry {
+  iterationNumber: number;
+  pipelineName: string;
+  status: 'completed' | 'failed' | 'aborted';
+  duration: number;
+  commitCount: number;
+}
+
+/**
  * Logging context for controlling output verbosity
  * - interactive: true = Ink UI mode, false = console output
  * - verbose: true = show all details (token stats, cache rates, etc.)
@@ -233,6 +245,9 @@ export interface PipelineState {
     pipelineSource: 'library' | 'loop-pending';
     terminationReason?: 'natural' | 'limit-reached' | 'failure';
   };
+
+  // Loop iteration history (for UI display of completed iterations)
+  loopIterationHistory?: IterationHistoryEntry[];
 }
 
 export interface StageExecution {

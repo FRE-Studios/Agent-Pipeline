@@ -10,6 +10,7 @@ import { SummaryLine } from './summary-line.js';
 import { StatusBadge } from './status-badge.js';
 import { KeyboardHints, KeyboardHint } from './keyboard-hints.js';
 import { openWithSystem, openInPager } from '../../utils/platform-opener.js';
+import { LoopSessionSummary } from './loop-session-summary.js';
 
 interface InteractiveSummaryProps {
   state: PipelineState;
@@ -165,6 +166,12 @@ export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state, o
 
   return (
     <Box flexDirection="column" marginTop={1} borderStyle="round" padding={1}>
+      {/* Loop session summary (shown when loop ended naturally) */}
+      {state.loopContext && state.loopIterationHistory && state.loopIterationHistory.length > 0 &&
+       (!state.loopContext.terminationReason || state.loopContext.terminationReason === 'natural') && (
+        <LoopSessionSummary iterations={state.loopIterationHistory} />
+      )}
+
       {/* Header */}
       <Box>
         <Text bold>Pipeline </Text>

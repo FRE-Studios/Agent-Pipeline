@@ -8,7 +8,7 @@ import { DAGPlanner } from './dag-planner.js';
 import { PipelineInitializer } from './pipeline-initializer.js';
 import { GroupExecutionOrchestrator } from './group-execution-orchestrator.js';
 import { PipelineFinalizer } from './pipeline-finalizer.js';
-import { PipelineConfig, PipelineState, PipelineMetadata, ResolvedLoopingConfig, LoopContext } from '../config/schema.js';
+import { PipelineConfig, PipelineState, PipelineMetadata, ResolvedLoopingConfig, LoopContext, IterationHistoryEntry } from '../config/schema.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
 import { PipelineLoader } from '../config/pipeline-loader.js';
@@ -176,6 +176,9 @@ export class PipelineRunner {
     let loopDirCreated = false;
     let loopDirs = loopingConfig.directories;
 
+    // Track iteration history for UI display
+    const loopIterationHistory: IterationHistoryEntry[] = [];
+
     // Main loop
     while (true) {
       iterationCount++;
@@ -219,7 +222,8 @@ export class PipelineRunner {
           loopContext,
           loopSessionId: loopSession?.sessionId,
           abortController: options.abortController,
-          isFirstLoopIteration: loopEnabled && !loopDirCreated
+          isFirstLoopIteration: loopEnabled && !loopDirCreated,
+          suppressCompletionNotification: loopEnabled
         }
       );
 
@@ -228,6 +232,22 @@ export class PipelineRunner {
         loopDirCreated = true;
         // Update active loop directories with resolved execution paths
         loopDirs = loopContext.directories;
+      }
+
+      // Build iteration history entry for UI display
+      if (loopEnabled && lastState) {
+        const historyEntry: IterationHistoryEntry = {
+          iterationNumber: iterationCount,
+          pipelineName: currentMetadata?.sourcePath
+            ? path.basename(currentMetadata.sourcePath, '.yml')
+            : currentConfig.name,
+          status: lastState.status === 'completed' ? 'completed'
+            : lastState.status === 'aborted' ? 'aborted' : 'failed',
+          duration: lastState.artifacts.totalDuration,
+          commitCount: lastState.stages.filter(s => s.commitSha).length
+        };
+        loopIterationHistory.push(historyEntry);
+        lastState.loopIterationHistory = [...loopIterationHistory];
       }
 
       // Emit state update for UI (this resets the UI for next iteration)
@@ -384,6 +404,15 @@ export class PipelineRunner {
                            loopTerminationReason === 'limit-reached' ? 'limit-reached' :
                            'failed';
       await this.loopStateManager.completeSession(loopSession.sessionId, sessionStatus);
+    }
+
+    // Send completion notification only on natural loop end (pending folder empty)
+    if (loopEnabled && loopTerminationReason === 'natural') {
+      await this.notify({
+        event: 'pipeline.completed',
+        pipelineState: lastState,
+        metadata: { loopCompleted: true, totalIterations: iterationCount }
+      });
     }
 
     return lastState;
@@ -629,9 +658,10 @@ export class PipelineRunner {
       loopSessionId?: string;
       abortController?: PipelineAbortController;
       isFirstLoopIteration?: boolean;
+      suppressCompletionNotification?: boolean;
     }
   ): Promise<PipelineState> {
-    const { interactive, verbose, loopContext, loopSessionId, abortController, isFirstLoopIteration } = options;
+    const { interactive, verbose, loopContext, loopSessionId, abortController, isFirstLoopIteration, suppressCompletionNotification } = options;
 
     // Create notification manager early so it's available for init failures
     this.notificationManager = options.notificationManager ||
@@ -828,7 +858,8 @@ export class PipelineRunner {
       interactive,
       verbose,
       this.notify.bind(this),
-      this.notifyStateChange.bind(this)
+      this.notifyStateChange.bind(this),
+      { suppressCompletionNotification }
     );
 
     return state;
