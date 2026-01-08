@@ -10,31 +10,40 @@ Agent Pipeline loads YAML pipeline definitions from `.agent-pipeline/pipelines/<
 name: commit-review
 trigger: post-commit                 # pre-commit, post-commit, pre-push, post-merge, or manual
 
-settings:
-  autoCommit: true                   # Automatically commit stage changes
-  commitPrefix: "[pipeline:{{stage}}]"
-  failureStrategy: continue          # stop or continue
-  executionMode: parallel            # parallel (default) or sequential
-  claudeAgent:                       # Optional: Claude Agent SDK settings
-    model: sonnet                    # haiku, sonnet, or opus
-    maxTurns: 10                     # Prevent runaway agents
-    maxThinkingTokens: 5000          # Extended thinking budget
-
+# Git settings - all git-related configuration unified
 git:
+  autoCommit: true                   # Automatically commit stage changes (default: true)
+  commitPrefix: "[pipeline:{{stage}}]"
   baseBranch: main
   branchStrategy: reusable           # reusable, unique-per-run, or unique-and-delete
   branchPrefix: pipeline
   mergeStrategy: pull-request        # pull-request, local-merge, or none (default: none)
   pullRequest:                       # Only used when mergeStrategy: pull-request
-    title: "🤖 Pipeline: {{pipelineName}}"
+    title: "Pipeline: {{pipelineName}}"
     reviewers: [alice, bob]
     labels: [automated, needs-review]
     draft: false
+  worktree:                          # Optional worktree settings
+    directory: .agent-pipeline/worktrees
 
-# Note: git hooks can only be installed when git.branchStrategy is set.
-# Pipeline commits include a Pipeline-Run-ID trailer and use --no-verify to avoid hook loops.
-# For hook-triggered pipelines, prefer branchStrategy: unique-per-run (or unique-and-delete) and disable autoCommit for read-only checks.
+# Execution settings - runtime behavior
+execution:
+  mode: parallel                     # parallel (default) or sequential
+  failureStrategy: continue          # stop or continue (default: continue)
+  permissionMode: acceptEdits        # default, acceptEdits, bypassPermissions, or plan
 
+# Handover settings - inter-stage communication
+handover:
+  directory: .agent-pipeline/runs/{{pipeline}}-{{runId}}  # Default pattern
+  instructions: .agent-pipeline/instructions/handover.md
+
+# Runtime configuration - agent execution backend
+runtime:
+  type: claude-code-headless         # claude-code-headless (default) or claude-sdk
+  options:
+    model: sonnet                    # haiku, sonnet, or opus
+
+# Notifications (optional)
 notifications:
   enabled: true
   events:
@@ -49,6 +58,7 @@ notifications:
       enabled: true
       webhookUrl: ${SLACK_WEBHOOK_URL}
 
+# Agent stages
 agents:
   - name: code-review
     agent: .agent-pipeline/agents/code-reviewer.md
@@ -61,14 +71,22 @@ agents:
     agent: .agent-pipeline/agents/fixer.md
     dependsOn: [code-review]
     onFail: warn
-    autoCommit: false
 ```
 
-### Global Settings
+## Git Settings
 
-- `autoCommit`: stage executor commits any file changes when `true`.
-- `failureStrategy`: controls how the pipeline reacts to a failed stage (`stop` or `continue`). Individual stages can override via `onFail` (`stop`, `continue`, or `warn`).
-- `executionMode`: `parallel` (default) uses the DAG planner to execute independent groups simultaneously; `sequential` forces one stage at a time.
+All git-related settings are unified under the `git:` section:
+
+- `autoCommit`: Stage executor commits any file changes when `true` (default: `true`).
+- `commitPrefix`: Template for commit messages, supports `{{stage}}` placeholder.
+- `baseBranch`: Branch to PR into (default: `main`).
+- `branchStrategy`: `reusable` keeps a predictable branch name (`pipeline/<name>`), `unique-per-run` appends the run ID, and `unique-and-delete` appends the run ID and auto-cleans on success.
+- `mergeStrategy`: Controls how pipeline work is merged after completion:
+  - `pull-request`: Push branch to remote and create a GitHub PR (requires `gh` CLI)
+  - `local-merge`: Merge branch to `baseBranch` locally without remote interaction
+  - `none` (default): No merge action; work stays on the pipeline branch
+  - **Note:** `unique-and-delete` branchStrategy cannot be used with `mergeStrategy: none` (validation error)
+- `pullRequest`: Only used when `mergeStrategy: pull-request`. Supports `title`, `labels`, `reviewers`, `assignees`, `milestone`, and `draft` flags.
 
 ### Worktree Isolation
 
@@ -79,27 +97,38 @@ When a pipeline has a `git` configuration, it automatically executes in a dedica
 - Each pipeline run operates in isolation at `.agent-pipeline/worktrees/<pipeline-name>/` by default
 - Original branch and working tree are preserved throughout
 
-You can customize the worktree location via settings:
+Customize the worktree location via git settings:
 
 ```yaml
-settings:
+git:
   worktree:
     directory: custom-worktrees   # Custom worktree base directory (relative or absolute)
 ```
 
 Worktrees are cleaned up automatically after successful runs only when `branchStrategy` is `unique-and-delete`. Use `agent-pipeline cleanup` to remove stale worktrees.
 
-### Permission Control
+## Execution Settings
 
-- `permissionMode`: controls how agents handle file operations and permissions. Options:
+Runtime behavior is controlled under the `execution:` section:
+
+- `mode`: `parallel` (default) uses the DAG planner to execute independent groups simultaneously; `sequential` forces one stage at a time.
+- `failureStrategy`: Controls how the pipeline reacts to a failed stage (`stop` or `continue`). Individual stages can override via `onFail` (`stop`, `continue`, or `warn`).
+- `permissionMode`: Controls how agents handle file operations and permissions:
   - `default`: Prompts for permission based on `.claude/settings.json` rules (interactive workflows)
   - `acceptEdits` (default): Auto-accepts file edits (Write, Edit tools) while respecting allow/deny rules (automated workflows)
   - `bypassPermissions`: Bypasses all permission checks (use with extreme caution)
   - `plan`: Read-only mode, no actual execution (dry-run scenarios)
 
-  **Note:** When using `acceptEdits` (default), agents can create/edit files without prompts, but `.claude/settings.json` allow/deny patterns are still enforced. This is ideal for automated CI/CD pipelines where you trust the workflow but want basic safeguards.
+**Note:** When using `acceptEdits` (default), agents can create/edit files without prompts, but `.claude/settings.json` allow/deny patterns are still enforced. This is ideal for automated CI/CD pipelines where you trust the workflow but want basic safeguards.
 
-### Runtime Configuration
+## Handover Settings
+
+Inter-stage communication settings are under the `handover:` section:
+
+- `directory`: Handover directory path (default: `.agent-pipeline/runs/<pipeline>-<runId>/`)
+- `instructions`: Path to handover instructions template (default: `.agent-pipeline/instructions/handover.md`)
+
+## Runtime Configuration
 
 Agent Pipeline supports multiple agent execution backends via the `runtime` field. The default is `claude-code-headless` (Claude Code CLI), which provides the full Claude Code tool suite (Bash, Read, Write, etc.) and local execution. Alternatively, use `claude-sdk` (Claude Agent SDK) for library-based execution with MCP tools.
 
@@ -126,57 +155,35 @@ agents:
 - `claude-code-headless` (default): Full Claude Code tool suite, local execution, session continuation support
 - `claude-sdk`: Library-based execution, MCP tools, used internally for context reduction
 
-**Using Claude SDK Runtime:**
-To use the SDK runtime instead of the default headless runtime, specify it in your pipeline config:
+**Cost Optimization:** Use `haiku` for simple tasks (linting, formatting) to reduce costs by up to 90%. Reserve `opus` for complex reasoning (architecture, design decisions). Per-stage overrides allow mixing models within a pipeline.
+
+**Example:**
 ```yaml
 runtime:
   type: claude-sdk
   options:
-    model: sonnet
-```
+    model: sonnet           # Global default
+    maxTurns: 10            # Safety limit
 
-- `claudeAgent`: Alternative configuration for Claude Agent SDK settings (optional). If omitted, the SDK uses its own defaults.
-  - `model`: Select Claude model for cost/performance optimization (`haiku`, `sonnet`, or `opus`)
-  - `maxTurns`: Maximum conversation turns (prevents runaway agents)
-  - `maxThinkingTokens`: Extended thinking budget for complex reasoning tasks
-
-  **Cost Optimization:** Use `haiku` for simple tasks (linting, formatting) to reduce costs by up to 90%. Reserve `opus` for complex reasoning (architecture, design decisions). Per-stage overrides allow mixing models within a pipeline.
-
-  **Example:**
-  ```yaml
-  settings:
-    claudeAgent:
-      model: sonnet           # Global default
-      maxTurns: 10            # Safety limit
-
-  agents:
-    - name: quick-lint
-      agent: .agent-pipeline/agents/linter.md
-      claudeAgent:
-        model: haiku          # Override: fast, cheap
+agents:
+  - name: quick-lint
+    agent: .agent-pipeline/agents/linter.md
+    runtime:
+      type: claude-sdk
+      options:
+        model: haiku        # Override: fast, cheap
         maxTurns: 5
 
-    - name: architecture-review
-      agent: .agent-pipeline/agents/architect.md
-      claudeAgent:
-        model: opus           # Override: powerful reasoning
+  - name: architecture-review
+    agent: .agent-pipeline/agents/architect.md
+    runtime:
+      type: claude-sdk
+      options:
+        model: opus         # Override: powerful reasoning
         maxThinkingTokens: 15000
-  ```
+```
 
-### Git Workflow
-
-Branch isolation and PR creation are handled by `BranchManager` and `PRCreator`:
-
-- `branchStrategy`: `reusable` keeps a predictable branch name (`pipeline/<name>`), `unique-per-run` appends the run ID, and `unique-and-delete` appends the run ID and auto-cleans on success.
-- `mergeStrategy`: controls how pipeline work is merged after completion:
-  - `pull-request`: push branch to remote and create a GitHub PR (requires `gh` CLI)
-  - `local-merge`: merge branch to `baseBranch` locally without remote interaction
-  - `none` (default): no merge action; work stays on the pipeline branch
-  - **Note:** `unique-and-delete` branchStrategy cannot be used with `mergeStrategy: none` (validation error)
-- `pullRequest`: only used when `mergeStrategy: pull-request`. Supports `title`, `labels`, `reviewers`, `assignees`, `milestone`, and `draft` flags.
-- Use `agent-pipeline run <pipeline> --pr-draft`, `--pr-web`, or `--base-branch <branch>` for on-demand overrides.
-
-### Notifications
+## Notifications
 
 `NotificationManager` fan-outs events to configured notifiers:
 
@@ -185,7 +192,7 @@ Branch isolation and PR creation are handled by `BranchManager` and `PRCreator`:
 - Slack notifications require a webhook URL and optional channel overrides or failure mentions.
 - Test configurations with `agent-pipeline test <pipeline> --notifications`.
 
-### Looping
+## Looping
 
 Pipeline-level looping enables continuous execution where agents can queue the next pipeline iteration:
 
@@ -193,6 +200,7 @@ Pipeline-level looping enables continuous execution where agents can queue the n
 looping:
   enabled: true                    # Auto-enable loop mode for this pipeline
   maxIterations: 100               # Safety limit (default: 100)
+  instructions: .agent-pipeline/instructions/loop.md  # Loop instructions template
   directories:                     # Optional: custom directory paths (relative to repo)
     pending: next/pending          # Where agents drop new pipeline YAMLs
     running: next/running          # Currently executing pipeline
@@ -208,21 +216,25 @@ looping:
 **Agent Instructions:**
 Agents in the final stage group receive loop instructions automatically, directing them to create new pipeline YAML files in the pending directory when continuation is needed.
 
-### Stage Configuration
+## Stage Configuration
 
 Each entry in `agents:` maps to a stage executed by `StageExecutor`:
 
-- `dependsOn`: builds the DAG edges evaluated by `DAGPlanner`.
-- `retry`: per-stage retry policy using `RetryHandler` (`maxAttempts`, `backoff`, `initialDelay`, `maxDelay`).
-- `inputs`: adds ad-hoc key-value pairs to the agent prompt context.
-- `autoCommit` and `commitMessage`: override global commit behavior for the stage.
-- `timeout`: maximum execution time in seconds. Default is 900s (15 minutes) with non-blocking warnings at 5, 10, and 13 minutes. Customize for quick tasks (`timeout: 60`) or complex operations (`timeout: 600`).
+- `dependsOn`: Builds the DAG edges evaluated by `DAGPlanner`.
+- `retry`: Per-stage retry policy using `RetryHandler` (`maxAttempts`, `backoff`, `initialDelay`, `maxDelay`).
+- `inputs`: Adds ad-hoc key-value pairs to the agent prompt context.
+- `onFail`: Stage-level failure handling override (`stop`, `continue`, or `warn`).
+- `timeout`: Maximum execution time in seconds. Default is 900s (15 minutes) with non-blocking warnings at 5, 10, and 13 minutes. Customize for quick tasks (`timeout: 60`) or complex operations (`timeout: 600`).
+- `runtime`: Stage-level runtime override (see Runtime Configuration above).
+- `enabled`: Set to `false` to skip this stage.
+
+**Note:** Git settings (`autoCommit`, `commitPrefix`) are pipeline-level only. All stages in a pipeline share the same git configuration.
 
 ## Inter-Stage Communication
 
 Agent Pipeline uses filesystem-based handover for communication between stages:
 
-1. Each pipeline run creates a handover directory in the repo root (default: `.agent-pipeline/runs/<pipeline>-<runId>`), or at `settings.handover.directory` if set.
+1. Each pipeline run creates a handover directory in the repo root (default: `.agent-pipeline/runs/<pipeline>-<runId>`), or at `handover.directory` if set.
 2. Stages write their outputs to `stages/<stage-name>/output.md` within the handover directory.
 3. The `HANDOVER.md` file contains the current pipeline state and context for the next stage.
 4. The `LOG.md` file maintains an execution history.

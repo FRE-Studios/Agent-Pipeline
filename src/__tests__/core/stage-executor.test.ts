@@ -8,8 +8,6 @@ import {
   basicStageConfig,
   stageWithOutputs,
   stageWithRetry,
-  stageWithCustomCommit,
-  stageWithAutoCommitDisabled,
   stageWithInputs,
   stageWithLongTimeout,
 } from '../fixtures/stage-configs.js';
@@ -290,37 +288,8 @@ describe('StageExecutor', () => {
       );
     });
 
-    it('should execute stage with custom commit message', async () => {
-      mockGitManager = createMockGitManager({
-        hasChanges: true,
-        commitSha: 'custom-commit-456',
-      });
-      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
-
-      const result = await executor.executeStage(stageWithCustomCommit, runningPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(mockGitManager.createPipelineCommit).toHaveBeenCalledWith(
-        'custom-commit-stage',
-        'test-run-123',
-        'Custom commit message',
-        '[pipeline:{{stage}}]'
-      );
-    });
-
-    it('should not commit when auto-commit is disabled', async () => {
-      mockGitManager = createMockGitManager({ hasChanges: true });
-      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
-
-      const result = await executor.executeStage(
-        stageWithAutoCommitDisabled,
-        runningPipelineState
-      );
-
-      expect(result.status).toBe('success');
-      expect(result.commitSha).toBeUndefined();
-      expect(mockGitManager.createPipelineCommit).not.toHaveBeenCalled();
-    });
+    // NOTE: Stage-level autoCommit/commitMessage were removed in schema refactor.
+    // Git settings are now pipeline-level only via git.autoCommit.
 
     it('should respect pipeline-level auto-commit disabled setting', async () => {
       mockGitManager = createMockGitManager({ hasChanges: true });
@@ -330,8 +299,8 @@ describe('StageExecutor', () => {
         ...runningPipelineState,
         pipelineConfig: {
           ...runningPipelineState.pipelineConfig,
-          settings: {
-            ...runningPipelineState.pipelineConfig.settings!,
+          git: {
+            ...runningPipelineState.pipelineConfig.git,
             autoCommit: false,
           },
         },
@@ -342,43 +311,6 @@ describe('StageExecutor', () => {
       expect(result.status).toBe('success');
       expect(result.commitSha).toBeUndefined();
       expect(mockGitManager.createPipelineCommit).not.toHaveBeenCalled();
-    });
-
-    it('should allow stage override to enable auto-commit when pipeline disabled', async () => {
-      mockGitManager = createMockGitManager({
-        hasChanges: true,
-        commitSha: 'override-commit',
-        commitMessage: '[pipeline:override-stage] Override commit',
-      });
-      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
-
-      const noAutoCommitPipelineState: PipelineState = {
-        ...runningPipelineState,
-        pipelineConfig: {
-          ...runningPipelineState.pipelineConfig,
-          settings: {
-            ...runningPipelineState.pipelineConfig.settings!,
-            autoCommit: false,
-          },
-        },
-      };
-
-      const overrideStageConfig = {
-        ...basicStageConfig,
-        name: 'override-stage',
-        autoCommit: true,
-      };
-
-      const result = await executor.executeStage(overrideStageConfig, noAutoCommitPipelineState);
-
-      expect(result.status).toBe('success');
-      expect(result.commitSha).toBe('override-commit');
-      expect(mockGitManager.createPipelineCommit).toHaveBeenCalledWith(
-        'override-stage',
-        'test-run-123',
-        undefined,
-        '[pipeline:{{stage}}]'
-      );
     });
 
     it('should not commit when no changes are present', async () => {
@@ -1288,13 +1220,13 @@ describe('StageExecutor', () => {
       expect(executeCall[0].options.permissionMode).toBe('acceptEdits');
     });
 
-    it('should use configured permission mode from pipeline settings', async () => {
+    it('should use configured permission mode from execution config', async () => {
       const state = {
         ...runningPipelineState,
         pipelineConfig: {
           ...runningPipelineState.pipelineConfig,
-          settings: {
-            ...runningPipelineState.pipelineConfig.settings,
+          execution: {
+            ...runningPipelineState.pipelineConfig.execution,
             permissionMode: 'default' as const
           }
         }
@@ -1311,8 +1243,8 @@ describe('StageExecutor', () => {
         ...runningPipelineState,
         pipelineConfig: {
           ...runningPipelineState.pipelineConfig,
-          settings: {
-            ...runningPipelineState.pipelineConfig.settings,
+          execution: {
+            ...runningPipelineState.pipelineConfig.execution,
             permissionMode: 'plan' as const
           }
         }
@@ -1329,8 +1261,8 @@ describe('StageExecutor', () => {
         ...runningPipelineState,
         pipelineConfig: {
           ...runningPipelineState.pipelineConfig,
-          settings: {
-            ...runningPipelineState.pipelineConfig.settings,
+          execution: {
+            ...runningPipelineState.pipelineConfig.execution,
             permissionMode: 'bypassPermissions' as const
           }
         }

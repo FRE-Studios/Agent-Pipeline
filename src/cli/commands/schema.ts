@@ -158,11 +158,15 @@ function formatMinimalTemplate(): string {
 name: my-pipeline
 trigger: manual  # pre-commit | post-commit | pre-push | post-merge | manual
 
-settings:
+# Git settings (optional)
+git:
   autoCommit: true
   commitPrefix: "[pipeline:{{stage}}]"
+
+# Execution settings (optional)
+execution:
+  mode: parallel             # parallel | sequential
   failureStrategy: continue  # stop | continue
-  preserveWorkingTree: true
 
 agents:
   - name: analyze
@@ -177,32 +181,39 @@ agents:
     dependsOn:
       - analyze              # Runs after 'analyze' completes
 
-# Optional sections (add at root level):
+# Optional sections:
 
 # git:
 #   baseBranch: main           # Base branch for PRs
 #   branchStrategy: reusable   # reusable | unique-per-run | unique-and-delete
-#   createPR: true             # Auto-create GitHub PR on completion
+#   mergeStrategy: pull-request  # pull-request | local-merge | none
+#   worktree:
+#     directory: .agent-pipeline/worktrees
 
-# notifications:
-#   desktop: true              # Desktop notifications
-#   slack:
-#     webhookUrl: $SLACK_WEBHOOK_URL
-#     events: [started, completed, failed]
+# execution:
+#   permissionMode: acceptEdits  # default | acceptEdits | bypassPermissions | plan
+
+# handover:
+#   directory: .agent-pipeline/runs/my-pipeline
+#   instructions: .agent-pipeline/instructions/handover.md
 
 # runtime:
-#   model: opus                # haiku | sonnet | opus
-#   maxTurns: 50               # Max agent turns per stage
-#   maxThinkingTokens: 16000   # For extended thinking
+#   type: claude-code-headless   # claude-code-headless | claude-sdk
+#   options:
+#     model: sonnet              # haiku | sonnet | opus
+
+# notifications:
+#   enabled: true
+#   channels:
+#     local: { enabled: true }
+#     slack: { webhookUrl: $SLACK_WEBHOOK_URL }
 
 # Default settings (when not specified):
 #   runtime: claude-code-headless
 #   permissionMode: acceptEdits
 #   timeout: 900 (15 minutes)
-#   failureStrategy: stop
+#   failureStrategy: continue
 #   autoCommit: true
-#   branchStrategy: reusable
-#   baseBranch: main
 `;
 }
 
@@ -284,15 +295,14 @@ agents:
 name: feature-pipeline
 trigger: manual
 
-settings:
+git:
   autoCommit: true
   commitPrefix: "[bot]"
-
-git:
   baseBranch: main
   branchStrategy: unique-per-run
-  createPR: true
-  prTitle: "Feature: {{pipeline}}"
+  mergeStrategy: pull-request
+  pullRequest:
+    title: "Feature: {{pipelineName}}"
 
 agents:
   - name: implement
@@ -305,17 +315,16 @@ agents:
 ---
 # =============================================================================
 # Example 5: Loop Pipeline
-# Iterates until a condition is met (max 10 iterations)
+# Iterates until completion condition is met
 # =============================================================================
 
 name: iterative-refactor
 trigger: manual
 
-settings:
-  loop:
-    enabled: true
-    maxIterations: 10
-    continueCondition: "outputs.checker.needsMoreWork === true"
+looping:
+  enabled: true
+  maxIterations: 10
+  instructions: .agent-pipeline/instructions/loop.md
 
 agents:
   - name: refactor
@@ -324,8 +333,6 @@ agents:
   - name: checker
     agent: .agent-pipeline/agents/quality-checker.md
     dependsOn: [refactor]
-    outputs:
-      - needsMoreWork
 
 ---
 # =============================================================================
@@ -400,22 +407,19 @@ const fieldDocs: Record<string, string> = {
   Example:
     trigger: post-commit`,
 
-  settings: `settings (optional)
-  Pipeline behavior configuration.
+  execution: `execution (optional)
+  Runtime behavior configuration.
 
   Fields:
-    autoCommit         Auto-commit after each stage (default: true)
-    commitPrefix       Commit message prefix (default: "[pipeline:{{stage}}]")
-    failureStrategy    What to do on failure: stop | continue (default: stop)
-    preserveWorkingTree Keep working tree clean during run (default: true)
-    permissionMode     Agent permissions: acceptEdits | plan | bypassPermissions
-    loop               Loop configuration (see 'agent-pipeline schema --field loop')
+    mode               Execution mode: parallel | sequential (default: parallel)
+    failureStrategy    What to do on failure: stop | continue (default: continue)
+    permissionMode     Agent permissions: default | acceptEdits | bypassPermissions | plan
 
   Example:
-    settings:
-      autoCommit: true
-      commitPrefix: "[bot]"
-      failureStrategy: continue`,
+    execution:
+      mode: parallel
+      failureStrategy: continue
+      permissionMode: acceptEdits`,
 
   agents: `agents (required)
   List of agent stages to execute.
@@ -492,24 +496,22 @@ const fieldDocs: Record<string, string> = {
       maxTurns: 100
       maxThinkingTokens: 16000`,
 
-  loop: `settings.loop (optional)
-  Pipeline looping configuration.
+  looping: `looping (optional)
+  Pipeline looping configuration for continuous execution.
 
   Fields:
     enabled             Enable looping (default: false)
     maxIterations       Maximum loop iterations (default: 100)
-    continueCondition   JavaScript expression to continue looping
+    instructions        Path to loop instructions template
+    directories         Custom directory paths for pending/running/finished/failed
 
-  The continueCondition has access to:
-    - outputs: object with stage outputs (outputs.stageName.fieldName)
-    - iteration: current iteration number (0-indexed)
+  Agents in the final stage group receive loop instructions automatically.
 
   Example:
-    settings:
-      loop:
-        enabled: true
-        maxIterations: 10
-        continueCondition: "outputs.checker.needsMoreWork === true"`,
+    looping:
+      enabled: true
+      maxIterations: 10
+      instructions: .agent-pipeline/instructions/loop.md`,
 
   condition: `agents[].condition (optional)
   JavaScript expression to conditionally execute a stage.

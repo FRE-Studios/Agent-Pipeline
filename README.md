@@ -101,9 +101,11 @@ agent-pipeline clone front-end-parallel-example my-custom-pipeline
 name: my-pipeline
 trigger: manual
 
-settings:
+git:
   autoCommit: true
   commitPrefix: "[pipeline:{{stage}}]"
+
+execution:
   failureStrategy: continue
 
 agents:

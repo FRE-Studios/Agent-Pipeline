@@ -47,7 +47,7 @@ describe('PipelineLoader', () => {
 
       expect(config.name).toBe(parallelPipelineConfig.name);
       expect(config.agents).toHaveLength(4);
-      expect(config.settings?.executionMode).toBe('parallel');
+      expect(config.execution?.mode).toBe('parallel');
       expect(metadata.sourceType).toBe('library');
     });
 

@@ -111,7 +111,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...parallelPipelineConfig,
-          settings: { ...parallelPipelineConfig.settings, executionMode: 'parallel' },
+          execution: { ...parallelPipelineConfig.execution, mode: 'parallel' },
         };
 
         const result = await orchestrator.processGroup(
@@ -155,7 +155,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: { ...simplePipelineConfig.settings, executionMode: 'parallel' },
+          execution: { ...simplePipelineConfig.execution, mode: 'parallel' },
         };
 
         vi.mocked(mockParallelExecutor.executeSequentialGroup).mockResolvedValue(
@@ -184,7 +184,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: { ...simplePipelineConfig.settings, executionMode: 'sequential' },
+          execution: { ...simplePipelineConfig.execution, mode: 'sequential' },
         };
 
         vi.mocked(mockParallelExecutor.executeSequentialGroup).mockResolvedValue(
@@ -212,7 +212,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: { autoCommit: true }, // No executionMode specified
+          git: { autoCommit: true }, // No execution.mode specified
         };
 
         await orchestrator.processGroup(
@@ -357,7 +357,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...parallelPipelineConfig,
-          settings: { ...parallelPipelineConfig.settings, executionMode: 'parallel' },
+          execution: { ...parallelPipelineConfig.execution, mode: 'parallel' },
         };
 
         await orchestrator.processGroup(
@@ -404,7 +404,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...parallelPipelineConfig,
-          settings: { ...parallelPipelineConfig.settings, executionMode: 'parallel' },
+          execution: { ...parallelPipelineConfig.execution, mode: 'parallel' },
         };
 
         vi.mocked(mockHandoverManager.mergeParallelOutputs).mockRejectedValue(
@@ -488,7 +488,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: { ...simplePipelineConfig.settings, failureStrategy: 'stop' },
+          execution: { ...simplePipelineConfig.execution, failureStrategy: 'stop' },
         };
 
         vi.mocked(mockParallelExecutor.executeSequentialGroup).mockResolvedValue(
@@ -517,7 +517,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: { ...simplePipelineConfig.settings, failureStrategy: 'continue' },
+          execution: { ...simplePipelineConfig.execution, failureStrategy: 'continue' },
         };
 
         vi.mocked(mockParallelExecutor.executeSequentialGroup).mockResolvedValue(
@@ -547,7 +547,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: { ...simplePipelineConfig.settings, failureStrategy: 'warn' },
+          execution: { ...simplePipelineConfig.execution, failureStrategy: 'warn' },
         };
 
         vi.mocked(mockParallelExecutor.executeSequentialGroup).mockResolvedValue(
@@ -577,7 +577,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: { ...simplePipelineConfig.settings, failureStrategy: 'stop' },
+          execution: { ...simplePipelineConfig.execution, failureStrategy: 'stop' },
         };
 
         vi.mocked(mockParallelExecutor.executeSequentialGroup).mockResolvedValue(
@@ -629,7 +629,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState({ status: 'partial' });
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: { ...simplePipelineConfig.settings, failureStrategy: 'continue' },
+          execution: { ...simplePipelineConfig.execution, failureStrategy: 'continue' },
         };
 
         vi.mocked(mockParallelExecutor.executeSequentialGroup).mockResolvedValue(
@@ -656,7 +656,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...parallelPipelineConfig,
-          settings: { ...parallelPipelineConfig.settings, executionMode: 'parallel' },
+          execution: { ...parallelPipelineConfig.execution, mode: 'parallel' },
         };
 
         vi.mocked(mockParallelExecutor.executeParallelGroup).mockResolvedValue({
@@ -692,7 +692,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...parallelPipelineConfig,
-          settings: { ...parallelPipelineConfig.settings, executionMode: 'parallel' },
+          execution: { ...parallelPipelineConfig.execution, mode: 'parallel' },
         };
 
         await orchestrator.processGroup(
@@ -723,7 +723,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...parallelPipelineConfig,
-          settings: { ...parallelPipelineConfig.settings, executionMode: 'parallel' },
+          execution: { ...parallelPipelineConfig.execution, mode: 'parallel' },
         };
 
         await orchestrator.processGroup(
@@ -775,7 +775,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...parallelPipelineConfig,
-          settings: { ...parallelPipelineConfig.settings, executionMode: 'parallel' },
+          execution: { ...parallelPipelineConfig.execution, mode: 'parallel' },
         };
 
         await orchestrator.processGroup(
@@ -1011,7 +1011,7 @@ describe('GroupExecutionOrchestrator', () => {
         const state = createMockState();
         const config: PipelineConfig = {
           ...parallelPipelineConfig,
-          settings: { ...parallelPipelineConfig.settings, executionMode: 'parallel' },
+          execution: { ...parallelPipelineConfig.execution, mode: 'parallel' },
         };
 
         vi.mocked(mockParallelExecutor.executeParallelGroup).mockResolvedValue(
