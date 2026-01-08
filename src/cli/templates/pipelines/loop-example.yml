@@ -2,10 +2,6 @@
 # Demonstrates pipeline-level looping configuration
 # Docs: https://github.com/FRE-Studios/agent-pipeline
 #
-# This pipeline auto-loops when run because looping.enabled: true
-# No --loop CLI flag needed! The final stage agent receives instructions
-# to create new pipeline files in the pending directory when needed.
-#
 # Loop directories are automatically created per session at:
 #   .agent-pipeline/loops/{sessionId}/pending|running|finished|failed
 #

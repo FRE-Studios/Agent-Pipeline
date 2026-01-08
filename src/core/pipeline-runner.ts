@@ -236,6 +236,18 @@ export class PipelineRunner {
 
       // Build iteration history entry for UI display
       if (loopEnabled && lastState) {
+        // Calculate token usage totals
+        let totalInput = 0;
+        let totalOutput = 0;
+        let totalCacheRead = 0;
+        for (const stage of lastState.stages) {
+          if (stage.tokenUsage) {
+            totalInput += stage.tokenUsage.actual_input || 0;
+            totalOutput += stage.tokenUsage.output || 0;
+            totalCacheRead += stage.tokenUsage.cache_read || 0;
+          }
+        }
+
         const historyEntry: IterationHistoryEntry = {
           iterationNumber: iterationCount,
           pipelineName: currentMetadata?.sourcePath
@@ -244,7 +256,11 @@ export class PipelineRunner {
           status: lastState.status === 'completed' ? 'completed'
             : lastState.status === 'aborted' ? 'aborted' : 'failed',
           duration: lastState.artifacts.totalDuration,
-          commitCount: lastState.stages.filter(s => s.commitSha).length
+          commitCount: lastState.stages.filter(s => s.commitSha).length,
+          stageCount: lastState.stages.length,
+          successfulStages: lastState.stages.filter(s => s.status === 'success').length,
+          failedStages: lastState.stages.filter(s => s.status === 'failed').length,
+          tokenUsage: totalInput > 0 ? { totalInput, totalOutput, totalCacheRead } : undefined
         };
         loopIterationHistory.push(historyEntry);
         lastState.loopIterationHistory = [...loopIterationHistory];
@@ -377,6 +393,7 @@ export class PipelineRunner {
     // Store termination reason in loopContext instead of mutating state.status
     if (lastState.loopContext) {
       lastState.loopContext.terminationReason = loopTerminationReason;
+      this.notifyStateChange(lastState);
     }
 
     // Copy loop directory from worktree to main repo if in worktree mode
@@ -406,12 +423,21 @@ export class PipelineRunner {
       await this.loopStateManager.completeSession(loopSession.sessionId, sessionStatus);
     }
 
-    // Send completion notification only on natural loop end (pending folder empty)
-    if (loopEnabled && loopTerminationReason === 'natural') {
+    // Send loop completion notification for all termination reasons
+    if (loopEnabled) {
+      const event = lastState.status === 'aborted'
+        ? 'pipeline.aborted'
+        : loopTerminationReason === 'natural'
+          ? 'pipeline.completed'
+          : 'pipeline.failed';
       await this.notify({
-        event: 'pipeline.completed',
+        event,
         pipelineState: lastState,
-        metadata: { loopCompleted: true, totalIterations: iterationCount }
+        metadata: {
+          loopCompleted: loopTerminationReason === 'natural',
+          terminationReason: loopTerminationReason,
+          totalIterations: iterationCount
+        }
       });
     }
 

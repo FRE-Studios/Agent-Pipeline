@@ -7,10 +7,12 @@ import { SummaryLine } from './summary-line.js';
 
 interface LoopSessionSummaryProps {
   iterations: IterationHistoryEntry[];
+  terminationReason?: 'natural' | 'limit-reached' | 'failure';
 }
 
 export const LoopSessionSummary: React.FC<LoopSessionSummaryProps> = ({
-  iterations
+  iterations,
+  terminationReason
 }) => {
   if (iterations.length === 0) {
     return null;
@@ -25,17 +27,27 @@ export const LoopSessionSummary: React.FC<LoopSessionSummaryProps> = ({
     ? ((successCount / iterations.length) * 100).toFixed(0)
     : '0';
 
+  const isSuccess = terminationReason === 'natural' || !terminationReason;
+  const resultLabel = isSuccess
+    ? 'Completed'
+    : terminationReason === 'limit-reached'
+      ? 'Failed (limit reached)'
+      : 'Failed';
+
   return (
     <Box
       flexDirection="column"
       marginBottom={1}
       borderStyle="round"
-      borderColor="magenta"
+      borderColor={isSuccess ? 'magenta' : 'red'}
       paddingX={1}
     >
-      <Text bold color="magenta">Loop Session Complete</Text>
+      <Text bold color={isSuccess ? 'magenta' : 'red'}>
+        {isSuccess ? 'Loop Session Complete' : 'Loop Session Failed'}
+      </Text>
       <Newline />
 
+      <SummaryLine label="Result" value={resultLabel} color={isSuccess ? 'green' : 'red'} />
       <SummaryLine label="Total Iterations" value={`${iterations.length}`} />
       <SummaryLine
         label="Success Rate"

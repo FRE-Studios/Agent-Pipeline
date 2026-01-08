@@ -8,6 +8,17 @@ interface LoopIterationHistoryProps {
   iterations: IterationHistoryEntry[];
 }
 
+// Format token count with K/M suffix
+const formatTokens = (count: number): string => {
+  if (count >= 1_000_000) {
+    return `${(count / 1_000_000).toFixed(1)}M`;
+  }
+  if (count >= 1_000) {
+    return `${(count / 1_000).toFixed(1)}K`;
+  }
+  return String(count);
+};
+
 export const LoopIterationHistory: React.FC<LoopIterationHistoryProps> = ({
   iterations
 }) => {
@@ -48,28 +59,65 @@ export const LoopIterationHistory: React.FC<LoopIterationHistoryProps> = ({
         <Text dimColor> | [h] {expanded ? 'collapse' : 'expand'}</Text>
       </Box>
 
-      {/* Expanded view - show all iterations */}
+      {/* Expanded view - detailed summary per iteration */}
       {expanded && (
         <Box flexDirection="column" marginLeft={2} marginTop={1}>
-          {iterations.map((iter) => (
-            <Box key={iter.iterationNumber}>
-              {getStatusIcon(iter.status)}
-              <Text> #{iter.iterationNumber} </Text>
-              <Text bold>{iter.pipelineName}</Text>
-              <Text dimColor> ({iter.duration.toFixed(1)}s, {iter.commitCount} commits)</Text>
+          {iterations.map((iter, idx) => (
+            <Box key={iter.iterationNumber} flexDirection="column" marginBottom={idx < iterations.length - 1 ? 1 : 0}>
+              {/* Iteration header */}
+              <Box>
+                {getStatusIcon(iter.status)}
+                <Text> #{iter.iterationNumber} </Text>
+                <Text bold>{iter.pipelineName}</Text>
+                <Text dimColor> ({iter.duration.toFixed(1)}s)</Text>
+              </Box>
+
+              {/* Iteration details */}
+              <Box marginLeft={3} flexDirection="column">
+                <Box>
+                  <Text dimColor>├─ Stages: </Text>
+                  <Text color="green">{iter.successfulStages}</Text>
+                  <Text dimColor>/{iter.stageCount}</Text>
+                  {iter.failedStages > 0 && (
+                    <Text color="red"> ({iter.failedStages} failed)</Text>
+                  )}
+                </Box>
+
+                <Box>
+                  <Text dimColor>{iter.tokenUsage ? '├' : '└'}─ Commits: </Text>
+                  <Text>{iter.commitCount}</Text>
+                </Box>
+
+                {iter.tokenUsage && (
+                  <Box>
+                    <Text dimColor>└─ Tokens: </Text>
+                    <Text color="cyan">{formatTokens(iter.tokenUsage.totalInput)} in</Text>
+                    <Text dimColor> / </Text>
+                    <Text color="yellow">{formatTokens(iter.tokenUsage.totalOutput)} out</Text>
+                    {iter.tokenUsage.totalCacheRead > 0 && (
+                      <>
+                        <Text dimColor> / </Text>
+                        <Text color="green">{formatTokens(iter.tokenUsage.totalCacheRead)} cached</Text>
+                      </>
+                    )}
+                  </Box>
+                )}
+              </Box>
             </Box>
           ))}
         </Box>
       )}
 
-      {/* Collapsed view - show last 3 iterations inline */}
+      {/* Collapsed view - name and duration inline */}
       {!expanded && (
-        <Box marginLeft={2}>
+        <Box marginLeft={2} flexWrap="wrap">
           {iterations.slice(-3).map((iter, idx) => (
             <React.Fragment key={iter.iterationNumber}>
               {idx > 0 && <Text dimColor> | </Text>}
               {getStatusIcon(iter.status)}
-              <Text dimColor> #{iter.iterationNumber}</Text>
+              <Text> #{iter.iterationNumber} </Text>
+              <Text>{iter.pipelineName}</Text>
+              <Text dimColor> ({iter.duration.toFixed(1)}s)</Text>
             </React.Fragment>
           ))}
           {iterations.length > 3 && (

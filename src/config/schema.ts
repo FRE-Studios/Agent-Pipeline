@@ -88,6 +88,14 @@ export interface IterationHistoryEntry {
   status: 'completed' | 'failed' | 'aborted';
   duration: number;
   commitCount: number;
+  stageCount: number;
+  successfulStages: number;
+  failedStages: number;
+  tokenUsage?: {
+    totalInput: number;
+    totalOutput: number;
+    totalCacheRead: number;
+  };
 }
 
 /**
