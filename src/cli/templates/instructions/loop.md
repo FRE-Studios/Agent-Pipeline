@@ -2,6 +2,14 @@
 
 This pipeline is running in LOOP MODE. You are in the FINAL stage group.
 
+**To get current pipeline context:**
+Run: `agent-pipeline loop-context`
+
+This command shows:
+- The current pipeline YAML (for reference/copying)
+- Recommendations for creating the next pipeline
+- The pending directory path
+
 **When to Create a Next Pipeline:**
 Create a pipeline in the pending directory ONLY when:
 1. You discovered unexpected new work outside your current scope
@@ -17,6 +25,11 @@ Create a pipeline in the pending directory ONLY when:
 **To queue the next pipeline:**
 - Write a valid pipeline YAML to: `{{pendingDir}}`
 - Automatically picked up after this pipeline completes
-- Reference: `.agent-pipeline/pipelines/{{pipelineName}}.yml`
+- Run `agent-pipeline loop-context` to see the current pipeline structure
+
+**Recommendations for next pipeline:**
+1. Keep structure identical unless another structure or file is given
+2. Looping config is saved from first pipeline - leave unchanged
+3. Only update customizations as needed (leave unchanged if no directions)
 
 **Loop status:** Iteration {{currentIteration}}/{{maxIterations}}

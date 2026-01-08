@@ -335,6 +335,18 @@ const commandRegistry: Record<string, CommandHelp> = {
     ],
     seeAlso: ['validate', 'run'],
   },
+
+  'loop-context': {
+    name: 'loop-context',
+    summary: 'Show context for loop agents',
+    description: 'Display current pipeline YAML and guidance for creating the next pipeline in loop mode. Use this command within loop mode agents to understand the current state and create properly structured next pipelines.',
+    usage: ['agent-pipeline loop-context'],
+    options: [],
+    examples: [
+      { command: 'agent-pipeline loop-context', description: 'Show current pipeline and guidance' },
+    ],
+    seeAlso: ['run', 'analytics'],
+  },
 };
 
 // ============================================================================
@@ -435,6 +447,7 @@ ${c.header('Commands:')}
 
   ${c.cmd('hooks')}              ${c.dim('Manage git hooks')}
   ${c.cmd('schema')}             ${c.dim('Show config template')}
+  ${c.cmd('loop-context')}       ${c.dim('Show context for loop agents')}
   ${c.cmd('cleanup')}            ${c.dim('Remove pipeline branches')}
   ${c.cmd('rollback')}           ${c.dim('Undo pipeline commits')}
   ${c.cmd('test')}               ${c.dim('Test pipeline config')}

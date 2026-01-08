@@ -434,6 +434,12 @@ Examples:
         break;
       }
 
+      case 'loop-context': {
+        const { loopContextCommand } = await import('./cli/commands/loop-context.js');
+        await loopContextCommand(repoPath);
+        break;
+      }
+
       default: {
         showHelp();
       }
