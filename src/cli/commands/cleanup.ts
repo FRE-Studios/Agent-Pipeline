@@ -35,11 +35,10 @@ export async function cleanupCommand(
       );
       const content = fsSync.readFileSync(pipelinePath, 'utf-8');
       const config = YAML.parse(content) as {
-        git?: { branchPrefix?: string };
-        settings?: { worktree?: { directory?: string } };
+        git?: { branchPrefix?: string; worktree?: { directory?: string } };
       };
       branchPrefix = config?.git?.branchPrefix || branchPrefix;
-      worktreeBaseDir = config?.settings?.worktree?.directory;
+      worktreeBaseDir = config?.git?.worktree?.directory;
     } catch {
       // Fall back to defaults when pipeline config is missing or incomplete.
     }

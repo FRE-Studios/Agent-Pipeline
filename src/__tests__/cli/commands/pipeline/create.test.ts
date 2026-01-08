@@ -353,12 +353,13 @@ describe('createPipelineCommand', () => {
         expect.objectContaining({
           name: 'full-pipeline',
           trigger: 'post-commit',
-          settings: expect.objectContaining({
+          git: expect.objectContaining({
             autoCommit: false,
             commitPrefix: '[pipeline:{{stage}}]',
-            failureStrategy: 'continue',
-            preserveWorkingTree: false,
-            executionMode: 'sequential',
+          }),
+          execution: expect.objectContaining({
+            failureStrategy: 'stop',
+            mode: 'sequential',
           }),
           agents: expect.arrayContaining([
             expect.objectContaining({ name: 'agent1', agent: '.agent-pipeline/agents/agent1.md', timeout: 300 }),
@@ -512,7 +513,7 @@ describe('createPipelineCommand', () => {
   });
 
   describe('Different Trigger Types', () => {
-    it('should set preserveWorkingTree true for pre-commit trigger', async () => {
+    it('should create config with pre-commit trigger', async () => {
       setupSuccessMocks();
       vi.mocked(InteractivePrompts.ask).mockResolvedValue('test-pipeline');
       vi.mocked(InteractivePrompts.choose).mockResolvedValueOnce('pre-commit').mockResolvedValueOnce('parallel');
@@ -523,15 +524,16 @@ describe('createPipelineCommand', () => {
 
       expect(PipelineValidator.validateAndReport).toHaveBeenCalledWith(
         expect.objectContaining({
-          settings: expect.objectContaining({
-            preserveWorkingTree: true,
+          trigger: 'pre-commit',
+          git: expect.objectContaining({
+            autoCommit: false,
           }),
         }),
         tempDir
       );
     });
 
-    it('should set preserveWorkingTree true for pre-push trigger', async () => {
+    it('should create config with pre-push trigger', async () => {
       setupSuccessMocks();
       vi.mocked(InteractivePrompts.ask).mockResolvedValue('test-pipeline');
       vi.mocked(InteractivePrompts.choose).mockResolvedValueOnce('pre-push').mockResolvedValueOnce('parallel');
@@ -542,15 +544,16 @@ describe('createPipelineCommand', () => {
 
       expect(PipelineValidator.validateAndReport).toHaveBeenCalledWith(
         expect.objectContaining({
-          settings: expect.objectContaining({
-            preserveWorkingTree: true,
+          trigger: 'pre-push',
+          git: expect.objectContaining({
+            autoCommit: false,
           }),
         }),
         tempDir
       );
     });
 
-    it('should set preserveWorkingTree false for post-merge trigger', async () => {
+    it('should create config with post-merge trigger and auto-commit enabled', async () => {
       setupSuccessMocks();
       vi.mocked(InteractivePrompts.ask).mockResolvedValue('test-pipeline');
       vi.mocked(InteractivePrompts.choose).mockResolvedValueOnce('post-merge').mockResolvedValueOnce('parallel');
@@ -561,8 +564,9 @@ describe('createPipelineCommand', () => {
 
       expect(PipelineValidator.validateAndReport).toHaveBeenCalledWith(
         expect.objectContaining({
-          settings: expect.objectContaining({
-            preserveWorkingTree: false,
+          trigger: 'post-merge',
+          git: expect.objectContaining({
+            autoCommit: true,
           }),
         }),
         tempDir

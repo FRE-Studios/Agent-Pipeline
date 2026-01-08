@@ -158,12 +158,13 @@ export async function createPipelineCommand(repoPath: string): Promise<void> {
   const config: any = {
     name,
     trigger,
-    settings: {
+    git: {
       autoCommit,
       commitPrefix: `[pipeline:{{stage}}]`,
-      failureStrategy: 'continue',
-      preserveWorkingTree: trigger === 'pre-commit' || trigger === 'pre-push',
-      executionMode
+    },
+    execution: {
+      mode: executionMode,
+      failureStrategy: 'stop',
     },
     agents: selectedAgents.map(agent => {
       const agentName = agent.replace('.md', '');

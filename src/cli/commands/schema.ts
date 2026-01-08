@@ -212,7 +212,7 @@ agents:
 #   runtime: claude-code-headless
 #   permissionMode: acceptEdits
 #   timeout: 900 (15 minutes)
-#   failureStrategy: continue
+#   failureStrategy: stop
 #   autoCommit: true
 `;
 }
@@ -412,7 +412,7 @@ const fieldDocs: Record<string, string> = {
 
   Fields:
     mode               Execution mode: parallel | sequential (default: parallel)
-    failureStrategy    What to do on failure: stop | continue (default: continue)
+    failureStrategy    What to do on failure: stop | continue (default: stop)
     permissionMode     Agent permissions: default | acceptEdits | bypassPermissions | plan
 
   Example:
