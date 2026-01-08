@@ -133,8 +133,8 @@ describe('initCommand', () => {
 
         expect(parsed.name).toBe('front-end-parallel-example');
         expect(parsed.trigger).toBe('manual');
-        expect(parsed.settings.executionMode).toBe('parallel');
-        expect(parsed.settings.autoCommit).toBe(false);
+        expect(parsed.execution.mode).toBe('parallel');
+        expect(parsed.git.autoCommit).toBe(false);
         expect(parsed.agents).toHaveLength(5); // Default: product-owner, 3 design agents, showcase
       });
 
@@ -189,8 +189,8 @@ describe('initCommand', () => {
 
         expect(parsed.name).toBe('post-commit-example');
         expect(parsed.trigger).toBe('post-commit');
-        expect(parsed.settings.executionMode).toBe('sequential');
-        expect(parsed.settings.failureStrategy).toBe('continue');
+        expect(parsed.execution.mode).toBe('sequential');
+        expect(parsed.execution.failureStrategy).toBe('continue');
         expect(parsed.agents).toHaveLength(1); // Default: doc-updater only
       });
 
@@ -530,7 +530,7 @@ describe('initCommand', () => {
       expect(parsed.trigger).toBeDefined();
       expect(parsed.agents).toBeDefined();
       expect(Array.isArray(parsed.agents)).toBe(true);
-      expect(parsed.settings).toBeDefined();
+      expect(parsed.execution).toBeDefined();
     });
 
     it('should be idempotent (safe to run multiple times)', async () => {

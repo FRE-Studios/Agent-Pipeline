@@ -724,9 +724,11 @@ describe('RuntimeValidator', () => {
         runtime: {
           type: 'claude-sdk',
         },
-        settings: {
+        git: {
           autoCommit: true,
           commitPrefix: '[pipeline:{{stage}}]',
+        },
+        execution: {
           failureStrategy: 'stop',
           permissionMode: 'bypassPermissions',
         },
@@ -742,7 +744,7 @@ describe('RuntimeValidator', () => {
       )).toBe(true);
     });
 
-    it('should prefer runtime option permission mode over pipeline settings', async () => {
+    it('should prefer runtime option permission mode over pipeline execution settings', async () => {
       const mockRuntime = createMockRuntime({
         capabilities: {
           permissionModes: ['default', 'bypassPermissions'],
@@ -759,9 +761,11 @@ describe('RuntimeValidator', () => {
             permissionMode: 'acceptEdits', // This should be validated, not the pipeline setting
           },
         },
-        settings: {
+        git: {
           autoCommit: true,
           commitPrefix: '[pipeline:{{stage}}]',
+        },
+        execution: {
           failureStrategy: 'stop',
           permissionMode: 'default', // This should be ignored since runtime has its own
         },
@@ -777,7 +781,7 @@ describe('RuntimeValidator', () => {
       )).toBe(true);
     });
 
-    it('should pass when pipeline settings permission mode is supported', async () => {
+    it('should pass when pipeline execution permission mode is supported', async () => {
       const mockRuntime = createMockRuntime({
         capabilities: {
           permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
@@ -791,9 +795,11 @@ describe('RuntimeValidator', () => {
         runtime: {
           type: 'claude-sdk',
         },
-        settings: {
+        git: {
           autoCommit: true,
           commitPrefix: '[pipeline:{{stage}}]',
+        },
+        execution: {
           failureStrategy: 'stop',
           permissionMode: 'acceptEdits',
         },
@@ -817,9 +823,11 @@ describe('RuntimeValidator', () => {
 
       const config: PipelineConfig = {
         ...baseConfig,
-        settings: {
+        git: {
           autoCommit: true,
           commitPrefix: '[pipeline:{{stage}}]',
+        },
+        execution: {
           failureStrategy: 'stop',
           permissionMode: 'acceptEdits', // Pipeline-level setting
         },

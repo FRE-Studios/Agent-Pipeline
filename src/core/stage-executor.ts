@@ -237,7 +237,7 @@ export class StageExecutor {
         userPrompt,
         systemPrompt,
         stageConfig.timeout,
-        pipelineState.pipelineConfig.settings?.permissionMode || 'acceptEdits',
+        pipelineState.pipelineConfig.execution?.permissionMode || 'acceptEdits',
         claudeAgentOptions,
         onOutputUpdate
       );
@@ -265,15 +265,14 @@ export class StageExecutor {
 
       // Auto-commit if enabled (use worktree git manager if executing in worktree)
       const execGitManager = this.getExecutionGitManager();
-      const globalAutoCommit = pipelineState.pipelineConfig.settings?.autoCommit;
-      const stageAutoCommit = stageConfig.autoCommit ?? globalAutoCommit ?? true;
-      const shouldCommit = stageAutoCommit && !this.dryRun;
+      const autoCommit = pipelineState.pipelineConfig.git?.autoCommit ?? true;
+      const shouldCommit = autoCommit && !this.dryRun;
       if (shouldCommit) {
-        const commitPrefix = pipelineState.pipelineConfig.settings?.commitPrefix;
+        const commitPrefix = pipelineState.pipelineConfig.git?.commitPrefix;
         const commitSha = await execGitManager.createPipelineCommit(
           stageConfig.name,
           pipelineState.runId,
-          stageConfig.commitMessage,
+          undefined, // commitMessage - no longer supported at stage level
           commitPrefix
         );
 
@@ -368,19 +367,22 @@ export class StageExecutor {
     // Get previous successful stages
     const previousStages = await this.handoverManager.getPreviousStages();
 
-    // Get instructions config from pipeline settings
-    const instructionsConfig = pipelineState.pipelineConfig.settings?.instructions;
+    // Get handover instructions path from handover config
+    const handoverInstructions = pipelineState.pipelineConfig.handover?.instructions;
 
     // Build handover context message from file (async)
     const handoverContext = await this.handoverManager.buildContextMessageAsync(
       stageConfig.name,
       previousStages,
-      instructionsConfig?.handover
+      handoverInstructions
     );
+
+    // Get loop instructions path from looping config
+    const loopInstructions = pipelineState.pipelineConfig.looping?.instructions;
 
     // Build loop context section from file (async, if enabled)
     const loopContextSection = await this.buildLoopContextSectionAsync(
-      instructionsConfig?.loop,
+      loopInstructions,
       pipelineState.pipelineConfig.name
     );
 

@@ -9,7 +9,7 @@ import { GitValidator } from './git-validator.js';
 import { StructureValidator } from './structure-validator.js';
 import { RuntimeValidator } from './runtime-validator.js';
 import { AgentValidator } from './agent-validator.js';
-import { SettingsValidator } from './settings-validator.js';
+import { ExecutionValidator } from './execution-validator.js';
 import { NotificationValidator } from './notification-validator.js';
 import { RetryValidator } from './retry-validator.js';
 import { DAGValidator } from './dag-validator.js';
@@ -29,7 +29,7 @@ export class ValidationOrchestrator {
     this.register(new StructureValidator());
     this.register(new RuntimeValidator());
     this.register(new AgentValidator());
-    this.register(new SettingsValidator());
+    this.register(new ExecutionValidator());
     // P1: Conditional validators
     this.register(new NotificationValidator());
     // P2: Configurable validators

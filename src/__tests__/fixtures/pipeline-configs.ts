@@ -6,9 +6,11 @@ export const simplePipelineConfig: PipelineConfig = {
   runtime: {
     type: 'claude-sdk',
   },
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
+  },
+  execution: {
     failureStrategy: 'stop',
   },
   agents: [
@@ -31,10 +33,12 @@ export const parallelPipelineConfig: PipelineConfig = {
   runtime: {
     type: 'claude-sdk',
   },
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
-    executionMode: 'parallel',
+  },
+  execution: {
+    mode: 'parallel',
     failureStrategy: 'stop',
   },
   agents: [
@@ -64,10 +68,12 @@ export const conditionalPipelineConfig: PipelineConfig = {
   runtime: {
     type: 'claude-sdk',
   },
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
-    executionMode: 'parallel',
+  },
+  execution: {
+    mode: 'parallel',
     failureStrategy: 'stop',
   },
   agents: [
@@ -94,9 +100,11 @@ export const retryPipelineConfig: PipelineConfig = {
   runtime: {
     type: 'claude-sdk',
   },
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
+  },
+  execution: {
     failureStrategy: 'stop',
   },
   agents: [
@@ -183,13 +191,9 @@ export const gitWorkflowConfig: PipelineConfig = {
   runtime: {
     type: 'claude-sdk',
   },
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
-    executionMode: 'parallel',
-    failureStrategy: 'stop',
-  },
-  git: {
     baseBranch: 'main',
     branchStrategy: 'reusable',
     branchPrefix: 'pipeline',
@@ -201,6 +205,10 @@ export const gitWorkflowConfig: PipelineConfig = {
       labels: ['automated', 'code-review'],
       draft: false,
     },
+  },
+  execution: {
+    mode: 'parallel',
+    failureStrategy: 'stop',
   },
   agents: [
     {
@@ -221,9 +229,11 @@ export const notificationConfig: PipelineConfig = {
   runtime: {
     type: 'claude-sdk',
   },
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
+  },
+  execution: {
     failureStrategy: 'stop',
   },
   notifications: {
@@ -259,9 +269,11 @@ export const sdkOnlyPipelineConfig: PipelineConfig = {
   runtime: {
     type: 'claude-sdk',
   },
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
+  },
+  execution: {
     failureStrategy: 'stop',
   },
   agents: [
@@ -291,9 +303,11 @@ export const headlessOnlyPipelineConfig: PipelineConfig = {
   runtime: {
     type: 'claude-code-headless',
   },
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
+  },
+  execution: {
     failureStrategy: 'stop',
   },
   agents: [
@@ -323,9 +337,11 @@ export const mixedRuntimePipelineConfig: PipelineConfig = {
   runtime: {
     type: 'claude-code-headless', // Global default
   },
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
+  },
+  execution: {
     failureStrategy: 'stop',
   },
   agents: [
@@ -361,10 +377,12 @@ export const mixedRuntimePipelineConfig: PipelineConfig = {
 export const parallelMixedPipelineConfig: PipelineConfig = {
   name: 'parallel-mixed-test',
   trigger: 'manual',
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
-    executionMode: 'parallel',
+  },
+  execution: {
+    mode: 'parallel',
     failureStrategy: 'stop',
   },
   agents: [

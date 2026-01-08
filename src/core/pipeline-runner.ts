@@ -323,7 +323,7 @@ export class PipelineRunner {
           await this.recordIteration(loopSession.sessionId, lastState, currentMetadata, false);
         }
 
-        const failureStrategy = currentConfig.settings?.failureStrategy ?? 'stop';
+        const failureStrategy = currentConfig.execution?.failureStrategy ?? 'stop';
         if (failureStrategy === 'stop') {
           loopTerminationReason = 'failure';
           const pipelineName = currentMetadata?.sourcePath

@@ -70,7 +70,7 @@ export class GroupExecutionOrchestrator {
     // Execute group (parallel or sequential)
     // Note: ParallelExecutor now manages stage entries directly in state
     // (adds as 'running' at start, updates when complete)
-    const executionMode = config.settings?.executionMode || 'parallel';
+    const executionMode = config.execution?.mode || 'parallel';
     const shouldRunParallel = executionMode === 'parallel' && stagesToRun.length > 1;
     const groupResult = await this.executeGroup(
       stagesToRun,
@@ -241,7 +241,7 @@ export class GroupExecutionOrchestrator {
         (s) => s.name === failedStage.stageName
       );
       const failureStrategy =
-        stageConfig?.onFail || config.settings?.failureStrategy || 'stop';
+        stageConfig?.onFail || config.execution?.failureStrategy || 'stop';
 
       switch (failureStrategy) {
         case 'stop': {

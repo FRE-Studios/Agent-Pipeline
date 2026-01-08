@@ -15,24 +15,31 @@
 name: loop-example
 trigger: manual
 
-settings:
+# Git workflow configuration (optional)
+git:
   autoCommit: false
   commitPrefix: "[loop:{{stage}}]"
+
+# Execution settings
+execution:
+  mode: sequential
   failureStrategy: continue
-  executionMode: sequential
-  handover:
-    directory: pipeline-runs/loop-example
+
+# Handover settings - inter-stage communication
+handover:
+  directory: pipeline-runs/loop-example
 
 # Pipeline-level looping configuration
 # When enabled: true, pipeline automatically runs in loop mode
 looping:
   enabled: true
-  maxIterations: 5                 # Safety limit (default: 100)
-  # directories:                   # Uncomment to override session-scoped defaults
-  #   pending: custom/pending      # Agents write new pipeline YAMLs here
-  #   running: custom/running      # Currently executing pipeline
-  #   finished: custom/finished    # Successfully completed pipelines
-  #   failed: custom/failed        # Failed pipeline files
+  maxIterations: 5                    # Safety limit (default: 100)
+  # instructions: .agent-pipeline/instructions/loop.md  # Optional custom loop instructions
+  # directories:                      # Uncomment to override session-scoped defaults
+  #   pending: custom/pending         # Agents write new pipeline YAMLs here
+  #   running: custom/running         # Currently executing pipeline
+  #   finished: custom/finished       # Successfully completed pipelines
+  #   failed: custom/failed           # Failed pipeline files
 
 notifications:
   enabled: true

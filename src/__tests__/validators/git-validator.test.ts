@@ -172,7 +172,7 @@ describe('GitValidator', () => {
       mockGit.getConfig.mockImplementation(async () => ({ value: null }));
       const config: PipelineConfig = {
         ...baseConfig,
-        settings: {
+        git: {
           autoCommit: false,
         },
       };
@@ -188,7 +188,7 @@ describe('GitValidator', () => {
       mockGit.getConfig.mockImplementation(async () => ({ value: null }));
       const config: PipelineConfig = {
         ...baseConfig,
-        settings: {
+        git: {
           autoCommit: true,
         },
       };

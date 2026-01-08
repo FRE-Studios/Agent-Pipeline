@@ -2,11 +2,8 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { HandoverConfig } from '../config/schema.js';
 import { InstructionLoader, InstructionContext } from './instruction-loader.js';
-
-export interface HandoverConfig {
-  directory?: string;  // Base directory for handover files
-}
 
 export class HandoverManager {
   private handoverDir: string;

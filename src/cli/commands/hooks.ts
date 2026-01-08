@@ -109,9 +109,9 @@ export async function hooksInstallCommand(
     console.warn('   For hook-triggered pipelines, unique-per-run or unique-and-delete is safer to avoid branch contention.');
   }
 
-  if (config.settings?.autoCommit) {
-    console.warn('⚠️  autoCommit is enabled for this hook-triggered pipeline.');
-    console.warn('   This will create commits on the pipeline branch; disable autoCommit for read-only hooks.');
+  if (config.git?.autoCommit) {
+    console.warn('⚠️  git.autoCommit is enabled for this hook-triggered pipeline.');
+    console.warn('   This will create commits on the pipeline branch; set git.autoCommit: false for read-only hooks.');
   }
 
   const installer = new HookInstaller(repoPath);

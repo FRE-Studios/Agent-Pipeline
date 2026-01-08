@@ -111,7 +111,13 @@ export class NotificationManager {
         event: 'pipeline.completed',
         pipelineState: {
           runId: 'test-' + Date.now(),
-          pipelineConfig: { name: 'test-pipeline', trigger: 'manual', agents: [], settings: { autoCommit: true, commitPrefix: '[pipeline:{{stage}}]', failureStrategy: 'stop' } },
+          pipelineConfig: {
+            name: 'test-pipeline',
+            trigger: 'manual',
+            agents: [],
+            git: { autoCommit: true, commitPrefix: '[pipeline:{{stage}}]' },
+            execution: { failureStrategy: 'stop' }
+          },
           trigger: { type: 'manual', commitSha: 'abc123', timestamp: new Date().toISOString() },
           stages: [],
           status: 'completed',

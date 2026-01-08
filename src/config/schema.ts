@@ -40,6 +40,7 @@ export interface RuntimeConfig {
 export interface LoopingConfig {
   enabled: boolean;
   maxIterations?: number;  // Default: 100
+  instructions?: string;   // Path to loop instructions template (default: .agent-pipeline/instructions/loop.md)
   directories?: {          // Optional - defaults to .agent-pipeline/loops/{sessionId}/
     pending?: string;      // Default: .agent-pipeline/loops/{sessionId}/pending
     running?: string;      // Default: .agent-pipeline/loops/{sessionId}/running
@@ -55,6 +56,7 @@ export interface LoopingConfig {
 export interface ResolvedLoopingConfig {
   enabled: boolean;
   maxIterations: number;
+  instructions?: string;              // Resolved path to loop instructions template
   directories: {
     pending: string;
     running: string;
@@ -119,11 +121,19 @@ export interface LoggingContext {
 export type MergeStrategy = 'pull-request' | 'local-merge' | 'none';
 
 export interface GitConfig {
+  // Commit settings (moved from settings:)
+  autoCommit?: boolean;                   // Auto-commit agent changes (default: true)
+  commitPrefix?: string;                  // Commit message prefix, e.g., "[pipeline:{{stage}}]"
+
+  // Branch workflow
   baseBranch?: string;                    // Branch to PR into (default: 'main')
   branchStrategy?: 'reusable' | 'unique-per-run' | 'unique-and-delete'; // Branch naming strategy (default: 'reusable')
   branchPrefix?: string;                  // Custom branch prefix (default: 'pipeline')
   mergeStrategy?: MergeStrategy;          // How to handle completed pipeline (default: 'none')
   pullRequest?: PRConfig;                 // Pull request settings (only used when mergeStrategy: 'pull-request')
+
+  // Worktree isolation (moved from settings.worktree)
+  worktree?: WorktreeConfig;              // Worktree settings for pipeline isolation
 }
 
 export interface PRConfig {
@@ -145,12 +155,35 @@ export interface WorktreeConfig {
   directory?: string;                     // Override default .agent-pipeline/worktrees
 }
 
+/**
+ * Execution configuration - controls pipeline runtime behavior
+ */
+export interface ExecutionConfig {
+  mode?: 'sequential' | 'parallel';       // Execution strategy (default: parallel with DAG)
+  failureStrategy?: 'stop' | 'continue';  // Default failure handling (default: continue)
+  permissionMode?: PermissionMode;        // Permission mode for agents (default: 'acceptEdits')
+}
+
+/**
+ * Handover configuration - inter-stage communication settings
+ */
+export interface HandoverConfig {
+  directory?: string;                     // Handover directory (default: .agent-pipeline/runs/{pipeline-name}-{runId}/)
+  instructions?: string;                  // Path to handover instructions template (default: .agent-pipeline/instructions/handover.md)
+}
+
 export interface PipelineConfig {
   name: string;
   trigger: 'pre-commit' | 'post-commit' | 'pre-push' | 'post-merge' | 'manual';
 
-  // Git workflow settings (optional)
+  // Git workflow settings (optional) - includes commits, branches, PRs, worktree
   git?: GitConfig;
+
+  // Execution settings (optional) - controls runtime behavior
+  execution?: ExecutionConfig;
+
+  // Handover settings (optional) - inter-stage communication
+  handover?: HandoverConfig;
 
   // Notification settings (optional)
   notifications?: NotificationConfig;
@@ -161,23 +194,7 @@ export interface PipelineConfig {
   // Runtime configuration (optional, defaults to claude-code-headless)
   runtime?: RuntimeConfig;
 
-  // Global settings
-  settings?: {
-    autoCommit: boolean;              // Auto-commit agent changes
-    commitPrefix: string;              // e.g., "[pipeline:stage-name]"
-    failureStrategy: 'stop' | 'continue'; // Default failure handling
-    executionMode?: 'sequential' | 'parallel'; // Execution strategy (default: parallel with DAG)
-    permissionMode?: PermissionMode;   // Permission mode for agents (default: 'acceptEdits')
-    worktree?: WorktreeConfig;         // Worktree isolation settings (pipelines run in worktrees by default)
-    handover?: {
-      directory?: string;             // Handover directory (default: .agent-pipeline/runs/{pipeline-name}-{runId}/)
-    };
-    instructions?: {
-      handover?: string;              // Path to handover instructions template (default: .agent-pipeline/instructions/handover.md)
-      loop?: string;                  // Path to loop instructions template (default: .agent-pipeline/instructions/loop.md)
-    };
-  };
-
+  // Agent stages
   agents: AgentStageConfig[];
 }
 
@@ -205,10 +222,6 @@ export interface AgentStageConfig {
 
   // Retry behavior
   retry?: RetryConfig;                 // Retry configuration
-
-  // Commit control
-  autoCommit?: boolean;                // Override global setting
-  commitMessage?: string;              // Custom commit message template
 
   // Context passing
   inputs?: Record<string, string>;     // Additional context for agent

@@ -155,7 +155,7 @@ describe('PipelineValidator', () => {
     it('should detect invalid failure strategy', async () => {
       const invalidConfig: PipelineConfig = {
         ...simplePipelineConfig,
-        settings: {
+        execution: {
           failureStrategy: 'invalid' as any,
         },
       };
@@ -169,7 +169,7 @@ describe('PipelineValidator', () => {
     it('should warn about commitPrefix without {{stage}} template', async () => {
       const warningConfig: PipelineConfig = {
         ...simplePipelineConfig,
-        settings: {
+        git: {
           commitPrefix: 'PIPELINE:',
         },
       };
@@ -264,7 +264,7 @@ describe('PipelineValidator', () => {
     it('should return true for configuration with warnings only', async () => {
       const warningConfig: PipelineConfig = {
         ...simplePipelineConfig,
-        settings: {
+        git: {
           commitPrefix: 'PREFIX:',
         },
       };
@@ -365,18 +365,20 @@ describe('PipelineValidator', () => {
     });
 
     it('should validate all valid failure strategies', async () => {
-      const validStrategies: Array<'stop' | 'continue' | 'warn'> = ['stop', 'continue', 'warn'];
+      // execution.failureStrategy only supports 'stop' and 'continue' (not 'warn' - that's for onFail)
+      const validStrategies: Array<'stop' | 'continue'> = ['stop', 'continue'];
 
       for (const strategy of validStrategies) {
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: {
+          execution: {
             failureStrategy: strategy,
           },
         };
 
         const errors = await validator.validate(config, tempDir);
-        const strategyErrors = errors.filter(e => e.field.includes('failureStrategy'));
+        // Use execution.failureStrategy specifically to not catch other failureStrategy errors
+        const strategyErrors = errors.filter(e => e.field === 'execution.failureStrategy');
         expect(strategyErrors).toHaveLength(0);
       }
     });
@@ -461,14 +463,14 @@ describe('PipelineValidator', () => {
       for (const mode of validModes) {
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: {
-            ...simplePipelineConfig.settings,
+          execution: {
+            ...simplePipelineConfig.execution,
             permissionMode: mode
           }
         };
 
         const errors = await validator.validate(config, tempDir);
-        const permErrors = errors.filter(e => e.field === 'settings.permissionMode' && e.severity === 'error');
+        const permErrors = errors.filter(e => e.field === 'execution.permissionMode' && e.severity === 'error');
         expect(permErrors).toHaveLength(0);
       }
     });
@@ -476,29 +478,29 @@ describe('PipelineValidator', () => {
     it('should reject invalid permission mode', async () => {
       const config: PipelineConfig = {
         ...simplePipelineConfig,
-        settings: {
-          ...simplePipelineConfig.settings,
+        execution: {
+          ...simplePipelineConfig.execution,
           permissionMode: 'invalid-mode' as any
         }
       };
 
       const errors = await validator.validate(config, tempDir);
-      expect(errors.some(e => e.field === 'settings.permissionMode' && e.severity === 'error')).toBe(true);
+      expect(errors.some(e => e.field === 'execution.permissionMode' && e.severity === 'error')).toBe(true);
       expect(errors.some(e => e.message.includes('Invalid permission mode'))).toBe(true);
     });
 
     it('should warn about bypassPermissions mode', async () => {
       const config: PipelineConfig = {
         ...simplePipelineConfig,
-        settings: {
-          ...simplePipelineConfig.settings,
+        execution: {
+          ...simplePipelineConfig.execution,
           permissionMode: 'bypassPermissions'
         }
       };
 
       const errors = await validator.validate(config, tempDir);
       expect(errors.some(e =>
-        e.field === 'settings.permissionMode' &&
+        e.field === 'execution.permissionMode' &&
         e.severity === 'warning' &&
         e.message.includes('bypassPermissions')
       )).toBe(true);
@@ -510,15 +512,15 @@ describe('PipelineValidator', () => {
       for (const mode of safeModes) {
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: {
-            ...simplePipelineConfig.settings,
+          execution: {
+            ...simplePipelineConfig.execution,
             permissionMode: mode
           }
         };
 
         const errors = await validator.validate(config, tempDir);
         const permWarnings = errors.filter(e =>
-          e.field === 'settings.permissionMode' && e.severity === 'warning'
+          e.field === 'execution.permissionMode' && e.severity === 'warning'
         );
         expect(permWarnings).toHaveLength(0);
       }
@@ -527,14 +529,14 @@ describe('PipelineValidator', () => {
     it('should allow omitting permissionMode (optional field)', async () => {
       const config: PipelineConfig = {
         ...simplePipelineConfig,
-        settings: {
-          ...simplePipelineConfig.settings
+        execution: {
+          ...simplePipelineConfig.execution
           // permissionMode is omitted
         }
       };
 
       const errors = await validator.validate(config, tempDir);
-      const permErrors = errors.filter(e => e.field === 'settings.permissionMode');
+      const permErrors = errors.filter(e => e.field === 'execution.permissionMode');
       expect(permErrors).toHaveLength(0);
     });
   });
@@ -606,7 +608,7 @@ describe('PipelineValidator', () => {
       it('should skip validation when autoCommit is false', async () => {
         const config: PipelineConfig = {
           ...simplePipelineConfig,
-          settings: {
+          git: {
             autoCommit: false
           }
         };

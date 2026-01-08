@@ -24,20 +24,6 @@ export const stageWithRetry: AgentStageConfig = {
   timeout: 120,
 };
 
-export const stageWithCustomCommit: AgentStageConfig = {
-  name: 'custom-commit-stage',
-  agent: '.agent-pipeline/agents/worker.md',
-  commitMessage: 'Custom commit message',
-  timeout: 120,
-};
-
-export const stageWithAutoCommitDisabled: AgentStageConfig = {
-  name: 'no-commit-stage',
-  agent: '.agent-pipeline/agents/worker.md',
-  autoCommit: false,
-  timeout: 120,
-};
-
 export const stageWithInputs: AgentStageConfig = {
   name: 'stage-with-inputs',
   agent: '.agent-pipeline/agents/processor.md',

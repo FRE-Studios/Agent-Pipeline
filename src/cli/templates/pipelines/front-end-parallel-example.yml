@@ -6,24 +6,30 @@
 name: front-end-parallel-example
 trigger: manual
 
-settings:
+# Git workflow configuration (optional - no git means no worktree isolation)
+git:
   autoCommit: false
   commitPrefix: "[design-exploration:{{stage}}]"
-  failureStrategy: continue  # Keep going even if one design agent fails
-  executionMode: parallel  # Enable DAG-based parallelism
-  handover:
-    directory: pipeline-runs/front-end-parallel-example
+
+# Execution settings
+execution:
+  mode: parallel                      # Enable DAG-based parallelism
+  failureStrategy: continue           # Keep going even if one design agent fails
+
+# Handover settings - inter-stage communication
+handover:
+  directory: pipeline-runs/front-end-parallel-example
 
 # Notification configuration (optional)
 notifications:
-  enabled: true                    # Enable local notifications for hook runs
+  enabled: true                       # Enable local notifications for hook runs
   events:
-    - pipeline.completed           # Notify on successful runs
-    - pipeline.failed              # Notify on failures
+    - pipeline.completed              # Notify on successful runs
+    - pipeline.failed                 # Notify on failures
   channels:
     local:
-      enabled: true                # Desktop notifications (macOS/Linux)
-      sound: true                  # Play a sound on completion
+      enabled: true                   # Desktop notifications (macOS/Linux)
+      sound: true                     # Play a sound on completion
 
 agents:
   # Stage 1: Transform user input into structured requirements
@@ -42,18 +48,18 @@ agents:
 
   - name: indie-game
     agent: .agent-pipeline/agents/indie_game_dev.md
-    dependsOn: 
+    dependsOn:
       - product-owner
     timeout: 900
 
   - name: cyberpunk
     agent: .agent-pipeline/agents/cyberpunk_hacker.md
-    dependsOn: 
+    dependsOn:
       - product-owner
     timeout: 900
 
-  # # Example Agents - Remove comments to run full pipeline 
-  # # Warning - Pipelines may use many tokens, use with caution. 
+  # # Example Agents - Remove comments to run full pipeline
+  # # Warning - Pipelines may use many tokens, use with caution.
 
   # - name: luxury-editorial
   #   agent: .agent-pipeline/agents/luxury_editorial.md
@@ -63,20 +69,20 @@ agents:
 
   # - name: retro-90s
   #   agent: .agent-pipeline/agents/retro_90s_webmaster.md
-  #   dependsOn: 
+  #   dependsOn:
   #     - product-owner
   #   timeout: 600
 
   # - name: swiss-modernist
   #   agent: .agent-pipeline/agents/swiss_modernist.md
-  #   dependsOn: 
+  #   dependsOn:
   #     - product-owner
   #   timeout: 600
 
   # Stage 3: Collect all prototypes into a showcase
   - name: showcase
     agent: .agent-pipeline/agents/showcase.md
-    dependsOn: 
+    dependsOn:
       - brutalist
       - indie-game
       - cyberpunk

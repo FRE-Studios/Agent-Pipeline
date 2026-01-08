@@ -21,8 +21,11 @@ export class GitValidator implements Validator {
     // P0: Git repository check
     await this.validateRepository(repoPath, errors, context);
 
+    // P0: Git commit settings validation
+    this.validateCommitSettings(config, errors);
+
     // P0: Git user config (conditional - only if autoCommit is enabled)
-    const autoCommit = config.settings?.autoCommit ?? true; // default is true
+    const autoCommit = config.git?.autoCommit ?? true; // default is true
     if (autoCommit) {
       await this.validateUserConfig(repoPath, errors);
     }
@@ -33,6 +36,22 @@ export class GitValidator implements Validator {
     // P0: GitHub CLI availability (conditional - only if PR creation enabled)
     if (config.git?.mergeStrategy === 'pull-request') {
       await this.validateGitHubCLI(errors);
+    }
+  }
+
+  private validateCommitSettings(
+    config: ValidationContext['config'],
+    errors: ValidationContext['errors']
+  ): void {
+    if (!config.git) return;
+
+    // Warn if commitPrefix doesn't include {{stage}} template variable
+    if (config.git.commitPrefix && !config.git.commitPrefix.includes('{{stage}}')) {
+      errors.push({
+        field: 'git.commitPrefix',
+        message: 'commitPrefix should include {{stage}} template variable',
+        severity: 'warning',
+      });
     }
   }
 

@@ -6,13 +6,9 @@ import { ExecutionGraph } from '../../core/types/execution-graph.js';
 export const gitWorkflowPipelineConfig: PipelineConfig = {
   name: 'git-workflow-test',
   trigger: 'manual',
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
-    failureStrategy: 'stop',
-    executionMode: 'parallel',
-  },
-  git: {
     baseBranch: 'main',
     branchStrategy: 'reusable',
     branchPrefix: 'pipeline',
@@ -22,6 +18,10 @@ export const gitWorkflowPipelineConfig: PipelineConfig = {
       body: 'Test PR body',
       draft: false,
     },
+  },
+  execution: {
+    mode: 'parallel',
+    failureStrategy: 'stop',
   },
   agents: [
     {
@@ -49,9 +49,11 @@ export const uniqueBranchStrategyConfig: PipelineConfig = {
 export const notificationPipelineConfig: PipelineConfig = {
   name: 'notification-test',
   trigger: 'manual',
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
+  },
+  execution: {
     failureStrategy: 'stop',
   },
   notifications: {
@@ -75,9 +77,11 @@ export const notificationPipelineConfig: PipelineConfig = {
 export const disabledStagesPipelineConfig: PipelineConfig = {
   name: 'disabled-stages-test',
   trigger: 'manual',
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
+  },
+  execution: {
     failureStrategy: 'stop',
   },
   agents: [
@@ -99,9 +103,11 @@ export const disabledStagesPipelineConfig: PipelineConfig = {
 export const failureStrategyWarnConfig: PipelineConfig = {
   name: 'failure-warn-test',
   trigger: 'manual',
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
+  },
+  execution: {
     failureStrategy: 'continue',
   },
   agents: [
@@ -121,9 +127,11 @@ export const failureStrategyWarnConfig: PipelineConfig = {
 export const stageFailureOverrideConfig: PipelineConfig = {
   name: 'stage-override-test',
   trigger: 'manual',
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
+  },
+  execution: {
     failureStrategy: 'continue',
   },
   agents: [
@@ -145,10 +153,12 @@ export const stageFailureOverrideConfig: PipelineConfig = {
 export const sequentialExecutionConfig: PipelineConfig = {
   name: 'sequential-test',
   trigger: 'manual',
-  settings: {
+  git: {
     autoCommit: true,
     commitPrefix: '[pipeline:{{stage}}]',
-    executionMode: 'sequential',
+  },
+  execution: {
+    mode: 'sequential',
     failureStrategy: 'stop',
   },
   agents: [

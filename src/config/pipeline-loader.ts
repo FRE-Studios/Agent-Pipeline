@@ -102,6 +102,7 @@ export class PipelineLoader {
     return {
       enabled: looping.enabled,
       maxIterations: looping.maxIterations ?? 100,
+      instructions: looping.instructions ? this.resolvePath(looping.instructions) : undefined,
       directories: resolvedDirs,
     };
   }

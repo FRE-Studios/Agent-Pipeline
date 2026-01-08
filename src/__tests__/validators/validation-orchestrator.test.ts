@@ -74,7 +74,7 @@ describe('ValidationOrchestrator', () => {
       expect(validatorNames).toContain('structure');
       expect(validatorNames).toContain('runtime');
       expect(validatorNames).toContain('agents');
-      expect(validatorNames).toContain('settings');
+      expect(validatorNames).toContain('execution');
       expect(validatorNames).toContain('notifications');
       expect(validatorNames).toContain('retry');
       expect(validatorNames).toContain('dag');

@@ -23,7 +23,7 @@ export class RuntimeValidator implements Validator {
         errors,
         'runtime',
         config.runtime,
-        config.settings?.permissionMode
+        config.execution?.permissionMode
       );
     }
 
@@ -35,7 +35,7 @@ export class RuntimeValidator implements Validator {
             errors,
             `agents.${agent.name}.runtime`,
             agent.runtime,
-            config.settings?.permissionMode
+            config.execution?.permissionMode
           );
         }
       }

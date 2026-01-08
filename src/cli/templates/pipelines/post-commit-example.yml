@@ -6,50 +6,50 @@
 name: post-commit-example
 trigger: post-commit
 
-# Settings for pipeline execution
-settings:
-  autoCommit: true                  # Enable when agents should commit fixes after each stage
-  commitPrefix: "[pipeline:{{stage}}]"  # Standardized prefix for easy commit filtering
-  failureStrategy: continue         # Continue even if a stage fails
-  executionMode: sequential         # Enforce ordered execution for dependent stages
-
-# Git workflow configuration (required for hook install)
+# Git workflow configuration - all git-related settings
 git:
-  baseBranch: main                  # PR base and merge target for the pipeline branch
-  branchStrategy: unique-and-delete # Self-cleaning: auto-removes worktree on success, preserves on failure for debugging
-  branchPrefix: review-pipeline     # Keeps pipeline branches easy to find/clean up
-  mergeStrategy: pull-request       # Options: 'pull-request' (push + PR), 'local-merge' (merge locally), 'none' (keep on branch)
+  autoCommit: true                    # Enable when agents should commit fixes after each stage
+  commitPrefix: "[pipeline:{{stage}}]"  # Standardized prefix for easy commit filtering
+  baseBranch: main                    # PR base and merge target for the pipeline branch
+  branchStrategy: unique-and-delete   # Self-cleaning: auto-removes worktree on success, preserves on failure for debugging
+  branchPrefix: review-pipeline       # Keeps pipeline branches easy to find/clean up
+  mergeStrategy: pull-request         # Options: 'pull-request' (push + PR), 'local-merge' (merge locally), 'none' (keep on branch)
   pullRequest:
-    title: "🤖 Automated Code Review - {{pipelineName}}"  # PR title
-    reviewers: []                   # Optional GitHub usernames to request review from
+    title: "Automated Code Review - {{pipelineName}}"
+    reviewers: []                     # Optional GitHub usernames to request review from
     labels:
-      - automated                   # Optional PR labels
+      - automated                     # Optional PR labels
       - code-review
+
+# Execution settings - controls runtime behavior
+execution:
+  mode: sequential                    # Enforce ordered execution for dependent stages
+  failureStrategy: continue           # Continue even if a stage fails
 
 # Notification configuration (optional)
 notifications:
-  enabled: true                    # Enable local notifications for hook runs
+  enabled: true                       # Enable local notifications for hook runs
   events:
-    - pipeline.completed           # Notify on successful runs
-    - pipeline.failed              # Notify on failures
-    - pr.created                   # Notify on new PR
+    - pipeline.completed              # Notify on successful runs
+    - pipeline.failed                 # Notify on failures
+    - pr.created                      # Notify on new PR
   channels:
     local:
-      enabled: true                # Desktop notifications (macOS/Linux)
-      sound: true                  # Play a sound on completion
+      enabled: true                   # Desktop notifications (macOS/Linux)
+      sound: true                     # Play a sound on completion
 
 # Agent stages
 agents:
 
-  # # Example Single Agent  
+  # # Example Single Agent
   - name: doc-updater
     agent: .agent-pipeline/agents/doc-updater.md
-    timeout: 300        
+    timeout: 300
 
-  # # Example Flow - Remove comments to run full pipeline 
-  # # Warning - Pipelines may use many tokens, use with caution. 
+  # # Example Flow - Remove comments to run full pipeline
+  # # Warning - Pipelines may use many tokens, use with caution.
 
-  # # Sequential execution: code-review → quality-check → doc-updater
+  # # Sequential execution: code-review -> quality-check -> doc-updater
   # # Each stage builds on the previous stage's results
   # - name: code-review
   #   agent: .agent-pipeline/agents/code-reviewer.md

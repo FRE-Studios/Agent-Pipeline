@@ -99,7 +99,7 @@ export class PipelineInitializer {
       handoverRepoPath,
       config.name,
       runId,
-      config.settings?.handover
+      config.handover
     );
     await handoverManager.initialize();
 
@@ -113,7 +113,7 @@ export class PipelineInitializer {
         this.repoPath,
         config.name,
         runId,
-        config.settings?.handover
+        config.handover
       );
       state.artifacts.mainRepoHandoverDir = mainRepoHandoverManager.getHandoverDir();
     }
@@ -178,8 +178,8 @@ export class PipelineInitializer {
       return { executionRepoPath: this.repoPath };
     }
 
-    // Get custom worktree directory from settings if configured
-    const worktreeDir = config.settings?.worktree?.directory;
+    // Get custom worktree directory from git config if configured
+    const worktreeDir = config.git?.worktree?.directory;
 
     // Create worktree manager with custom directory if specified
     const worktreeManager = worktreeDir
