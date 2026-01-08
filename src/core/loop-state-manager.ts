@@ -18,10 +18,10 @@ export interface LoopSession {
 export interface IterationSummary {
   iterationNumber: number;
   pipelineName: string;
-  runId: string;
-  status: 'completed' | 'failed' | 'aborted';
-  duration: number;
-  triggeredNext: boolean;
+  runId?: string;
+  status: 'in-progress' | 'completed' | 'failed' | 'aborted';
+  duration?: number;
+  triggeredNext?: boolean;
 }
 
 export class LoopStateManager {
@@ -35,7 +35,7 @@ export class LoopStateManager {
   /**
    * Creates a new loop session and returns it
    */
-  startSession(maxIterations: number): LoopSession {
+  async startSession(maxIterations: number): Promise<LoopSession> {
     const session: LoopSession = {
       sessionId: randomUUID(),
       startTime: new Date().toISOString(),
@@ -46,6 +46,7 @@ export class LoopStateManager {
     };
 
     this.sessions.set(session.sessionId, session);
+    await this.saveSession(session);
     return session;
   }
 
@@ -53,7 +54,7 @@ export class LoopStateManager {
    * Appends an iteration to the session and saves to disk
    */
   async appendIteration(sessionId: string, summary: IterationSummary): Promise<void> {
-    const session = this.sessions.get(sessionId);
+    const session = await this.getSessionForUpdate(sessionId);
     if (!session) {
       throw new Error(`Loop session not found: ${sessionId}`);
     }
@@ -65,13 +66,37 @@ export class LoopStateManager {
   }
 
   /**
+   * Updates an existing iteration entry for a session.
+   * Returns false if the iteration is not found.
+   */
+  async updateIteration(
+    sessionId: string,
+    iterationNumber: number,
+    updates: Partial<IterationSummary>
+  ): Promise<boolean> {
+    const session = await this.getSessionForUpdate(sessionId);
+    if (!session) {
+      throw new Error(`Loop session not found: ${sessionId}`);
+    }
+
+    const index = session.iterations.findIndex((iteration) => iteration.iterationNumber === iterationNumber);
+    if (index === -1) {
+      return false;
+    }
+
+    session.iterations[index] = { ...session.iterations[index], ...updates };
+    await this.saveSession(session);
+    return true;
+  }
+
+  /**
    * Marks the session as complete and saves final state to disk
    */
   async completeSession(
     sessionId: string,
     status: 'completed' | 'failed' | 'aborted' | 'limit-reached'
   ): Promise<void> {
-    const session = this.sessions.get(sessionId);
+    const session = await this.getSessionForUpdate(sessionId);
     if (!session) {
       throw new Error(`Loop session not found: ${sessionId}`);
     }
@@ -132,6 +157,19 @@ export class LoopStateManager {
 
     const filePath = path.join(this.loopsDir, `${session.sessionId}.json`);
     await fs.writeFile(filePath, JSON.stringify(session, null, 2), 'utf-8');
+  }
+
+  private async getSessionForUpdate(sessionId: string): Promise<LoopSession | null> {
+    const cached = this.sessions.get(sessionId);
+    if (cached) {
+      return cached;
+    }
+
+    const loaded = await this.loadSession(sessionId);
+    if (loaded) {
+      this.sessions.set(sessionId, loaded);
+    }
+    return loaded;
   }
 
   /**

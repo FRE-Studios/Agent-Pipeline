@@ -49,8 +49,8 @@ export async function loopContextCommand(repoPath: string): Promise<void> {
   }
 
   // Fallback: Use last iteration's pipeline name to load from library
-  if (!pipelineContent && session.iterations.length > 0) {
-    const lastIteration = session.iterations[session.iterations.length - 1];
+  const lastIteration = session.iterations[session.iterations.length - 1];
+  if (!pipelineContent && lastIteration) {
     pipelineName = lastIteration.pipelineName;
     const pipelinePath = path.join(repoPath, '.agent-pipeline', 'pipelines', `${pipelineName}.yml`);
     try {
@@ -72,7 +72,7 @@ export async function loopContextCommand(repoPath: string): Promise<void> {
   const pendingDir = path.join(repoPath, '.agent-pipeline', 'loops', sessionId, 'pending');
 
   // Step 4: Calculate iteration info
-  const currentIteration = session.totalIterations + 1; // +1 because current iteration is in progress
+  const currentIteration = lastIteration?.iterationNumber ?? 1;
   const maxIterations = session.maxIterations;
 
   // Step 5: Output the context

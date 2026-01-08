@@ -153,7 +153,9 @@ export class PipelineRunner {
       loopEnabled = config.looping?.enabled ?? false;
       if (loopEnabled) {
         // Create session now to get sessionId for directory scoping
-        loopSession = this.loopStateManager.startSession(options.maxLoopIterations ?? config.looping?.maxIterations ?? 100);
+        loopSession = await this.loopStateManager.startSession(
+          options.maxLoopIterations ?? config.looping?.maxIterations ?? 100
+        );
         loopingConfig = config.looping as ResolvedLoopingConfig;
       } else {
         loopingConfig = this.getDefaultLoopingConfig();
@@ -196,6 +198,16 @@ export class PipelineRunner {
           ? path.basename(currentMetadata.sourcePath, '.yml')
           : currentConfig.name;
         console.log(`🔁 Loop iteration ${iterationCount}: Running pipeline '${pipelineName}'...`);
+      }
+
+      // Record iteration start for loop context visibility
+      if (loopEnabled && loopSession) {
+        const pipelineName = this.getPipelineName(currentConfig, currentMetadata);
+        await this.loopStateManager.appendIteration(loopSession.sessionId, {
+          iterationNumber: iterationCount,
+          pipelineName,
+          status: 'in-progress'
+        });
       }
 
       // Build loop context for this iteration
@@ -900,17 +912,32 @@ export class PipelineRunner {
     metadata: PipelineMetadata | undefined,
     triggeredNext: boolean
   ): Promise<void> {
-    const pipelineName = metadata?.sourcePath
-      ? path.basename(metadata.sourcePath, '.yml')
-      : state.pipelineConfig.name;
+    const pipelineName = this.getPipelineName(state.pipelineConfig, metadata);
+    const iterationNumber = state.loopContext?.currentIteration ?? 1;
 
-    await this.loopStateManager.appendIteration(sessionId, {
-      iterationNumber: state.loopContext?.currentIteration ?? 1,
+    const updated = await this.loopStateManager.updateIteration(sessionId, iterationNumber, {
       pipelineName,
       runId: state.runId,
       status: state.status === 'completed' ? 'completed' : state.status === 'aborted' ? 'aborted' : 'failed',
       duration: state.artifacts.totalDuration,
       triggeredNext
     });
+
+    if (!updated) {
+      await this.loopStateManager.appendIteration(sessionId, {
+        iterationNumber,
+        pipelineName,
+        runId: state.runId,
+        status: state.status === 'completed' ? 'completed' : state.status === 'aborted' ? 'aborted' : 'failed',
+        duration: state.artifacts.totalDuration,
+        triggeredNext
+      });
+    }
+  }
+
+  private getPipelineName(config: PipelineConfig, metadata?: PipelineMetadata): string {
+    return metadata?.sourcePath
+      ? path.basename(metadata.sourcePath, '.yml')
+      : config.name;
   }
 }
