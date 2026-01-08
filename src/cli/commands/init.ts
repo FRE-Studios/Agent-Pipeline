@@ -24,12 +24,17 @@ export async function initCommand(repoPath: string): Promise<void> {
     await fs.mkdir(instructionsDir, { recursive: true });
 
     // Create default instruction templates
-    await createInstructionTemplates(instructionsDir);
+    const skippedInstructions = await createInstructionTemplates(instructionsDir);
 
     console.log('✅ Created directory structure:');
     console.log(`   - .agent-pipeline/pipelines/`);
     console.log(`   - .agent-pipeline/agents/`);
     console.log(`   - .agent-pipeline/instructions/\n`);
+
+    if (skippedInstructions.length > 0) {
+      console.log(`⚠️  Existing instruction files not overwritten: ${skippedInstructions.join(', ')}`);
+      console.log('   To get fresh templates, delete these files and run "agent-pipeline init" again.\n');
+    }
 
     // Check for available plugin agents (don't auto-import)
     const discoveredAgents = await AgentImporter.discoverPluginAgents();
@@ -324,9 +329,10 @@ async function validateCreatedPipelines(
 /**
  * Create default instruction template files
  */
-async function createInstructionTemplates(instructionsDir: string): Promise<void> {
+async function createInstructionTemplates(instructionsDir: string): Promise<string[]> {
   const templatesDir = path.join(__dirname, '../templates/instructions');
   const templates = ['handover.md', 'loop.md'];
+  const skippedFiles: string[] = [];
 
   for (const template of templates) {
     const targetPath = path.join(instructionsDir, template);
@@ -334,7 +340,8 @@ async function createInstructionTemplates(instructionsDir: string): Promise<void
     // Only create if doesn't exist (don't overwrite user customizations)
     try {
       await fs.access(targetPath);
-      // File exists, skip
+      // File exists, track as skipped
+      skippedFiles.push(template);
     } catch {
       // File doesn't exist, try to copy from template
       try {
@@ -346,4 +353,6 @@ async function createInstructionTemplates(instructionsDir: string): Promise<void
       }
     }
   }
+
+  return skippedFiles;
 }
