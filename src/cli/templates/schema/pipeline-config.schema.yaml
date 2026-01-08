@@ -32,8 +32,6 @@ definitions:
             enum:
               - stop
               - continue
-          preserveWorkingTree:
-            type: boolean
           executionMode:
             type: string
             enum:
@@ -51,7 +49,6 @@ definitions:
           - autoCommit
           - commitPrefix
           - failureStrategy
-          - preserveWorkingTree
         additionalProperties: false
       agents:
         type: array

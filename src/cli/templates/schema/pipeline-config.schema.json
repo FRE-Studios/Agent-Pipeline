@@ -43,9 +43,6 @@
                 "continue"
               ]
             },
-            "preserveWorkingTree": {
-              "type": "boolean"
-            },
             "executionMode": {
               "type": "string",
               "enum": [
@@ -69,8 +66,7 @@
           "required": [
             "autoCommit",
             "commitPrefix",
-            "failureStrategy",
-            "preserveWorkingTree"
+            "failureStrategy"
           ],
           "additionalProperties": false
         },

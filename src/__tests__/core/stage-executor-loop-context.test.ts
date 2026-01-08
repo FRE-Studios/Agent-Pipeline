@@ -40,8 +40,7 @@ describe('StageExecutor - Loop Context Injection', () => {
         settings: {
           autoCommit: true,
           commitPrefix: '[pipeline]',
-          failureStrategy: 'stop',
-          preserveWorkingTree: false
+          failureStrategy: 'stop'
         },
         agents: []
       },

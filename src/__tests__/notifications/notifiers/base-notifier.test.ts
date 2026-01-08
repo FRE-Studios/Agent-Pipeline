@@ -123,8 +123,7 @@ describe('BaseNotifier', () => {
             settings: {
               autoCommit: true,
               commitPrefix: '[test]',
-              failureStrategy: 'stop',
-              preserveWorkingTree: false
+              failureStrategy: 'stop'
             }
           },
           trigger: { type: 'manual', commitSha: 'abc', timestamp: new Date().toISOString() },

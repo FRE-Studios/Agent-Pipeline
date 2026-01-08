@@ -185,7 +185,6 @@ describe('configPipelineCommand', () => {
           autoCommit: true,
           commitPrefix: '[pipeline:{{stage}}]',
           failureStrategy: 'continue',
-          preserveWorkingTree: false,
           executionMode: 'parallel',
         },
         git: {

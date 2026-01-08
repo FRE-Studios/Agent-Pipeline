@@ -560,8 +560,7 @@ agents:
         settings: {
           autoCommit: true,
           commitPrefix: '[loop]',
-          failureStrategy: 'stop',
-          preserveWorkingTree: false,
+          failureStrategy: 'stop'
         },
         agents: [
           { name: 'stage-1', agent: 'agent1.md' },

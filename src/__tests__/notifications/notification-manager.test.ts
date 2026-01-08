@@ -142,8 +142,7 @@ function createTestPipelineState(overrides?: Partial<PipelineState>): PipelineSt
       settings: {
         autoCommit: true,
         commitPrefix: '[pipeline:{{stage}}]',
-        failureStrategy: 'stop',
-        preserveWorkingTree: false
+        failureStrategy: 'stop'
       }
     },
     trigger: {

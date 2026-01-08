@@ -29,7 +29,7 @@ git:
 # Execution settings - runtime behavior
 execution:
   mode: parallel                     # parallel (default) or sequential
-  failureStrategy: continue          # stop or continue (default: continue)
+  failureStrategy: continue          # stop or continue (default: stop)
   permissionMode: acceptEdits        # default, acceptEdits, bypassPermissions, or plan
 
 # Handover settings - inter-stage communication
