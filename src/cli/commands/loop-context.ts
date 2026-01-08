@@ -2,76 +2,88 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { StateManager } from '../../core/state-manager.js';
+import { LoopStateManager, LoopSession } from '../../core/loop-state-manager.js';
 
 export async function loopContextCommand(repoPath: string): Promise<void> {
-  const stateManager = new StateManager(repoPath);
+  const loopStateManager = new LoopStateManager(repoPath);
 
-  // Step 1: Find the latest run with loop context
-  const latestRun = await stateManager.getLatestRun();
+  // Step 1: Find running loop sessions (not just latest run)
+  const allSessions = await loopStateManager.getAllSessions();
+  const runningSessions = allSessions.filter((s) => s.status === 'running');
 
-  if (!latestRun) {
-    console.log('No pipeline runs found.');
-    return;
-  }
-
-  if (!latestRun.loopContext?.enabled) {
-    console.log('The latest pipeline run is not in loop mode.');
+  if (runningSessions.length === 0) {
+    console.log('No active loop sessions found.');
     console.log('This command is only useful during loop mode execution.');
     return;
   }
 
-  // Step 2: Find pipeline YAML content
+  // If multiple running sessions, warn and use the most recent
+  let session: LoopSession;
+  if (runningSessions.length > 1) {
+    console.log(`Warning: ${runningSessions.length} loop sessions are running concurrently.`);
+    console.log('Using the most recently started session.\n');
+    // Sort by startTime descending
+    runningSessions.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+  }
+  session = runningSessions[0];
+
+  const sessionId = session.sessionId;
+
+  // Step 2: Find pipeline YAML content from the running directory
   let pipelineContent: string | null = null;
-  let pipelineSource = 'library';
+  let pipelineSource = 'running';
+  let pipelineName = 'unknown';
 
-  // Try to find in running directory first
-  const sessionId = latestRun.loopContext.loopSessionId;
-  if (sessionId) {
-    const runningDir = path.join(repoPath, '.agent-pipeline', 'loops', sessionId, 'running');
-    try {
-      const files = await fs.readdir(runningDir);
-      const yamlFiles = files.filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'));
+  const runningDir = path.join(repoPath, '.agent-pipeline', 'loops', sessionId, 'running');
+  try {
+    const files = await fs.readdir(runningDir);
+    const yamlFiles = files.filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'));
 
-      if (yamlFiles.length > 0) {
-        // Get the first running pipeline
-        const pipelinePath = path.join(runningDir, yamlFiles[0]);
-        pipelineContent = await fs.readFile(pipelinePath, 'utf-8');
-        pipelineSource = 'running';
-      }
-    } catch {
-      // Running directory doesn't exist or is empty - fall through to library
+    if (yamlFiles.length > 0) {
+      const pipelinePath = path.join(runningDir, yamlFiles[0]);
+      pipelineContent = await fs.readFile(pipelinePath, 'utf-8');
+      pipelineName = path.basename(yamlFiles[0], path.extname(yamlFiles[0]));
     }
+  } catch {
+    // Running directory doesn't exist or is empty
   }
 
-  // Fallback: Load from library if not in running directory
-  if (!pipelineContent) {
-    const pipelineName = latestRun.pipelineConfig.name;
+  // Fallback: Use last iteration's pipeline name to load from library
+  if (!pipelineContent && session.iterations.length > 0) {
+    const lastIteration = session.iterations[session.iterations.length - 1];
+    pipelineName = lastIteration.pipelineName;
     const pipelinePath = path.join(repoPath, '.agent-pipeline', 'pipelines', `${pipelineName}.yml`);
     try {
       pipelineContent = await fs.readFile(pipelinePath, 'utf-8');
+      pipelineSource = 'library';
     } catch {
-      console.log(`Could not find pipeline file for: ${pipelineName}`);
-      return;
+      // Pipeline file not found in library
     }
   }
 
+  if (!pipelineContent) {
+    console.log('Could not find current pipeline file.');
+    console.log(`Session ID: ${sessionId}`);
+    console.log(`Checked: ${runningDir}`);
+    return;
+  }
+
   // Step 3: Get pending directory path
-  const pendingDir = sessionId
-    ? path.join(repoPath, '.agent-pipeline', 'loops', sessionId, 'pending')
-    : path.join(repoPath, '.agent-pipeline', 'loops', 'default', 'pending');
+  const pendingDir = path.join(repoPath, '.agent-pipeline', 'loops', sessionId, 'pending');
 
-  // Step 4: Output the context
-  const currentIteration = latestRun.loopContext.currentIteration ?? 1;
-  const maxIterations = latestRun.loopContext.maxIterations ?? 100;
+  // Step 4: Calculate iteration info
+  const currentIteration = session.totalIterations + 1; // +1 because current iteration is in progress
+  const maxIterations = session.maxIterations;
 
+  // Step 5: Output the context
   console.log('='.repeat(60));
   console.log('LOOP CONTEXT - Information for Creating Next Pipeline');
   console.log('='.repeat(60));
   console.log('');
   console.log(`Loop Status: Iteration ${currentIteration}/${maxIterations}`);
-  console.log(`Session ID: ${sessionId || 'default'}`);
+  console.log(`Session ID: ${sessionId}`);
   console.log(`Pipeline Source: ${pipelineSource}`);
+  console.log(`Pipeline Name: ${pipelineName}`);
   console.log('');
   console.log('-'.repeat(60));
   console.log('CURRENT PIPELINE YAML');
