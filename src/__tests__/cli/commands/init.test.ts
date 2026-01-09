@@ -133,8 +133,9 @@ describe('initCommand', () => {
 
         expect(parsed.name).toBe('front-end-parallel-example');
         expect(parsed.trigger).toBe('manual');
-        expect(parsed.execution.mode).toBe('parallel');
-        expect(parsed.git.autoCommit).toBe(false);
+        // Minimal template: no git section (no worktree isolation), execution.failureStrategy: continue
+        expect(parsed.git).toBeUndefined();
+        expect(parsed.execution?.failureStrategy).toBe('continue');
         expect(parsed.agents).toHaveLength(5); // Default: product-owner, 3 design agents, showcase
       });
 
@@ -189,8 +190,10 @@ describe('initCommand', () => {
 
         expect(parsed.name).toBe('post-commit-example');
         expect(parsed.trigger).toBe('post-commit');
-        expect(parsed.execution.mode).toBe('sequential');
-        expect(parsed.execution.failureStrategy).toBe('continue');
+        // Minimal template: no execution section (uses defaults), has git section for PR workflow
+        expect(parsed.execution).toBeUndefined();
+        expect(parsed.git.autoCommit).toBe(true);
+        expect(parsed.git.mergeStrategy).toBe('pull-request');
         expect(parsed.agents).toHaveLength(1); // Default: doc-updater only
       });
 
