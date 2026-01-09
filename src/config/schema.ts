@@ -208,8 +208,9 @@ export interface RetryConfig {
 }
 
 export interface AgentStageConfig {
-  name: string;                        // Stage identifier
-  agent: string;                       // Path to agent file (e.g. .agent-pipeline/agents/xyz.md)
+  name: string;                        // Unique stage identifier. Used for dependsOn, handover dirs, and logging.
+                                       // To reuse an agent, use different names (e.g., coder-1, coder-2).
+  agent: string;                       // Path to agent file. Can be reused across stages with different names.
 
   // Runtime configuration (per-stage override)
   runtime?: RuntimeConfig;             // Override pipeline-level runtime for this stage

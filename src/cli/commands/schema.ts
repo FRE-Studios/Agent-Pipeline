@@ -415,8 +415,8 @@ const fieldDocs: Record<string, string> = {
   List of agent stages to execute.
 
   Fields:
-    name (required)      Unique stage identifier
-    agent (required)     Path to agent markdown file
+    name (required)      Unique stage identifier (for dependsOn, handover, logging)
+    agent (required)     Path to agent file (can be reused with different names)
     dependsOn            Stages that must complete first (array)
     condition            JavaScript expression for conditional execution
     inputs               Key-value pairs passed to agent prompt

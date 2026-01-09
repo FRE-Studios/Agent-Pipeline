@@ -226,6 +226,19 @@ Agents in the final stage group receive loop instructions automatically, directi
 
 Each entry in `agents:` maps to a stage executed by `StageExecutor`:
 
+- `name`: Unique stage identifier used for dependencies, handover directories, and logging. **Must be unique within a pipeline.** To run the same agent multiple times, use different stage names:
+  ```yaml
+  agents:
+    - name: coder-1              # First coding pass
+      agent: .agent-pipeline/agents/coder.md
+    - name: reviewer
+      agent: .agent-pipeline/agents/reviewer.md
+      dependsOn: [coder-1]
+    - name: coder-2              # Second pass using same agent
+      agent: .agent-pipeline/agents/coder.md
+      dependsOn: [reviewer]
+  ```
+- `agent`: Path to the agent definition file. Can be reused across multiple stages.
 - `dependsOn`: Builds the DAG edges evaluated by `DAGPlanner`.
 - `retry`: Per-stage retry policy using `RetryHandler` (`maxAttempts`, `backoff`, `initialDelay`, `maxDelay`).
 - `inputs`: Adds ad-hoc key-value pairs to the agent prompt context.
