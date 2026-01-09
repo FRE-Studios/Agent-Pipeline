@@ -168,7 +168,9 @@ export interface ExecutionConfig {
  * Handover configuration - inter-stage communication settings
  */
 export interface HandoverConfig {
-  directory?: string;                     // Handover directory (default: .agent-pipeline/runs/{pipeline-name}-{runId}/)
+  directory?: string;                     // Base handover directory. RunId is always appended for run isolation.
+                                          // Default: .agent-pipeline/runs/{pipeline-name}-{runId}/
+                                          // Custom example: ".my-handover" → ".my-handover/{runId}/"
   instructions?: string;                  // Path to handover instructions template (default: .agent-pipeline/instructions/handover.md)
 }
 

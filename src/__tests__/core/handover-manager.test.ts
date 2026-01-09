@@ -42,18 +42,45 @@ describe('HandoverManager', () => {
       expect(mgr.getHandoverDir()).toBe('/repo/.agent-pipeline/runs/pipe-run-1234');
     });
 
-    it('should use custom absolute directory from config', () => {
-      const mgr = new HandoverManager('/repo', 'pipe', 'run-123', {
+    it('should append runId to custom absolute directory for isolation', () => {
+      const mgr = new HandoverManager('/repo', 'pipe', 'run-12345678-abcd', {
         directory: '/custom/absolute/path',
       });
-      expect(mgr.getHandoverDir()).toBe('/custom/absolute/path');
+      expect(mgr.getHandoverDir()).toBe('/custom/absolute/path/run-1234');
     });
 
-    it('should resolve custom relative directory from config', () => {
-      const mgr = new HandoverManager('/repo', 'pipe', 'run-123', {
+    it('should append runId to custom relative directory for isolation', () => {
+      const mgr = new HandoverManager('/repo', 'pipe', 'run-12345678-abcd', {
         directory: 'custom/relative/path',
       });
-      expect(mgr.getHandoverDir()).toBe('/repo/custom/relative/path');
+      expect(mgr.getHandoverDir()).toBe('/repo/custom/relative/path/run-1234');
+    });
+
+    it('should isolate multiple runs with same custom directory', () => {
+      const mgr1 = new HandoverManager('/repo', 'pipeline', 'run-aaaaaaaa-1234', {
+        directory: '.shared-handover',
+      });
+      const mgr2 = new HandoverManager('/repo', 'pipeline', 'run-bbbbbbbb-5678', {
+        directory: '.shared-handover',
+      });
+
+      expect(mgr1.getHandoverDir()).toBe('/repo/.shared-handover/run-aaaa');
+      expect(mgr2.getHandoverDir()).toBe('/repo/.shared-handover/run-bbbb');
+      expect(mgr1.getHandoverDir()).not.toBe(mgr2.getHandoverDir());
+    });
+
+    it('should isolate loop iterations with custom directory', () => {
+      // Simulate two loop iterations with different runIds
+      const iteration1 = new HandoverManager('/repo', 'loop-pipeline', 'iter-11111111', {
+        directory: '.my-handover',
+      });
+      const iteration2 = new HandoverManager('/repo', 'loop-pipeline', 'iter-22222222', {
+        directory: '.my-handover',
+      });
+
+      expect(iteration1.getHandoverDir()).not.toBe(iteration2.getHandoverDir());
+      expect(iteration1.getHandoverDir()).toBe('/repo/.my-handover/iter-111');
+      expect(iteration2.getHandoverDir()).toBe('/repo/.my-handover/iter-222');
     });
 
     it('should create InstructionLoader with repo path', () => {

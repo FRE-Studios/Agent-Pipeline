@@ -21,17 +21,26 @@ export class HandoverManager {
     this.runId = runId;
     this.instructionLoader = new InstructionLoader(repoPath);
 
-    // Default: .agent-pipeline/runs/{pipeline-name}-{runId}/ in repo root
-    const defaultDir = path.join(
-      '.agent-pipeline',
-      'runs',
-      `${pipelineName}-${runId.substring(0, 8)}`
-    );
-    const baseDir = config?.directory || defaultDir;
+    // Build handover directory path
+    // Custom directory: append runId for isolation (prevents overwrites across runs)
+    // Default: .agent-pipeline/runs/{pipeline-name}-{runId}/
+    const runIdSuffix = runId.substring(0, 8);
 
-    this.handoverDir = path.isAbsolute(baseDir)
-      ? baseDir
-      : path.join(repoPath, baseDir);
+    if (config?.directory) {
+      // Custom directory specified - append runId for run isolation
+      const customBase = path.isAbsolute(config.directory)
+        ? config.directory
+        : path.join(repoPath, config.directory);
+      this.handoverDir = path.join(customBase, runIdSuffix);
+    } else {
+      // Default: .agent-pipeline/runs/{pipeline-name}-{runId}/
+      this.handoverDir = path.join(
+        repoPath,
+        '.agent-pipeline',
+        'runs',
+        `${pipelineName}-${runIdSuffix}`
+      );
+    }
   }
 
   getHandoverDir(): string {
