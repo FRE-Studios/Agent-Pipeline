@@ -16,40 +16,16 @@ definitions:
           - manual
       git:
         $ref: "#/definitions/GitConfig"
+      execution:
+        $ref: "#/definitions/ExecutionConfig"
+      handover:
+        $ref: "#/definitions/HandoverConfig"
       notifications:
         $ref: "#/definitions/NotificationConfig"
+      looping:
+        $ref: "#/definitions/LoopingConfig"
       runtime:
         $ref: "#/definitions/RuntimeConfig"
-      settings:
-        type: object
-        properties:
-          autoCommit:
-            type: boolean
-          commitPrefix:
-            type: string
-          failureStrategy:
-            type: string
-            enum:
-              - stop
-              - continue
-          executionMode:
-            type: string
-            enum:
-              - sequential
-              - parallel
-          permissionMode:
-            $ref: "#/definitions/PermissionMode"
-          handover:
-            type: object
-            properties:
-              directory:
-                type: string
-            additionalProperties: false
-        required:
-          - autoCommit
-          - commitPrefix
-          - failureStrategy
-        additionalProperties: false
       agents:
         type: array
         items:
@@ -62,6 +38,10 @@ definitions:
   GitConfig:
     type: object
     properties:
+      autoCommit:
+        type: boolean
+      commitPrefix:
+        type: string
       baseBranch:
         type: string
       branchStrategy:
@@ -73,14 +53,30 @@ definitions:
       branchPrefix:
         type: string
       mergeStrategy:
-        type: string
-        enum:
-          - pull-request
-          - local-merge
-          - none
+        $ref: "#/definitions/MergeStrategy"
       pullRequest:
         $ref: "#/definitions/PRConfig"
+      worktree:
+        $ref: "#/definitions/WorktreeConfig"
     additionalProperties: false
+  MergeStrategy:
+    type: string
+    enum:
+      - pull-request
+      - local-merge
+      - none
+    description: >-
+      Merge strategy for pipeline completion
+
+      - pull-request: Push branch and create GitHub PR
+
+      - local-merge: Merge branch to baseBranch locally (no remote interaction)
+
+      - none: No merge action (work stays in branch/worktree)
+
+
+      Note: 'unique-and-delete' branchStrategy cannot be used with 'none'
+      mergeStrategy
   PRConfig:
     type: object
     properties:
@@ -107,6 +103,59 @@ definitions:
       web:
         type: boolean
     additionalProperties: false
+  WorktreeConfig:
+    type: object
+    properties:
+      directory:
+        type: string
+    additionalProperties: false
+    description: Worktree configuration for pipeline isolation Pipelines execute in
+      dedicated git worktrees, leaving user's working directory untouched
+  ExecutionConfig:
+    type: object
+    properties:
+      mode:
+        type: string
+        enum:
+          - sequential
+          - parallel
+      failureStrategy:
+        type: string
+        enum:
+          - stop
+          - continue
+      permissionMode:
+        $ref: "#/definitions/PermissionMode"
+    additionalProperties: false
+    description: Execution configuration - controls pipeline runtime behavior
+  PermissionMode:
+    type: string
+    enum:
+      - default
+      - acceptEdits
+      - bypassPermissions
+      - plan
+    description: >-
+      Permission mode for agent execution
+
+      - default: Prompts for permission based on .claude/settings.json rules
+
+      - acceptEdits: Auto-accepts file edits (Write, Edit tools) while
+      respecting allow/deny rules
+
+      - bypassPermissions: Bypasses all permission checks (use with caution)
+
+      - plan: Read-only mode, no actual execution
+    default: "'acceptEdits' - Optimized for automated workflows"
+  HandoverConfig:
+    type: object
+    properties:
+      directory:
+        type: string
+      instructions:
+        type: string
+    additionalProperties: false
+    description: Handover configuration - inter-stage communication settings
   NotificationConfig:
     type: object
     properties:
@@ -131,6 +180,7 @@ definitions:
       - pipeline.started
       - pipeline.completed
       - pipeline.failed
+      - pipeline.aborted
       - stage.completed
       - stage.failed
       - pr.created
@@ -158,6 +208,30 @@ definitions:
         items:
           type: string
     additionalProperties: false
+  LoopingConfig:
+    type: object
+    properties:
+      enabled:
+        type: boolean
+      maxIterations:
+        type: number
+      instructions:
+        type: string
+      directories:
+        type: object
+        properties:
+          pending:
+            type: string
+          running:
+            type: string
+          finished:
+            type: string
+          failed:
+            type: string
+        additionalProperties: false
+    required:
+      - enabled
+    additionalProperties: false
   RuntimeConfig:
     type: object
     properties:
@@ -171,25 +245,6 @@ definitions:
     additionalProperties: false
     description: "Runtime configuration for agent execution Supports multiple
       runtime types: 'claude-sdk', 'claude-code-headless', etc."
-  PermissionMode:
-    type: string
-    enum:
-      - default
-      - acceptEdits
-      - bypassPermissions
-      - plan
-    description: >-
-      Permission mode for agent execution
-
-      - default: Prompts for permission based on .claude/settings.json rules
-
-      - acceptEdits: Auto-accepts file edits (Write, Edit tools) while
-      respecting allow/deny rules
-
-      - bypassPermissions: Bypasses all permission checks (use with caution)
-
-      - plan: Read-only mode, no actual execution
-    default: "'acceptEdits' - Optimized for automated workflows"
   AgentStageConfig:
     type: object
     properties:
@@ -215,10 +270,6 @@ definitions:
           type: string
       retry:
         $ref: "#/definitions/RetryConfig"
-      autoCommit:
-        type: boolean
-      commitMessage:
-        type: string
       inputs:
         type: object
         additionalProperties:

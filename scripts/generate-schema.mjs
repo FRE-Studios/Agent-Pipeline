@@ -18,8 +18,6 @@ const config = {
 };
 
 async function generateSchema() {
-  console.log('Generating JSON Schema from PipelineConfig...');
-
   const generator = createGenerator(config);
   const schema = generator.createSchema(config.type);
 
@@ -34,14 +32,12 @@ async function generateSchema() {
   // Write JSON
   const jsonPath = path.join(schemaDir, 'pipeline-config.schema.json');
   await writeFile(jsonPath, JSON.stringify(schema, null, 2), 'utf-8');
-  console.log(`  JSON: ${jsonPath}`);
 
   // Write YAML
   const yamlPath = path.join(schemaDir, 'pipeline-config.schema.yaml');
   await writeFile(yamlPath, YAML.stringify(schema, { indent: 2 }), 'utf-8');
-  console.log(`  YAML: ${yamlPath}`);
 
-  console.log('Schema generation complete.');
+  console.log('✅ Generated pipeline config schema (JSON + YAML)');
 }
 
 generateSchema().catch((error) => {

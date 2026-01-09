@@ -158,16 +158,6 @@ function formatMinimalTemplate(): string {
 name: my-pipeline
 trigger: manual  # pre-commit | post-commit | pre-push | post-merge | manual
 
-# Git settings (optional)
-git:
-  autoCommit: true
-  commitPrefix: "[pipeline:{{stage}}]"
-
-# Execution settings (optional)
-execution:
-  mode: parallel             # parallel | sequential
-  failureStrategy: continue  # stop | continue
-
 agents:
   - name: analyze
     agent: .agent-pipeline/agents/analyzer.md
@@ -703,7 +693,7 @@ export async function schemaCommand(
   try {
     schemaContent = await fs.readFile(schemaPath, 'utf-8');
   } catch (error) {
-    console.error(c.value('Schema file not found.') + ' Run "npm run generate:schema" to generate it.');
+    console.error(c.value('Schema file not found.') + ' Run "npm run build" to generate it.');
     process.exit(1);
   }
 
