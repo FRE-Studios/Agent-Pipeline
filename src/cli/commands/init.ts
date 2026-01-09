@@ -4,14 +4,29 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import * as YAML from 'yaml';
+import chalk from 'chalk';
 import { AgentImporter } from '../utils/agent-importer.js';
 import { PipelineLoader } from '../../config/pipeline-loader.js';
 import { PipelineValidator, ValidationError } from '../../validators/pipeline-validator.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Color utilities following established patterns in help/index.ts
+const c = {
+  title: chalk.bold.cyan,
+  header: chalk.bold.white,
+  success: chalk.green,
+  cmd: chalk.cyan,
+  path: chalk.yellow,
+  dim: chalk.dim,
+  warn: chalk.yellow,
+  error: chalk.red,
+  highlight: chalk.bold.green,
+  divider: chalk.dim,
+};
+
 export async function initCommand(repoPath: string): Promise<void> {
-  console.log('\n🚀 Initializing Agent Pipeline...\n');
+  console.log(`\n${c.title('Agent Pipeline')} ${c.dim('— Initializing project...')}\n`);
 
   try {
     // Create directory structure
@@ -26,21 +41,21 @@ export async function initCommand(repoPath: string): Promise<void> {
     // Create default instruction templates
     const skippedInstructions = await createInstructionTemplates(instructionsDir);
 
-    console.log('✅ Created directory structure:');
-    console.log(`   - .agent-pipeline/pipelines/`);
-    console.log(`   - .agent-pipeline/agents/`);
-    console.log(`   - .agent-pipeline/instructions/\n`);
+    console.log(`${c.success('✓')} ${c.header('Created directory structure:')}`);
+    console.log(`   ${c.dim('•')} ${c.path('.agent-pipeline/pipelines/')}`);
+    console.log(`   ${c.dim('•')} ${c.path('.agent-pipeline/agents/')}`);
+    console.log(`   ${c.dim('•')} ${c.path('.agent-pipeline/instructions/')}\n`);
 
     if (skippedInstructions.length > 0) {
-      console.log(`⚠️  Existing instruction files not overwritten: ${skippedInstructions.join(', ')}`);
-      console.log('   To get fresh templates, delete these files and run "agent-pipeline init" again.\n');
+      console.log(`${c.warn('⚠')}  ${c.dim('Existing instruction files not overwritten:')} ${c.path(skippedInstructions.join(', '))}`);
+      console.log(`   ${c.dim('To get fresh templates, delete these files and run')} ${c.cmd('agent-pipeline init')} ${c.dim('again.')}\n`);
     }
 
     // Check for available plugin agents (don't auto-import)
     const discoveredAgents = await AgentImporter.discoverPluginAgents();
     if (discoveredAgents.length > 0) {
-      console.log(`📦 ${discoveredAgents.length} agent(s) found in Claude Code plugins.`);
-      console.log('   Use "agent-pipeline agent pull" to import.\n');
+      console.log(`${c.dim('📦')} ${c.header(`${discoveredAgents.length} agent(s)`)} ${c.dim('found in Claude Code plugins.')}`);
+      console.log(`   ${c.dim('Use')} ${c.cmd('agent-pipeline agent pull')} ${c.dim('to import.')}\n`);
     }
 
     // Create example pipelines
@@ -51,13 +66,13 @@ export async function initCommand(repoPath: string): Promise<void> {
     ];
 
     // Copy pipeline templates
-    console.log('✅ Creating pipelines:');
+    console.log(`${c.success('✓')} ${c.header('Creating pipelines:')}`);
     for (const pipelineName of pipelinesToCreate) {
       try {
         await copyPipelineTemplate(pipelineName, pipelinesDir);
-        console.log(`   - .agent-pipeline/pipelines/${pipelineName}.yml`);
+        console.log(`   ${c.dim('•')} ${c.path(`.agent-pipeline/pipelines/${pipelineName}.yml`)}`);
       } catch (error) {
-        console.log(`   ⚠️  Could not create ${pipelineName}.yml: ${(error as Error).message}`);
+        console.log(`   ${c.warn('⚠')}  ${c.dim('Could not create')} ${c.path(`${pipelineName}.yml`)}: ${c.dim((error as Error).message)}`);
       }
     }
     console.log('');
@@ -79,9 +94,9 @@ export async function initCommand(repoPath: string): Promise<void> {
       const createdAgents = await createRequiredAgents(agentsDir, agentsToCreate);
 
       if (createdAgents.length > 0) {
-        console.log(`✅ Created ${createdAgents.length} fallback agent(s) required by your pipelines:`);
+        console.log(`${c.success('✓')} ${c.header(`Created ${createdAgents.length} agent(s)`)} ${c.dim('required by your pipelines:')}`);
         for (const agent of createdAgents) {
-          console.log(`   - .agent-pipeline/agents/${agent}`);
+          console.log(`   ${c.dim('•')} ${c.path(`.agent-pipeline/agents/${agent}`)}`);
         }
         console.log('');
       }
@@ -91,42 +106,44 @@ export async function initCommand(repoPath: string): Promise<void> {
     await updateGitignore(repoPath);
 
     // Validate created pipelines
-    console.log('🔍 Validating pipelines...\n');
+    console.log(`${c.dim('Validating pipelines...')}\n`);
     const validationResults = await validateCreatedPipelines(repoPath, pipelinesToCreate);
 
     if (!validationResults.allValid) {
-      console.log(`\n${'='.repeat(60)}`);
-      console.log('\n⚠️  Agent Pipeline initialized with validation issues.\n');
-      console.log('Fix the errors above before running pipelines.');
-      console.log(`\n${'='.repeat(60)}\n`);
+      console.log(`\n${c.divider('─'.repeat(60))}`);
+      console.log(`\n${c.warn('⚠')}  ${c.header('Agent Pipeline initialized with validation issues.')}\n`);
+      console.log(`${c.dim('Fix the errors above before running pipelines.')}`);
+      console.log(`\n${c.divider('─'.repeat(60))}\n`);
       return;
     }
 
     // Success message
-    console.log(`${'='.repeat(60)}`);
-    console.log('\n✨ Agent Pipeline initialized successfully!\n');
+    console.log(`${c.divider('─'.repeat(60))}`);
+    console.log(`\n${c.highlight('✓')} ${c.title('Agent Pipeline initialized successfully!')}\n`);
 
     // Show what was created
-    console.log(`📁 Created ${pipelinesToCreate.length} pipeline(s):`);
+    console.log(`${c.header(`Created ${pipelinesToCreate.length} pipeline(s):`)}`);
     for (const pipeline of pipelinesToCreate) {
-      console.log(`   - ${pipeline}.yml`);
+      console.log(`   ${c.dim('•')} ${c.path(`${pipeline}.yml`)}`);
     }
     console.log('');
 
-    console.log('Next steps:');
-    console.log('  1. Run the parallel design exploration:');
-    console.log('     agent-pipeline run front-end-parallel-example');
-    console.log('     💡 Tip: Edit the "prompt" in product-owner stage to design your own website!');
-    console.log('  2. For existing projects, try the post-commit workflow:');
-    console.log('     agent-pipeline run post-commit-example');
-    console.log('  3. Install git hooks (optional):');
-    console.log('     agent-pipeline hooks install post-commit-example');
-    console.log('  4. Customize agents in .agent-pipeline/agents/');
-    console.log(`\n${'='.repeat(60)}\n`);
+    console.log(`${c.header('Next steps:')}\n`);
+    console.log(`  ${c.header('1.')} Run the parallel design exploration:\n`);
+    console.log(`     ${c.cmd('$ agent-pipeline run front-end-parallel-example')}\n`);
+    console.log(`     ${c.dim('Tip: Edit the "prompt" in product-owner stage to design your own website!')}\n`);
+    console.log(`  ${c.header('2.')} For existing projects, try the post-commit workflow:\n`);
+    console.log(`     ${c.cmd('$ agent-pipeline run post-commit-example')}\n`);
+    console.log(`  ${c.header('3.')} Install git hooks ${c.dim('(optional)')}:\n`);
+    console.log(`     ${c.cmd('$ agent-pipeline hooks install post-commit-example')}\n`);
+    console.log(`  ${c.header('4.')} Customize agents in ${c.path('.agent-pipeline/agents/')}\n`);
+    console.log(`  ${c.header('5.')} Try the agent loop example:\n`);
+    console.log(`     ${c.cmd('$ agent-pipeline run loop-example')}`);
+    console.log(`\n${c.divider('─'.repeat(60))}\n`);
 
   } catch (error) {
-    console.error('❌ Failed to initialize Agent Pipeline:');
-    console.error((error as Error).message);
+    console.error(`${c.error('✗')} ${c.header('Failed to initialize Agent Pipeline:')}`);
+    console.error(c.dim((error as Error).message));
     throw error;
   }
 }
@@ -170,7 +187,7 @@ async function getRequiredAgents(pipelineNames: string[]): Promise<string[]> {
         }
       }
     } catch (error) {
-      console.log(`   ⚠️  Could not parse ${pipelineName}.yml: ${(error as Error).message}`);
+      console.log(`   ${c.warn('⚠')}  ${c.dim('Could not parse')} ${c.path(`${pipelineName}.yml`)}: ${c.dim((error as Error).message)}`);
     }
   }
 
@@ -237,11 +254,11 @@ async function createRequiredAgents(
         );
         createdAgents.push(agentFilename);
       } catch (error) {
-        console.log(`   ⚠️  Agent ${agentFilename} failed to copy: ${(error as Error).message}`);
+        console.log(`   ${c.warn('⚠')}  ${c.dim('Agent')} ${c.path(agentFilename)} ${c.dim('failed to copy:')} ${c.dim((error as Error).message)}`);
       }
     } else {
       // Agent template doesn't exist - skip it
-      console.log(`   ⚠️  Agent ${agentFilename} is required but no template available (import from plugins or create manually)`);
+      console.log(`   ${c.warn('⚠')}  ${c.dim('Agent')} ${c.path(agentFilename)} ${c.dim('is required but no template available (import from plugins or create manually)')}`);
     }
   }
 
@@ -300,24 +317,24 @@ async function validateCreatedPipelines(
 
       if (pipelineErrors.length > 0) {
         hasErrors = true;
-        console.log(`❌ ${pipelineName}: ${pipelineErrors.length} error(s)`);
-        for (const error of pipelineErrors) {
-          console.log(`   • ${error.field}: ${error.message}`);
+        console.log(`${c.error('✗')} ${c.path(pipelineName)}: ${c.error(`${pipelineErrors.length} error(s)`)}`);
+        for (const err of pipelineErrors) {
+          console.log(`   ${c.dim('•')} ${c.dim(err.field)}: ${c.dim(err.message)}`);
         }
       } else if (pipelineWarnings.length > 0) {
-        console.log(`✅ ${pipelineName}: valid (${pipelineWarnings.length} warning(s))`);
+        console.log(`${c.success('✓')} ${c.path(pipelineName)}: ${c.dim(`valid (${pipelineWarnings.length} warning(s))`)}`);
         for (const warning of pipelineWarnings) {
-          console.log(`   ⚠️  ${warning.field}: ${warning.message}`);
+          console.log(`   ${c.warn('⚠')}  ${c.dim(warning.field)}: ${c.dim(warning.message)}`);
         }
       } else {
-        console.log(`✅ ${pipelineName}: valid`);
+        console.log(`${c.success('✓')} ${c.path(pipelineName)}: ${c.dim('valid')}`);
       }
-    } catch (error) {
+    } catch (err) {
       hasErrors = true;
-      console.log(`❌ ${pipelineName}: failed to load - ${(error as Error).message}`);
+      console.log(`${c.error('✗')} ${c.path(pipelineName)}: ${c.dim('failed to load')} - ${c.dim((err as Error).message)}`);
       results.set(pipelineName, [{
         field: 'pipeline',
-        message: (error as Error).message,
+        message: (err as Error).message,
         severity: 'error'
       }]);
     }

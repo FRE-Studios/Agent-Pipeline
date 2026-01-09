@@ -360,13 +360,13 @@ describe('initCommand', () => {
     it('should log initialization message', async () => {
       await initCommand(tempDir);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('🚀 Initializing Agent Pipeline'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent Pipeline'));
     });
 
     it('should log directory creation confirmation', async () => {
       await initCommand(tempDir);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Created directory structure'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Created directory structure'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('.agent-pipeline/pipelines/'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('.agent-pipeline/agents/'));
     });
@@ -374,7 +374,7 @@ describe('initCommand', () => {
     it('should log pipeline creation confirmation', async () => {
       await initCommand(tempDir);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✅ Creating pipelines:'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Creating pipelines'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('front-end-parallel-example.yml'));
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('post-commit-example.yml'));
     });
@@ -384,13 +384,13 @@ describe('initCommand', () => {
       await initCommand(tempDir);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Created'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('fallback agent'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent(s)'));
     });
 
     it('should log success message', async () => {
       await initCommand(tempDir);
 
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✨ Agent Pipeline initialized successfully'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Agent Pipeline initialized successfully'));
     });
 
     it('should log next steps with correct commands', async () => {
@@ -453,7 +453,7 @@ describe('initCommand', () => {
 
       const calls = (console.log as any).mock.calls;
       const hasFallbackMessage = calls.some((call: any[]) =>
-        call[0]?.includes('fallback agent(s) required by your pipelines')
+        call[0]?.includes('required by your pipelines')
       );
 
       expect(hasFallbackMessage).toBe(true);
@@ -472,7 +472,7 @@ describe('initCommand', () => {
 
       await expect(initCommand(invalidPath)).rejects.toThrow();
 
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('❌ Failed to initialize Agent Pipeline'));
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Failed to initialize Agent Pipeline'));
     });
 
     it('should throw error when writing to read-only directory', async () => {
