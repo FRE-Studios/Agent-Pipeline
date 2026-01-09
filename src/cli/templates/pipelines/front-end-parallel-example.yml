@@ -1,35 +1,9 @@
 # Design Exploration Pipeline
 # Rapidly prototype requirements across multiple design aesthetics in parallel
-# Default: 3 active design agents. Uncomment others below for 6 total.
 # Docs: https://github.com/FRE-Studios/agent-pipeline
 
 name: front-end-parallel-example
 trigger: manual
-
-# Git workflow configuration (optional - no git means no worktree isolation)
-git:
-  autoCommit: false
-  commitPrefix: "[design-exploration:{{stage}}]"
-
-# Execution settings
-execution:
-  mode: parallel                      # Enable DAG-based parallelism
-  failureStrategy: continue           # Keep going even if one design agent fails
-
-# Handover settings - inter-stage communication
-handover:
-  directory: pipeline-runs/front-end-parallel-example
-
-# Notification configuration (optional)
-notifications:
-  enabled: true                       # Enable local notifications for hook runs
-  events:
-    - pipeline.completed              # Notify on successful runs
-    - pipeline.failed                 # Notify on failures
-  channels:
-    local:
-      enabled: true                   # Desktop notifications (macOS/Linux)
-      sound: true                     # Play a sound on completion
 
 agents:
   # Stage 1: Transform user input into structured requirements
@@ -59,6 +33,9 @@ agents:
     timeout: 900
 
   # # Example Agents - Remove comments to run full pipeline
+
+  # # Uncomment below agents for more diverse exploration (check dependsOn on showcase agent!)
+
   # # Warning - Pipelines may use many tokens, use with caution.
 
   # - name: luxury-editorial
@@ -90,3 +67,15 @@ agents:
       # - retro-90s
       # - swiss-modernist
     timeout: 300
+
+# Handover settings - inter-stage communication
+handover:
+  directory: pipeline-runs/front-end-parallel-example
+
+# Execution settings
+execution:
+  failureStrategy: continue           # Keep going even if one design agent fails
+
+# Notification configuration (optional)
+notifications:
+  enabled: true                       # Enable local notifications for hook runs

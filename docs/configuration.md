@@ -10,7 +10,36 @@ Agent Pipeline loads YAML pipeline definitions from `.agent-pipeline/pipelines/<
 name: commit-review
 trigger: post-commit                 # pre-commit, post-commit, pre-push, post-merge, or manual
 
-# Git settings - all git-related configuration unified
+# Agent stages
+agents:
+  - name: code-review
+    agent: .agent-pipeline/agents/code-reviewer.md
+    timeout: 180
+    retry:
+      maxAttempts: 3
+      backoff: exponential
+
+  - name: auto-fix
+    agent: .agent-pipeline/agents/fixer.md
+    dependsOn: [code-review]
+    onFail: warn
+
+# Notifications (optional)
+notifications:
+  enabled: true
+  events:
+    - pipeline.completed
+    - pipeline.failed
+    - pr.created
+  channels:
+    local:
+      enabled: true
+      sound: true
+    slack:
+      enabled: true
+      webhookUrl: ${SLACK_WEBHOOK_URL}
+
+# Git settings (optional)
 git:
   autoCommit: true                   # Automatically commit stage changes (default: true)
   commitPrefix: "[pipeline:{{stage}}]"
@@ -29,7 +58,7 @@ git:
 # Execution settings - runtime behavior
 execution:
   mode: parallel                     # parallel (default) or sequential
-  failureStrategy: continue          # stop or continue (default: stop)
+  failureStrategy: stop              # stop or continue (default: stop)
   permissionMode: acceptEdits        # default, acceptEdits, bypassPermissions, or plan
 
 # Handover settings - inter-stage communication
@@ -37,40 +66,17 @@ handover:
   directory: .agent-pipeline/runs/{{pipeline}}-{{runId}}  # Default pattern
   instructions: .agent-pipeline/instructions/handover.md
 
+# Looping settings - inter-pipeline communication
+looping:
+  enabled: true                    # Auto-enable loop mode for this pipeline
+  maxIterations: 100 
+
 # Runtime configuration - agent execution backend
 runtime:
   type: claude-code-headless         # claude-code-headless (default) or claude-sdk
   options:
     model: sonnet                    # haiku, sonnet, or opus
 
-# Notifications (optional)
-notifications:
-  enabled: true
-  events:
-    - pipeline.completed
-    - pipeline.failed
-    - pr.created
-  channels:
-    local:
-      enabled: true
-      sound: true
-    slack:
-      enabled: true
-      webhookUrl: ${SLACK_WEBHOOK_URL}
-
-# Agent stages
-agents:
-  - name: code-review
-    agent: .agent-pipeline/agents/code-reviewer.md
-    timeout: 180
-    retry:
-      maxAttempts: 3
-      backoff: exponential
-
-  - name: auto-fix
-    agent: .agent-pipeline/agents/fixer.md
-    dependsOn: [code-review]
-    onFail: warn
 ```
 
 ## Git Settings

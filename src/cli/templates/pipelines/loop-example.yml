@@ -1,57 +1,25 @@
 # Loop Pipeline Example
 # Demonstrates pipeline-level looping configuration
 # Docs: https://github.com/FRE-Studios/agent-pipeline
-#
-# Loop directories are automatically created per session at:
-#   .agent-pipeline/loops/{sessionId}/pending|running|finished|failed
-#
-# In worktree mode, directories are created in the worktree during execution
-# and copied to the main repo after the loop session completes.
-#
-# Usage:
-#   agent-pipeline run loop-example           # Auto-loops
-#   agent-pipeline run loop-example --no-loop # Force single run
 
 name: loop-example
 trigger: manual
-
-# Git workflow configuration (optional)
-git:
-  autoCommit: false
-  commitPrefix: "[loop:{{stage}}]"
-
-# Execution settings
-execution:
-  mode: sequential
-  failureStrategy: continue
-
-# Handover settings - inter-stage communication
-handover:
-  directory: pipeline-runs/loop-example
-
-# Pipeline-level looping configuration
-# When enabled: true, pipeline automatically runs in loop mode
-looping:
-  enabled: true
-  maxIterations: 5                    # Safety limit (default: 100)
-  # instructions: .agent-pipeline/instructions/loop.md  # Optional custom loop instructions
-  # directories:                      # Uncomment to override session-scoped defaults
-  #   pending: custom/pending         # Agents write new pipeline YAMLs here
-  #   running: custom/running         # Currently executing pipeline
-  #   finished: custom/finished       # Successfully completed pipelines
-  #   failed: custom/failed           # Failed pipeline files
-
-notifications:
-  enabled: true
-  events:
-    - pipeline.completed
-    - pipeline.failed
-  channels:
-    local:
-      enabled: true
-      sound: true
 
 agents:
   - name: story-writer
     agent: .agent-pipeline/agents/story_writer.md
     timeout: 300
+
+looping:
+  enabled: true
+  maxIterations: 5
+
+# Handover settings - inter-stage communication
+handover:
+  directory: pipeline-runs/loop-example
+
+# Notification configuration (optional)
+notifications:
+  enabled: true
+
+
