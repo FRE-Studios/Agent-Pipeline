@@ -264,8 +264,10 @@ export class StageExecutor {
       );
 
       // Auto-commit if enabled (use worktree git manager if executing in worktree)
+      // Only auto-commit if git config is explicitly provided. If git section is omitted, no git involvement.
       const execGitManager = this.getExecutionGitManager();
-      const autoCommit = pipelineState.pipelineConfig.git?.autoCommit ?? true;
+      const gitConfig = pipelineState.pipelineConfig.git;
+      const autoCommit = gitConfig ? (gitConfig.autoCommit ?? true) : false;
       const shouldCommit = autoCommit && !this.dryRun;
       if (shouldCommit) {
         const commitPrefix = pipelineState.pipelineConfig.git?.commitPrefix;

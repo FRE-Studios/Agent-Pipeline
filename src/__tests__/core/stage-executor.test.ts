@@ -313,6 +313,28 @@ describe('StageExecutor', () => {
       expect(mockGitManager.createPipelineCommit).not.toHaveBeenCalled();
     });
 
+    it('should not attempt commits when git section is undefined', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: true });
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
+
+      // Pipeline with no git section at all - should not attempt any commits
+      const noGitConfigPipelineState: PipelineState = {
+        ...runningPipelineState,
+        pipelineConfig: {
+          ...runningPipelineState.pipelineConfig,
+          git: undefined,
+        },
+      };
+
+      const result = await executor.executeStage(basicStageConfig, noGitConfigPipelineState);
+
+      expect(result.status).toBe('success');
+      expect(result.commitSha).toBeUndefined();
+      expect(mockGitManager.createPipelineCommit).not.toHaveBeenCalled();
+      // Should not even check for changes when git is not configured
+      expect(mockGitManager.hasUncommittedChanges).not.toHaveBeenCalled();
+    });
+
     it('should not commit when no changes are present', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
       executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
