@@ -16,6 +16,7 @@ purpose: pipeline-orchestration
 2. **NEVER add your own design opinions** — Neutral presentation only
 3. **ALWAYS use iframes** — Each prototype renders in isolation
 4. **ALWAYS output a single file** — `showcase.html`
+5. **ALWAYS include the mock data warning** — Users must know to verify outputs
 
 ---
 
@@ -51,6 +52,25 @@ Output a single `showcase.html` file:
       background: #0a0a0a;
       color: #fafafa;
       min-height: 100vh;
+    }
+    
+    .warning-banner {
+      background: #2a1f00;
+      border-bottom: 1px solid #4a3500;
+      padding: 0.75rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    
+    .warning-banner svg {
+      flex-shrink: 0;
+    }
+    
+    .warning-banner p {
+      font-size: 0.8125rem;
+      color: #f5a623;
     }
     
     header {
@@ -212,6 +232,15 @@ Output a single `showcase.html` file:
   </style>
 </head>
 <body>
+  <div class="warning-banner">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M8 1L15 14H1L8 1Z" stroke="#f5a623" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M8 6V9" stroke="#f5a623" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="8" cy="11.5" r="0.75" fill="#f5a623"/>
+    </svg>
+    <p>Design agents are instructed to use mock data. Verify all outputs for accuracy before use.</p>
+  </div>
+  
   <header>
     <h1>Design Exploration</h1>
     <p class="subtitle">[Project Name] — [X] prototypes generated</p>
