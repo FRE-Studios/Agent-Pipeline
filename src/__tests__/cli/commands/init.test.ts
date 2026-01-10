@@ -23,7 +23,7 @@ const POST_COMMIT_AGENTS = [
 ];
 
 const LOOP_AGENTS = [
-  'story_writer.md'
+  'socratic-explorer.md'
 ];
 
 const ALL_EXPECTED_AGENTS = [...FRONTEND_AGENTS, ...POST_COMMIT_AGENTS, ...LOOP_AGENTS].sort();

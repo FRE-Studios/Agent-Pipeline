@@ -31,7 +31,7 @@ All commands are routed through `src/index.ts`. Use `agent-pipeline <command> [o
 - `init` – Scaffold `.agent-pipeline/` with example pipelines.
   - Creates `front-end-parallel-example.yml` (parallel design exploration with 8 agents)
   - Creates `post-commit-example.yml` (sequential code review workflow for existing projects)
-  - Creates `loop-example.yml` (collaborative storytelling with auto-loop enabled)
+  - Creates `loop-example.yml` (Socratic philosophical exploration with auto-loop enabled)
   - Automatically creates only the fallback agents required by the pipelines.
 
 ## Pipeline Management

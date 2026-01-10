@@ -71,6 +71,33 @@ agent-pipeline install post-commit-example
 Note: enable `git.branchStrategy` in the pipeline config before installing the hook.
 Tip: for hook-triggered pipelines, prefer `unique-per-run` (or `unique-and-delete`) and disable `autoCommit` if you only need reports.
 
+## Loop Example (`loop-example.yml`)
+
+**Purpose**: Demonstrates pipeline looping with a Socratic philosophical exploration agent that iteratively deepens inquiry.
+
+**Trigger**: `manual`
+
+**Default Agent** (1 active):
+- `socratic-explorer` - Reads a question, answers thoughtfully, poses a deeper follow-up question
+
+**Execution Flow**:
+- The agent reads `question.md` (creates it if missing with an opening question)
+- Answers the current question in 2-3 sentences
+- Poses a deeper follow-up question
+- Loop repeats up to `maxIterations` (default: 5)
+
+**Features**:
+- `looping.enabled: true` - automatic iteration
+- `looping.maxIterations: 5` - safety limit on iterations
+- Filesystem-based handover via `question.md`
+- Each iteration builds on previous answers
+
+Run it with:
+
+```bash
+agent-pipeline run loop-example
+```
+
 ## Available Agents
 
 All examples use focused micro-agents from `.agent-pipeline/agents/`:
@@ -85,3 +112,6 @@ All examples use focused micro-agents from `.agent-pipeline/agents/`:
 - `doc-updater` - Maintains documentation in sync with code changes (active by default)
 - `code-reviewer` - Reviews code for bugs, security, and project conventions (commented out)
 - `quality-checker` - Analyzes complexity, code smells, and simplification opportunities (commented out)
+
+**Loop Agents** (loop-example):
+- `socratic-explorer` - Philosophical inquiry agent that deepens questions iteratively

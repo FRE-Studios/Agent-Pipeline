@@ -6,8 +6,8 @@ name: loop-example
 trigger: manual
 
 agents:
-  - name: story-writer
-    agent: .agent-pipeline/agents/story_writer.md
+  - name: socratic-explorer
+    agent: .agent-pipeline/agents/socratic-explorer.md
     timeout: 300
 
 looping:
