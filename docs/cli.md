@@ -70,7 +70,7 @@ Options:
 - `-o, --output <file>` – Write to file instead of stdout
 
 Available fields for `--field`:
-`name`, `trigger`, `settings`, `agents`, `git`, `notifications`, `runtime`, `loop`, `condition`, `inputs`, `outputs`, `dependsOn`
+`name`, `trigger`, `execution`, `agents`, `git`, `notifications`, `runtime`, `looping`, `inputs`, `dependsOn`
 
 **IDE Integration:** Export the schema for YAML validation and autocomplete:
 ```bash

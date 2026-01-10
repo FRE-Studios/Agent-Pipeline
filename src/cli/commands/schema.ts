@@ -151,8 +151,8 @@ export interface SchemaCommandOptions {
  */
 function formatMinimalTemplate(): string {
   return `# Agent Pipeline Configuration
-# Run 'agent-pipeline schema --full' for complete JSON schema
 # Run 'agent-pipeline schema --examples' for common patterns
+# Run 'agent-pipeline schema --full' for complete JSON schema
 # Docs: https://github.com/FRE-Studios/agent-pipeline
 
 name: my-pipeline
@@ -170,40 +170,6 @@ agents:
     agent: .agent-pipeline/agents/implementer.md
     dependsOn:
       - analyze              # Runs after 'analyze' completes
-
-# Optional sections:
-
-# git:
-#   baseBranch: main           # Base branch for PRs
-#   branchStrategy: reusable   # reusable | unique-per-run | unique-and-delete
-#   mergeStrategy: pull-request  # pull-request | local-merge | none
-#   worktree:
-#     directory: .agent-pipeline/worktrees
-
-# execution:
-#   permissionMode: acceptEdits  # default | acceptEdits | bypassPermissions | plan
-
-# handover:
-#   directory: .agent-pipeline/runs/my-pipeline
-#   instructions: .agent-pipeline/instructions/handover.md
-
-# runtime:
-#   type: claude-code-headless   # claude-code-headless | claude-sdk
-#   options:
-#     model: sonnet              # haiku | sonnet | opus
-
-# notifications:
-#   enabled: true
-#   channels:
-#     local: { enabled: true }
-#     slack: { webhookUrl: $SLACK_WEBHOOK_URL }
-
-# Default settings (when not specified):
-#   runtime: claude-code-headless
-#   permissionMode: acceptEdits
-#   timeout: 900 (15 minutes)
-#   failureStrategy: stop
-#   autoCommit: true
 `;
 }
 
@@ -252,8 +218,8 @@ agents:
 
 ---
 # =============================================================================
-# Example 3: Conditional Execution
-# Agents run based on previous stage outputs
+# Example 3: Multi-Stage Review with Handover
+# Agents communicate via filesystem handover (HANDOVER.md)
 # =============================================================================
 
 name: smart-review
@@ -262,19 +228,14 @@ trigger: post-commit
 agents:
   - name: detect-changes
     agent: .agent-pipeline/agents/change-detector.md
-    outputs:
-      - hasTests
-      - hasStyles
+    # Writes findings to stages/detect-changes/output.md
+    # Next stages read from HANDOVER.md
 
-  - name: test-review
-    agent: .agent-pipeline/agents/test-reviewer.md
+  - name: targeted-review
+    agent: .agent-pipeline/agents/targeted-reviewer.md
     dependsOn: [detect-changes]
-    condition: "outputs['detect-changes'].hasTests === true"
-
-  - name: style-review
-    agent: .agent-pipeline/agents/style-reviewer.md
-    dependsOn: [detect-changes]
-    condition: "outputs['detect-changes'].hasStyles === true"
+    # Agent reads HANDOVER.md and decides what to review
+    # Can skip work if no relevant changes detected
 
 ---
 # =============================================================================
@@ -418,14 +379,14 @@ const fieldDocs: Record<string, string> = {
     name (required)      Unique stage identifier (for dependsOn, handover, logging)
     agent (required)     Path to agent file (can be reused with different names)
     dependsOn            Stages that must complete first (array)
-    condition            JavaScript expression for conditional execution
     inputs               Key-value pairs passed to agent prompt
-    outputs              Values to extract from agent response (array)
     timeout              Max seconds per stage (default: 900)
     onFail               Behavior on failure: stop | continue | warn
-    model                Override model: haiku | sonnet | opus
-    maxTurns             Max conversation turns (default: 50)
-    maxThinkingTokens    Tokens for extended thinking
+    enabled              Set to false to skip this stage
+    retry                Retry configuration (maxAttempts, backoff, initialDelay, maxDelay)
+
+  Conditional logic: Agents can instructed to verify conditions and decide whether to proceed
+  or skip work based on previous stage outputs.
 
   Example:
     agents:
@@ -433,10 +394,7 @@ const fieldDocs: Record<string, string> = {
         agent: .agent-pipeline/agents/reviewer.md
         timeout: 300
         inputs:
-          focus: "security"
-        outputs:
-          - issues
-          - suggestions`,
+          focus: "security"`,
 
   git: `git (optional)
   Git workflow configuration.
@@ -503,18 +461,6 @@ const fieldDocs: Record<string, string> = {
       maxIterations: 10
       instructions: .agent-pipeline/instructions/loop.md`,
 
-  condition: `agents[].condition (optional)
-  JavaScript expression to conditionally execute a stage.
-
-  Available variables:
-    - outputs: object with previous stage outputs
-    - env: environment variables
-
-  Examples:
-    condition: "outputs['analyze'].hasIssues === true"
-    condition: "outputs.detector.fileCount > 0"
-    condition: "env.CI === 'true'"`,
-
   inputs: `agents[].inputs (optional)
   Key-value pairs passed to agent prompt as context.
 
@@ -525,21 +471,6 @@ const fieldDocs: Record<string, string> = {
       focus: "performance"
       maxIssues: 10
       files: "src/**/*.ts"`,
-
-  outputs: `agents[].outputs (optional)
-  Values to extract from agent response.
-
-  Agents can report outputs via:
-    1. MCP report_outputs tool (structured)
-    2. Text format: "Output: key=value" (fallback)
-
-  Outputs are available to subsequent stages via condition expressions.
-
-  Example:
-    outputs:
-      - issueCount
-      - hasBlockers
-      - suggestions`,
 
   dependsOn: `agents[].dependsOn (optional)
   Array of stage names that must complete before this stage runs.

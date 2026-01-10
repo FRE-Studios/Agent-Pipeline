@@ -141,7 +141,7 @@ export class GroupExecutionOrchestrator {
     // Add disabled stages to state
     for (const disabledStage of disabledStages) {
       if (this.shouldLog(interactive)) {
-        this.logSkippedStage(disabledStage.name, 'disabled');
+        this.logSkippedStage(disabledStage.name);
       }
       state.stages.push({
         stageName: disabledStage.name,
@@ -291,18 +291,8 @@ export class GroupExecutionOrchestrator {
   /**
    * Log skipped stage
    */
-  private logSkippedStage(
-    stageName: string,
-    reason: 'disabled' | 'condition',
-    conditionText?: string
-  ): void {
-    if (reason === 'disabled') {
-      console.log(`⏭️  Skipping disabled stage: ${stageName}\n`);
-    } else {
-      console.log(
-        `⏭️  Skipping stage "${stageName}" (condition not met): ${conditionText}\n`
-      );
-    }
+  private logSkippedStage(stageName: string): void {
+    console.log(`⏭️  Skipping disabled stage: ${stageName}\n`);
   }
 
   /**
