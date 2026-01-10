@@ -80,8 +80,8 @@ export interface AgentExecutionOptions {
 
   // Model and performance options
 
-  /** Model selection (runtime-specific values like 'haiku', 'sonnet', 'opus') */
-  model?: string;
+  /** Model selection for Claude models */
+  model?: 'haiku' | 'sonnet' | 'opus';
 
   /** Maximum conversation turns to prevent infinite loops */
   maxTurns?: number;

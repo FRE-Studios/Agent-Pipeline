@@ -93,10 +93,10 @@ export class RuntimeValidator implements Validator {
       });
     }
 
-    // Validate model selection
+    // Validate model selection (case-insensitive)
     const model = runtime.options?.model;
     if (model && typeof model === 'string') {
-      if (!capabilities.availableModels.includes(model)) {
+      if (!capabilities.availableModels.includes(model.toLowerCase())) {
         const availableModels = capabilities.availableModels.join(', ');
         errors.push({
           field: `${field}.options.model`,

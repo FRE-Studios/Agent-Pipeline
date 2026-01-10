@@ -113,6 +113,7 @@ export class ClaudeSDKRuntime implements AgentRuntime {
       return lowercased as 'haiku' | 'sonnet' | 'opus';
     }
 
+    console.warn(`Unknown model "${model}", using SDK default. Valid models: haiku, sonnet, opus`);
     return undefined;
   }
 

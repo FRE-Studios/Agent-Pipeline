@@ -774,4 +774,192 @@ agents:
       expect(config.agents[2].runtime?.options?.maxTurns).toBe(30);
     });
   });
+
+  describe('runtime shorthand normalization', () => {
+    it('should transform pipeline-level runtime.model to runtime.options.model', async () => {
+      const shorthandConfig = {
+        name: 'shorthand-model',
+        trigger: 'manual',
+        runtime: {
+          type: 'claude-code-headless',
+          model: 'haiku',
+        },
+        agents: [{ name: 'stage-1', agent: 'agent.md' }],
+      };
+      const configPath = path.join(pipelinesDir, 'shorthand-model.yml');
+      await fs.writeFile(configPath, YAML.stringify(shorthandConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('shorthand-model');
+
+      expect(config.runtime?.options?.model).toBe('haiku');
+      expect((config.runtime as any).model).toBeUndefined();
+    });
+
+    it('should transform pipeline-level runtime.maxTurns to runtime.options.maxTurns', async () => {
+      const shorthandConfig = {
+        name: 'shorthand-maxturns',
+        trigger: 'manual',
+        runtime: {
+          type: 'claude-code-headless',
+          maxTurns: 25,
+        },
+        agents: [{ name: 'stage-1', agent: 'agent.md' }],
+      };
+      const configPath = path.join(pipelinesDir, 'shorthand-maxturns.yml');
+      await fs.writeFile(configPath, YAML.stringify(shorthandConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('shorthand-maxturns');
+
+      expect(config.runtime?.options?.maxTurns).toBe(25);
+      expect((config.runtime as any).maxTurns).toBeUndefined();
+    });
+
+    it('should transform pipeline-level runtime.maxThinkingTokens', async () => {
+      const shorthandConfig = {
+        name: 'shorthand-thinking',
+        trigger: 'manual',
+        runtime: {
+          type: 'claude-code-headless',
+          maxThinkingTokens: 16000,
+        },
+        agents: [{ name: 'stage-1', agent: 'agent.md' }],
+      };
+      const configPath = path.join(pipelinesDir, 'shorthand-thinking.yml');
+      await fs.writeFile(configPath, YAML.stringify(shorthandConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('shorthand-thinking');
+
+      expect(config.runtime?.options?.maxThinkingTokens).toBe(16000);
+      expect((config.runtime as any).maxThinkingTokens).toBeUndefined();
+    });
+
+    it('should transform stage-level model shorthand', async () => {
+      const shorthandConfig = {
+        name: 'stage-shorthand',
+        trigger: 'manual',
+        agents: [
+          {
+            name: 'stage-1',
+            agent: 'agent.md',
+            model: 'opus',
+          },
+        ],
+      };
+      const configPath = path.join(pipelinesDir, 'stage-shorthand.yml');
+      await fs.writeFile(configPath, YAML.stringify(shorthandConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('stage-shorthand');
+
+      expect(config.agents[0].runtime?.options?.model).toBe('opus');
+      expect((config.agents[0] as any).model).toBeUndefined();
+    });
+
+    it('should transform multiple stage-level shorthands', async () => {
+      const shorthandConfig = {
+        name: 'stage-multi-shorthand',
+        trigger: 'manual',
+        agents: [
+          {
+            name: 'stage-1',
+            agent: 'agent.md',
+            model: 'opus',
+            maxTurns: 50,
+            maxThinkingTokens: 32000,
+          },
+        ],
+      };
+      const configPath = path.join(pipelinesDir, 'stage-multi-shorthand.yml');
+      await fs.writeFile(configPath, YAML.stringify(shorthandConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('stage-multi-shorthand');
+
+      expect(config.agents[0].runtime?.options?.model).toBe('opus');
+      expect(config.agents[0].runtime?.options?.maxTurns).toBe(50);
+      expect(config.agents[0].runtime?.options?.maxThinkingTokens).toBe(32000);
+      expect((config.agents[0] as any).model).toBeUndefined();
+      expect((config.agents[0] as any).maxTurns).toBeUndefined();
+      expect((config.agents[0] as any).maxThinkingTokens).toBeUndefined();
+    });
+
+    it('should prefer existing runtime.options over shorthand', async () => {
+      const shorthandConfig = {
+        name: 'options-precedence',
+        trigger: 'manual',
+        runtime: {
+          type: 'claude-code-headless',
+          model: 'haiku',  // shorthand
+          options: {
+            model: 'opus',  // should win
+          },
+        },
+        agents: [{ name: 'stage-1', agent: 'agent.md' }],
+      };
+      const configPath = path.join(pipelinesDir, 'options-precedence.yml');
+      await fs.writeFile(configPath, YAML.stringify(shorthandConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('options-precedence');
+
+      expect(config.runtime?.options?.model).toBe('opus');
+    });
+
+    it('should inherit runtime type from pipeline when stage uses shorthand', async () => {
+      const shorthandConfig = {
+        name: 'inherit-type',
+        trigger: 'manual',
+        runtime: {
+          type: 'claude-sdk',
+        },
+        agents: [
+          {
+            name: 'stage-1',
+            agent: 'agent.md',
+            model: 'haiku',
+          },
+        ],
+      };
+      const configPath = path.join(pipelinesDir, 'inherit-type.yml');
+      await fs.writeFile(configPath, YAML.stringify(shorthandConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('inherit-type');
+
+      expect(config.agents[0].runtime?.type).toBe('claude-sdk');
+      expect(config.agents[0].runtime?.options?.model).toBe('haiku');
+    });
+
+    it('should handle mixed shorthand and nested syntax', async () => {
+      const mixedConfig = {
+        name: 'mixed-syntax',
+        trigger: 'manual',
+        runtime: {
+          type: 'claude-code-headless',
+          model: 'sonnet',
+        },
+        agents: [
+          {
+            name: 'stage-1',
+            agent: 'agent1.md',
+            model: 'haiku',  // shorthand
+          },
+          {
+            name: 'stage-2',
+            agent: 'agent2.md',
+            runtime: {
+              type: 'claude-sdk',
+              options: {
+                model: 'opus',  // nested
+              },
+            },
+          },
+        ],
+      };
+      const configPath = path.join(pipelinesDir, 'mixed-syntax.yml');
+      await fs.writeFile(configPath, YAML.stringify(mixedConfig), 'utf-8');
+
+      const { config } = await loader.loadPipeline('mixed-syntax');
+
+      expect(config.runtime?.options?.model).toBe('sonnet');
+      expect(config.agents[0].runtime?.options?.model).toBe('haiku');
+      expect(config.agents[1].runtime?.options?.model).toBe('opus');
+    });
+  });
 });

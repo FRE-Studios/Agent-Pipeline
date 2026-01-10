@@ -854,6 +854,115 @@ describe('RuntimeValidator', () => {
     });
   });
 
+  describe('validate - case-insensitive model validation', () => {
+    it('should accept uppercase model names', async () => {
+      const mockRuntime = createMockRuntime({
+        capabilities: {
+          availableModels: ['haiku', 'sonnet', 'opus'],
+        },
+      });
+      vi.mocked(AgentRuntimeRegistry.hasRuntime).mockReturnValue(true);
+      vi.mocked(AgentRuntimeRegistry.getRuntime).mockReturnValue(mockRuntime);
+
+      const config: PipelineConfig = {
+        ...baseConfig,
+        runtime: {
+          type: 'claude-sdk',
+          options: {
+            model: 'SONNET',
+          },
+        },
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      const modelErrors = context.errors.filter(e => e.field.includes('model'));
+      expect(modelErrors).toHaveLength(0);
+    });
+
+    it('should accept mixed-case model names', async () => {
+      const mockRuntime = createMockRuntime({
+        capabilities: {
+          availableModels: ['haiku', 'sonnet', 'opus'],
+        },
+      });
+      vi.mocked(AgentRuntimeRegistry.hasRuntime).mockReturnValue(true);
+      vi.mocked(AgentRuntimeRegistry.getRuntime).mockReturnValue(mockRuntime);
+
+      const config: PipelineConfig = {
+        ...baseConfig,
+        runtime: {
+          type: 'claude-sdk',
+          options: {
+            model: 'Opus',
+          },
+        },
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      const modelErrors = context.errors.filter(e => e.field.includes('model'));
+      expect(modelErrors).toHaveLength(0);
+    });
+
+    it('should accept Haiku with capital H', async () => {
+      const mockRuntime = createMockRuntime({
+        capabilities: {
+          availableModels: ['haiku', 'sonnet', 'opus'],
+        },
+      });
+      vi.mocked(AgentRuntimeRegistry.hasRuntime).mockReturnValue(true);
+      vi.mocked(AgentRuntimeRegistry.getRuntime).mockReturnValue(mockRuntime);
+
+      const config: PipelineConfig = {
+        ...baseConfig,
+        runtime: {
+          type: 'claude-sdk',
+          options: {
+            model: 'Haiku',
+          },
+        },
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      const modelErrors = context.errors.filter(e => e.field.includes('model'));
+      expect(modelErrors).toHaveLength(0);
+    });
+
+    it('should still reject invalid model names', async () => {
+      const mockRuntime = createMockRuntime({
+        capabilities: {
+          availableModels: ['haiku', 'sonnet', 'opus'],
+        },
+      });
+      vi.mocked(AgentRuntimeRegistry.hasRuntime).mockReturnValue(true);
+      vi.mocked(AgentRuntimeRegistry.getRuntime).mockReturnValue(mockRuntime);
+
+      const config: PipelineConfig = {
+        ...baseConfig,
+        runtime: {
+          type: 'claude-sdk',
+          options: {
+            model: 'gpt-4',
+          },
+        },
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      expect(context.errors.some(e =>
+        e.field === 'runtime.options.model' &&
+        e.message.includes('Model "gpt-4" not available') &&
+        e.severity === 'error'
+      )).toBe(true);
+    });
+  });
+
   describe('validate - edge cases', () => {
     it('should handle empty agents array with pipeline runtime', async () => {
       const mockRuntime = createMockRuntime();

@@ -72,6 +72,9 @@ export class PipelineLoader {
       config.runtime = { type: 'claude-code-headless' };
     }
 
+    // Normalize shorthand syntax (model, maxTurns, maxThinkingTokens)
+    this.normalizeRuntimeShorthand(config);
+
     // Resolve looping directories to absolute paths if looping is configured
     if (config.looping) {
       (config as any).looping = this.resolveLoopingConfig(config.looping);
@@ -115,6 +118,56 @@ export class PipelineLoader {
       return relativePath;
     }
     return path.resolve(this.repoPath, relativePath);
+  }
+
+  /**
+   * Normalize shorthand runtime options to canonical nested form.
+   *
+   * Supports shorthand at:
+   * - Pipeline level: runtime.model → runtime.options.model
+   * - Stage level: agents[].model → agents[].runtime.options.model
+   *
+   * Shorthand keys: model, maxTurns, maxThinkingTokens
+   */
+  private normalizeRuntimeShorthand(config: PipelineConfig): void {
+    const shorthandKeys = ['model', 'maxTurns', 'maxThinkingTokens'];
+
+    // Pipeline-level runtime shorthand (runtime.model → runtime.options.model)
+    if (config.runtime) {
+      const runtime = config.runtime as unknown as Record<string, unknown>;
+      for (const key of shorthandKeys) {
+        if (key in runtime && key !== 'type' && key !== 'options') {
+          runtime.options = runtime.options || {};
+          const options = runtime.options as Record<string, unknown>;
+          // Only copy if not already in options (options takes precedence)
+          if (!(key in options)) {
+            options[key] = runtime[key];
+          }
+          delete runtime[key];
+        }
+      }
+    }
+
+    // Stage-level shorthand (agents[].model → agents[].runtime.options.model)
+    for (const agent of config.agents) {
+      const agentRecord = agent as unknown as Record<string, unknown>;
+      for (const key of shorthandKeys) {
+        if (key in agentRecord) {
+          // Ensure agent has a runtime config
+          if (!agent.runtime) {
+            agent.runtime = { type: config.runtime?.type || 'claude-code-headless' };
+          }
+          const runtime = agent.runtime as unknown as Record<string, unknown>;
+          runtime.options = runtime.options || {};
+          const options = runtime.options as Record<string, unknown>;
+          // Only copy if not already in options (options takes precedence)
+          if (!(key in options)) {
+            options[key] = agentRecord[key];
+          }
+          delete agentRecord[key];
+        }
+      }
+    }
   }
 
   async listPipelines(): Promise<string[]> {

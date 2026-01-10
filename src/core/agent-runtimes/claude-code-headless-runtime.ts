@@ -178,9 +178,9 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
       args.push('--permission-mode', options.permissionMode);
     }
 
-    // Model selection
+    // Model selection (normalize to lowercase for CLI)
     if (options.model) {
-      args.push('--model', options.model);
+      args.push('--model', options.model.toLowerCase());
     }
 
     // Max turns
