@@ -5,6 +5,102 @@ import * as path from 'path';
 import * as YAML from 'yaml';
 import { InteractivePrompts } from '../../utils/interactive-prompts.js';
 import { PipelineValidator } from '../../../validators/pipeline-validator.js';
+import type { PipelineConfig } from '../../../config/schema.js';
+
+/**
+ * Represents a selected agent with its dependencies
+ */
+interface SelectedAgent {
+  file: string;        // e.g., 'code-reviewer.md'
+  name: string;        // e.g., 'code-reviewer'
+  dependsOn: string[]; // dependency stage names
+}
+
+type DependencyPattern = 'all-parallel' | 'sequential-chain' | 'fan-out';
+
+/**
+ * Select agents one at a time with inline dependency configuration
+ */
+async function selectAgentsOneByOne(availableAgents: string[]): Promise<SelectedAgent[]> {
+  const selected: SelectedAgent[] = [];
+  const remaining = [...availableAgents];
+
+  console.log('\n📋 Add agents to your pipeline:\n');
+
+  // Add first agent (required)
+  const firstAgentFile = await InteractivePrompts.selectSingle(
+    'Select first agent:',
+    remaining.map(a => ({ name: a.replace('.md', ''), value: a }))
+  );
+  selected.push({
+    file: firstAgentFile,
+    name: firstAgentFile.replace('.md', ''),
+    dependsOn: []
+  });
+  remaining.splice(remaining.indexOf(firstAgentFile), 1);
+
+  // Add subsequent agents
+  while (remaining.length > 0) {
+    const addMore = await InteractivePrompts.confirm('\nAdd another agent?', true);
+
+    if (!addMore) break;
+
+    const nextAgentFile = await InteractivePrompts.selectSingle(
+      '\nSelect agent:',
+      remaining.map(a => ({ name: a.replace('.md', ''), value: a }))
+    );
+    const agentName = nextAgentFile.replace('.md', '');
+
+    // Ask for dependencies from previously added agents
+    const priorAgentNames = selected.map(a => a.name);
+    let deps: string[] = [];
+
+    if (priorAgentNames.length > 0) {
+      deps = await InteractivePrompts.multiSelect(
+        `\nWhich agents should "${agentName}" wait for? (Enter to skip for parallel)`,
+        priorAgentNames.map(name => ({ name, value: name }))
+      );
+    }
+
+    selected.push({
+      file: nextAgentFile,
+      name: agentName,
+      dependsOn: deps
+    });
+    remaining.splice(remaining.indexOf(nextAgentFile), 1);
+  }
+
+  // Offer pattern shortcuts if 3+ agents and no manual dependencies set
+  const hasManualDeps = selected.some(a => a.dependsOn.length > 0);
+  if (selected.length >= 3 && !hasManualDeps) {
+    console.log('\n💡 Apply a dependency pattern?');
+    const pattern = await InteractivePrompts.choose(
+      '',
+      ['all-parallel', 'sequential-chain', 'fan-out'] as const,
+      'all-parallel'
+    );
+    applyDependencyPattern(selected, pattern);
+  }
+
+  return selected;
+}
+
+/**
+ * Apply a dependency pattern to selected agents
+ */
+function applyDependencyPattern(agents: SelectedAgent[], pattern: DependencyPattern): void {
+  if (pattern === 'sequential-chain') {
+    for (let i = 1; i < agents.length; i++) {
+      agents[i].dependsOn = [agents[i - 1].name];
+    }
+  } else if (pattern === 'fan-out') {
+    const firstAgentName = agents[0].name;
+    for (let i = 1; i < agents.length; i++) {
+      agents[i].dependsOn = [firstAgentName];
+    }
+  }
+  // 'all-parallel' keeps dependsOn empty (already the case)
+}
 
 /**
  * Validates pipeline name format
@@ -79,103 +175,35 @@ export async function createPipelineCommand(repoPath: string): Promise<void> {
     'manual'
   );
 
-  const executionMode = await InteractivePrompts.choose(
-    '\nExecution mode:',
-    ['parallel', 'sequential'] as const,
-    'parallel'
-  );
-
   const autoCommit = await InteractivePrompts.confirm(
     '\nAuto-commit changes?',
     trigger !== 'pre-commit' && trigger !== 'pre-push'
   );
 
-  // Select agents
-  const agentOptions = mdAgents.map(agent => ({
-    name: agent.replace('.md', ''),
-    value: agent
-  }));
-
-  const selectedAgents = await InteractivePrompts.multiSelect(
-    '\nSelect agents in execution order:',
-    agentOptions
-  );
+  // Select agents one at a time with dependency configuration
+  const selectedAgents = await selectAgentsOneByOne(mdAgents);
 
   if (selectedAgents.length === 0) {
     console.error('❌ At least one agent must be selected');
     process.exit(1);
   }
 
-  // Configure dependencies for parallel mode
-  const dependencies: Map<string, string[]> = new Map();
-
-  if (executionMode === 'parallel' && selectedAgents.length > 1) {
-    console.log('\nDependency pattern:');
-    console.log('  1. All parallel (no dependencies, all run simultaneously)');
-    console.log('  2. Sequential chain (each waits for previous)');
-    console.log('  3. Fan-out (all depend on first agent)');
-    console.log('  4. Custom (configure each agent)');
-
-    const dependencyPattern = await InteractivePrompts.choose(
-      '',
-      ['all-parallel', 'sequential-chain', 'fan-out', 'custom'] as const,
-      'all-parallel'
-    );
-
-    const agentNames = selectedAgents.map(a => a.replace('.md', ''));
-
-    if (dependencyPattern === 'sequential-chain') {
-      // Each agent depends on the previous one
-      for (let i = 1; i < agentNames.length; i++) {
-        dependencies.set(agentNames[i], [agentNames[i - 1]]);
-      }
-    } else if (dependencyPattern === 'fan-out') {
-      // All agents depend on the first one
-      const firstAgent = agentNames[0];
-      for (let i = 1; i < agentNames.length; i++) {
-        dependencies.set(agentNames[i], [firstAgent]);
-      }
-    } else if (dependencyPattern === 'custom') {
-      // Ask for each agent's dependencies
-      for (let i = 1; i < agentNames.length; i++) {
-        const currentAgent = agentNames[i];
-        const priorAgents = agentNames.slice(0, i);
-
-        const deps = await InteractivePrompts.multiSelect(
-          `\nWhich agents should "${currentAgent}" wait for? (Enter to skip)`,
-          priorAgents.map(a => ({ name: a, value: a }))
-        );
-
-        if (deps.length > 0) {
-          dependencies.set(currentAgent, deps);
-        }
-      }
-    }
-    // 'all-parallel' needs no dependencies
-  }
-
-  // Build pipeline config
-  const config: any = {
+  // Build minimal pipeline config - only include non-default values
+  const config: PipelineConfig = {
     name,
     trigger,
-    git: {
-      autoCommit,
-      commitPrefix: `[pipeline:{{stage}}]`,
-    },
-    execution: {
-      mode: executionMode,
-      failureStrategy: 'stop',
-    },
-    agents: selectedAgents.map(agent => {
-      const agentName = agent.replace('.md', '');
-      const deps = dependencies.get(agentName);
-      return {
-        name: agentName,
-        agent: `.agent-pipeline/agents/${agent}`,
-        timeout: 300,
-        ...(deps && deps.length > 0 && { dependsOn: deps })
-      };
-    })
+    // Only include git settings when autoCommit is enabled
+    ...(autoCommit && {
+      git: {
+        autoCommit: true,
+        commitPrefix: '[pipeline:{{stage}}]',
+      }
+    }),
+    agents: selectedAgents.map(agent => ({
+      name: agent.name,
+      agent: `.agent-pipeline/agents/${agent.file}`,
+      ...(agent.dependsOn.length > 0 && { dependsOn: agent.dependsOn })
+    }))
   };
 
   // Validate config
@@ -222,12 +250,13 @@ export async function createPipelineCommand(repoPath: string): Promise<void> {
 
   console.log(`\n✅ Pipeline created successfully!`);
   console.log(`   Location: .agent-pipeline/pipelines/${name}.yml`);
-  console.log(`\n   Agent timeouts set to 300s (5 min). Increase in YAML if agents need longer.`);
+  console.log(`\n   Agents use default timeout (15 min). Customize in YAML if needed.`);
   console.log(`\n💡 Next steps:`);
-  console.log(`   - Review and customize: agent-pipeline edit ${name}`);
+  console.log(`   - Preview config: agent-pipeline config ${name}`);
   console.log(`   - Run the pipeline: agent-pipeline run ${name}`);
   if (trigger !== 'manual') {
     console.log(`   - Install git hook: agent-pipeline install ${name}`);
   }
+  console.log(`   - Edit if needed: agent-pipeline edit ${name}`);
   console.log('');
 }

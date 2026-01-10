@@ -94,6 +94,38 @@ export class InteractivePrompts {
   }
 
   /**
+   * Select a single item from a list
+   */
+  static async selectSingle<T extends { name: string; value: string }>(
+    question: string,
+    options: T[]
+  ): Promise<string> {
+    console.log(question);
+    options.forEach((opt, idx) => {
+      console.log(`  ${idx + 1}. ${opt.name}`);
+    });
+
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+
+    const answer = await new Promise<string>((resolve) => {
+      rl.question(`Select [1-${options.length}]: `, resolve);
+    });
+
+    rl.close();
+
+    const index = parseInt(answer.trim(), 10) - 1;
+    if (isNaN(index) || index < 0 || index >= options.length) {
+      console.error(`❌ Invalid selection. Please enter 1-${options.length}.`);
+      process.exit(1);
+    }
+
+    return options[index].value;
+  }
+
+  /**
    * Multi-select from a list of options
    */
   static async multiSelect<T extends { name: string; value: string }>(
