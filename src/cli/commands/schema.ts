@@ -155,21 +155,23 @@ function formatMinimalTemplate(): string {
 # Run 'agent-pipeline schema --full' for complete JSON schema
 # Docs: https://github.com/FRE-Studios/agent-pipeline
 
+# Basic Pipeline Example
+
 name: my-pipeline
 trigger: manual  # pre-commit | post-commit | pre-push | post-merge | manual
 
 agents:
-  - name: analyze
-    agent: .agent-pipeline/agents/analyzer.md
+  - name: planner
+    agent: .agent-pipeline/agents/planner.md
     inputs:
-      prompt: "Additional context for analyzer.md agent"
+      prompt: "Additional context for planner.md agent"
     # timeout: 900           # Max seconds (default: 900)
     # onFail: continue       # stop | continue | warn
 
   - name: implement
     agent: .agent-pipeline/agents/implementer.md
     dependsOn:
-      - analyze              # Runs after 'analyze' completes
+      - planner              # Runs after 'planner' completes
 `;
 }
 
