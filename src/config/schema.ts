@@ -258,6 +258,7 @@ export interface PipelineState {
       number: number;
       branch: string;
     };
+    prError?: string;                     // PR creation error message (if failed)
   };
 
   // Loop context (for UI/observability when running in loop mode)

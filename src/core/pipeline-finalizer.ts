@@ -193,10 +193,9 @@ export class PipelineFinalizer {
       // Check if PR already exists
       const exists = await this.prCreator.prExists(branchName);
       if (exists) {
-        if (this.shouldLog(interactive)) {
-          console.log(`\n✅ Pull request already exists for ${branchName}`);
-          console.log(`   View it with: gh pr view ${branchName}`);
-        }
+        // Always log this - users need to know why a new PR wasn't created
+        console.log(`\n✅ Pull request already exists for ${branchName}`);
+        console.log(`   View it with: gh pr view ${branchName}`);
         return;
       }
 
@@ -231,13 +230,16 @@ export class PipelineFinalizer {
         prUrl: result.url
       });
     } catch (error) {
-      if (this.shouldLog(interactive)) {
-        console.error(
-          `\n❌ Failed to create PR: ${error instanceof Error ? error.message : String(error)}`
-        );
-        console.log(`   Branch ${branchName} has been pushed to remote.`);
-        console.log(`   You can create the PR manually with: gh pr create`);
-      }
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Always save PR error to state (for UI visibility)
+      state.artifacts.prError = errorMessage;
+      await this.stateManager.saveState(state);
+
+      // Always log PR creation errors - they're critical failures users need to see
+      console.error(`\n❌ Failed to create PR: ${errorMessage}`);
+      console.log(`   Branch ${branchName} has been pushed to remote.`);
+      console.log(`   You can create the PR manually with: gh pr create`);
     }
   }
 

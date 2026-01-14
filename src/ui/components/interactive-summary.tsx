@@ -207,8 +207,8 @@ export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state, o
       />
       <SummaryLine
         label="PR"
-        value={state.artifacts.pullRequest?.url}
-        color="cyan"
+        value={state.artifacts.pullRequest?.url || (state.artifacts.prError ? `Error: ${state.artifacts.prError}` : undefined)}
+        color={state.artifacts.prError ? "red" : "cyan"}
       />
       <SummaryLine
         label="Handover Dir"
