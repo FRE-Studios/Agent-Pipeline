@@ -189,8 +189,11 @@ else
   runner="npx agent-pipeline"
 fi
 
+# Brief delay to let git fully release index locks after commit
+sleep 1
+
 echo "[agent-pipeline] $(date) starting ${pipelineName}" >> "$logPath"
-nohup $runner run ${pipelineName} >> "$logPath" 2>&1 &
+nohup $runner run ${pipelineName} --no-interactive >> "$logPath" 2>&1 &
 pipelinePid=$!
 echo "$pipelinePid" > "$lockPath/pid"
 

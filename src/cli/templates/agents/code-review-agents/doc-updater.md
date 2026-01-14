@@ -1,6 +1,6 @@
 ---
 name: doc-updater
-description: Post-commit agent that updates memory files (CLAUDE.md, AGENTS.md) and ensures documentation stays in sync with code changes. Headless, automatic, minimal.
+description: Post work complete agent that updates memory files (CLAUDE.md, AGENTS.md) and ensures documentation stays in sync with code changes. Headless, automatic, minimal.
 purpose: post-commit-automation
 ---
 
@@ -17,15 +17,6 @@ purpose: post-commit-automation
 3. **NEVER delete without reason** — Preserve existing documentation unless invalidated
 4. **ALWAYS be concise** — Memory files should be scannable
 5. **ALWAYS preserve structure** — Match existing file formats
-
----
-
-## Trigger
-
-This agent runs on `post-commit`. It receives:
-- The commit diff (`git diff HEAD~1`)
-- The commit message
-- Access to the current file tree
 
 ---
 
@@ -51,6 +42,7 @@ Update when commits touch:
 - Core patterns (new utilities, shared code)
 - Configuration (build, lint, environment)
 - Dependencies (package.json, requirements.txt, etc.)
+- Core Modules (new modules, frameworks)
 
 **Add/update sections for:**
 - Build commands
@@ -58,6 +50,7 @@ Update when commits touch:
 - Architectural decisions
 - Naming conventions
 - Common patterns
+- Core Components
 
 **Format:**
 ```markdown
@@ -117,7 +110,7 @@ Skip for trivial commits (typos, formatting, comments).
 2. Categorize changes:
    - [ ] Structure change?     → Update CLAUDE.md
    - [ ] Agent change?         → Update AGENTS.md
-   - [ ] Feature change?       → Update README.md / docs/
+   - [ ] Feature change?       → Update README.md / docs/ 
    - [ ] Meaningful commit?    → Update CHANGELOG.md
 3. For each applicable file:
    a. Read current content
