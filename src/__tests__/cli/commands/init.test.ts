@@ -19,7 +19,7 @@ const FRONTEND_AGENTS = [
 ];
 
 const POST_COMMIT_AGENTS = [
-  'doc-updater.md'
+  'memory-doc-updater.md'
 ];
 
 const LOOP_AGENTS = [
@@ -197,30 +197,30 @@ describe('initCommand', () => {
         expect(parsed.agents).toHaveLength(1); // Default: doc-updater only
       });
 
-      it('should include doc-updater agent by default', async () => {
+      it('should include memory-doc-updater agent by default', async () => {
         await initCommand(tempDir);
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-commit-example.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
         const parsed = YAML.parse(content);
 
-        const agent = parsed.agents.find((a: any) => a.name === 'doc-updater');
+        const agent = parsed.agents.find((a: any) => a.name === 'memory-doc-updater');
         expect(agent).toBeDefined();
-        expect(agent.agent).toBe('.agent-pipeline/agents/doc-updater.md');
+        expect(agent.agent).toBe('.agent-pipeline/agents/memory-doc-updater.md');
         expect(agent.timeout).toBe(300);
       });
 
-      it('should have doc-updater with no dependencies by default', async () => {
+      it('should have memory-doc-updater with no dependencies by default', async () => {
         await initCommand(tempDir);
 
         const pipelinePath = path.join(tempDir, '.agent-pipeline', 'pipelines', 'post-commit-example.yml');
         const content = await fs.readFile(pipelinePath, 'utf-8');
         const parsed = YAML.parse(content);
 
-        const docUpdater = parsed.agents.find((a: any) => a.name === 'doc-updater');
+        const memoryDocUpdater = parsed.agents.find((a: any) => a.name === 'memory-doc-updater');
 
-        // doc-updater runs alone by default (full sequential flow is commented out)
-        expect(docUpdater.dependsOn).toBeUndefined();
+        // memory-doc-updater runs alone by default (full sequential flow is commented out)
+        expect(memoryDocUpdater.dependsOn).toBeUndefined();
       });
     });
   });
@@ -260,10 +260,10 @@ describe('initCommand', () => {
       }
     });
 
-    it('should include valid markdown in doc-updater agent', async () => {
+    it('should include valid markdown in memory-doc-updater agent', async () => {
       await initCommand(tempDir);
 
-      const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', 'doc-updater.md');
+      const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', 'memory-doc-updater.md');
       const content = await fs.readFile(agentPath, 'utf-8');
 
       // Agent may have YAML frontmatter (---) or markdown header
@@ -297,7 +297,7 @@ describe('initCommand', () => {
     it('should create agents with proper markdown structure', async () => {
       await initCommand(tempDir);
 
-      const agentNames = ['doc-updater.md', 'product_owner.md', 'showcase.md'];
+      const agentNames = ['memory-doc-updater.md', 'product_owner.md', 'showcase.md'];
 
       for (const agentName of agentNames) {
         const agentPath = path.join(tempDir, '.agent-pipeline', 'agents', agentName);
