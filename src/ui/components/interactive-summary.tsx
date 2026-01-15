@@ -167,7 +167,7 @@ export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state, o
   return (
     <Box flexDirection="column" marginTop={1} borderStyle="round" padding={1}>
       {/* Loop session summary */}
-      {state.loopContext && state.loopIterationHistory && state.loopIterationHistory.length > 0 && (
+      {state.loopContext?.enabled && state.loopIterationHistory && state.loopIterationHistory.length > 0 && (
         <LoopSessionSummary
           iterations={state.loopIterationHistory}
           terminationReason={state.loopContext.terminationReason}

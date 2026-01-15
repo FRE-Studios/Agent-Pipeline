@@ -87,7 +87,7 @@ export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange, onOpenLog
             🤖 Agent Pipeline: {state.pipelineConfig.name}
           </Text>
           {/* Loop context indicator */}
-          {state.loopContext && (
+          {state.loopContext?.enabled && (
             <SummaryLine
               label="Loop"
               value={
@@ -106,7 +106,7 @@ export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange, onOpenLog
       <Newline />
 
       {/* Loop iteration history (shown when in loop mode with history) */}
-      {state.loopContext && iterationHistory.length > 0 && (
+      {state.loopContext?.enabled && iterationHistory.length > 0 && (
         <LoopIterationHistory iterations={iterationHistory} />
       )}
 
@@ -125,7 +125,7 @@ export const PipelineUI: React.FC<PipelineUIProps> = ({ onStateChange, onOpenLog
       {!isFinished && (
         <Box borderStyle="single" borderColor="gray" paddingX={1} marginTop={1} flexDirection="column">
           <Text>
-            {state.loopContext && <Text color="magenta">🔁 Loop {state.loopContext.currentIteration} | </Text>}
+            {state.loopContext?.enabled && <Text color="magenta">🔁 Loop {state.loopContext.currentIteration} | </Text>}
             Status: <StatusBadge status={state.status} /> | Duration:{' '}
             <LiveTimer
               startTime={state.trigger.timestamp}
