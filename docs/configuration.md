@@ -113,6 +113,27 @@ git:
 
 Worktrees are cleaned up automatically after successful runs only when `branchStrategy` is `unique-and-delete`. Use `agent-pipeline cleanup` to remove stale worktrees.
 
+### GUI Git Clients (Xcode, VS Code, etc.)
+
+When git hooks are triggered from GUI applications instead of the terminal, Claude Code's stored credentials (from `claude login`) may not be accessible due to macOS Keychain restrictions on background processes.
+
+**Workarounds:**
+
+1. **Set `ANTHROPIC_API_KEY`** - Add to `~/.zshenv` or `.agent-pipeline/env`:
+   ```bash
+   export ANTHROPIC_API_KEY="your-api-key"
+   ```
+
+2. **Use Claude SDK runtime** - Switch to `claude-sdk` runtime which uses API key authentication:
+   ```yaml
+   runtime:
+     type: claude-sdk
+     options:
+       model: sonnet
+   ```
+
+Terminal-triggered hooks (`git commit` from CLI) work without this workaround.
+
 ## Execution Settings
 
 Runtime behavior is controlled under the `execution:` section:

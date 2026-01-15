@@ -38,6 +38,15 @@ describe('ErrorFactory', () => {
       expect(result.suggestion).toContain('increasing timeout');
     });
 
+    it('should add suggestion for Claude CLI auth errors (GUI git hooks)', () => {
+      const error = new Error('Claude CLI exited with code 1. stderr: (empty)\nstdout: Invalid API key · Please run /login');
+      const result = ErrorFactory.createStageError(error);
+
+      expect(result.suggestion).toContain('GUI git clients');
+      expect(result.suggestion).toContain('macOS Keychain');
+      expect(result.suggestion).toContain('claude-sdk runtime');
+    });
+
     it('should add suggestion for API errors', () => {
       const error = new Error('API error: 401 unauthorized');
       const result = ErrorFactory.createStageError(error);

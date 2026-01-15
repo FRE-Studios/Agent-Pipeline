@@ -61,6 +61,16 @@ export class ErrorFactory {
       return `Agent exceeded ${timeoutStr}-minute timeout. Consider increasing timeout in pipeline config or optimizing agent complexity.`;
     }
 
+    // Claude CLI auth error (common with GUI-triggered git hooks)
+    if (message.includes('Invalid API key') || message.includes('Please run /login')) {
+      return (
+        'Claude CLI authentication failed. This commonly occurs when pipelines are triggered from GUI git clients ' +
+        '(Xcode, VS Code, etc.) which cannot access macOS Keychain credentials. ' +
+        'Workarounds: (1) Set ANTHROPIC_API_KEY in ~/.zshenv or .agent-pipeline/env, or ' +
+        '(2) Use claude-sdk runtime instead. See docs/configuration.md "GUI Git Clients" section.'
+      );
+    }
+
     if (message.includes('API') || message.includes('401') || message.includes('403')) {
       return 'Check ANTHROPIC_API_KEY environment variable is set correctly.';
     }

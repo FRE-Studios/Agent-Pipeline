@@ -156,6 +156,20 @@ if git log -1 --pretty=%B | grep -Eq "^Agent-Pipeline: true$"; then
   exit 0
 fi
 
+# Load user environment for ANTHROPIC_API_KEY if set (workaround for GUI git clients)
+# Note: Claude Code's Keychain auth won't work from GUI apps - see docs/configuration.md
+for profile in "$HOME/.zshenv" "$HOME/.profile"; do
+  if [ -f "$profile" ]; then
+    . "$profile" 2>/dev/null || true
+    break
+  fi
+done
+
+# Load repo-specific env overrides (e.g., ANTHROPIC_API_KEY)
+if [ -f ".agent-pipeline/env" ]; then
+  . ".agent-pipeline/env" 2>/dev/null || true
+fi
+
 # Ensure PATH includes common locations for non-interactive hooks
 if ! command -v npx >/dev/null 2>&1 && [ -s "$HOME/.nvm/nvm.sh" ]; then
   . "$HOME/.nvm/nvm.sh"
@@ -205,7 +219,9 @@ echo "$pipelinePid" > "$lockPath/pid"
 
 ( wait "$pipelinePid"; rm -rf "$lockPath" ) >/dev/null 2>&1 &
 
-# Optional: Notify user
-echo "🤖 Agent Pipeline running in background (${pipelineName})"`;
+# Notify user with helpful details
+echo "🤖 Agent Pipeline running in background (${pipelineName})"
+echo "   Log: $logPath"
+echo "   Run: agent-pipeline history --last"`;
   }
 }
