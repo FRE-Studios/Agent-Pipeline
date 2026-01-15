@@ -7,8 +7,8 @@ trigger: post-commit
 
 # Agent stages
 agents:
-  - name: doc-updater
-    agent: .agent-pipeline/agents/doc-updater.md
+  - name: memory-doc-updater
+    agent: .agent-pipeline/agents/memory-doc-updater.md
     timeout: 300
 
   # # Example Flow - Remove comments to run full pipeline
@@ -30,8 +30,8 @@ agents:
   #   timeout: 900                    # Hard limit per agent run (seconds)
   #   onFail: warn                    # Non-blocking: log but keep running
 
-  # - name: doc-updater
-  #   agent: .agent-pipeline/agents/doc-updater.md
+  # - name: memory-doc-updater
+  #   agent: .agent-pipeline/agents/memory-doc-updater.md
   #   dependsOn:
   #     - quality-check
   #   timeout: 300                    # Hard limit per agent run (seconds)
@@ -45,7 +45,7 @@ git:
   branchPrefix: review-pipeline       # Keeps pipeline branches easy to find/clean up
   mergeStrategy: pull-request         # Options: 'pull-request' (push + PR), 'local-merge' (merge locally), 'none' (keep on branch)
   pullRequest:
-    title: "Automated Code Review - {{pipelineName}}"
+    title: "Post Commit Automations" 
     reviewers: []                     # Optional GitHub usernames to request review from
     # labels:                         # Optional PR labels (must exist in GitHub repo first)
     #   - automated
