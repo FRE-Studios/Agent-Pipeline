@@ -192,6 +192,12 @@ fi
 # Brief delay to let git fully release index locks after commit
 sleep 1
 
+# Unset git env vars set by hook context - relative paths cause worktree failures
+unset GIT_INDEX_FILE
+unset GIT_DIR
+unset GIT_WORK_TREE
+unset GIT_EXEC_PATH
+
 echo "[agent-pipeline] $(date) starting ${pipelineName}" >> "$logPath"
 nohup $runner run ${pipelineName} --no-interactive >> "$logPath" 2>&1 &
 pipelinePid=$!

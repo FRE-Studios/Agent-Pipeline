@@ -6,7 +6,9 @@ import { BranchManager } from '../../core/branch-manager.js';
 import { PRCreator } from '../../core/pr-creator.js';
 import { StateManager } from '../../core/state-manager.js';
 import { PipelineConfig, PipelineState } from '../../config/schema.js';
-import { WorktreeManager } from '../../core/worktree-manager.js';
+
+// PRCreator mock needs to be imported after vi.mock
+let mockPRCreator: PRCreator;
 
 // Hoisted mocks
 const { mockGitManagerInstance, mockWorktreeManagerInstance, mockBranchManagerInstance, mockPipelineFormatter } = vi.hoisted(() => {
@@ -202,7 +204,136 @@ describe('PipelineFinalizer Integration', () => {
     expect(mockWorktreeManagerInstance.cleanupWorktree).toHaveBeenCalledWith(
       worktreePath,
       true, // deleteBranch
-      false // force
+      false // force - no PR was created
+    );
+  });
+
+  it('should force-delete local branch when PR is created successfully with unique-and-delete', async () => {
+    // Setup PR creation success
+    mockPRCreator = new PRCreator();
+    vi.spyOn(mockPRCreator, 'prExists').mockResolvedValue(false);
+    vi.spyOn(mockPRCreator, 'createPR').mockResolvedValue({
+      url: 'https://github.com/test/repo/pull/123',
+      number: 123
+    });
+
+    const finalizer = new PipelineFinalizer(
+      new GitManager('/test/repo'),
+      new BranchManager('/test/repo'),
+      mockPRCreator,
+      mockStateManager,
+      '/test/repo',
+      false,
+      mockShouldLog
+    );
+
+    const config: PipelineConfig = {
+      ...mockConfig,
+      git: {
+        branchStrategy: 'unique-and-delete',
+        mergeStrategy: 'pull-request',
+        baseBranch: 'main'
+      }
+    };
+
+    const branchName = 'pipeline/test-pipeline/abc12345';
+    const worktreePath = '/test/repo/.agent-pipeline/worktrees/test-pipeline-abc12345';
+
+    await finalizer.finalize(
+      mockState,
+      config,
+      branchName,
+      worktreePath,
+      '/test/repo',
+      Date.now(),
+      false,
+      false,
+      mockNotifyCallback,
+      mockStateChangeCallback
+    );
+
+    // PR was created successfully, so force should be true
+    expect(mockWorktreeManagerInstance.cleanupWorktree).toHaveBeenCalledWith(
+      worktreePath,
+      true, // deleteBranch
+      true  // force - PR created, safe to force-delete local branch
+    );
+  });
+
+  it('should NOT force-delete local branch when PR creation fails with unique-and-delete', async () => {
+    // Setup PR creation failure
+    mockPRCreator = new PRCreator();
+    vi.spyOn(mockPRCreator, 'prExists').mockResolvedValue(false);
+    vi.spyOn(mockPRCreator, 'createPR').mockRejectedValue(new Error('gh command not found'));
+
+    // Suppress console.error for this test
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const finalizer = new PipelineFinalizer(
+      new GitManager('/test/repo'),
+      new BranchManager('/test/repo'),
+      mockPRCreator,
+      mockStateManager,
+      '/test/repo',
+      false,
+      mockShouldLog
+    );
+
+    const config: PipelineConfig = {
+      ...mockConfig,
+      git: {
+        branchStrategy: 'unique-and-delete',
+        mergeStrategy: 'pull-request',
+        baseBranch: 'main'
+      }
+    };
+
+    // Use fresh state to avoid pollution from previous test
+    const freshState: PipelineState = {
+      runId: 'test-run-id-pr-fail',
+      pipelineConfig: mockConfig,
+      trigger: {
+        type: 'manual',
+        commitSha: 'abc123',
+        timestamp: new Date().toISOString()
+      },
+      stages: [{
+        stageName: 'test-stage',
+        status: 'success',
+        duration: 1.5,
+        commitSha: 'stage-commit-abc123'
+      }],
+      status: 'completed',
+      artifacts: {
+        initialCommit: 'abc123',
+        changedFiles: ['file1.ts'],
+        totalDuration: 0,
+        handoverDir: '.agent-pipeline/runs/test-run-id-pr-fail'
+      }
+    };
+
+    const branchName = 'pipeline/test-pipeline/abc12345';
+    const worktreePath = '/test/repo/.agent-pipeline/worktrees/test-pipeline-abc12345';
+
+    await finalizer.finalize(
+      freshState,
+      config,
+      branchName,
+      worktreePath,
+      '/test/repo',
+      Date.now(),
+      false,
+      false,
+      mockNotifyCallback,
+      mockStateChangeCallback
+    );
+
+    // PR creation failed, so force should be false (preserve branch for recovery)
+    expect(mockWorktreeManagerInstance.cleanupWorktree).toHaveBeenCalledWith(
+      worktreePath,
+      true,  // deleteBranch
+      false  // force - PR failed, don't force-delete (may fail safely)
     );
   });
 });

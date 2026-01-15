@@ -112,7 +112,8 @@ export class PipelineFinalizer {
     }
 
     // Handle worktree cleanup based on strategy and status
-    await this.handleWorktreeCleanup(worktreePath, config, state.status, interactive);
+    const prCreatedSuccessfully = !!state.artifacts.pullRequest?.url;
+    await this.handleWorktreeCleanup(worktreePath, config, state.status, interactive, prCreatedSuccessfully);
 
     return state;
   }
@@ -405,12 +406,15 @@ export class PipelineFinalizer {
    * - Reusable strategy: Keep worktree for faster subsequent runs
    * - Unique-and-delete on success: Cleanup worktree and branch
    * - On failure: Always keep for debugging
+   *
+   * @param prCreatedSuccessfully - If true, force-delete local branch since work is on remote
    */
   private async handleWorktreeCleanup(
     worktreePath: string | undefined,
     config: PipelineConfig,
     status: PipelineState['status'],
-    interactive: boolean
+    interactive: boolean,
+    prCreatedSuccessfully: boolean = false
   ): Promise<void> {
     if (!worktreePath || this.dryRun) {
       return;
@@ -429,9 +433,10 @@ export class PipelineFinalizer {
     }
 
     // For unique-and-delete, cleanup on success, keep on failure for debugging
+    // Force-delete local branch if PR was created (work is safely on remote)
     if (strategy === 'unique-and-delete' && success) {
       try {
-        await this.worktreeManager.cleanupWorktree(worktreePath, true, false);
+        await this.worktreeManager.cleanupWorktree(worktreePath, true, prCreatedSuccessfully);
         if (this.shouldLog(interactive)) {
           console.log(`\n🗑️  Cleaned up worktree: ${worktreePath}`);
         }

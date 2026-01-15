@@ -47,9 +47,9 @@ git:
   pullRequest:
     title: "Automated Code Review - {{pipelineName}}"
     reviewers: []                     # Optional GitHub usernames to request review from
-    labels:
-      - automated                     # Optional PR labels
-      - code-review
+    # labels:                         # Optional PR labels (must exist in GitHub repo first)
+    #   - automated
+    #   - code-review
 
 # Notification configuration (optional)
 notifications:
