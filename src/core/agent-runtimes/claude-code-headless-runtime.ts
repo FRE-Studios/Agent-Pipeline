@@ -383,9 +383,13 @@ export class ClaudeCodeHeadlessRuntime implements AgentRuntime {
           if (code === 0) {
             resolve({ stdout, stderr, exitCode: code || 0 });
           } else {
+            // Include stdout in error for debugging (truncated)
+            const stdoutPreview = stdout
+              ? `\nstdout (last 500 chars): ${stdout.slice(-500)}`
+              : '';
             reject(
               new Error(
-                `Claude CLI exited with code ${code}. stderr: ${stderr || '(empty)'}`
+                `Claude CLI exited with code ${code}. stderr: ${stderr || '(empty)'}${stdoutPreview}`
               )
             );
           }
