@@ -258,10 +258,14 @@ export class PipelineFinalizer {
 
     try {
       if (baseCheckedOutPath) {
-        throw new Error(
-          `Base branch '${baseBranch}' is currently checked out at '${baseCheckedOutPath}'. ` +
-          'Switch to a different branch or use mergeStrategy: pull-request.'
-        );
+        // Base branch is checked out - can't merge automatically, but pipeline completed successfully
+        if (this.shouldLog(interactive)) {
+          console.log(`\n⚠️  Cannot auto-merge: branch '${baseBranch}' is currently checked out.`);
+          console.log(`   Pipeline completed successfully. Your changes are on branch: ${branchName}`);
+          console.log(`   To apply changes, run: git merge ${branchName}`);
+          console.log(`   To review changes first: git diff ${baseBranch}..${branchName}`);
+        }
+        return; // Return gracefully - pipeline was successful, just merge skipped
       }
 
       const worktreeBaseDir = this.worktreeManager.getWorktreeBaseDir();

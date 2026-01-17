@@ -659,8 +659,8 @@ describe('PipelineFinalizer', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should throw error when base branch is checked out', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    it('should show warning and complete successfully when base branch is checked out', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       // Base branch is checked out at a path
       mockGitManagerInstance.isBranchCheckedOut.mockResolvedValue('/test/repo');
@@ -673,24 +673,31 @@ describe('PipelineFinalizer', () => {
         }
       };
 
-      await expect(
-        finalizer.finalize(
-          mockState,
-          configWithLocalMerge,
-          'pipeline/feature-branch',
-          undefined,
-          '/test/repo',
-          Date.now(),
-          false,
-          false,
-          mockNotifyCallback,
-          mockStateChangeCallback
-        )
-      ).rejects.toThrow("Base branch 'main' is currently checked out");
+      // Should complete successfully (not throw)
+      await finalizer.finalize(
+        mockState,
+        configWithLocalMerge,
+        'pipeline/feature-branch',
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
 
       // Should NOT create worktree or attempt merge
       expect(mockWorktreeManagerInstance.createWorktree).not.toHaveBeenCalled();
       expect(mockGitManagerInstance.merge).not.toHaveBeenCalled();
+
+      // Should log warning with instructions
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Cannot auto-merge: branch 'main' is currently checked out")
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('git merge pipeline/feature-branch')
+      );
 
       consoleSpy.mockRestore();
     });
