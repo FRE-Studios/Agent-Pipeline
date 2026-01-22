@@ -144,7 +144,9 @@ describe('WorktreeManager', () => {
 
         expect(result.isNew).toBe(false);
         expect(result.worktreePath).toBe(existingWorktreePath);
-        expect(consoleSpy).toHaveBeenCalledWith(`Using existing worktree: ${existingWorktreePath}`);
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Using existing worktree:')
+        );
       });
     });
 
@@ -192,7 +194,7 @@ describe('WorktreeManager', () => {
 
         const result = await worktreeManager.setupPipelineWorktree(pipelineName, runId);
 
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect(consoleSpy).toHaveBeenCalledWith(
           expect.stringContaining('Could not fetch from remote')
         );
         expect(result.isNew).toBe(true);
@@ -221,7 +223,7 @@ describe('WorktreeManager', () => {
         await worktreeManager.setupPipelineWorktree(pipelineName, runId, 'main', 'reusable');
 
         expect(consoleSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Cleaning up stale worktree directory')
+          expect.stringContaining('Cleaning up stale worktree')
         );
         expect(fs.rm).toHaveBeenCalledWith(staleWorktreePath, { recursive: true, force: true });
       });
@@ -283,7 +285,9 @@ describe('WorktreeManager', () => {
         // Should have created a new GitManager for the worktree and called merge
         expect(mockGit.fetch).toHaveBeenCalledWith('origin');
         expect(mockGit.merge).toHaveBeenCalledWith(['origin/main']);
-        expect(consoleSpy).toHaveBeenCalledWith('Updated worktree from origin/main');
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Updated worktree from')
+        );
       });
 
       it('should handle update failure gracefully', async () => {
@@ -305,8 +309,8 @@ describe('WorktreeManager', () => {
           'reusable'
         );
 
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Could not update worktree from main')
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Could not update worktree from')
         );
         expect(result.isNew).toBe(false);
       });
@@ -335,7 +339,9 @@ describe('WorktreeManager', () => {
       await worktreeManager.cleanupWorktree(worktreePath);
 
       expect(mockGit.raw).toHaveBeenCalledWith(['worktree', 'remove', worktreePath]);
-      expect(consoleSpy).toHaveBeenCalledWith(`Removed worktree: ${worktreePath}`);
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Removed worktree:')
+      );
     });
 
     it('should prune worktrees after removal', async () => {
@@ -371,8 +377,8 @@ describe('WorktreeManager', () => {
 
       await worktreeManager.cleanupWorktree(worktreePath);
 
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        'Worktree has uncommitted changes, forcing removal...'
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Worktree has uncommitted changes')
       );
       expect(mockGit.raw).toHaveBeenCalledWith(['worktree', 'remove', worktreePath, '--force']);
     });
@@ -398,7 +404,9 @@ describe('WorktreeManager', () => {
         await worktreeManager.cleanupWorktree(worktreePath, true);
 
         expect(mockGit.deleteLocalBranch).toHaveBeenCalledWith('pipeline/test-pipeline', false);
-        expect(consoleSpy).toHaveBeenCalledWith('Deleted branch: pipeline/test-pipeline');
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Deleted branch:')
+        );
       });
 
       it('should force delete branch when force=true', async () => {
@@ -418,8 +426,8 @@ describe('WorktreeManager', () => {
 
         await worktreeManager.cleanupWorktree(worktreePath, true);
 
-        expect(consoleWarnSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Could not delete branch pipeline/test-pipeline')
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Could not delete branch')
         );
       });
 

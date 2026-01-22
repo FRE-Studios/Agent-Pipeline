@@ -2,8 +2,20 @@
 
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import chalk from 'chalk';
 import { GitManager, WorktreeInfo } from './git-manager.js';
 import { BranchStrategy } from './branch-manager.js';
+
+// Console output styling (consistent with cli/commands/init.ts)
+const c = {
+  success: chalk.green,
+  warn: chalk.yellow,
+  error: chalk.red,
+  dim: chalk.dim,
+  cmd: chalk.cyan,
+  branch: chalk.magenta,
+  path: chalk.yellow,
+};
 
 /**
  * Result of setting up a pipeline worktree
@@ -53,7 +65,7 @@ export class WorktreeManager extends GitManager {
     try {
       await this.git.fetch('origin');
     } catch (error) {
-      console.warn(`Could not fetch from remote: ${error instanceof Error ? error.message : String(error)}`);
+      console.log(`${c.warn('⚠')}  ${c.dim('Could not fetch from remote:')} ${c.dim(error instanceof Error ? error.message : String(error))}`);
     }
 
     // Generate branch and worktree names
@@ -66,7 +78,7 @@ export class WorktreeManager extends GitManager {
 
     if (exists) {
       // For reusable strategy, update existing worktree
-      console.log(`Using existing worktree: ${worktreePath}`);
+      console.log(`${c.dim('Using existing worktree:')} ${c.path(worktreePath)}`);
       await this.updateWorktree(worktreePath, baseBranch);
       return { worktreePath, branchName, isNew: false };
     }
@@ -75,7 +87,7 @@ export class WorktreeManager extends GitManager {
     try {
       await fs.access(worktreePath);
       // Directory exists but not in worktree list - prune and recreate
-      console.log(`Cleaning up stale worktree directory: ${worktreePath}`);
+      console.log(`${c.dim('Cleaning up stale worktree:')} ${c.path(worktreePath)}`);
       await this.pruneWorktrees();
       await fs.rm(worktreePath, { recursive: true, force: true });
     } catch {
@@ -83,7 +95,7 @@ export class WorktreeManager extends GitManager {
     }
 
     // Create new worktree
-    console.log(`Creating worktree: ${worktreePath}`);
+    console.log(`${c.dim('Creating worktree:')} ${c.path(worktreePath)}`);
     await this.createWorktree(worktreePath, branchName, baseBranch);
     return { worktreePath, branchName, isNew: true };
   }
@@ -100,9 +112,9 @@ export class WorktreeManager extends GitManager {
       // Pull latest from remote base branch
       await worktreeGit['git'].fetch('origin');
       await worktreeGit['git'].merge([`origin/${baseBranch}`]);
-      console.log(`Updated worktree from origin/${baseBranch}`);
+      console.log(`${c.dim('Updated worktree from')} ${c.branch(`origin/${baseBranch}`)}`);
     } catch (error) {
-      console.warn(`Could not update worktree from ${baseBranch}: ${error instanceof Error ? error.message : String(error)}`);
+      console.log(`${c.warn('⚠')}  ${c.dim('Could not update worktree from')} ${c.branch(baseBranch)}: ${c.dim(error instanceof Error ? error.message : String(error))}`);
     }
   }
 
@@ -126,11 +138,11 @@ export class WorktreeManager extends GitManager {
     // Remove worktree
     try {
       await this.removeWorktree(worktreePath, force);
-      console.log(`Removed worktree: ${worktreePath}`);
+      console.log(`${c.dim('Removed worktree:')} ${c.path(worktreePath)}`);
     } catch (error) {
       // If removal fails due to uncommitted changes, try with force
       if (!force && error instanceof Error && error.message.includes('uncommitted')) {
-        console.warn('Worktree has uncommitted changes, forcing removal...');
+        console.log(`${c.warn('⚠')}  ${c.dim('Worktree has uncommitted changes, forcing removal...')}`);
         await this.removeWorktree(worktreePath, true);
       } else {
         throw error;
@@ -141,9 +153,30 @@ export class WorktreeManager extends GitManager {
     if (deleteBranch && branchName) {
       try {
         await this.git.deleteLocalBranch(branchName, force);
-        console.log(`Deleted branch: ${branchName}`);
+        console.log(`${c.success('✓')} Deleted branch: ${c.branch(branchName)}`);
       } catch (error) {
-        console.warn(`Could not delete branch ${branchName}: ${error instanceof Error ? error.message : String(error)}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isNotMergedError = errorMessage.includes('not fully merged');
+
+        if (isNotMergedError) {
+          // Branch has commits that aren't merged - provide helpful guidance
+          console.log('');
+          console.log(`${c.warn('⚠')}  ${c.warn('Branch not deleted:')} ${c.branch(branchName)}`);
+          console.log(`   ${c.dim('The branch has commits that are not merged into the base branch.')}`);
+          console.log('');
+          console.log(`   ${c.dim('To complete the merge manually:')}`);
+          console.log(`   ${c.cmd(`git merge ${branchName}`)}`);
+          console.log('');
+          console.log(`   ${c.dim('To delete without merging (discard changes):')}`);
+          console.log(`   ${c.cmd(`git branch -D ${branchName}`)}`);
+          console.log('');
+        } else {
+          // Other error - show generic message
+          console.log('');
+          console.log(`${c.warn('⚠')}  Could not delete branch ${c.branch(branchName)}`);
+          console.log(`   ${c.dim(errorMessage)}`);
+          console.log('');
+        }
       }
     }
 

@@ -2,6 +2,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import chalk from 'chalk';
 import { GitManager } from './git-manager.js';
 import { BranchManager } from './branch-manager.js';
 import { WorktreeManager } from './worktree-manager.js';
@@ -10,6 +11,18 @@ import { StateManager } from './state-manager.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { PipelineConfig, PipelineState, MergeStrategy } from '../config/schema.js';
 import { NotificationContext } from '../notifications/types.js';
+
+// Console output styling (consistent with cli/commands/init.ts)
+const c = {
+  success: chalk.green,
+  warn: chalk.yellow,
+  error: chalk.red,
+  dim: chalk.dim,
+  cmd: chalk.cyan,
+  branch: chalk.magenta,
+  path: chalk.yellow,
+  header: chalk.bold.white,
+};
 
 export class PipelineFinalizer {
   private worktreeManager: WorktreeManager;
@@ -48,9 +61,9 @@ export class PipelineFinalizer {
     // Handle aborted status specially - skip merge but preserve work
     if (state.status === 'aborted') {
       if (this.shouldLog(interactive)) {
-        console.log(`\n⚠️  Pipeline aborted. Work preserved on branch: ${pipelineBranch || '(current)'}`);
+        console.log(`\n${c.warn('⚠')}  ${c.warn('Pipeline aborted.')} Work preserved on branch: ${c.branch(pipelineBranch || '(current)')}`);
         if (worktreePath) {
-          console.log(`   Worktree preserved for recovery: ${worktreePath}`);
+          console.log(`   ${c.dim('Worktree preserved for recovery:')} ${c.path(worktreePath)}`);
         }
       }
       // Still copy handover directory if it exists
@@ -152,7 +165,7 @@ export class PipelineFinalizer {
     const hasCommits = state.stages.some(s => s.commitSha);
     if (!hasCommits && (strategy === 'pull-request' || strategy === 'local-merge')) {
       if (this.shouldLog(interactive)) {
-        console.log(`\n📍 No commits to merge. Work preserved on branch: ${branchName}`);
+        console.log(`\n${c.dim('📍 No commits to merge.')} Work preserved on branch: ${c.branch(branchName)}`);
       }
       return;
     }
@@ -167,7 +180,7 @@ export class PipelineFinalizer {
       case 'none':
         // No merge action - work stays in worktree/branch
         if (this.shouldLog(interactive)) {
-          console.log(`\n📍 Work preserved on branch: ${branchName}`);
+          console.log(`\n${c.dim('📍 Work preserved on branch:')} ${c.branch(branchName)}`);
         }
         break;
     }
@@ -195,8 +208,8 @@ export class PipelineFinalizer {
       const exists = await this.prCreator.prExists(branchName);
       if (exists) {
         // Always log this - users need to know why a new PR wasn't created
-        console.log(`\n✅ Pull request already exists for ${branchName}`);
-        console.log(`   View it with: gh pr view ${branchName}`);
+        console.log(`\n${c.success('✓')} Pull request already exists for ${c.branch(branchName)}`);
+        console.log(`   ${c.dim('View it with:')} ${c.cmd(`gh pr view ${branchName}`)}`);
         return;
       }
 
@@ -210,9 +223,10 @@ export class PipelineFinalizer {
       );
 
       if (this.shouldLog(interactive)) {
-        const statusIcon = state.status === 'completed' ? '✅' : '⚠️';
-        const statusSuffix = state.status === 'partial' ? ' (partial success)' : '';
-        console.log(`\n${statusIcon} Pull Request created${statusSuffix}: ${result.url}`);
+        const isComplete = state.status === 'completed';
+        const statusIcon = isComplete ? c.success('✓') : c.warn('⚠');
+        const statusSuffix = state.status === 'partial' ? c.dim(' (partial success)') : '';
+        console.log(`\n${statusIcon} Pull Request created${statusSuffix}: ${c.cmd(result.url)}`);
       }
 
       // Save PR info to state
@@ -238,9 +252,9 @@ export class PipelineFinalizer {
       await this.stateManager.saveState(state);
 
       // Always log PR creation errors - they're critical failures users need to see
-      console.error(`\n❌ Failed to create PR: ${errorMessage}`);
-      console.log(`   Branch ${branchName} has been pushed to remote.`);
-      console.log(`   You can create the PR manually with: gh pr create`);
+      console.log(`\n${c.error('✗')} ${c.error('Failed to create PR:')} ${c.dim(errorMessage)}`);
+      console.log(`   ${c.dim('Branch')} ${c.branch(branchName)} ${c.dim('has been pushed to remote.')}`);
+      console.log(`   ${c.dim('You can create the PR manually with:')} ${c.cmd('gh pr create')}`);
     }
   }
 
@@ -260,10 +274,16 @@ export class PipelineFinalizer {
       if (baseCheckedOutPath) {
         // Base branch is checked out - can't merge automatically, but pipeline completed successfully
         if (this.shouldLog(interactive)) {
-          console.log(`\n⚠️  Cannot auto-merge: branch '${baseBranch}' is currently checked out.`);
-          console.log(`   Pipeline completed successfully. Your changes are on branch: ${branchName}`);
-          console.log(`   To apply changes, run: git merge ${branchName}`);
-          console.log(`   To review changes first: git diff ${baseBranch}..${branchName}`);
+          console.log('');
+          console.log(`${c.warn('⚠')}  ${c.warn('Cannot auto-merge:')} branch ${c.branch(baseBranch)} is currently checked out.`);
+          console.log(`   ${c.dim('Pipeline completed successfully. Your changes are on branch:')} ${c.branch(branchName)}`);
+          console.log('');
+          console.log(`   ${c.dim('To apply changes, run:')}`);
+          console.log(`   ${c.cmd(`git merge ${branchName}`)}`);
+          console.log('');
+          console.log(`   ${c.dim('To review changes first:')}`);
+          console.log(`   ${c.cmd(`git diff ${baseBranch}..${branchName}`)}`);
+          console.log('');
         }
         return; // Return gracefully - pipeline was successful, just merge skipped
       }
@@ -281,7 +301,7 @@ export class PipelineFinalizer {
       const mergeGitManager = new GitManager(mergeWorktreePath);
 
       if (this.shouldLog(interactive)) {
-        console.log(`\n🔀 Merging ${branchName} into ${baseBranch}...`);
+        console.log(`\n${c.dim('🔀 Merging')} ${c.branch(branchName)} ${c.dim('into')} ${c.branch(baseBranch)}${c.dim('...')}`);
       }
 
       await mergeGitManager.merge(branchName);
@@ -291,18 +311,20 @@ export class PipelineFinalizer {
       mergeWorktreePath = null;
 
       if (this.shouldLog(interactive)) {
-        console.log(`✅ Successfully merged ${branchName} into ${baseBranch}`);
+        console.log(`${c.success('✓')} Successfully merged ${c.branch(branchName)} into ${c.branch(baseBranch)}`);
       }
     } catch (error) {
       if (this.shouldLog(interactive)) {
-        console.error(
-          `\n❌ Failed to merge: ${error instanceof Error ? error.message : String(error)}`
-        );
-        console.log(`   Branch ${branchName} still exists with your changes.`);
-        console.log(`   You can merge manually with: git checkout ${baseBranch} && git merge ${branchName}`);
+        console.log(`\n${c.error('✗')} ${c.error('Failed to merge:')} ${c.dim(error instanceof Error ? error.message : String(error))}`);
+        console.log(`   ${c.dim('Branch')} ${c.branch(branchName)} ${c.dim('still exists with your changes.')}`);
+        console.log('');
+        console.log(`   ${c.dim('You can merge manually with:')}`);
+        console.log(`   ${c.cmd(`git checkout ${baseBranch} && git merge ${branchName}`)}`);
         if (mergeWorktreePath) {
-          console.log(`   Merge worktree preserved at: ${mergeWorktreePath}`);
+          console.log('');
+          console.log(`   ${c.dim('Merge worktree preserved at:')} ${c.path(mergeWorktreePath)}`);
         }
+        console.log('');
       }
       throw error; // Re-throw so caller knows merge failed
     }
@@ -334,7 +356,7 @@ export class PipelineFinalizer {
     console.log(PipelineFormatter.formatSummary(state, verbose, totals));
 
     if (worktreePath && verbose) {
-      console.log(`\n🌳 Worktree location: ${worktreePath}`);
+      console.log(`\n${c.dim('🌳 Worktree location:')} ${c.path(worktreePath)}`);
     }
   }
 
@@ -391,16 +413,14 @@ export class PipelineFinalizer {
       await fs.cp(sourcePath, destPath, { recursive: true });
 
       if (this.shouldLog(interactive)) {
-        console.log(`\n📋 Copied handover files to: ${destPath}`);
+        console.log(`\n${c.dim('📋 Copied handover files to:')} ${c.path(destPath)}`);
       }
     } catch (error) {
       // Non-fatal: log warning but don't fail pipeline
       if (this.shouldLog(interactive)) {
-        console.warn(
-          `\n⚠️  Could not copy handover directory: ${error instanceof Error ? error.message : String(error)}`
-        );
-        console.log(`   Source: ${sourcePath}`);
-        console.log(`   Destination: ${destPath}`);
+        console.log(`\n${c.warn('⚠')}  ${c.dim('Could not copy handover directory:')} ${c.dim(error instanceof Error ? error.message : String(error))}`);
+        console.log(`   ${c.dim('Source:')} ${c.path(sourcePath)}`);
+        console.log(`   ${c.dim('Destination:')} ${c.path(destPath)}`);
       }
     }
   }
@@ -430,8 +450,8 @@ export class PipelineFinalizer {
     // For reusable strategy, always keep the worktree
     if (strategy === 'reusable') {
       if (this.shouldLog(interactive)) {
-        console.log(`\n🌳 Worktree preserved at: ${worktreePath}`);
-        console.log(`   Use 'agent-pipeline cleanup --worktrees' to remove.`);
+        console.log(`\n${c.dim('🌳 Worktree preserved at:')} ${c.path(worktreePath)}`);
+        console.log(`   ${c.dim('Use')} ${c.cmd('agent-pipeline cleanup --worktrees')} ${c.dim('to remove.')}`);
       }
       return;
     }
@@ -442,22 +462,22 @@ export class PipelineFinalizer {
       try {
         await this.worktreeManager.cleanupWorktree(worktreePath, true, prCreatedSuccessfully);
         if (this.shouldLog(interactive)) {
-          console.log(`\n🗑️  Cleaned up worktree: ${worktreePath}`);
+          console.log(`\n${c.dim('🗑️  Cleaned up worktree:')} ${c.path(worktreePath)}`);
         }
       } catch (error) {
         if (this.shouldLog(interactive)) {
-          console.warn(`\n⚠️  Could not cleanup worktree: ${error instanceof Error ? error.message : String(error)}`);
-          console.log(`   Worktree remains at: ${worktreePath}`);
+          console.log(`\n${c.warn('⚠')}  ${c.dim('Could not cleanup worktree:')} ${c.dim(error instanceof Error ? error.message : String(error))}`);
+          console.log(`   ${c.dim('Worktree remains at:')} ${c.path(worktreePath)}`);
         }
       }
     } else if (strategy === 'unique-per-run' && success) {
       if (this.shouldLog(interactive)) {
-        console.log(`\n🌳 Worktree preserved at: ${worktreePath}`);
-        console.log(`   Use 'agent-pipeline cleanup --worktrees' to remove.`);
+        console.log(`\n${c.dim('🌳 Worktree preserved at:')} ${c.path(worktreePath)}`);
+        console.log(`   ${c.dim('Use')} ${c.cmd('agent-pipeline cleanup --worktrees')} ${c.dim('to remove.')}`);
       }
     } else if (!success) {
       if (this.shouldLog(interactive)) {
-        console.log(`\n🌳 Worktree preserved for debugging: ${worktreePath}`);
+        console.log(`\n${c.dim('🌳 Worktree preserved for debugging:')} ${c.path(worktreePath)}`);
       }
     }
   }

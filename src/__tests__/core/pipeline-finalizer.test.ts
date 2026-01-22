@@ -288,7 +288,7 @@ describe('PipelineFinalizer', () => {
         new Error('gh command not found')
       );
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const configWithPR = {
         ...mockConfig,
@@ -691,9 +691,9 @@ describe('PipelineFinalizer', () => {
       expect(mockWorktreeManagerInstance.createWorktree).not.toHaveBeenCalled();
       expect(mockGitManagerInstance.merge).not.toHaveBeenCalled();
 
-      // Should log warning with instructions
+      // Should log warning with instructions (chalk-styled, so match partial text)
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Cannot auto-merge: branch 'main' is currently checked out")
+        expect.stringContaining('Cannot auto-merge:')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('git merge pipeline/feature-branch')
@@ -703,8 +703,7 @@ describe('PipelineFinalizer', () => {
     });
 
     it('should handle merge failure and preserve worktree', async () => {
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       // Merge fails with conflict
       mockGitManagerInstance.merge.mockRejectedValue(new Error('Merge conflict'));
@@ -735,19 +734,18 @@ describe('PipelineFinalizer', () => {
       // Should NOT cleanup worktree on failure (for debugging)
       expect(mockWorktreeManagerInstance.removeWorktree).not.toHaveBeenCalled();
 
-      // Should log error with helpful message
+      // Should log error with helpful message (chalk-styled, so match partial text)
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('Failed to merge')
       );
-      expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Branch pipeline/feature-branch still exists')
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('still exists with your changes')
       );
-      expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('Merge worktree preserved at')
       );
 
       consoleSpy.mockRestore();
-      consoleLogSpy.mockRestore();
     });
 
     it('should use default baseBranch when not specified', async () => {

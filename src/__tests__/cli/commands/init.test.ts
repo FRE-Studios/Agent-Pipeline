@@ -190,10 +190,10 @@ describe('initCommand', () => {
 
         expect(parsed.name).toBe('post-commit-example');
         expect(parsed.trigger).toBe('post-commit');
-        // Minimal template: no execution section (uses defaults), has git section for PR workflow
+        // Minimal template: no execution section (uses defaults), has git section for local-merge workflow
         expect(parsed.execution).toBeUndefined();
         expect(parsed.git.autoCommit).toBe(true);
-        expect(parsed.git.mergeStrategy).toBe('pull-request');
+        expect(parsed.git.mergeStrategy).toBe('local-merge');
         expect(parsed.agents).toHaveLength(1); // Default: doc-updater only
       });
 
