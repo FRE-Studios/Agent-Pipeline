@@ -11,6 +11,7 @@ import { PipelineConfig, PipelineState, LoopContext, PipelineMetadata } from '..
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
 import { PipelineAbortController } from './abort-controller.js';
+import { PipelineLogger } from '../utils/pipeline-logger.js';
 
 export interface InitializationResult {
   state: PipelineState;
@@ -21,6 +22,7 @@ export interface InitializationResult {
   worktreePath?: string;
   executionRepoPath: string;
   notificationManager?: NotificationManager;
+  pipelineLogger: PipelineLogger;
   startTime: number;
   verbose: boolean;
 }
@@ -63,6 +65,13 @@ export class PipelineInitializer {
       (config.notifications
         ? new NotificationManager(config.notifications)
         : undefined);
+
+    // Setup pipeline logger (writes to .agent-pipeline/logs/{pipelineName}.log)
+    const pipelineLogger = new PipelineLogger(
+      this.repoPath,
+      config.name,
+      options.interactive ?? true
+    );
 
     // Setup worktree isolation for pipeline execution
     const isolation = await this.setupWorktreeIsolation(
@@ -107,6 +116,9 @@ export class PipelineInitializer {
     // In worktree mode, this is the worktree path; finalizer will copy to main repo
     state.artifacts.handoverDir = handoverManager.getHandoverDir();
 
+    // Store log file path in state
+    state.artifacts.logPath = pipelineLogger.getLogPath();
+
     // Track the main repo destination for copying (only needed in worktree mode)
     if (isolation.worktreePath) {
       const mainRepoHandoverManager = new HandoverManager(
@@ -136,8 +148,8 @@ export class PipelineInitializer {
       options.abortController
     );
 
-    // Log startup messages
-    this.logStartup(config, state, triggerCommit, isolation, options.interactive || false, verbose);
+    // Log startup messages (to both console in non-interactive mode and log file)
+    this.logStartup(config, state, triggerCommit, isolation, pipelineLogger, verbose);
 
     // Notify initial state
     stateChangeCallback(state);
@@ -159,6 +171,7 @@ export class PipelineInitializer {
       worktreePath: isolation.worktreePath,
       executionRepoPath: isolation.executionRepoPath,
       notificationManager,
+      pipelineLogger,
       startTime,
       verbose
     };
@@ -254,36 +267,29 @@ export class PipelineInitializer {
   }
 
   /**
-   * Log startup messages to console
+   * Log startup messages to both console (non-interactive) and log file
    */
   private logStartup(
     config: PipelineConfig,
     state: PipelineState,
     triggerCommit: string,
     isolation: { worktreePath?: string; branchName?: string; executionRepoPath: string },
-    interactive: boolean,
+    logger: PipelineLogger,
     verbose: boolean
   ): void {
-    // Skip all logging in interactive mode (UI handles it)
-    if (interactive) {
-      return;
-    }
+    // Log pipeline start to file (always) and console (non-interactive only)
+    logger.pipelineStart(config.name, state.runId, triggerCommit);
 
     if (this.dryRun) {
-      console.log(`\n🧪 DRY RUN MODE - No commits will be created\n`);
+      logger.log('DRY RUN MODE - No commits will be created');
     }
-
-    // Minimal startup message for non-interactive
-    console.log(`\n🚀 ${config.name} (Run: ${state.runId.substring(0, 8)})`);
 
     // Show detailed info only in verbose mode
     if (verbose) {
-      console.log(`📝 Trigger commit: ${triggerCommit.substring(0, 7)}`);
       if (isolation.worktreePath) {
-        console.log(`🌳 Worktree: ${isolation.worktreePath}`);
-        console.log(`   Branch: ${isolation.branchName}`);
+        logger.log(`Worktree: ${isolation.worktreePath}`);
+        logger.log(`Branch: ${isolation.branchName}`);
       }
     }
-    console.log('');
   }
 }

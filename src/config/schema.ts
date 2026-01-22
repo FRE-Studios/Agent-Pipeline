@@ -248,6 +248,7 @@ export interface PipelineState {
     mainRepoHandoverDir?: string;         // Main repo handover path (set only in worktree mode, for copying)
     loopDir?: string;                     // Loop session dir (worktree path if in worktree mode, only set when looping)
     mainRepoLoopDir?: string;             // Main repo loop dir (set only in worktree mode, for copying after session)
+    logPath?: string;                     // Path to pipeline log file (.agent-pipeline/logs/{pipelineName}.log)
     initialCommit: string;
     finalCommit?: string;
     changedFiles: string[];

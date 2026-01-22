@@ -134,11 +134,11 @@ describe('HandoverManager', () => {
       );
     });
 
-    it('should create initial LOG.md file', async () => {
+    it('should create initial execution-log.md file', async () => {
       await manager.initialize();
 
       expect(fs.writeFile).toHaveBeenCalledWith(
-        expect.stringContaining('LOG.md'),
+        expect.stringContaining('execution-log.md'),
         expect.stringContaining('# Pipeline Execution Log')
       );
       expect(fs.writeFile).toHaveBeenCalledWith(
@@ -160,9 +160,9 @@ describe('HandoverManager', () => {
       );
       expect(handoverCall?.[1]).toContain('Timestamp:');
 
-      // LOG.md should have Started timestamp
+      // execution-log.md should have Started timestamp
       const logCall = vi.mocked(fs.writeFile).mock.calls.find(
-        call => (call[0] as string).includes('LOG.md')
+        call => (call[0] as string).includes('execution-log.md')
       );
       expect(logCall?.[1]).toContain('**Started:**');
     });
@@ -263,7 +263,7 @@ const x = 1;
       await manager.appendToLog('my-stage', 'success', 45.5, 'Completed successfully');
 
       expect(fs.appendFile).toHaveBeenCalledWith(
-        expect.stringContaining('LOG.md'),
+        expect.stringContaining('execution-log.md'),
         expect.stringContaining('Stage: my-stage')
       );
       expect(fs.appendFile).toHaveBeenCalledWith(
@@ -575,7 +575,7 @@ const x = 1;
 
       expect(result).toContain('### Required Reading');
       expect(result).toContain('HANDOVER.md');
-      expect(result).toContain('LOG.md');
+      expect(result).toContain('execution-log.md');
     });
 
     it('should include output format template', () => {

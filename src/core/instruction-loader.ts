@@ -114,7 +114,7 @@ export class InstructionLoader {
 ### Required Reading
 Before starting your task, read these files to understand the current state:
 1. \`{{handoverDir}}/HANDOVER.md\` - Current pipeline state and context
-2. \`{{handoverDir}}/LOG.md\` - Execution history
+2. \`{{handoverDir}}/execution-log.md\` - Execution history
 
 ### Previous Stage Outputs
 {{previousStagesSection}}
@@ -142,7 +142,7 @@ Use this format:
 {context the next agent needs}
 \`\`\`
 
-The orchestrator will update HANDOVER.md and LOG.md automatically.
+The orchestrator will update HANDOVER.md and execution-log.md automatically.
 `;
   }
 

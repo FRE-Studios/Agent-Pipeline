@@ -5,7 +5,7 @@
 ### Required Reading
 Before starting your task, read these files to understand the current state:
 1. `{{handoverDir}}/HANDOVER.md` - Current pipeline state and context
-2. `{{handoverDir}}/LOG.md` - Execution history
+2. `{{handoverDir}}/execution-log.md` - Execution history
 
 ### Previous Stage Outputs
 {{previousStagesSection}}
@@ -37,4 +37,4 @@ Save your summary to: `{{handoverDir}}/stages/{{stageName}}/output.md`
 - For detailed output (analysis reports, data dumps, reference material), write separate files to `{{handoverDir}}/stages/{{stageName}}/` and reference them in output.md
 - Be ruthlessly concise—next stages can read your reference files if they need details
 
-The orchestrator will update HANDOVER.md and LOG.md automatically.
+The orchestrator will update HANDOVER.md and execution-log.md automatically.

@@ -31,7 +31,7 @@ export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state, o
   const hasHandoverDir = Boolean(state.artifacts.handoverDir);
   const hasPrUrl = Boolean(state.artifacts.pullRequest?.url);
   const logPath = hasHandoverDir
-    ? path.join(state.artifacts.handoverDir, 'LOG.md')
+    ? path.join(state.artifacts.handoverDir, 'execution-log.md')
     : null;
 
   // Status message timeout helper
@@ -100,7 +100,7 @@ export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state, o
       const timestamp = new Date().toISOString();
       const noteEntry = `\n---\n## [${timestamp}] User Note\n${noteText.trim()}\n`;
       await fs.appendFile(logPath, noteEntry);
-      showStatus('Note added to LOG.md');
+      showStatus('Note added to execution-log.md');
     } catch {
       showStatus('Failed to add note');
     }
@@ -226,7 +226,7 @@ export const InteractiveSummary: React.FC<InteractiveSummaryProps> = ({ state, o
       {/* Note input mode */}
       {mode === 'input' && (
         <Box marginTop={1} flexDirection="column">
-          <Text bold>Add note to LOG.md:</Text>
+          <Text bold>Add note to execution-log.md:</Text>
           <Box>
             <Text color="cyan">&gt; </Text>
             <TextInput

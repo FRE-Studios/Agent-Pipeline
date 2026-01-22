@@ -11,6 +11,7 @@ import { StateManager } from './state-manager.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { PipelineConfig, PipelineState, MergeStrategy } from '../config/schema.js';
 import { NotificationContext } from '../notifications/types.js';
+import { PipelineLogger } from '../utils/pipeline-logger.js';
 
 // Console output styling (consistent with cli/commands/init.ts)
 const c = {
@@ -53,8 +54,9 @@ export class PipelineFinalizer {
     verbose: boolean,
     notifyCallback: (context: NotificationContext) => Promise<void>,
     stateChangeCallback: (state: PipelineState) => void,
-    options?: { suppressCompletionNotification?: boolean }
+    options?: { suppressCompletionNotification?: boolean; pipelineLogger?: PipelineLogger }
   ): Promise<PipelineState> {
+    const { pipelineLogger } = options || {};
     // Calculate metrics (use worktree git manager if executing in worktree)
     await this.calculateMetrics(state, startTime, executionRepoPath);
 
@@ -127,6 +129,16 @@ export class PipelineFinalizer {
     // Handle worktree cleanup based on strategy and status
     const prCreatedSuccessfully = !!state.artifacts.pullRequest?.url;
     await this.handleWorktreeCleanup(worktreePath, config, state.status, interactive, prCreatedSuccessfully);
+
+    // Log pipeline completion and close logger
+    if (pipelineLogger) {
+      pipelineLogger.pipelineComplete(
+        state.status,
+        state.artifacts.totalDuration,
+        state.stages.length
+      );
+      pipelineLogger.close();
+    }
 
     return state;
   }

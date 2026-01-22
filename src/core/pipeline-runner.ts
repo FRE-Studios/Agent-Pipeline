@@ -770,7 +770,7 @@ export class PipelineRunner {
       return failedState;
     }
 
-    let { state, parallelExecutor, pipelineBranch, worktreePath, executionRepoPath, startTime } = initResult;
+    let { state, parallelExecutor, pipelineBranch, worktreePath, executionRepoPath, startTime, pipelineLogger } = initResult;
     this.notificationManager = initResult.notificationManager;
 
     // Create loop directories on first iteration (after we know worktree path)
@@ -897,7 +897,7 @@ export class PipelineRunner {
       verbose,
       this.notify.bind(this),
       this.notifyStateChange.bind(this),
-      { suppressCompletionNotification }
+      { suppressCompletionNotification, pipelineLogger }
     );
 
     return state;

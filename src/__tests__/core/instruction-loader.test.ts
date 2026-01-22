@@ -249,7 +249,7 @@ Iteration: {{currentIteration}}/{{maxIterations}}
       expect(result).toContain('## Pipeline Handover Context');
       expect(result).toContain('### Required Reading');
       expect(result).toContain('HANDOVER.md');
-      expect(result).toContain('LOG.md');
+      expect(result).toContain('execution-log.md');
       expect(result).toContain('### Previous Stage Outputs');
       expect(result).toContain('### Your Output Requirements');
     });

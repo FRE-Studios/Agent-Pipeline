@@ -17,8 +17,10 @@ vi.mock('../../core/handover-manager.js');
 vi.mock('../../core/stage-executor.js');
 vi.mock('../../core/parallel-executor.js');
 vi.mock('../../notifications/notification-manager.js');
+vi.mock('../../utils/pipeline-logger.js');
 
 import { WorktreeManager } from '../../core/worktree-manager.js';
+import { PipelineLogger } from '../../utils/pipeline-logger.js';
 
 // Helper to create mock runtime
 function createMockRuntime() {
@@ -89,6 +91,22 @@ describe('PipelineInitializer', () => {
       cleanupWorktree: vi.fn().mockResolvedValue(undefined),
       listPipelineWorktrees: vi.fn().mockResolvedValue([]),
     } as unknown as WorktreeManager));
+
+    // Setup PipelineLogger mock
+    vi.mocked(PipelineLogger).mockImplementation(() => ({
+      getLogPath: vi.fn().mockReturnValue('/test/repo/.agent-pipeline/logs/test-pipeline.log'),
+      log: vi.fn(),
+      logRaw: vi.fn(),
+      error: vi.fn(),
+      section: vi.fn(),
+      stageStart: vi.fn(),
+      stageComplete: vi.fn(),
+      stageFailed: vi.fn(),
+      stageSkipped: vi.fn(),
+      pipelineStart: vi.fn(),
+      pipelineComplete: vi.fn(),
+      close: vi.fn(),
+    } as unknown as PipelineLogger));
 
     initializer = new PipelineInitializer(
       mockGitManager,
@@ -323,40 +341,32 @@ describe('PipelineInitializer', () => {
       expect(result.startTime).toBeLessThanOrEqual(afterTime);
     });
 
-    it('should handle interactive mode (suppress logs)', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      await initializer.initialize(
+    it('should create pipeline logger with interactive=true', async () => {
+      const result = await initializer.initialize(
         mockConfig,
         { interactive: true },
         mockNotifyCallback,
         mockStateChangeCallback
       );
 
-      // Should not log startup messages in interactive mode
-      expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('🚀 Starting pipeline'));
-
-      consoleSpy.mockRestore();
+      // Should create pipeline logger even in interactive mode (it logs to file)
+      expect(result.pipelineLogger).toBeDefined();
+      expect(PipelineLogger).toHaveBeenCalledWith('/test/repo', 'test-pipeline', true);
     });
 
-    it('should log startup messages in non-interactive mode', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      await initializer.initialize(
+    it('should create pipeline logger with interactive=false', async () => {
+      const result = await initializer.initialize(
         mockConfig,
         { interactive: false },
         mockNotifyCallback,
         mockStateChangeCallback
       );
 
-      // New minimal format: pipeline name and run ID in one line
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('🚀 test-pipeline'));
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Run:'));
-
-      consoleSpy.mockRestore();
+      expect(result.pipelineLogger).toBeDefined();
+      expect(PipelineLogger).toHaveBeenCalledWith('/test/repo', 'test-pipeline', false);
     });
 
-    it('should log dry run message when enabled', async () => {
+    it('should log dry run message via pipeline logger', async () => {
       const dryRunInitializer = new PipelineInitializer(
         mockGitManager,
         '/test/repo',
@@ -364,18 +374,27 @@ describe('PipelineInitializer', () => {
         mockRuntime as any
       );
 
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      await dryRunInitializer.initialize(
+      const result = await dryRunInitializer.initialize(
         mockConfig,
         { interactive: false },
         mockNotifyCallback,
         mockStateChangeCallback
       );
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('🧪 DRY RUN MODE'));
+      // Verify pipelineStart was called (dry run message is logged via logger)
+      expect(result.pipelineLogger.pipelineStart).toHaveBeenCalled();
+      expect(result.pipelineLogger.log).toHaveBeenCalledWith('DRY RUN MODE - No commits will be created');
+    });
 
-      consoleSpy.mockRestore();
+    it('should store log path in state artifacts', async () => {
+      const result = await initializer.initialize(
+        mockConfig,
+        { interactive: false },
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      expect(result.state.artifacts.logPath).toBe('/test/repo/.agent-pipeline/logs/test-pipeline.log');
     });
 
     it('should use default git branch settings when not specified', async () => {

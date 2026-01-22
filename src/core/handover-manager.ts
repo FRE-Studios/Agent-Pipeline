@@ -68,9 +68,9 @@ export class HandoverManager {
       this.buildInitialHandover()
     );
 
-    // Create initial LOG.md
+    // Create initial execution-log.md
     await fs.writeFile(
-      path.join(this.handoverDir, 'LOG.md'),
+      path.join(this.handoverDir, 'execution-log.md'),
       this.buildInitialLog()
     );
   }
@@ -100,7 +100,7 @@ export class HandoverManager {
 **Summary:** ${summary}
 `;
 
-    const logPath = path.join(this.handoverDir, 'LOG.md');
+    const logPath = path.join(this.handoverDir, 'execution-log.md');
     await fs.appendFile(logPath, logEntry);
   }
 
@@ -128,7 +128,7 @@ export class HandoverManager {
 ### Required Reading
 Before starting your task, read these files to understand the current state:
 1. \`${this.handoverDir}/HANDOVER.md\` - Current pipeline state and context
-2. \`${this.handoverDir}/LOG.md\` - Execution history
+2. \`${this.handoverDir}/execution-log.md\` - Execution history
 
 ### Previous Stage Outputs
 ${previousStagesSection}
@@ -160,7 +160,7 @@ Save your summary to: \`${this.handoverDir}/stages/${stageName}/output.md\`
 - For detailed output (analysis reports, data dumps, reference material), write separate files to \`${this.handoverDir}/stages/${stageName}/\` and reference them in output.md
 - Be ruthlessly concise—next stages can read your reference files if they need details
 
-The orchestrator will update HANDOVER.md and LOG.md automatically.
+The orchestrator will update HANDOVER.md and execution-log.md automatically.
 `;
   }
 
