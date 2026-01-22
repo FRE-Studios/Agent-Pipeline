@@ -211,7 +211,7 @@ async function main() {
       }
 
       case 'cleanup': {
-        const options: { pipeline?: string; force?: boolean; deleteLogs?: boolean } = {};
+        const options: { pipeline?: string; force?: boolean; deleteLogs?: boolean; worktrees?: boolean; all?: boolean; prefix?: string; deleteRemote?: boolean } = {};
         for (let i = 1; i < args.length; i++) {
           if (args[i] === '--pipeline' || args[i] === '-p') {
             options.pipeline = args[++i];
@@ -219,6 +219,14 @@ async function main() {
             options.force = true;
           } else if (args[i] === '--delete-logs') {
             options.deleteLogs = true;
+          } else if (args[i] === '--worktrees' || args[i] === '-w') {
+            options.worktrees = true;
+          } else if (args[i] === '--all' || args[i] === '-a') {
+            options.all = true;
+          } else if (args[i] === '--prefix') {
+            options.prefix = args[++i];
+          } else if (args[i] === '--delete-remote') {
+            options.deleteRemote = true;
           }
         }
         await cleanupCommand(repoPath, options);

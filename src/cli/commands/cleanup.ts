@@ -14,6 +14,8 @@ export interface CleanupOptions {
   deleteLogs?: boolean;
   worktrees?: boolean;
   all?: boolean;
+  prefix?: string;
+  deleteRemote?: boolean;
 }
 
 export async function cleanupCommand(
@@ -22,10 +24,15 @@ export async function cleanupCommand(
 ): Promise<void> {
   const branchManager = new BranchManager(repoPath);
 
-  let branchPrefix = 'pipeline';
+  // Collect all branch prefixes to search
+  const branchPrefixes: Set<string> = new Set();
   let worktreeBaseDir: string | undefined;
 
-  if (options.pipeline) {
+  // If explicit prefix provided, use only that
+  if (options.prefix) {
+    branchPrefixes.add(options.prefix);
+  } else if (options.pipeline) {
+    // If specific pipeline given, read its config
     try {
       const pipelinePath = path.join(
         repoPath,
@@ -37,10 +44,33 @@ export async function cleanupCommand(
       const config = YAML.parse(content) as {
         git?: { branchPrefix?: string; worktree?: { directory?: string } };
       };
-      branchPrefix = config?.git?.branchPrefix || branchPrefix;
+      branchPrefixes.add(config?.git?.branchPrefix || 'pipeline');
       worktreeBaseDir = config?.git?.worktree?.directory;
     } catch {
-      // Fall back to defaults when pipeline config is missing or incomplete.
+      branchPrefixes.add('pipeline');
+    }
+  } else {
+    // No pipeline specified - scan all pipeline configs for all prefixes
+    branchPrefixes.add('pipeline'); // Always include default
+    try {
+      const pipelinesDir = path.join(repoPath, '.agent-pipeline', 'pipelines');
+      const files = fsSync.readdirSync(pipelinesDir);
+      for (const file of files) {
+        if (!file.endsWith('.yml') && !file.endsWith('.yaml')) continue;
+        try {
+          const content = fsSync.readFileSync(path.join(pipelinesDir, file), 'utf-8');
+          const config = YAML.parse(content) as {
+            git?: { branchPrefix?: string };
+          };
+          if (config?.git?.branchPrefix) {
+            branchPrefixes.add(config.git.branchPrefix);
+          }
+        } catch {
+          // Skip unparseable configs
+        }
+      }
+    } catch {
+      // Pipelines directory doesn't exist - use default only
     }
   }
 
@@ -56,7 +86,19 @@ export async function cleanupCommand(
 
   // List worktrees if requested
   if (cleanWorktrees) {
-    const worktrees = await worktreeManager.listPipelineWorktrees(branchPrefix);
+    // Collect worktrees from all prefixes
+    const allWorktrees: Awaited<ReturnType<typeof worktreeManager.listPipelineWorktrees>> = [];
+    for (const prefix of branchPrefixes) {
+      const worktrees = await worktreeManager.listPipelineWorktrees(prefix);
+      allWorktrees.push(...worktrees);
+    }
+    // Dedupe by path
+    const seenPaths = new Set<string>();
+    const worktrees = allWorktrees.filter(wt => {
+      if (seenPaths.has(wt.path)) return false;
+      seenPaths.add(wt.path);
+      return true;
+    });
     const worktreesToDelete = options.pipeline
       ? worktrees.filter(wt => {
           const matchesPipeline = wt.path.includes(options.pipeline!) || wt.branch.includes(options.pipeline!);
@@ -89,7 +131,14 @@ export async function cleanupCommand(
 
   // List branches if requested
   if (cleanBranches) {
-    const pipelineBranches = await branchManager.listPipelineBranches(branchPrefix);
+    // Collect branches from all prefixes
+    const allBranches: string[] = [];
+    for (const prefix of branchPrefixes) {
+      const branches = await branchManager.listPipelineBranches(prefix);
+      allBranches.push(...branches);
+    }
+    // Dedupe
+    const pipelineBranches = [...new Set(allBranches)];
     const branchesToDelete = options.pipeline
       ? pipelineBranches.filter(b => b.includes(options.pipeline!))
       : pipelineBranches;
@@ -116,6 +165,21 @@ export async function cleanupCommand(
     }
   }
 
+  // Check for remote pipeline branches
+  const allRemoteBranches: string[] = [];
+  for (const prefix of branchPrefixes) {
+    try {
+      const remoteBranches = await branchManager.listRemotePipelineBranches(prefix);
+      allRemoteBranches.push(...remoteBranches);
+    } catch {
+      // Remote might not be available
+    }
+  }
+  const remotePipelineBranches = [...new Set(allRemoteBranches)];
+  const remoteBranchesToDelete = options.pipeline
+    ? remotePipelineBranches.filter(b => b.includes(options.pipeline!))
+    : remotePipelineBranches;
+
   // Show usage help if not forcing
   if (!options.force && hasItems) {
     console.log('\nRun with --force to delete these items');
@@ -124,6 +188,9 @@ export async function cleanupCommand(
     console.log('  agent-pipeline cleanup --force              # Remove branches only');
     console.log('  agent-pipeline cleanup --all --force        # Remove both');
     console.log('  agent-pipeline cleanup --all --force --delete-logs');
+    if (remoteBranchesToDelete.length > 0) {
+      console.log(`\n⚠️  ${remoteBranchesToDelete.length} remote pipeline branch(es) found. Add --delete-remote to delete them.`);
+    }
     return;
   }
 
@@ -144,7 +211,24 @@ export async function cleanupCommand(
     }
   }
 
-  if (options.force && hasItems) {
+  // Handle remote branch deletion
+  if (options.force && remoteBranchesToDelete.length > 0) {
+    if (options.deleteRemote) {
+      console.log('\n🌐 Cleaning up remote branches...\n');
+      for (const branch of remoteBranchesToDelete) {
+        try {
+          await branchManager.deleteRemoteBranch(branch);
+          console.log(`✅ Deleted remote branch: ${branch}`);
+        } catch (error) {
+          console.error(`❌ Failed to delete remote ${branch}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+    } else {
+      console.log(`\n⚠️  ${remoteBranchesToDelete.length} remote pipeline branch(es) found. Use --delete-remote to delete them.`);
+    }
+  }
+
+  if (options.force && (hasItems || (options.deleteRemote && remoteBranchesToDelete.length > 0))) {
     console.log('\n✨ Cleanup complete!');
   }
 }

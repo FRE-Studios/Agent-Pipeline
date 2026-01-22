@@ -157,4 +157,22 @@ export class BranchManager extends GitManager {
     const branches = await this.git.branchLocal();
     return branches.all.filter(b => b.startsWith(`${prefix}/`));
   }
+
+  /**
+   * List all remote pipeline branches (strips origin/ prefix from returned names)
+   */
+  async listRemotePipelineBranches(prefix: string = 'pipeline', remote: string = 'origin'): Promise<string[]> {
+    const branches = await this.git.branch(['-r']);
+    const remotePrefix = `${remote}/${prefix}/`;
+    return branches.all
+      .filter(b => b.startsWith(remotePrefix))
+      .map(b => b.replace(`${remote}/`, ''));
+  }
+
+  /**
+   * Delete a remote branch
+   */
+  async deleteRemoteBranch(branchName: string, remote: string = 'origin'): Promise<void> {
+    await this.git.push(remote, branchName, ['--delete']);
+  }
 }
