@@ -269,6 +269,7 @@ export class PipelineFinalizer {
     const baseBranch = config.git?.baseBranch || 'main';
     const baseCheckedOutPath = await this.gitManager.isBranchCheckedOut(baseBranch);
     let mergeWorktreePath: string | null = null;
+    let mergeAttemptedOnCheckedOutPath = false;
 
     try {
       if (baseCheckedOutPath) {
@@ -292,6 +293,7 @@ export class PipelineFinalizer {
         }
 
         try {
+          mergeAttemptedOnCheckedOutPath = true;
           await checkedOutGitManager.merge(branchName);
           if (this.shouldLog(interactive)) {
             console.log(`${c.success('✓')} Successfully merged ${c.branch(branchName)} into ${c.branch(baseBranch)}`);
@@ -333,6 +335,9 @@ export class PipelineFinalizer {
         console.log(`${c.success('✓')} Successfully merged ${c.branch(branchName)} into ${c.branch(baseBranch)}`);
       }
     } catch (error) {
+      if (mergeAttemptedOnCheckedOutPath) {
+        throw error;
+      }
       if (this.shouldLog(interactive)) {
         console.log(`\n${c.error('✗')} ${c.error('Failed to merge:')} ${c.dim(error instanceof Error ? error.message : String(error))}`);
         console.log(`   ${c.dim('Branch')} ${c.branch(branchName)} ${c.dim('still exists with your changes.')}`);

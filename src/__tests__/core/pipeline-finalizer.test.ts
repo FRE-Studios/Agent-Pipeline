@@ -795,6 +795,9 @@ describe('PipelineFinalizer', () => {
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('git merge --abort')
       );
+      expect(consoleSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining('git checkout')
+      );
 
       consoleSpy.mockRestore();
     });
