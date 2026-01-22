@@ -27,6 +27,8 @@ describe('cleanupCommand', () => {
     mockBranchManager = {
       listPipelineBranches: vi.fn(),
       deleteLocalBranch: vi.fn(),
+      listRemotePipelineBranches: vi.fn().mockResolvedValue([]),
+      deleteRemoteBranch: vi.fn().mockResolvedValue(undefined),
     };
     vi.mocked(BranchManager).mockImplementation(() => mockBranchManager);
 
@@ -820,6 +822,243 @@ describe('cleanupCommand', () => {
         expect(mockPrompts.confirm).toHaveBeenCalled();
         expect(mockFs.unlink).toHaveBeenCalledTimes(1);
         expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✨ Cleanup complete!'));
+      });
+    });
+  });
+
+  describe('Remote Branch Handling', () => {
+    describe('Remote Branch Detection', () => {
+      it('should detect remote pipeline branches after local cleanup', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/test',
+          'pipeline/old-run',
+        ]);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        await cleanupCommand(tempDir, { force: true });
+
+        expect(mockBranchManager.listRemotePipelineBranches).toHaveBeenCalledWith('pipeline');
+        expect(console.log).toHaveBeenCalledWith(
+          expect.stringContaining('2 remote pipeline branch(es) found')
+        );
+      });
+
+      it('should show remote branch warning in dry run mode', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/remote-1',
+        ]);
+
+        await cleanupCommand(tempDir);
+
+        expect(console.log).toHaveBeenCalledWith(
+          expect.stringContaining('1 remote pipeline branch(es) found')
+        );
+        expect(console.log).toHaveBeenCalledWith(
+          expect.stringContaining('--delete-remote')
+        );
+      });
+
+      it('should not show remote warning when no remote branches exist', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([]);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        await cleanupCommand(tempDir, { force: true });
+
+        const logs = vi.mocked(console.log).mock.calls.map((call) => call[0]);
+        const remoteWarnings = logs.filter(
+          (log) => log && typeof log === 'string' && log.includes('remote pipeline branch')
+        );
+        expect(remoteWarnings).toHaveLength(0);
+      });
+
+      it('should filter remote branches by pipeline name', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/my-pipeline']);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/my-pipeline/run-1',
+          'pipeline/my-pipeline/run-2',
+          'pipeline/other-pipeline/run-1',
+        ]);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        await cleanupCommand(tempDir, { force: true, pipeline: 'my-pipeline' });
+
+        expect(console.log).toHaveBeenCalledWith(
+          expect.stringContaining('2 remote pipeline branch(es) found')
+        );
+      });
+
+      it('should handle remote listing errors gracefully', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.listRemotePipelineBranches.mockRejectedValue(
+          new Error('Network error')
+        );
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        // Should not throw - just skip remote branch handling
+        await expect(cleanupCommand(tempDir, { force: true })).resolves.not.toThrow();
+      });
+    });
+
+    describe('Remote Branch Deletion with --delete-remote', () => {
+      it('should delete remote branches when --delete-remote is provided', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/remote-1',
+          'pipeline/remote-2',
+        ]);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockBranchManager.deleteRemoteBranch.mockResolvedValue(undefined);
+
+        await cleanupCommand(tempDir, { force: true, deleteRemote: true });
+
+        expect(mockBranchManager.deleteRemoteBranch).toHaveBeenCalledTimes(2);
+        expect(mockBranchManager.deleteRemoteBranch).toHaveBeenCalledWith('pipeline/remote-1');
+        expect(mockBranchManager.deleteRemoteBranch).toHaveBeenCalledWith('pipeline/remote-2');
+      });
+
+      it('should display success message for each deleted remote branch', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/remote-branch',
+        ]);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockBranchManager.deleteRemoteBranch.mockResolvedValue(undefined);
+
+        await cleanupCommand(tempDir, { force: true, deleteRemote: true });
+
+        expect(console.log).toHaveBeenCalledWith('✅ Deleted remote branch: pipeline/remote-branch');
+      });
+
+      it('should display cleanup header for remote branches', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/remote-1',
+        ]);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockBranchManager.deleteRemoteBranch.mockResolvedValue(undefined);
+
+        await cleanupCommand(tempDir, { force: true, deleteRemote: true });
+
+        expect(console.log).toHaveBeenCalledWith(
+          expect.stringContaining('🌐 Cleaning up remote branches...')
+        );
+      });
+
+      it('should handle remote deletion failures gracefully', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/protected',
+        ]);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockBranchManager.deleteRemoteBranch.mockRejectedValue(
+          new Error('Permission denied')
+        );
+
+        await cleanupCommand(tempDir, { force: true, deleteRemote: true });
+
+        expect(console.error).toHaveBeenCalledWith(
+          expect.stringContaining('❌ Failed to delete remote pipeline/protected: Permission denied')
+        );
+      });
+
+      it('should continue on partial remote deletion failures', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/branch-1',
+          'pipeline/branch-2',
+          'pipeline/branch-3',
+        ]);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockBranchManager.deleteRemoteBranch
+          .mockResolvedValueOnce(undefined)
+          .mockRejectedValueOnce(new Error('Failed'))
+          .mockResolvedValueOnce(undefined);
+
+        await cleanupCommand(tempDir, { force: true, deleteRemote: true });
+
+        expect(console.log).toHaveBeenCalledWith('✅ Deleted remote branch: pipeline/branch-1');
+        expect(console.error).toHaveBeenCalledWith(
+          expect.stringContaining('❌ Failed to delete remote pipeline/branch-2')
+        );
+        expect(console.log).toHaveBeenCalledWith('✅ Deleted remote branch: pipeline/branch-3');
+      });
+
+      it('should not delete remote branches without --delete-remote flag', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/remote-1',
+        ]);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+
+        await cleanupCommand(tempDir, { force: true });
+
+        expect(mockBranchManager.deleteRemoteBranch).not.toHaveBeenCalled();
+        expect(console.log).toHaveBeenCalledWith(
+          expect.stringContaining('Use --delete-remote to delete them')
+        );
+      });
+
+      it('should filter remote branches by pipeline when deleting', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/my-pipeline']);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/my-pipeline/run-1',
+          'pipeline/my-pipeline/run-2',
+          'pipeline/other/run-1',
+        ]);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockBranchManager.deleteRemoteBranch.mockResolvedValue(undefined);
+
+        await cleanupCommand(tempDir, { force: true, deleteRemote: true, pipeline: 'my-pipeline' });
+
+        expect(mockBranchManager.deleteRemoteBranch).toHaveBeenCalledTimes(2);
+        expect(mockBranchManager.deleteRemoteBranch).toHaveBeenCalledWith('pipeline/my-pipeline/run-1');
+        expect(mockBranchManager.deleteRemoteBranch).toHaveBeenCalledWith('pipeline/my-pipeline/run-2');
+        expect(mockBranchManager.deleteRemoteBranch).not.toHaveBeenCalledWith('pipeline/other/run-1');
+      });
+
+      it('should show completion message after remote cleanup', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue(['pipeline/test']);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/remote-1',
+        ]);
+        mockBranchManager.deleteLocalBranch.mockResolvedValue(undefined);
+        mockBranchManager.deleteRemoteBranch.mockResolvedValue(undefined);
+
+        await cleanupCommand(tempDir, { force: true, deleteRemote: true });
+
+        expect(console.log).toHaveBeenCalledWith(expect.stringContaining('✨ Cleanup complete!'));
+      });
+    });
+
+    describe('Remote Branch with No Local Branches', () => {
+      it('should still detect remote branches when no local branches exist', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue([]);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/orphaned-remote',
+        ]);
+
+        await cleanupCommand(tempDir);
+
+        // Should mention remote branches even with no local branches
+        expect(mockBranchManager.listRemotePipelineBranches).toHaveBeenCalled();
+      });
+
+      it('should delete remote branches even when no local branches to delete', async () => {
+        mockBranchManager.listPipelineBranches.mockResolvedValue([]);
+        mockBranchManager.listRemotePipelineBranches.mockResolvedValue([
+          'pipeline/orphaned-1',
+          'pipeline/orphaned-2',
+        ]);
+        mockBranchManager.deleteRemoteBranch.mockResolvedValue(undefined);
+
+        await cleanupCommand(tempDir, { force: true, deleteRemote: true });
+
+        expect(mockBranchManager.deleteRemoteBranch).toHaveBeenCalledTimes(2);
+        expect(console.log).toHaveBeenCalledWith('✅ Deleted remote branch: pipeline/orphaned-1');
+        expect(console.log).toHaveBeenCalledWith('✅ Deleted remote branch: pipeline/orphaned-2');
       });
     });
   });

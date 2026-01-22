@@ -32,6 +32,7 @@ describe('BranchManager', () => {
     mockGit = {
       status: vi.fn(),
       branchLocal: vi.fn(),
+      branch: vi.fn(),
       checkout: vi.fn(),
       checkoutBranch: vi.fn(),
       fetch: vi.fn(),
@@ -882,6 +883,133 @@ describe('BranchManager', () => {
 
       await expect(branchManager.listPipelineBranches()).rejects.toThrow(
         'Git error'
+      );
+    });
+  });
+
+  describe('listRemotePipelineBranches', () => {
+    it('should list all remote branches with default prefix (pipeline)', async () => {
+      mockGit.branch.mockResolvedValue({
+        all: [
+          'origin/main',
+          'origin/pipeline/test-pipeline',
+          'origin/pipeline/build-pipeline',
+          'origin/feature/something',
+        ],
+      });
+
+      const result = await branchManager.listRemotePipelineBranches();
+
+      expect(mockGit.branch).toHaveBeenCalledWith(['-r']);
+      expect(result).toEqual([
+        'pipeline/test-pipeline',
+        'pipeline/build-pipeline',
+      ]);
+    });
+
+    it('should list remote branches with custom prefix', async () => {
+      mockGit.branch.mockResolvedValue({
+        all: [
+          'origin/main',
+          'origin/review-pipeline/test/abc123',
+          'origin/review-pipeline/test/def456',
+          'origin/pipeline/other',
+        ],
+      });
+
+      const result = await branchManager.listRemotePipelineBranches('review-pipeline');
+
+      expect(result).toEqual([
+        'review-pipeline/test/abc123',
+        'review-pipeline/test/def456',
+      ]);
+    });
+
+    it('should use custom remote name', async () => {
+      mockGit.branch.mockResolvedValue({
+        all: [
+          'upstream/pipeline/feature-1',
+          'upstream/pipeline/feature-2',
+          'origin/pipeline/other',
+        ],
+      });
+
+      const result = await branchManager.listRemotePipelineBranches('pipeline', 'upstream');
+
+      expect(result).toEqual([
+        'pipeline/feature-1',
+        'pipeline/feature-2',
+      ]);
+    });
+
+    it('should return empty array when no remote pipeline branches exist', async () => {
+      mockGit.branch.mockResolvedValue({
+        all: ['origin/main', 'origin/develop'],
+      });
+
+      const result = await branchManager.listRemotePipelineBranches();
+
+      expect(result).toEqual([]);
+    });
+
+    it('should strip remote prefix from branch names', async () => {
+      mockGit.branch.mockResolvedValue({
+        all: ['origin/pipeline/test-123'],
+      });
+
+      const result = await branchManager.listRemotePipelineBranches();
+
+      expect(result).toEqual(['pipeline/test-123']);
+      expect(result[0]).not.toContain('origin/');
+    });
+
+    it('should throw on git branch error', async () => {
+      mockGit.branch.mockRejectedValue(new Error('Network error'));
+
+      await expect(branchManager.listRemotePipelineBranches()).rejects.toThrow(
+        'Network error'
+      );
+    });
+  });
+
+  describe('deleteRemoteBranch', () => {
+    it('should delete remote branch from default remote (origin)', async () => {
+      mockGit.push.mockResolvedValue(undefined);
+
+      await branchManager.deleteRemoteBranch('pipeline/test');
+
+      expect(mockGit.push).toHaveBeenCalledWith('origin', 'pipeline/test', ['--delete']);
+    });
+
+    it('should delete remote branch from custom remote', async () => {
+      mockGit.push.mockResolvedValue(undefined);
+
+      await branchManager.deleteRemoteBranch('pipeline/test', 'upstream');
+
+      expect(mockGit.push).toHaveBeenCalledWith('upstream', 'pipeline/test', ['--delete']);
+    });
+
+    it('should handle branch names with slashes', async () => {
+      mockGit.push.mockResolvedValue(undefined);
+
+      await branchManager.deleteRemoteBranch('review-pipeline/post-commit/abc123');
+
+      expect(mockGit.push).toHaveBeenCalledWith('origin', 'review-pipeline/post-commit/abc123', ['--delete']);
+    });
+
+    it('should throw on delete failure', async () => {
+      mockGit.push.mockRejectedValue(new Error('Remote branch not found'));
+
+      await expect(branchManager.deleteRemoteBranch('nonexistent')).rejects.toThrow(
+        'Remote branch not found'
+      );
+    });
+
+    it('should throw on permission denied', async () => {
+      mockGit.push.mockRejectedValue(new Error('Permission denied'));
+
+      await expect(branchManager.deleteRemoteBranch('protected-branch')).rejects.toThrow(
+        'Permission denied'
       );
     });
   });
