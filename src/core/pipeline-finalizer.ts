@@ -307,9 +307,8 @@ export class PipelineFinalizer {
         try {
           mergeAttemptedOnCheckedOutPath = true;
           await checkedOutGitManager.merge(branchName);
-          if (this.shouldLog(interactive)) {
-            console.log(`${c.success('✓')} Successfully merged ${c.branch(branchName)} into ${c.branch(baseBranch)}`);
-          }
+          // Always show merge success - important user feedback
+          console.log(`${c.success('✓')} Merged ${c.branch(branchName)} into ${c.branch(baseBranch)}`);
           return;
         } catch (mergeError) {
           if (this.shouldLog(interactive)) {
@@ -343,9 +342,8 @@ export class PipelineFinalizer {
       await this.worktreeManager.pruneWorktrees();
       mergeWorktreePath = null;
 
-      if (this.shouldLog(interactive)) {
-        console.log(`${c.success('✓')} Successfully merged ${c.branch(branchName)} into ${c.branch(baseBranch)}`);
-      }
+      // Always show merge success - important user feedback
+      console.log(`${c.success('✓')} Merged ${c.branch(branchName)} into ${c.branch(baseBranch)}`);
     } catch (error) {
       if (mergeAttemptedOnCheckedOutPath) {
         throw error;

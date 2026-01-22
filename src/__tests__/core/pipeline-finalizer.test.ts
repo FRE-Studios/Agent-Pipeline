@@ -655,7 +655,7 @@ describe('PipelineFinalizer', () => {
         expect.stringContaining('Merging pipeline/feature-branch into main')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Successfully merged')
+        expect.stringContaining('Merged')
       );
 
       consoleSpy.mockRestore();
@@ -747,7 +747,7 @@ describe('PipelineFinalizer', () => {
         expect.stringContaining('Merging pipeline/feature-branch into main')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Successfully merged')
+        expect.stringContaining('Merged')
       );
 
       consoleSpy.mockRestore();
@@ -885,7 +885,7 @@ describe('PipelineFinalizer', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should not log in interactive mode', async () => {
+    it('should still log merge success in interactive mode (critical feedback)', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       mockShouldLog.mockReturnValue(false);
 
@@ -910,12 +910,9 @@ describe('PipelineFinalizer', () => {
         mockStateChangeCallback
       );
 
-      // Should NOT log merge messages in interactive mode
-      expect(consoleSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining('Merging')
-      );
-      expect(consoleSpy).not.toHaveBeenCalledWith(
-        expect.stringContaining('Successfully merged')
+      // Merge success message should ALWAYS be shown (critical user feedback)
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Merged')
       );
 
       consoleSpy.mockRestore();
