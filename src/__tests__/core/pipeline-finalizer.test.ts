@@ -15,6 +15,7 @@ const { mockGitManagerInstance, mockWorktreeManagerInstance, mockBranchManagerIn
       getCurrentCommit: vi.fn().mockResolvedValue('def456'),
       isBranchCheckedOut: vi.fn().mockResolvedValue(null),
       merge: vi.fn().mockResolvedValue(undefined),
+      hasUncommittedChanges: vi.fn().mockResolvedValue(false),
     },
     mockWorktreeManagerInstance: {
       cleanupWorktree: vi.fn().mockResolvedValue(undefined),
@@ -103,6 +104,7 @@ describe('PipelineFinalizer', () => {
     mockGitManagerInstance.getCurrentCommit.mockResolvedValue('def456');
     mockGitManagerInstance.isBranchCheckedOut.mockResolvedValue(null);
     mockGitManagerInstance.merge.mockResolvedValue(undefined);
+    mockGitManagerInstance.hasUncommittedChanges.mockResolvedValue(false);
     mockWorktreeManagerInstance.getWorktreeBaseDir.mockReturnValue('/test/repo/.agent-pipeline/worktrees');
     mockWorktreeManagerInstance.createWorktree.mockResolvedValue(undefined);
     mockWorktreeManagerInstance.removeWorktree.mockResolvedValue(undefined);
@@ -659,11 +661,12 @@ describe('PipelineFinalizer', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should show warning and complete successfully when base branch is checked out', async () => {
+    it('should show warning when base branch has uncommitted changes', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      // Base branch is checked out at a path
+      // Base branch is checked out at a path with uncommitted changes
       mockGitManagerInstance.isBranchCheckedOut.mockResolvedValue('/test/repo');
+      mockGitManagerInstance.hasUncommittedChanges.mockResolvedValue(true);
 
       const configWithLocalMerge: PipelineConfig = {
         ...mockConfig,
@@ -691,12 +694,106 @@ describe('PipelineFinalizer', () => {
       expect(mockWorktreeManagerInstance.createWorktree).not.toHaveBeenCalled();
       expect(mockGitManagerInstance.merge).not.toHaveBeenCalled();
 
-      // Should log warning with instructions (chalk-styled, so match partial text)
+      // Should log warning mentioning uncommitted changes (chalk-styled, so match partial text)
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('Cannot auto-merge:')
       );
       expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('uncommitted changes')
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('git merge pipeline/feature-branch')
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should merge directly when base branch is checked out with clean tree', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      // Base branch is checked out at a path with NO uncommitted changes
+      mockGitManagerInstance.isBranchCheckedOut.mockResolvedValue('/test/repo');
+      mockGitManagerInstance.hasUncommittedChanges.mockResolvedValue(false);
+
+      const configWithLocalMerge: PipelineConfig = {
+        ...mockConfig,
+        git: {
+          baseBranch: 'main',
+          mergeStrategy: 'local-merge'
+        }
+      };
+
+      await finalizer.finalize(
+        mockState,
+        configWithLocalMerge,
+        'pipeline/feature-branch',
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should NOT create worktree (merge directly at checked out path)
+      expect(mockWorktreeManagerInstance.createWorktree).not.toHaveBeenCalled();
+
+      // Should merge the feature branch directly
+      expect(mockGitManagerInstance.merge).toHaveBeenCalledWith('pipeline/feature-branch');
+
+      // Should log success
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Merging pipeline/feature-branch into main')
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Successfully merged')
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle merge failure at checked-out path', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      // Base branch is checked out at a path with clean tree
+      mockGitManagerInstance.isBranchCheckedOut.mockResolvedValue('/test/repo');
+      mockGitManagerInstance.hasUncommittedChanges.mockResolvedValue(false);
+      // Merge fails with conflict
+      mockGitManagerInstance.merge.mockRejectedValue(new Error('Merge conflict'));
+
+      const configWithLocalMerge: PipelineConfig = {
+        ...mockConfig,
+        git: {
+          baseBranch: 'main',
+          mergeStrategy: 'local-merge'
+        }
+      };
+
+      await expect(
+        finalizer.finalize(
+          mockState,
+          configWithLocalMerge,
+          'pipeline/feature-branch',
+          undefined,
+          '/test/repo',
+          Date.now(),
+          false,
+          false,
+          mockNotifyCallback,
+          mockStateChangeCallback
+        )
+      ).rejects.toThrow('Merge conflict');
+
+      // Should log error with conflict resolution instructions
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Failed to merge')
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('git status')
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('git merge --abort')
       );
 
       consoleSpy.mockRestore();

@@ -272,20 +272,39 @@ export class PipelineFinalizer {
 
     try {
       if (baseCheckedOutPath) {
-        // Base branch is checked out - can't merge automatically, but pipeline completed successfully
-        if (this.shouldLog(interactive)) {
-          console.log('');
-          console.log(`${c.warn('⚠')}  ${c.warn('Cannot auto-merge:')} branch ${c.branch(baseBranch)} is currently checked out.`);
-          console.log(`   ${c.dim('Pipeline completed successfully. Your changes are on branch:')} ${c.branch(branchName)}`);
-          console.log('');
-          console.log(`   ${c.dim('To apply changes, run:')}`);
-          console.log(`   ${c.cmd(`git merge ${branchName}`)}`);
-          console.log('');
-          console.log(`   ${c.dim('To review changes first:')}`);
-          console.log(`   ${c.cmd(`git diff ${baseBranch}..${branchName}`)}`);
-          console.log('');
+        // Check if working tree is clean
+        const checkedOutGitManager = new GitManager(baseCheckedOutPath);
+        const hasChanges = await checkedOutGitManager.hasUncommittedChanges();
+
+        if (hasChanges) {
+          // Dirty working tree - can't merge safely
+          if (this.shouldLog(interactive)) {
+            console.log(`\n${c.warn('⚠')}  Cannot auto-merge: ${c.branch(baseBranch)} has uncommitted changes.`);
+            console.log(`   ${c.dim('Pipeline completed successfully. Changes on branch:')} ${c.branch(branchName)}`);
+            console.log(`\n   ${c.dim('Commit or stash your work, then run:')} ${c.cmd(`git merge ${branchName}`)}`);
+          }
+          return;
         }
-        return; // Return gracefully - pipeline was successful, just merge skipped
+
+        // Clean working tree - merge directly
+        if (this.shouldLog(interactive)) {
+          console.log(`\n${c.dim('🔀 Merging')} ${c.branch(branchName)} ${c.dim('into')} ${c.branch(baseBranch)}${c.dim('...')}`);
+        }
+
+        try {
+          await checkedOutGitManager.merge(branchName);
+          if (this.shouldLog(interactive)) {
+            console.log(`${c.success('✓')} Successfully merged ${c.branch(branchName)} into ${c.branch(baseBranch)}`);
+          }
+          return;
+        } catch (mergeError) {
+          if (this.shouldLog(interactive)) {
+            console.log(`\n${c.error('✗')} Failed to merge: ${mergeError instanceof Error ? mergeError.message : String(mergeError)}`);
+            console.log(`   ${c.dim('To resolve:')} ${c.cmd('git status')} then fix conflicts and ${c.cmd('git commit')}`);
+            console.log(`   ${c.dim('Or abort:')} ${c.cmd('git merge --abort')}`);
+          }
+          throw mergeError;
+        }
       }
 
       const worktreeBaseDir = this.worktreeManager.getWorktreeBaseDir();
