@@ -66,7 +66,7 @@
     "url": "https://github.com/sponsors/FRE-Studios"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.19",
     "@types/node-notifier": "^8.0.5",
     "chalk": "^5.3.0",
     "ink": "^4.4.1",
@@ -78,7 +78,7 @@
     "tiktoken": "^1.0.22",
     "uuid": "^10.0.0",
     "yaml": "^2.4.5",
-    "zod": "^3.24.1"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
