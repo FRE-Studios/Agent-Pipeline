@@ -128,7 +128,7 @@ async function main() {
 
         // Parse flags
         const dryRun = args.includes('--dry-run');
-        const noInteractive = args.includes('--no-interactive');
+        const quiet = args.includes('--quiet');
         const verbose = args.includes('--verbose');
         const prDraft = args.includes('--pr-draft');
         const prWeb = args.includes('--pr-web');
@@ -150,7 +150,7 @@ async function main() {
 
         await runCommand(repoPath, subCommand, {
           dryRun,
-          interactive: !noInteractive,
+          interactive: !quiet,
           verbose,
           baseBranch,
           prDraft,

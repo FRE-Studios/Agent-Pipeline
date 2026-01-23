@@ -36,7 +36,7 @@ const commandRegistry: Record<string, CommandHelp> = {
     usage: ['agent-pipeline run <pipeline> [options]'],
     options: [
       { flags: '--dry-run', description: 'Test without git commits' },
-      { flags: '--no-interactive', description: 'Use simple console output (no live UI)' },
+      { flags: '--quiet', description: 'Use simple console output (no live UI)' },
       { flags: '--verbose', description: 'Show token stats and debug info' },
       { flags: '--no-notifications', description: 'Suppress desktop/Slack alerts' },
       { flags: '--base-branch <branch>', description: 'Override PR target branch' },
@@ -48,7 +48,7 @@ const commandRegistry: Record<string, CommandHelp> = {
     examples: [
       { command: 'agent-pipeline run my-pipeline', description: 'Run with live UI' },
       { command: 'agent-pipeline run code-review --dry-run', description: 'Test without commits' },
-      { command: 'agent-pipeline run ci-pipeline --no-interactive --verbose', description: 'CI-friendly output' },
+      { command: 'agent-pipeline run ci-pipeline --quiet --verbose', description: 'CI-friendly output' },
     ],
     seeAlso: ['list', 'status', 'history'],
   },
@@ -527,7 +527,7 @@ ${c.header('Maintenance:')}
   ${c.cmd('agent-pipeline analytics --days 7')}                ${c.dim('Weekly performance')}
 
 ${c.header('CI/CD Integration:')}
-  ${c.cmd('agent-pipeline run deploy --no-interactive')}       ${c.dim('Headless mode for CI')}
+  ${c.cmd('agent-pipeline run deploy --quiet')}                ${c.dim('Headless mode for CI')}
   ${c.cmd('agent-pipeline run tests --no-notifications')}      ${c.dim('Silent execution')}`);
 }
 

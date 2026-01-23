@@ -213,7 +213,7 @@ unset GIT_WORK_TREE
 unset GIT_EXEC_PATH
 
 echo "[agent-pipeline] $(date) starting ${pipelineName}" >> "$logPath"
-nohup $runner run ${pipelineName} --no-interactive >> "$logPath" 2>&1 &
+nohup $runner run ${pipelineName} --quiet >> "$logPath" 2>&1 &
 pipelinePid=$!
 echo "$pipelinePid" > "$lockPath/pid"
 

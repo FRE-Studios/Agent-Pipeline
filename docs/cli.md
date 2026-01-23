@@ -16,7 +16,7 @@ All commands are routed through `src/index.ts`. Use `agent-pipeline <command> [o
 
 - `run <pipeline>` – Execute a pipeline. Useful flags:
   - `--dry-run`: skip commits and PR creation.
-  - `--no-interactive`: disable the Ink UI and log to stdout.
+  - `--quiet`: disable the Ink UI and log to stdout.
   - `--verbose`: show token stats, cache hit rates, and debug info.
   - `--no-notifications`: suppress notification delivery.
   - `--pr-draft`, `--pr-web`, `--base-branch <branch>`: override git workflow settings.

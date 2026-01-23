@@ -336,7 +336,7 @@ describe('runCommand', () => {
       }));
     });
 
-    it('should disable interactive mode when --no-interactive flag set', async () => {
+    it('should disable interactive mode when --quiet flag set', async () => {
       const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
       mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
       mockValidator.validateAndReport.mockResolvedValue(true);

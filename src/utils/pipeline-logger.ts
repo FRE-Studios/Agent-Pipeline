@@ -5,7 +5,7 @@ import * as path from 'path';
 
 /**
  * Pipeline logger that writes to both console (in non-interactive mode) and a log file.
- * Provides the same output as --no-interactive mode for all pipeline runs.
+ * Provides the same output as --quiet mode for all pipeline runs.
  */
 export class PipelineLogger {
   private logStream: fs.WriteStream | null = null;
