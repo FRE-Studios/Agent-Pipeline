@@ -9,7 +9,9 @@
       "Bash(node dist/index.js:*)",
       "Bash(sed:*)",
       "Bash(npm ls:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npm view:*)",
+      "Bash(node -e:*)"
     ],
     "deny": [],
     "ask": []
