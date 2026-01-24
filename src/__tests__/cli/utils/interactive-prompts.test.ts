@@ -404,6 +404,178 @@ describe('InteractivePrompts', () => {
     });
   });
 
+  describe('selectSingle()', () => {
+    const options = [
+      { name: 'Agent 1', value: 'agent1' },
+      { name: 'Agent 2', value: 'agent2' },
+      { name: 'Agent 3', value: 'agent3' }
+    ];
+
+    it('should return selected value', async () => {
+      mockRl.question.mockImplementation((_prompt, callback) => {
+        callback('2');
+      });
+
+      const result = await InteractivePrompts.selectSingle('Select an agent', options);
+
+      expect(result).toBe('agent2');
+      expect(consoleLogSpy).toHaveBeenCalledWith('Select an agent');
+      expect(consoleLogSpy).toHaveBeenCalledWith('  1. Agent 1');
+      expect(consoleLogSpy).toHaveBeenCalledWith('  2. Agent 2');
+      expect(consoleLogSpy).toHaveBeenCalledWith('  3. Agent 3');
+      expect(mockRl.close).toHaveBeenCalled();
+    });
+
+    it('should handle first option selection', async () => {
+      mockRl.question.mockImplementation((_prompt, callback) => {
+        callback('1');
+      });
+
+      const result = await InteractivePrompts.selectSingle('Select', options);
+
+      expect(result).toBe('agent1');
+    });
+
+    it('should handle last option selection', async () => {
+      mockRl.question.mockImplementation((_prompt, callback) => {
+        callback('3');
+      });
+
+      const result = await InteractivePrompts.selectSingle('Select', options);
+
+      expect(result).toBe('agent3');
+    });
+
+    it('should show correct prompt format', async () => {
+      mockRl.question.mockImplementation((_prompt, callback) => {
+        callback('1');
+      });
+
+      await InteractivePrompts.selectSingle('Pick one', options);
+
+      expect(mockRl.question).toHaveBeenCalledWith(
+        'Select [1-3]: ',
+        expect.any(Function)
+      );
+    });
+
+    it('should trim whitespace from input', async () => {
+      mockRl.question.mockImplementation((_prompt, callback) => {
+        callback('  2  ');
+      });
+
+      const result = await InteractivePrompts.selectSingle('Select', options);
+
+      expect(result).toBe('agent2');
+    });
+
+    it('should exit with code 1 for invalid selection (too low)', async () => {
+      // Mock process.exit to throw an error to stop execution (simulates actual exit behavior)
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit called');
+      });
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      mockRl.question.mockImplementation((_prompt, callback) => {
+        callback('0');
+      });
+
+      await expect(InteractivePrompts.selectSingle('Select', options)).rejects.toThrow('process.exit called');
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Invalid selection. Please enter 1-3.'
+      );
+      expect(exitSpy).toHaveBeenCalledWith(1);
+
+      exitSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should exit with code 1 for invalid selection (too high)', async () => {
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit called');
+      });
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      mockRl.question.mockImplementation((_prompt, callback) => {
+        callback('4');
+      });
+
+      await expect(InteractivePrompts.selectSingle('Select', options)).rejects.toThrow('process.exit called');
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Invalid selection. Please enter 1-3.'
+      );
+      expect(exitSpy).toHaveBeenCalledWith(1);
+
+      exitSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should exit with code 1 for non-numeric input', async () => {
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit called');
+      });
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      mockRl.question.mockImplementation((_prompt, callback) => {
+        callback('abc');
+      });
+
+      await expect(InteractivePrompts.selectSingle('Select', options)).rejects.toThrow('process.exit called');
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Invalid selection. Please enter 1-3.'
+      );
+      expect(exitSpy).toHaveBeenCalledWith(1);
+
+      exitSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should exit with code 1 for empty input', async () => {
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit called');
+      });
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      mockRl.question.mockImplementation((_prompt, callback) => {
+        callback('');
+      });
+
+      await expect(InteractivePrompts.selectSingle('Select', options)).rejects.toThrow('process.exit called');
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Invalid selection. Please enter 1-3.'
+      );
+      expect(exitSpy).toHaveBeenCalledWith(1);
+
+      exitSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should exit with code 1 for negative number', async () => {
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit called');
+      });
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      mockRl.question.mockImplementation((_prompt, callback) => {
+        callback('-1');
+      });
+
+      await expect(InteractivePrompts.selectSingle('Select', options)).rejects.toThrow('process.exit called');
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ Invalid selection. Please enter 1-3.'
+      );
+      expect(exitSpy).toHaveBeenCalledWith(1);
+
+      exitSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
   describe('multiSelect()', () => {
     const options = [
       { name: 'Agent 1', value: 'agent1' },

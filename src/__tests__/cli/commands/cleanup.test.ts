@@ -489,6 +489,69 @@ describe('cleanupCommand', () => {
     });
   });
 
+  describe('Custom Worktree Directory Handling', () => {
+    // Note: The custom worktreeBaseDir extraction from pipeline configs (line 78)
+    // and the subsequent filtering at line 107 cannot be directly tested due to
+    // ESM module spying limitations on fsSync. The worktreeBaseDir is read from
+    // the pipeline config using fsSync.readFileSync which can't be mocked in ESM.
+    // See: https://vitest.dev/guide/browser/#limitations
+    //
+    // What IS tested:
+    // - WorktreeManager instantiation (verified through mock calls)
+    // - Pipeline name filtering in worktree paths and branches
+    // - Worktree cleanup execution
+    //
+    // What CANNOT be tested without proper fsSync mocking:
+    // - Line 78: WorktreeManager instantiation with custom directory
+    // - Line 107: Path filtering using worktreeManager.getWorktreeBaseDir()
+
+    it('should use WorktreeManager with default when no custom directory configured', async () => {
+      mockWorktreeManager.listPipelineWorktrees.mockResolvedValue([
+        { path: '/worktrees/pipeline-1', branch: 'pipeline/test-1' },
+      ]);
+      mockWorktreeManager.getWorktreeBaseDir = vi.fn().mockReturnValue('/default/worktrees');
+      mockWorktreeManager.cleanupWorktree.mockResolvedValue(undefined);
+
+      await cleanupCommand(tempDir, { worktrees: true, force: true });
+
+      // WorktreeManager should have been instantiated (mocked)
+      expect(WorktreeManager).toHaveBeenCalled();
+      expect(mockWorktreeManager.listPipelineWorktrees).toHaveBeenCalled();
+    });
+
+    it('should filter worktrees by pipeline name in path or branch', async () => {
+      // Setup worktrees with different pipeline names
+      mockWorktreeManager.listPipelineWorktrees.mockResolvedValue([
+        { path: '/worktrees/my-pipeline-123', branch: 'pipeline/my-pipeline-123' },
+        { path: '/worktrees/my-pipeline-456', branch: 'pipeline/my-pipeline-456' },
+        { path: '/worktrees/other-pipeline-789', branch: 'pipeline/other-789' },
+      ]);
+      mockWorktreeManager.getWorktreeBaseDir = vi.fn().mockReturnValue('/worktrees');
+      mockWorktreeManager.cleanupWorktree.mockResolvedValue(undefined);
+
+      await cleanupCommand(tempDir, { worktrees: true, force: true, pipeline: 'my-pipeline' });
+
+      // Both matching worktrees should be cleaned (filtering by pipeline name in path/branch)
+      expect(mockWorktreeManager.cleanupWorktree).toHaveBeenCalledTimes(2);
+    });
+
+    it('should cleanup worktree with correct parameters', async () => {
+      mockWorktreeManager.listPipelineWorktrees.mockResolvedValue([
+        { path: '/test/worktrees/pipeline-abc', branch: 'pipeline/abc' },
+      ]);
+      mockWorktreeManager.getWorktreeBaseDir = vi.fn().mockReturnValue('/test/worktrees');
+      mockWorktreeManager.cleanupWorktree.mockResolvedValue(undefined);
+
+      await cleanupCommand(tempDir, { worktrees: true, force: true, pipeline: 'abc' });
+
+      expect(mockWorktreeManager.cleanupWorktree).toHaveBeenCalledWith(
+        '/test/worktrees/pipeline-abc',
+        undefined,  // cleanBranches is falsy when only worktrees flag is set
+        true        // force flag
+      );
+    });
+  });
+
   describe('Custom Branch Prefix Discovery', () => {
     it('should use explicit --prefix option when provided', async () => {
       mockBranchManager.listPipelineBranches.mockResolvedValue([
