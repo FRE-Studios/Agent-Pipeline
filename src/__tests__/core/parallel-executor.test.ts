@@ -6,6 +6,7 @@ import { StageExecutor } from '../../core/stage-executor.js';
 import { AgentStageConfig, StageExecution, PipelineState } from '../../config/schema.js';
 import { runningPipelineState, successfulStageExecution, failedStageExecution } from '../fixtures/pipeline-states.js';
 import { parallelPipelineConfig, simplePipelineConfig } from '../fixtures/pipeline-configs.js';
+import { PipelineAbortController, PipelineAbortError } from '../../core/abort-controller.js';
 
 describe('ParallelExecutor', () => {
   let mockStageExecutor: StageExecutor;
@@ -16,6 +17,7 @@ describe('ParallelExecutor', () => {
     // Create mock StageExecutor
     mockStageExecutor = {
       executeStage: vi.fn(),
+      updateLoopContext: vi.fn(),
     } as any;
 
     onStateChangeSpy = vi.fn();
@@ -1021,6 +1023,301 @@ describe('ParallelExecutor', () => {
 
       expect(result.executions).toHaveLength(stages.length);
       expect(result.allSucceeded).toBe(true);
+    });
+  });
+
+  describe('abort controller handling', () => {
+    describe('executeParallelGroup with abort', () => {
+      it('should skip all stages when abort is requested before execution', async () => {
+        const abortController = new PipelineAbortController();
+        abortController.abort(); // Abort before execution starts
+
+        const executorWithAbort = new ParallelExecutor(
+          mockStageExecutor,
+          onStateChangeSpy,
+          abortController
+        );
+
+        const stages: AgentStageConfig[] = [
+          { name: 'stage1', agent: 'agent1.md' },
+          { name: 'stage2', agent: 'agent2.md' },
+        ];
+
+        const state = { ...runningPipelineState, stages: [] as any[] };
+        const result = await executorWithAbort.executeParallelGroup(stages, state);
+
+        // All stages should be skipped
+        expect(result.executions).toHaveLength(2);
+        expect(result.executions.every(e => e.status === 'skipped')).toBe(true);
+        expect(result.allSucceeded).toBe(false);
+        expect(result.anyFailed).toBe(false);
+
+        // Stage executor should not be called
+        expect(mockStageExecutor.executeStage).not.toHaveBeenCalled();
+      });
+
+      it('should handle PipelineAbortError thrown during execution', async () => {
+        const abortController = new PipelineAbortController();
+
+        const executorWithAbort = new ParallelExecutor(
+          mockStageExecutor,
+          onStateChangeSpy,
+          abortController
+        );
+
+        const stages: AgentStageConfig[] = [
+          { name: 'stage1', agent: 'agent1.md' },
+          { name: 'stage2', agent: 'agent2.md' },
+        ];
+
+        // First stage throws abort error, second stage succeeds
+        (mockStageExecutor.executeStage as any)
+          .mockImplementationOnce(async () => {
+            throw new PipelineAbortError('Aborted during stage');
+          })
+          .mockResolvedValueOnce({ ...successfulStageExecution, stageName: 'stage2' });
+
+        const state = { ...runningPipelineState, stages: [] as any[] };
+
+        await expect(
+          executorWithAbort.executeParallelGroup(stages, state)
+        ).rejects.toThrow(PipelineAbortError);
+      });
+
+      it('should add skipped stages to pipeline state when aborted', async () => {
+        const abortController = new PipelineAbortController();
+        abortController.abort();
+
+        const executorWithAbort = new ParallelExecutor(
+          mockStageExecutor,
+          onStateChangeSpy,
+          abortController
+        );
+
+        const stages: AgentStageConfig[] = [
+          { name: 'abort-test-1', agent: 'agent1.md' },
+        ];
+
+        const state = { ...runningPipelineState, stages: [] as any[] };
+        await executorWithAbort.executeParallelGroup(stages, state);
+
+        // State should be updated with skipped stages
+        expect(state.stages).toHaveLength(1);
+        expect(state.stages[0].status).toBe('skipped');
+        expect(state.stages[0].stageName).toBe('abort-test-1');
+
+        // State change callback should be called
+        expect(onStateChangeSpy).toHaveBeenCalled();
+      });
+    });
+
+    describe('executeSequentialGroup with abort', () => {
+      it('should skip remaining stages when abort is requested', async () => {
+        const abortController = new PipelineAbortController();
+
+        const executorWithAbort = new ParallelExecutor(
+          mockStageExecutor,
+          onStateChangeSpy,
+          abortController
+        );
+
+        const stages: AgentStageConfig[] = [
+          { name: 'stage1', agent: 'agent1.md' },
+          { name: 'stage2', agent: 'agent2.md' },
+          { name: 'stage3', agent: 'agent3.md' },
+        ];
+
+        // First stage succeeds, then abort, remaining are skipped
+        (mockStageExecutor.executeStage as any)
+          .mockImplementationOnce(async () => {
+            abortController.abort(); // Abort after first stage
+            return { ...successfulStageExecution, stageName: 'stage1' };
+          });
+
+        const state = { ...runningPipelineState, stages: [] as any[] };
+        const result = await executorWithAbort.executeSequentialGroup(stages, state);
+
+        // First stage executed, remaining skipped
+        expect(result.executions).toHaveLength(3);
+        expect(result.executions[0].status).toBe('success');
+        expect(result.executions[1].status).toBe('skipped');
+        expect(result.executions[2].status).toBe('skipped');
+
+        // Only first stage should call executor
+        expect(mockStageExecutor.executeStage).toHaveBeenCalledTimes(1);
+      });
+
+      it('should throw PipelineAbortError when thrown during sequential execution', async () => {
+        const abortController = new PipelineAbortController();
+
+        const executorWithAbort = new ParallelExecutor(
+          mockStageExecutor,
+          onStateChangeSpy,
+          abortController
+        );
+
+        const stages: AgentStageConfig[] = [
+          { name: 'abort-stage', agent: 'agent1.md' },
+        ];
+
+        (mockStageExecutor.executeStage as any)
+          .mockRejectedValue(new PipelineAbortError('Stage aborted'));
+
+        const state = { ...runningPipelineState, stages: [] as any[] };
+
+        await expect(
+          executorWithAbort.executeSequentialGroup(stages, state)
+        ).rejects.toThrow(PipelineAbortError);
+      });
+
+      it('should create failed execution with abort message when abort error is thrown', async () => {
+        const abortController = new PipelineAbortController();
+
+        const executorWithAbort = new ParallelExecutor(
+          mockStageExecutor,
+          onStateChangeSpy,
+          abortController
+        );
+
+        const stages: AgentStageConfig[] = [
+          { name: 'abort-test', agent: 'agent1.md' },
+        ];
+
+        (mockStageExecutor.executeStage as any)
+          .mockRejectedValue(new PipelineAbortError('Aborted'));
+
+        const state = { ...runningPipelineState, stages: [] as any[] };
+
+        try {
+          await executorWithAbort.executeSequentialGroup(stages, state);
+        } catch (e) {
+          // Expected to throw
+        }
+
+        // Check state was updated with failed execution
+        expect(state.stages).toHaveLength(1);
+        expect(state.stages[0].status).toBe('failed');
+        expect(state.stages[0].error?.message).toBe('Stage aborted');
+      });
+    });
+
+    describe('isAborted check', () => {
+      it('should check abort status before starting each sequential stage', async () => {
+        const abortController = new PipelineAbortController();
+
+        const executorWithAbort = new ParallelExecutor(
+          mockStageExecutor,
+          onStateChangeSpy,
+          abortController
+        );
+
+        const stages: AgentStageConfig[] = [
+          { name: 'stage1', agent: 'agent1.md' },
+          { name: 'stage2', agent: 'agent2.md' },
+        ];
+
+        // Abort before any execution
+        abortController.abort();
+
+        const state = { ...runningPipelineState, stages: [] as any[] };
+        const result = await executorWithAbort.executeSequentialGroup(stages, state);
+
+        // All stages should be skipped
+        expect(result.executions.every(e => e.status === 'skipped')).toBe(true);
+        expect(mockStageExecutor.executeStage).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('groupContext handling', () => {
+    describe('executeParallelGroup with groupContext', () => {
+      it('should call updateLoopContext with isFinalGroup=true', async () => {
+        const stages: AgentStageConfig[] = [
+          { name: 'stage1', agent: 'agent1.md' },
+        ];
+
+        (mockStageExecutor.executeStage as any)
+          .mockResolvedValue({ ...successfulStageExecution });
+
+        await parallelExecutor.executeParallelGroup(
+          stages,
+          runningPipelineState,
+          undefined,
+          { isFinalGroup: true }
+        );
+
+        expect(mockStageExecutor.updateLoopContext).toHaveBeenCalledWith({ isFinalGroup: true });
+      });
+
+      it('should call updateLoopContext with isFinalGroup=false', async () => {
+        const stages: AgentStageConfig[] = [
+          { name: 'stage1', agent: 'agent1.md' },
+        ];
+
+        (mockStageExecutor.executeStage as any)
+          .mockResolvedValue({ ...successfulStageExecution });
+
+        await parallelExecutor.executeParallelGroup(
+          stages,
+          runningPipelineState,
+          undefined,
+          { isFinalGroup: false }
+        );
+
+        expect(mockStageExecutor.updateLoopContext).toHaveBeenCalledWith({ isFinalGroup: false });
+      });
+
+      it('should not call updateLoopContext when groupContext is undefined', async () => {
+        const stages: AgentStageConfig[] = [
+          { name: 'stage1', agent: 'agent1.md' },
+        ];
+
+        (mockStageExecutor.executeStage as any)
+          .mockResolvedValue({ ...successfulStageExecution });
+
+        await parallelExecutor.executeParallelGroup(
+          stages,
+          runningPipelineState
+        );
+
+        expect(mockStageExecutor.updateLoopContext).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('executeSequentialGroup with groupContext', () => {
+      it('should call updateLoopContext with isFinalGroup when provided', async () => {
+        const stages: AgentStageConfig[] = [
+          { name: 'stage1', agent: 'agent1.md' },
+        ];
+
+        (mockStageExecutor.executeStage as any)
+          .mockResolvedValue({ ...successfulStageExecution });
+
+        await parallelExecutor.executeSequentialGroup(
+          stages,
+          runningPipelineState,
+          undefined,
+          { isFinalGroup: true }
+        );
+
+        expect(mockStageExecutor.updateLoopContext).toHaveBeenCalledWith({ isFinalGroup: true });
+      });
+
+      it('should not call updateLoopContext when groupContext is undefined', async () => {
+        const stages: AgentStageConfig[] = [
+          { name: 'stage1', agent: 'agent1.md' },
+        ];
+
+        (mockStageExecutor.executeStage as any)
+          .mockResolvedValue({ ...successfulStageExecution });
+
+        await parallelExecutor.executeSequentialGroup(
+          stages,
+          runningPipelineState
+        );
+
+        expect(mockStageExecutor.updateLoopContext).not.toHaveBeenCalled();
+      });
     });
   });
 });

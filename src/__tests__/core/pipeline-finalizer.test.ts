@@ -61,6 +61,7 @@ vi.mock('../../utils/pipeline-formatter.js', () => ({
 // Mock fs for local-merge tests
 vi.mock('fs/promises', () => ({
   mkdir: vi.fn().mockResolvedValue(undefined),
+  cp: vi.fn().mockResolvedValue(undefined),
 }));
 
 describe('PipelineFinalizer', () => {
@@ -916,6 +917,587 @@ describe('PipelineFinalizer', () => {
       );
 
       consoleSpy.mockRestore();
+    });
+  });
+
+  describe('aborted status handling', () => {
+    it('should preserve worktree on abort and notify aborted event', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const abortedState: PipelineState = {
+        ...mockState,
+        status: 'aborted',
+        artifacts: {
+          ...mockState.artifacts,
+          mainRepoHandoverDir: '/test/repo/.agent-pipeline/runs/test-run-id'
+        }
+      };
+
+      await finalizer.finalize(
+        abortedState,
+        mockConfig,
+        'pipeline/test-branch',
+        '/test/worktree',
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should notify aborted event, not completed or failed
+      expect(mockNotifyCallback).toHaveBeenCalledWith({
+        event: 'pipeline.aborted',
+        pipelineState: expect.objectContaining({ status: 'aborted' })
+      });
+
+      // Should log that work is preserved
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Pipeline aborted')
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Work preserved on branch')
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should copy handover directory on abort if worktree was used', async () => {
+      const fsCp = await import('fs/promises').then(m => m.cp);
+
+      const abortedState: PipelineState = {
+        ...mockState,
+        status: 'aborted',
+        artifacts: {
+          ...mockState.artifacts,
+          handoverDir: '/test/worktree/.agent-pipeline/runs/test-run-id',
+          mainRepoHandoverDir: '/test/repo/.agent-pipeline/runs/test-run-id'
+        }
+      };
+
+      await finalizer.finalize(
+        abortedState,
+        mockConfig,
+        'pipeline/test-branch',
+        '/test/worktree',
+        '/test/worktree',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should copy handover directory
+      expect(fsCp).toHaveBeenCalledWith(
+        '/test/worktree/.agent-pipeline/runs/test-run-id',
+        '/test/repo/.agent-pipeline/runs/test-run-id',
+        { recursive: true }
+      );
+    });
+
+    it('should skip merge operations on abort', async () => {
+      const abortedState: PipelineState = {
+        ...mockState,
+        status: 'aborted'
+      };
+
+      const configWithMerge = {
+        ...mockConfig,
+        git: {
+          mergeStrategy: 'pull-request' as const
+        }
+      };
+
+      vi.spyOn(mockPRCreator, 'prExists').mockResolvedValue(false);
+      vi.spyOn(mockPRCreator, 'createPR').mockResolvedValue({
+        url: 'https://github.com/test/repo/pull/123',
+        number: 123
+      });
+
+      await finalizer.finalize(
+        abortedState,
+        configWithMerge,
+        'pipeline/test-branch',
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should NOT push or create PR on abort
+      expect(mockBranchManagerInstance.pushBranch).not.toHaveBeenCalled();
+      expect(mockPRCreator.createPR).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('verbose mode', () => {
+    it('should show worktree location in verbose mode', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await finalizer.finalize(
+        mockState,
+        mockConfig,
+        'pipeline/test-branch',
+        '/test/worktree',
+        '/test/repo',
+        Date.now(),
+        false, // non-interactive
+        true,  // verbose
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Worktree location')
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/test/worktree')
+      );
+
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('copy handover error handling', () => {
+    it('should log warning when copy fails but not crash pipeline', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      // Mock cp to fail
+      const fsMod = await import('fs/promises');
+      vi.spyOn(fsMod, 'cp').mockRejectedValue(new Error('Permission denied'));
+
+      const stateWithHandover: PipelineState = {
+        ...mockState,
+        artifacts: {
+          ...mockState.artifacts,
+          handoverDir: '/test/worktree/.agent-pipeline/runs/test-run-id',
+          mainRepoHandoverDir: '/test/repo/.agent-pipeline/runs/test-run-id'
+        }
+      };
+
+      // Should not throw
+      const result = await finalizer.finalize(
+        stateWithHandover,
+        mockConfig,
+        'pipeline/test-branch',
+        '/test/worktree',
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should log warning
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Could not copy handover directory')
+      );
+
+      // Pipeline should still complete
+      expect(result.runId).toBe('test-run-id');
+
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('PipelineLogger integration', () => {
+    it('should call pipelineLogger.pipelineComplete and close on finalization', async () => {
+      const mockPipelineLogger = {
+        pipelineComplete: vi.fn(),
+        close: vi.fn()
+      };
+
+      const completedState = { ...mockState, status: 'completed' as const };
+
+      await finalizer.finalize(
+        completedState,
+        mockConfig,
+        undefined,
+        undefined,
+        '/test/repo',
+        Date.now() - 5000, // 5 seconds ago
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback,
+        { pipelineLogger: mockPipelineLogger as any }
+      );
+
+      expect(mockPipelineLogger.pipelineComplete).toHaveBeenCalledWith(
+        'completed',
+        expect.any(Number),
+        expect.any(Number)
+      );
+      expect(mockPipelineLogger.close).toHaveBeenCalled();
+    });
+  });
+
+  describe('token calculation edge cases', () => {
+    it('should handle cache_creation NOT included in actual_input', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      // Create state where cache_creation > actual_input (not included)
+      const stateWithTokens: PipelineState = {
+        ...mockState,
+        stages: [
+          {
+            stageName: 'stage-1',
+            status: 'success',
+            startTime: new Date().toISOString(),
+            tokenUsage: {
+              estimated_input: 500,
+              actual_input: 1000,  // Less than cache_creation
+              output: 500,
+              cache_read: 2000,
+              cache_creation: 5000  // NOT included in actual_input
+            }
+          }
+        ]
+      };
+
+      await finalizer.finalize(
+        stateWithTokens,
+        mockConfig,
+        undefined,
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // cache_creation should be ADDED since actual_input (1000) < cache_creation (5000)
+      // totalProcessed = actual_input (1000) + cache_read (2000) + cache_creation (5000) = 8000
+      expect(mockPipelineFormatter.formatSummary).toHaveBeenCalledWith(
+        stateWithTokens,
+        false,
+        { totalProcessed: 8000, totalOutput: 500, totalTurns: 0, totalCacheRead: 2000 }
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle stages without tokenUsage', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const stateNoTokens: PipelineState = {
+        ...mockState,
+        stages: [
+          {
+            stageName: 'stage-1',
+            status: 'success',
+            startTime: new Date().toISOString()
+            // No tokenUsage field
+          }
+        ]
+      };
+
+      await finalizer.finalize(
+        stateNoTokens,
+        mockConfig,
+        undefined,
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should pass zeros for all token totals
+      expect(mockPipelineFormatter.formatSummary).toHaveBeenCalledWith(
+        stateNoTokens,
+        false,
+        { totalProcessed: 0, totalOutput: 0, totalTurns: 0, totalCacheRead: 0 }
+      );
+
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('worktree cleanup strategies', () => {
+    it('should preserve worktree for reusable strategy', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const configWithReusable = {
+        ...mockConfig,
+        git: {
+          branchStrategy: 'reusable' as const
+        }
+      };
+
+      await finalizer.finalize(
+        mockState,
+        configWithReusable,
+        'pipeline/test-branch',
+        '/test/worktree',
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should NOT cleanup worktree
+      expect(mockWorktreeManagerInstance.cleanupWorktree).not.toHaveBeenCalled();
+
+      // Should log that worktree is preserved
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Worktree preserved at')
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should preserve worktree for unique-per-run strategy on success', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const configWithUnique = {
+        ...mockConfig,
+        git: {
+          branchStrategy: 'unique-per-run' as const
+        }
+      };
+
+      const completedState = { ...mockState, status: 'completed' as const };
+
+      await finalizer.finalize(
+        completedState,
+        configWithUnique,
+        'pipeline/test-branch',
+        '/test/worktree',
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should NOT cleanup worktree for unique-per-run (only unique-and-delete does cleanup)
+      expect(mockWorktreeManagerInstance.cleanupWorktree).not.toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should cleanup worktree for unique-and-delete on success', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const configWithDelete = {
+        ...mockConfig,
+        git: {
+          branchStrategy: 'unique-and-delete' as const
+        }
+      };
+
+      const completedState = { ...mockState, status: 'completed' as const };
+
+      await finalizer.finalize(
+        completedState,
+        configWithDelete,
+        'pipeline/test-branch',
+        '/test/worktree',
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should cleanup worktree
+      expect(mockWorktreeManagerInstance.cleanupWorktree).toHaveBeenCalledWith(
+        '/test/worktree',
+        true,
+        false  // prCreatedSuccessfully=false
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should force-delete local branch when PR was created successfully', async () => {
+      vi.spyOn(mockPRCreator, 'prExists').mockResolvedValue(false);
+      vi.spyOn(mockPRCreator, 'createPR').mockResolvedValue({
+        url: 'https://github.com/test/repo/pull/123',
+        number: 123
+      });
+
+      const configWithDeleteAndPR = {
+        ...mockConfig,
+        git: {
+          branchStrategy: 'unique-and-delete' as const,
+          mergeStrategy: 'pull-request' as const
+        }
+      };
+
+      const completedState = { ...mockState, status: 'completed' as const };
+
+      await finalizer.finalize(
+        completedState,
+        configWithDeleteAndPR,
+        'pipeline/test-branch',
+        '/test/worktree',
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should cleanup with prCreatedSuccessfully=true
+      expect(mockWorktreeManagerInstance.cleanupWorktree).toHaveBeenCalledWith(
+        '/test/worktree',
+        true,
+        true  // prCreatedSuccessfully=true
+      );
+    });
+
+    it('should preserve worktree on failure for debugging', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const configWithDelete = {
+        ...mockConfig,
+        git: {
+          branchStrategy: 'unique-and-delete' as const
+        }
+      };
+
+      const failedState = { ...mockState, status: 'failed' as const };
+
+      await finalizer.finalize(
+        failedState,
+        configWithDelete,
+        'pipeline/test-branch',
+        '/test/worktree',
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should NOT cleanup worktree on failure
+      expect(mockWorktreeManagerInstance.cleanupWorktree).not.toHaveBeenCalled();
+
+      // Should log that worktree is preserved for debugging
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Worktree preserved for debugging')
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle cleanup error gracefully', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      mockWorktreeManagerInstance.cleanupWorktree.mockRejectedValue(
+        new Error('Cleanup failed: worktree in use')
+      );
+
+      const configWithDelete = {
+        ...mockConfig,
+        git: {
+          branchStrategy: 'unique-and-delete' as const
+        }
+      };
+
+      const completedState = { ...mockState, status: 'completed' as const };
+
+      // Should not throw
+      await finalizer.finalize(
+        completedState,
+        configWithDelete,
+        'pipeline/test-branch',
+        '/test/worktree',
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should log warning
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Could not cleanup worktree')
+      );
+
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('completion notification with PR URL', () => {
+    it('should include prUrl in completion notification when PR is created', async () => {
+      vi.spyOn(mockPRCreator, 'prExists').mockResolvedValue(false);
+      vi.spyOn(mockPRCreator, 'createPR').mockResolvedValue({
+        url: 'https://github.com/test/repo/pull/456',
+        number: 456
+      });
+
+      const configWithPR = {
+        ...mockConfig,
+        git: {
+          mergeStrategy: 'pull-request' as const
+        }
+      };
+
+      const completedState = { ...mockState, status: 'completed' as const };
+
+      await finalizer.finalize(
+        completedState,
+        configWithPR,
+        'pipeline/test-branch',
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should have called notifyCallback with pr.created and pipeline.completed both containing prUrl
+      expect(mockNotifyCallback).toHaveBeenCalledWith({
+        event: 'pipeline.completed',
+        pipelineState: expect.any(Object),
+        prUrl: 'https://github.com/test/repo/pull/456'
+      });
+    });
+  });
+
+  describe('suppressCompletionNotification option', () => {
+    it('should skip completion notification when suppressCompletionNotification is true', async () => {
+      const completedState = { ...mockState, status: 'completed' as const };
+
+      await finalizer.finalize(
+        completedState,
+        mockConfig,
+        undefined,
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback,
+        { suppressCompletionNotification: true }
+      );
+
+      // Should NOT send completion notification
+      expect(mockNotifyCallback).not.toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'pipeline.completed' })
+      );
     });
   });
 });
