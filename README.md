@@ -2,21 +2,41 @@
 
 > Intelligent agent orchestration with parallel execution, conditional logic, git workflow automation, and multi-channel notifications for Claude Code
 
-Last update: 2025-10-28
+Last update: 2026-1-23
 
 Agent Pipeline delivers an agent-driven CI/CD workflow with full visibility. Execute Claude agents with DAG-planned parallelism, conditional logic, retries, and automated git hygiene. Branch isolation, GitHub PR creation, local/Slack notifications, and a live terminal UI keep humans in the loop.
 
-## Features
+## Agent Pipeline Ergonomics
 
-- **Pipeline orchestration** – `PipelineRunner` combines DAG planning, conditional gating, and per-stage retries backed by `RetryHandler`.
-- **Git workflow automation** – Worktrees isolate runs by default, while `BranchManager` and `PRCreator` manage dedicated branches and PRs.
-- **State & context management** – `StateManager` persists run history while `HandoverManager` enables filesystem-based communication between stages.
-- **Model flexibility** – Mix Haiku, Sonnet, and Opus models per stage for cost optimization (up to 90% savings on simple tasks).
-- **Cost controls** – Set `maxTurns` and `maxThinkingTokens` to prevent runaway agents and enable deep reasoning when needed.
-- **Observability** – Ink-powered live UI, interactive history browser, and analytics reports generated from stored run data.
-- **Notifications** – `NotificationManager` sends desktop and Slack notifications with event filtering and fail-safe delivery.
-- **Permission control** – Defaults to `acceptEdits` mode for automated workflows, respecting `.claude/settings.json` allow/deny rules.
-- **YAML-first configuration** – Schema-validated pipelines with filesystem-based stage handover and customizable commit messages.
+- Agents are just `.md` files located in the `.agent-pipeline/agents/` directory.
+- Agents use the filesystem for handoff to the next agent via `.agent-pipeline/instructions/handover.md`.
+- The last agent in a pipeline may create a loop using `.agent-pipeline/instructions/loop.md`.
+
+SOTA models like Claude Opus 4.5 can understand directions very well — you can tell any agent (in their respective `.md` file) to "pass X data to next agent" or "create new pipeline for next plan phase if plan status is not complete" and the agent and pipeline will most likely perform as you expect.
+
+> **Note:** Looping must be enabled in the pipeline YAML since it's a high potential cost feature.
+
+## Quick Start
+
+```bash
+npm install -g agent-pipeline
+```
+
+Then `cd` into an empty or existing project directory and run:
+
+```bash
+agent-pipeline init
+```
+
+Finally, run a pipeline:
+
+```bash
+# For new/empty projects
+agent-pipeline run front-end-parallel-example
+
+# For existing projects with code changes
+agent-pipeline run post-commit-example
+```
 
 ## Prerequisites
 
@@ -45,7 +65,7 @@ npm run build
 npm link
 ```
 
-## Quick Start
+## Usage Guide
 
 ### 1. Initialize New Project
 
@@ -140,8 +160,18 @@ agent-pipeline run my-pipeline
 - `docs/configuration.md` – Pipeline settings, git workflow, notifications, and context reduction details.
 - `docs/examples.md` – Ready-to-run sample pipelines shipped with the CLI.
 - `docs/cli.md` – Command reference for pipeline, agent, and git integration workflows.
-- `docs/data-flow-map.md` – Visual data flow diagrams showing how data moves through the system.
-- `docs/dev/` – Historical design notes and roadmap snapshots.
+
+## Features
+
+- **Pipeline orchestration** – `PipelineRunner` combines DAG planning, conditional gating, and per-stage retries backed by `RetryHandler`.
+- **Git workflow automation** – Worktrees isolate runs by default, while `BranchManager` and `PRCreator` manage dedicated branches and PRs.
+- **State & context management** – `StateManager` persists run history while `HandoverManager` enables filesystem-based communication between stages.
+- **Model flexibility** – Mix Haiku, Sonnet, and Opus models per stage for cost optimization (up to 90% savings on simple tasks).
+- **Cost controls** – Set `maxTurns` and `maxThinkingTokens` to prevent runaway agents and enable deep reasoning when needed.
+- **Observability** – Ink-powered live UI, interactive history browser, and analytics reports generated from stored run data.
+- **Notifications** – `NotificationManager` sends desktop and Slack notifications with event filtering and fail-safe delivery.
+- **Permission control** – Defaults to `acceptEdits` mode for automated workflows, respecting `.claude/settings.json` allow/deny rules.
+- **YAML-first configuration** – Schema-validated pipelines with filesystem-based stage handover and customizable commit messages.
 
 ## Architecture Overview
 
