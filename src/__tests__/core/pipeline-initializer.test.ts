@@ -535,5 +535,30 @@ describe('PipelineInitializer', () => {
         terminationReason: undefined
       });
     });
+
+    it('should log worktree info in verbose mode', async () => {
+      const configWithGit = {
+        ...mockConfig,
+        git: {
+          baseBranch: 'main',
+          branchStrategy: 'reusable' as const
+        }
+      };
+
+      const result = await initializer.initialize(
+        configWithGit,
+        { interactive: false, verbose: true },
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Verify verbose logging of worktree info
+      expect(result.pipelineLogger.log).toHaveBeenCalledWith(
+        expect.stringContaining('Worktree:')
+      );
+      expect(result.pipelineLogger.log).toHaveBeenCalledWith(
+        expect.stringContaining('Branch:')
+      );
+    });
   });
 });
