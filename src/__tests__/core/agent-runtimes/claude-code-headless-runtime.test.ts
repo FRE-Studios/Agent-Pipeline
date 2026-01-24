@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'events';
 import { ClaudeCodeHeadlessRuntime } from '../../../core/agent-runtimes/claude-code-headless-runtime.js';
 import type { AgentExecutionRequest } from '../../../core/types/agent-runtime.js';
+import { PipelineAbortController, PipelineAbortError } from '../../../core/abort-controller.js';
 
 // Mock child_process
 const mockSpawn = vi.fn();
@@ -341,6 +342,42 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       const args = mockSpawn.mock.calls[0][1];
       expect(args).toContain('--allowedTools');
       expect(args).toContain('Bash,Read,Edit');
+    });
+
+    it('should accept disallowedTools as array', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {
+          runtimeOptions: {
+            disallowedTools: ['Bash', 'Write', 'Edit']
+          }
+        }
+      };
+
+      setTimeout(() => {
+        mockProcess.stdout.emit(
+          'data',
+          Buffer.from(JSON.stringify({ result: 'Output' }))
+        );
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      const args = mockSpawn.mock.calls[0][1] as string[];
+      const disallowedIndex = args.indexOf('--disallowedTools');
+      expect(disallowedIndex).toBeGreaterThan(-1);
+
+      const disallowedValue = args[disallowedIndex + 1];
+      // Should include default (WebSearch) plus user array items
+      expect(disallowedValue).toContain('WebSearch');
+      expect(disallowedValue).toContain('Bash');
+      expect(disallowedValue).toContain('Write');
+      expect(disallowedValue).toContain('Edit');
     });
 
     it('should pass cwd to spawn options, not as CLI argument', async () => {
@@ -781,6 +818,29 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       await expect(executePromise).rejects.toThrow('Failed to spawn claude CLI');
     });
 
+    it('should handle synchronous spawn errors and cleanup abort listener', async () => {
+      // Mock spawn to throw synchronously
+      mockSpawn.mockImplementation(() => {
+        throw new Error('Synchronous spawn failure');
+      });
+
+      const abortController = new PipelineAbortController();
+      const offSpy = vi.spyOn(abortController, 'off');
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {}
+      };
+
+      await expect(runtime.execute(request, abortController)).rejects.toThrow(
+        'Synchronous spawn failure'
+      );
+
+      // Should have cleaned up the abort listener
+      expect(offSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+    });
+
     it('should handle JSON parsing errors', async () => {
       const mockProcess = createMockProcess();
       mockSpawn.mockReturnValue(mockProcess);
@@ -923,6 +983,145 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       expect(onOutputUpdate).toHaveBeenCalledTimes(2);
       expect(result.textOutput).toBe('Final output');
     });
+  });
+
+  describe('Abort Controller', () => {
+    it('should throw PipelineAbortError if already aborted before execution starts', async () => {
+      const abortController = new PipelineAbortController();
+      abortController.abort(); // Pre-abort
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {}
+      };
+
+      await expect(runtime.execute(request, abortController)).rejects.toThrow(
+        PipelineAbortError
+      );
+      await expect(runtime.execute(request, abortController)).rejects.toThrow(
+        'Pipeline aborted before agent execution started'
+      );
+    });
+
+    it('should abort execution when abort signal is received', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const abortController = new PipelineAbortController();
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {}
+      };
+
+      const executePromise = runtime.execute(request, abortController);
+
+      // Abort after execution starts
+      setTimeout(() => {
+        abortController.abort();
+        // Simulate process exit after abort
+        mockProcess.emit('exit', null);
+      }, 10);
+
+      await expect(executePromise).rejects.toThrow(PipelineAbortError);
+      await expect(runtime.execute(request, abortController)).rejects.toThrow(
+        'Pipeline aborted before agent execution started'
+      );
+    });
+
+    it('should register process with abort controller', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const abortController = new PipelineAbortController();
+      const registerSpy = vi.spyOn(abortController, 'registerProcess');
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {}
+      };
+
+      setTimeout(() => {
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request, abortController);
+
+      expect(registerSpy).toHaveBeenCalledWith(mockProcess);
+    });
+
+    it('should kill process on abort with SIGTERM', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const abortController = new PipelineAbortController();
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {}
+      };
+
+      const executePromise = runtime.execute(request, abortController);
+
+      setTimeout(() => {
+        abortController.abort();
+        mockProcess.emit('exit', null);
+      }, 10);
+
+      await expect(executePromise).rejects.toThrow(PipelineAbortError);
+      expect(mockProcess.kill).toHaveBeenCalledWith('SIGTERM');
+    });
+
+    it('should remove abort listener on successful completion', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const abortController = new PipelineAbortController();
+      const offSpy = vi.spyOn(abortController, 'off');
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {}
+      };
+
+      setTimeout(() => {
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request, abortController);
+
+      expect(offSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+    });
+
+    it('should remove abort listener on error', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const abortController = new PipelineAbortController();
+      const offSpy = vi.spyOn(abortController, 'off');
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {}
+      };
+
+      setTimeout(() => {
+        mockProcess.emit('error', new Error('spawn failed'));
+      }, 10);
+
+      await expect(runtime.execute(request, abortController)).rejects.toThrow();
+
+      expect(offSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+    });
+
   });
 
   describe('Tool Activity Formatting', () => {
@@ -1461,6 +1660,100 @@ describe('ClaudeCodeHeadlessRuntime', () => {
       const result = await runtime.execute(request);
 
       expect(result.textOutput).toBe('Test output');
+    });
+
+    it('should parse stream-json format with type=result event', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      // Simulate stream-json format with multiple events
+      const streamEvents = [
+        JSON.stringify({ type: 'system', message: 'Starting...' }),
+        JSON.stringify({ type: 'assistant', message: { content: [] } }),
+        JSON.stringify({
+          type: 'result',
+          result: 'Final result from stream',
+          usage: { input_tokens: 50, output_tokens: 25 }
+        })
+      ].join('\n');
+
+      setTimeout(() => {
+        mockProcess.stdout.emit('data', Buffer.from(streamEvents));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {}
+      };
+
+      const result = await runtime.execute(request);
+
+      expect(result.textOutput).toBe('Final result from stream');
+      expect(result.tokenUsage?.inputTokens).toBe(50);
+      expect(result.tokenUsage?.outputTokens).toBe(25);
+    });
+
+    it('should extract data via extractOutputsFromText when JSON block keys do not match outputKeys', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      // JSON block has different keys than what we're looking for
+      // But the text also has regex-matchable keys
+      const cliOutput = {
+        result: '```json\n{"otherKey": "otherValue"}\n```\nrequested_key: found_via_regex'
+      };
+
+      setTimeout(() => {
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(cliOutput)));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {
+          outputKeys: ['requested_key'] // Not in JSON block, but in text
+        }
+      };
+
+      const result = await runtime.execute(request);
+
+      // Should fall through to extractOutputsFromText and find via regex
+      expect(result.extractedData).toEqual({
+        requested_key: 'found_via_regex'
+      });
+    });
+
+    it('should use extractOutputsFromText JSON block path when parseJsonOutput misses keys', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      // Output has NO JSON block initially parseable by parseJsonOutput,
+      // but extractOutputsFromText finds one
+      const cliOutput = {
+        result: 'Some text before\n```json\n{"target_key": "json_value"}\n```\nSome text after'
+      };
+
+      setTimeout(() => {
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(cliOutput)));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: {
+          outputKeys: ['target_key']
+        }
+      };
+
+      const result = await runtime.execute(request);
+
+      expect(result.extractedData).toEqual({
+        target_key: 'json_value'
+      });
     });
   });
 });
