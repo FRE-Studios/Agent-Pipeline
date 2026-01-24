@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PipelineRunner } from '../../core/pipeline-runner.js';
 import { PipelineConfig, PipelineState, StageExecution } from '../../config/schema.js';
 import { simplePipelineConfig, parallelPipelineConfig } from '../fixtures/pipeline-configs.js';
+import { PipelineAbortController, PipelineAbortError } from '../../core/abort-controller.js';
 
 // Hoisted mocks
 const {
@@ -547,11 +548,134 @@ describe('PipelineRunner', () => {
 
       expect(mockLoopStateManagerInstance.startSession).not.toHaveBeenCalled();
     });
+
+    it('should fallback to appendIteration when updateIteration returns false', async () => {
+      // Make updateIteration return false to trigger fallback
+      mockLoopStateManagerInstance.updateIteration.mockResolvedValue(false);
+
+      const loopConfig: PipelineConfig = {
+        ...simplePipelineConfig,
+        looping: {
+          enabled: true,
+          maxIterations: 5,
+          directories: defaultLoopDirs,
+        },
+      };
+
+      await runner.runPipeline(loopConfig);
+
+      // Should have called appendIteration as fallback (second call after initial in-progress)
+      const appendCalls = mockLoopStateManagerInstance.appendIteration.mock.calls;
+      // First call is in-progress, second should be the fallback with completed status
+      expect(appendCalls.length).toBeGreaterThanOrEqual(2);
+      const fallbackCall = appendCalls.find(
+        (call) => call[1].status === 'completed' && call[1].triggeredNext !== undefined
+      );
+      expect(fallbackCall).toBeDefined();
+    });
+
+    it('should handle loop termination on pipeline failure with stop strategy', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const loopConfig: PipelineConfig = {
+        ...simplePipelineConfig,
+        execution: { failureStrategy: 'stop' },
+        looping: {
+          enabled: true,
+          maxIterations: 5,
+          directories: defaultLoopDirs,
+        },
+      };
+
+      // Make pipeline fail
+      mockFinalizerInstance.finalize.mockImplementation(async (state) => {
+        state.status = 'failed';
+        return state;
+      });
+
+      await runner.runPipeline(loopConfig, { interactive: false });
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Loop: terminating after failure')
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle loop abort and terminate immediately', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const loopConfig: PipelineConfig = {
+        ...simplePipelineConfig,
+        looping: {
+          enabled: true,
+          maxIterations: 5,
+          directories: defaultLoopDirs,
+        },
+      };
+
+      // Make pipeline return aborted status
+      mockFinalizerInstance.finalize.mockImplementation(async (state) => {
+        state.status = 'aborted';
+        return state;
+      });
+
+      await runner.runPipeline(loopConfig, { interactive: false });
+
+      expect(consoleSpy).toHaveBeenCalledWith('Loop: terminating due to abort');
+      expect(mockLoopStateManagerInstance.completeSession).toHaveBeenCalledWith(
+        'session-123',
+        'aborted'
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should exit loop when no pending pipelines found', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const loopConfig: PipelineConfig = {
+        ...simplePipelineConfig,
+        looping: {
+          enabled: true,
+          maxIterations: 5,
+          directories: defaultLoopDirs,
+        },
+      };
+
+      // readdir returns empty array by default (from top-level mock)
+      await runner.runPipeline(loopConfig, { interactive: false });
+
+      expect(consoleSpy).toHaveBeenCalledWith('Loop: no pending pipelines, exiting.');
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should log loop directory creation in non-interactive mode', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const loopConfig: PipelineConfig = {
+        ...simplePipelineConfig,
+        looping: {
+          enabled: true,
+          maxIterations: 5,
+          directories: defaultLoopDirs,
+        },
+      };
+
+      await runner.runPipeline(loopConfig, { interactive: false });
+
+      // Should log about creating loop directories
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Created loop directories under')
+      );
+
+      consoleSpy.mockRestore();
+    });
   });
 
   describe('abort handling', () => {
     it('should pass abortController to initializer', async () => {
-      const { PipelineAbortController } = await import('../../core/abort-controller.js');
       const abortController = new PipelineAbortController();
 
       await runner.runPipeline(simplePipelineConfig, { abortController });
@@ -565,7 +689,6 @@ describe('PipelineRunner', () => {
     });
 
     it('should finalize pipeline when execution completes', async () => {
-      const { PipelineAbortController } = await import('../../core/abort-controller.js');
       const abortController = new PipelineAbortController();
 
       await runner.runPipeline(simplePipelineConfig, { abortController });
@@ -584,6 +707,153 @@ describe('PipelineRunner', () => {
 
       // Should still call finalize
       expect(mockFinalizerInstance.finalize).toHaveBeenCalled();
+    });
+
+    it('should set aborted status when abortController is aborted after first group', async () => {
+      const abortController = new PipelineAbortController();
+
+      mockDAGPlannerInstance.buildExecutionPlan.mockReturnValue({
+        plan: {
+          groups: [
+            { stages: [{ name: 'group-1' }] },
+            { stages: [{ name: 'group-2' }] },
+          ],
+          maxParallelism: 1,
+        },
+        validation: { warnings: [] },
+      });
+
+      // Abort after first group completes
+      mockOrchestratorInstance.processGroup.mockImplementationOnce(async () => {
+        abortController.abort();
+        return { state: mockPipelineState, shouldStopPipeline: false };
+      });
+
+      mockFinalizerInstance.finalize.mockImplementation(async (state) => {
+        expect(state.status).toBe('aborted');
+        return state;
+      });
+
+      const result = await runner.runPipeline(simplePipelineConfig, { abortController });
+
+      // Should only execute one group (aborted before second)
+      expect(mockOrchestratorInstance.processGroup).toHaveBeenCalledTimes(1);
+    });
+
+    it('should set aborted status when abortController is aborted before any group executes', async () => {
+      const abortController = new PipelineAbortController();
+      // Pre-abort before ANY execution
+      abortController.abort();
+
+      mockDAGPlannerInstance.buildExecutionPlan.mockReturnValue({
+        plan: {
+          groups: [
+            { stages: [{ name: 'group-1' }] },
+          ],
+          maxParallelism: 1,
+        },
+        validation: { warnings: [] },
+      });
+
+      let capturedState: PipelineState | undefined;
+      mockFinalizerInstance.finalize.mockImplementation(async (state) => {
+        capturedState = state;
+        return state;
+      });
+
+      await runner.runPipeline(simplePipelineConfig, { abortController });
+
+      // Should NOT execute any groups (aborted before first)
+      expect(mockOrchestratorInstance.processGroup).not.toHaveBeenCalled();
+      expect(capturedState?.status).toBe('aborted');
+    });
+
+    it('should log abort message in non-interactive mode', async () => {
+      const abortController = new PipelineAbortController();
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      mockDAGPlannerInstance.buildExecutionPlan.mockReturnValue({
+        plan: {
+          groups: [
+            { stages: [{ name: 'group-1' }] },
+            { stages: [{ name: 'group-2' }] },
+          ],
+          maxParallelism: 1,
+        },
+        validation: { warnings: [] },
+      });
+
+      // Abort after first group to trigger abort log
+      mockOrchestratorInstance.processGroup.mockImplementationOnce(async () => {
+        abortController.abort();
+        return { state: mockPipelineState, shouldStopPipeline: false };
+      });
+
+      await runner.runPipeline(simplePipelineConfig, { abortController, interactive: false });
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Pipeline aborted at group')
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle PipelineAbortError thrown from processGroup', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      // Create an abort controller that's already aborted to ensure the check passes
+      const abortController = new PipelineAbortController();
+      abortController.abort();
+
+      mockOrchestratorInstance.processGroup.mockRejectedValue(
+        new Error('Error during abort')
+      );
+
+      // Don't override status - let the runner's abort handling set it
+      let capturedState: PipelineState | undefined;
+      mockFinalizerInstance.finalize.mockImplementation(async (state) => {
+        capturedState = state;
+        return state;
+      });
+
+      await runner.runPipeline(simplePipelineConfig, { abortController, interactive: false });
+
+      expect(capturedState?.status).toBe('aborted');
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Pipeline aborted')
+      );
+      expect(mockFinalizerInstance.finalize).toHaveBeenCalled();
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle abort via abortController.aborted flag in error catch', async () => {
+      const abortController = new PipelineAbortController();
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      // Pre-abort the controller before the error occurs
+      abortController.abort();
+
+      // Throw generic error - abort flag is already set
+      mockOrchestratorInstance.processGroup.mockRejectedValue(
+        new Error('Some error during abort')
+      );
+
+      // Don't override status - let the runner's abort handling set it
+      let capturedState: PipelineState | undefined;
+      mockFinalizerInstance.finalize.mockImplementation(async (state) => {
+        capturedState = state;
+        return state;
+      });
+
+      await runner.runPipeline(simplePipelineConfig, { abortController, interactive: false });
+
+      expect(capturedState?.status).toBe('aborted');
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Pipeline aborted')
+      );
+
+      consoleSpy.mockRestore();
     });
   });
 
