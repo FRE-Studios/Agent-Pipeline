@@ -166,6 +166,7 @@ agent-pipeline run my-pipeline
 - **Pipeline orchestration** – `PipelineRunner` combines DAG planning, conditional gating, and per-stage retries backed by `RetryHandler`.
 - **Git workflow automation** – Worktrees isolate runs by default, while `BranchManager` and `PRCreator` manage dedicated branches and PRs.
 - **State & context management** – `StateManager` persists run history while `HandoverManager` enables filesystem-based communication between stages.
+- **Runtime flexibility** – Pluggable agent runtimes (Claude SDK, Claude Code Headless) registered via `AgentRuntimeRegistry`.
 - **Model flexibility** – Mix Haiku, Sonnet, and Opus models per stage for cost optimization (up to 90% savings on simple tasks).
 - **Cost controls** – Set `maxTurns` and `maxThinkingTokens` to prevent runaway agents and enable deep reasoning when needed.
 - **Observability** – Ink-powered live UI, interactive history browser, and analytics reports generated from stored run data.
@@ -183,27 +184,33 @@ Key components:
 - `src/core/state-manager.ts` – Persists pipeline state under `.agent-pipeline/state/runs/`.
 - `src/core/worktree-manager.ts` – Manages git worktrees for default pipeline isolation.
 - `src/core/branch-manager.ts` / `src/core/git-manager.ts` – Handle branch isolation and git commands.
+- `src/core/handover-manager.ts` – Manages filesystem-based stage communication via handover files.
 - `src/core/pr-creator.ts` – Integrates with GitHub CLI for PR automation.
+- `src/core/agent-runtime-registry.ts` – Registry for pluggable agent runtimes (Claude SDK, Claude Code Headless).
 - `src/utils/token-estimator.ts` – Provides `smartCount()` for context window monitoring.
-- `src/ui/pipeline-ui.tsx` & `src/ui/history-browser.tsx` – Ink UIs for live runs and history browsing.
+- `src/ui/pipeline-ui.tsx` & `src/cli/commands/history.tsx` – Ink UIs for live runs and history browsing.
 - `src/analytics/pipeline-analytics.ts` – Generates aggregated metrics for the `analytics` command.
 - `src/notifications/notification-manager.ts` – Dispatches desktop and Slack notifications.
-- `src/cli/commands/` – Command implementations (`run`, `install`, `cleanup`, `rollback`, etc.).
+- `src/validators/` – Modular validation for pipeline structure, DAG, agents, and notifications.
+- `src/cli/commands/` – Command implementations (`run`, `cleanup`, `hooks`, `agent`, etc.).
 
 ```
 agent-pipeline/
-├── .agent-pipeline/                 # Pipeline definitions and run history
+├── .agent-pipeline/
+│   ├── agents/                      # Agent prompt definitions (.md files)
+│   ├── pipelines/                   # Pipeline configurations (.yml files)
+│   └── state/runs/                  # Persisted run history
 ├── docs/                            # User and developer documentation
-├── src/
-│   ├── analytics/
-│   ├── cli/commands/
-│   ├── config/
-│   ├── core/
-│   ├── notifications/
-│   ├── ui/
-│   ├── utils/
-│   └── index.ts                     # CLI entry point
-└── .agent-pipeline/agents/                  # Example agent prompts
+└── src/
+    ├── analytics/                   # Metrics and reporting
+    ├── cli/commands/                # Command implementations
+    ├── config/                      # Schema and loader
+    ├── core/                        # Execution engine
+    ├── notifications/               # Desktop and Slack notifiers
+    ├── ui/                          # Ink terminal components
+    ├── utils/                       # Logging, errors, helpers
+    ├── validators/                  # Pipeline validation modules
+    └── index.ts                     # CLI entry point
 ```
 
 ## Git History Example
