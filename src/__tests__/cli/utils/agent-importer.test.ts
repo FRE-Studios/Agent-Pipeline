@@ -456,4 +456,278 @@ describe('AgentImporter', () => {
       );
     });
   });
+
+  describe('importSelectedAgents()', () => {
+    const targetDir = '/test/agents';
+
+    beforeEach(() => {
+      vi.mocked(os.platform).mockReturnValue('darwin');
+      vi.mocked(os.homedir).mockReturnValue('/Users/testuser');
+    });
+
+    it('should return empty summary when no agents selected', async () => {
+      const result = await AgentImporter.importSelectedAgents(targetDir, []);
+
+      expect(result).toEqual({
+        total: 0,
+        imported: 0,
+        skipped: 0,
+        agents: []
+      });
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('No agents selected')
+      );
+    });
+
+    it('should import selected agents with metadata headers', async () => {
+      const selectedAgents = [
+        {
+          originalPath: '/path/to/agent.md',
+          marketplace: 'test-marketplace',
+          plugin: 'test-plugin',
+          agentName: 'reviewer',
+          targetName: 'test-plugin-reviewer.md'
+        }
+      ];
+
+      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT')); // target doesn't exist
+      vi.mocked(fs.readFile).mockResolvedValue('# Test Agent\n\nAgent content here');
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+      const result = await AgentImporter.importSelectedAgents(targetDir, selectedAgents);
+
+      expect(result.total).toBe(1);
+      expect(result.imported).toBe(1);
+      expect(result.skipped).toBe(0);
+
+      // Verify metadata was added
+      expect(vi.mocked(fs.writeFile)).toHaveBeenCalledWith(
+        path.join(targetDir, 'test-plugin-reviewer.md'),
+        expect.stringContaining('Imported from Claude Code Plugin'),
+        'utf-8'
+      );
+      expect(vi.mocked(fs.writeFile)).toHaveBeenCalledWith(
+        path.join(targetDir, 'test-plugin-reviewer.md'),
+        expect.stringContaining('Marketplace: test-marketplace'),
+        'utf-8'
+      );
+    });
+
+    it('should skip agents that already exist', async () => {
+      const selectedAgents = [
+        {
+          originalPath: '/path/to/existing.md',
+          marketplace: 'marketplace',
+          plugin: 'plugin',
+          agentName: 'existing',
+          targetName: 'plugin-existing.md'
+        }
+      ];
+
+      vi.mocked(fs.access).mockResolvedValue(undefined); // target exists
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+      const result = await AgentImporter.importSelectedAgents(targetDir, selectedAgents);
+
+      expect(result.imported).toBe(0);
+      expect(result.skipped).toBe(1);
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('already exists, skipping')
+      );
+    });
+
+    it('should handle multiple agents from different plugins', async () => {
+      const selectedAgents = [
+        {
+          originalPath: '/path/to/agent1.md',
+          marketplace: 'marketplace',
+          plugin: 'plugin1',
+          agentName: 'agent1',
+          targetName: 'plugin1-agent1.md'
+        },
+        {
+          originalPath: '/path/to/agent2.md',
+          marketplace: 'marketplace',
+          plugin: 'plugin2',
+          agentName: 'agent2',
+          targetName: 'plugin2-agent2.md'
+        }
+      ];
+
+      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT'));
+      vi.mocked(fs.readFile).mockResolvedValue('Content');
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+      const result = await AgentImporter.importSelectedAgents(targetDir, selectedAgents);
+
+      expect(result.total).toBe(2);
+      expect(result.imported).toBe(2);
+      expect(result.skipped).toBe(0);
+    });
+
+    it('should group agents by marketplace/plugin in console output', async () => {
+      const selectedAgents = [
+        {
+          originalPath: '/path/to/agent.md',
+          marketplace: 'my-marketplace',
+          plugin: 'my-plugin',
+          agentName: 'agent',
+          targetName: 'my-plugin-agent.md'
+        }
+      ];
+
+      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT'));
+      vi.mocked(fs.readFile).mockResolvedValue('Content');
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+      await AgentImporter.importSelectedAgents(targetDir, selectedAgents);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('📂 my-marketplace/my-plugin:')
+      );
+    });
+
+    it('should handle file read errors gracefully', async () => {
+      const selectedAgents = [
+        {
+          originalPath: '/path/to/agent.md',
+          marketplace: 'marketplace',
+          plugin: 'plugin',
+          agentName: 'agent',
+          targetName: 'plugin-agent.md'
+        }
+      ];
+
+      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT'));
+      vi.mocked(fs.readFile).mockRejectedValue(new Error('Permission denied'));
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+      const result = await AgentImporter.importSelectedAgents(targetDir, selectedAgents);
+
+      expect(result.imported).toBe(0);
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('❌')
+      );
+    });
+
+    it('should create import manifest with selected agents data', async () => {
+      const selectedAgents = [
+        {
+          originalPath: '/path/to/agent.md',
+          marketplace: 'marketplace',
+          plugin: 'plugin',
+          agentName: 'agent',
+          targetName: 'plugin-agent.md'
+        }
+      ];
+
+      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT'));
+      vi.mocked(fs.readFile).mockResolvedValue('Agent content');
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+      await AgentImporter.importSelectedAgents(targetDir, selectedAgents);
+
+      // Find the manifest write call
+      const manifestCall = vi.mocked(fs.writeFile).mock.calls.find(
+        call => call[0] === path.join(targetDir, '.import-manifest.json')
+      );
+
+      expect(manifestCall).toBeDefined();
+
+      const manifest = JSON.parse(manifestCall![1] as string);
+      expect(manifest).toMatchObject({
+        pluginsPath: expect.stringContaining('.claude/plugins/marketplaces'),
+        summary: {
+          total: 1,
+          imported: 1,
+          skipped: 0
+        },
+        agents: [
+          {
+            marketplace: 'marketplace',
+            plugin: 'plugin',
+            original: 'agent',
+            target: 'plugin-agent.md'
+          }
+        ]
+      });
+      expect(manifest.importedAt).toBeDefined();
+    });
+
+    it('should provide correct summary statistics with mixed results', async () => {
+      const selectedAgents = [
+        {
+          originalPath: '/path/to/agent1.md',
+          marketplace: 'marketplace',
+          plugin: 'plugin',
+          agentName: 'agent1',
+          targetName: 'plugin-agent1.md'
+        },
+        {
+          originalPath: '/path/to/agent2.md',
+          marketplace: 'marketplace',
+          plugin: 'plugin',
+          agentName: 'agent2',
+          targetName: 'plugin-agent2.md'
+        },
+        {
+          originalPath: '/path/to/agent3.md',
+          marketplace: 'marketplace',
+          plugin: 'plugin',
+          agentName: 'agent3',
+          targetName: 'plugin-agent3.md'
+        }
+      ];
+
+      vi.mocked(fs.access)
+        .mockResolvedValueOnce(undefined) // agent1 exists (skip)
+        .mockRejectedValueOnce(new Error('ENOENT')) // agent2 doesn't exist
+        .mockRejectedValueOnce(new Error('ENOENT')); // agent3 doesn't exist
+
+      vi.mocked(fs.readFile)
+        .mockResolvedValueOnce('Content 2')
+        .mockRejectedValueOnce(new Error('Read error')); // agent3 fails
+
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+      const result = await AgentImporter.importSelectedAgents(targetDir, selectedAgents);
+
+      expect(result.total).toBe(3);
+      expect(result.imported).toBe(1); // Only agent2 imported
+      expect(result.skipped).toBe(1); // agent1 skipped
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Import complete: 1 imported, 1 skipped')
+      );
+    });
+
+    it('should display importing message with agent count', async () => {
+      const selectedAgents = [
+        {
+          originalPath: '/path/to/agent1.md',
+          marketplace: 'marketplace',
+          plugin: 'plugin',
+          agentName: 'agent1',
+          targetName: 'plugin-agent1.md'
+        },
+        {
+          originalPath: '/path/to/agent2.md',
+          marketplace: 'marketplace',
+          plugin: 'plugin',
+          agentName: 'agent2',
+          targetName: 'plugin-agent2.md'
+        }
+      ];
+
+      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT'));
+      vi.mocked(fs.readFile).mockResolvedValue('Content');
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+      await AgentImporter.importSelectedAgents(targetDir, selectedAgents);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Importing 2 agent(s)')
+      );
+    });
+  });
 });

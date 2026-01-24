@@ -659,6 +659,85 @@ describe('SlackNotifier', () => {
     });
   });
 
+  describe('send() - pipeline.aborted event', () => {
+    it('should send notification for pipeline.aborted', async () => {
+      const notifier = new SlackNotifier({ webhookUrl: testWebhookUrl });
+      const pipelineState = createTestPipelineState({
+        status: 'aborted',
+        artifacts: {
+          initialCommit: 'abc',
+          totalDuration: 30.5,
+          changedFiles: []
+        }
+      });
+      const context = createNotificationContext('pipeline.aborted', { pipelineState });
+      const result = await notifier.send(context);
+
+      expect(result.success).toBe(true);
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    it('should build correct payload for pipeline.aborted with warning color', async () => {
+      const notifier = new SlackNotifier({ webhookUrl: testWebhookUrl });
+      const pipelineState = createTestPipelineState({
+        status: 'aborted',
+        artifacts: {
+          initialCommit: 'abc',
+          totalDuration: 45.0,
+          changedFiles: []
+        }
+      });
+      const context = createNotificationContext('pipeline.aborted', { pipelineState });
+      await notifier.send(context);
+
+      const payload = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(payload.attachments[0].color).toBe('warning');
+      expect(payload.attachments[0].blocks).toContainEqual(
+        expect.objectContaining({
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: '⚠️ Pipeline Aborted: test-pipeline'
+          }
+        })
+      );
+      expect(payload.attachments[0].blocks).toContainEqual(
+        expect.objectContaining({
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: 'Pipeline was aborted by user after 45.0s'
+          }
+        })
+      );
+    });
+
+    it('should format duration correctly for aborted pipeline', async () => {
+      const notifier = new SlackNotifier({ webhookUrl: testWebhookUrl });
+      const pipelineState = createTestPipelineState({
+        status: 'aborted',
+        artifacts: {
+          initialCommit: 'abc',
+          totalDuration: 125.0, // 2m 5s
+          changedFiles: []
+        }
+      });
+      const context = createNotificationContext('pipeline.aborted', { pipelineState });
+      await notifier.send(context);
+
+      const payload = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(payload.attachments[0].blocks).toContainEqual(
+        expect.objectContaining({
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: 'Pipeline was aborted by user after 2m 5s'
+          }
+        })
+      );
+    });
+  });
+
   describe('send() - stage.completed event', () => {
     it('should send notification for stage.completed', async () => {
       const notifier = new SlackNotifier({ webhookUrl: testWebhookUrl });

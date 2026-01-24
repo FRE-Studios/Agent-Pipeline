@@ -248,6 +248,38 @@ describe('PRCreator', () => {
         await prCreator.createPR('feature-branch', 'main', { reviewers: ['user1', 'user2'] }, prPipelineStateCompleted);
         expect(mockSpawn.spawn).toHaveBeenCalledWith('gh', expect.arrayContaining(['--reviewer', 'user1,user2']));
     });
+
+    it('should add --label flag with comma-separated labels', async () => {
+        await prCreator.createPR('feature-branch', 'main', { labels: ['bug', 'urgent'] }, prPipelineStateCompleted);
+        expect(mockSpawn.spawn).toHaveBeenCalledWith('gh', expect.arrayContaining(['--label', 'bug,urgent']));
+    });
+
+    it('should add --assignee flag with comma-separated assignees', async () => {
+        await prCreator.createPR('feature-branch', 'main', { assignees: ['dev1', 'dev2'] }, prPipelineStateCompleted);
+        expect(mockSpawn.spawn).toHaveBeenCalledWith('gh', expect.arrayContaining(['--assignee', 'dev1,dev2']));
+    });
+
+    it('should add --milestone flag when milestone is provided', async () => {
+        await prCreator.createPR('feature-branch', 'main', { milestone: 'v1.0.0' }, prPipelineStateCompleted);
+        expect(mockSpawn.spawn).toHaveBeenCalledWith('gh', expect.arrayContaining(['--milestone', 'v1.0.0']));
+    });
+
+    it('should add --web flag when web is true', async () => {
+        await prCreator.createPR('feature-branch', 'main', { web: true }, prPipelineStateCompleted);
+        expect(mockSpawn.spawn).toHaveBeenCalledWith('gh', expect.arrayContaining(['--web']));
+    });
+
+    it('should not add --label flag when labels array is empty', async () => {
+        await prCreator.createPR('feature-branch', 'main', { labels: [] }, prPipelineStateCompleted);
+        const prCreateCall = mockSpawn.spawn.mock.calls.find((call: any) => call[1].includes('pr') && call[1].includes('create'));
+        expect(prCreateCall?.[1]).not.toContain('--label');
+    });
+
+    it('should not add --assignee flag when assignees array is empty', async () => {
+        await prCreator.createPR('feature-branch', 'main', { assignees: [] }, prPipelineStateCompleted);
+        const prCreateCall = mockSpawn.spawn.mock.calls.find((call: any) => call[1].includes('pr') && call[1].includes('create'));
+        expect(prCreateCall?.[1]).not.toContain('--assignee');
+    });
   });
 
   describe('createPR - Output Parsing', () => {

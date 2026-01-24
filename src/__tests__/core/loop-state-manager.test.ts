@@ -115,6 +115,88 @@ describe('LoopStateManager', () => {
     });
   });
 
+  describe('updateIteration', () => {
+    it('should update an existing iteration and save to disk', async () => {
+      const session = await manager.startSession(100);
+      const iteration: IterationSummary = {
+        iterationNumber: 1,
+        pipelineName: 'test-pipeline',
+        runId: 'run-123',
+        status: 'in-progress',
+        triggeredNext: false
+      };
+
+      await manager.appendIteration(session.sessionId, iteration);
+      const updated = await manager.updateIteration(session.sessionId, 1, {
+        status: 'completed',
+        duration: 1500,
+        triggeredNext: true
+      });
+
+      expect(updated).toBe(true);
+
+      const loaded = await manager.loadSession(session.sessionId);
+      expect(loaded!.iterations[0].status).toBe('completed');
+      expect(loaded!.iterations[0].duration).toBe(1500);
+      expect(loaded!.iterations[0].triggeredNext).toBe(true);
+    });
+
+    it('should return false when iteration number not found', async () => {
+      const session = await manager.startSession(100);
+      const iteration: IterationSummary = {
+        iterationNumber: 1,
+        pipelineName: 'test-pipeline',
+        runId: 'run-123',
+        status: 'completed',
+        duration: 1000,
+        triggeredNext: false
+      };
+
+      await manager.appendIteration(session.sessionId, iteration);
+      const updated = await manager.updateIteration(session.sessionId, 999, {
+        status: 'failed'
+      });
+
+      expect(updated).toBe(false);
+    });
+
+    it('should throw error for non-existent session', async () => {
+      await expect(
+        manager.updateIteration('non-existent-id', 1, { status: 'completed' })
+      ).rejects.toThrow('Loop session not found');
+    });
+
+    it('should load session from disk when not in cache', async () => {
+      // Create and save a session
+      const session = await manager.startSession(100);
+      const iteration: IterationSummary = {
+        iterationNumber: 1,
+        pipelineName: 'test-pipeline',
+        runId: 'run-123',
+        status: 'in-progress',
+        triggeredNext: false
+      };
+      await manager.appendIteration(session.sessionId, iteration);
+      await manager.completeSession(session.sessionId, 'completed');
+
+      // Create new manager instance (cache miss scenario)
+      const newManager = new LoopStateManager(testRepoPath);
+
+      // Update should load from disk and succeed
+      const updated = await newManager.updateIteration(session.sessionId, 1, {
+        status: 'completed',
+        duration: 2000
+      });
+
+      expect(updated).toBe(true);
+
+      // Verify the update was saved
+      const loaded = await newManager.loadSession(session.sessionId);
+      expect(loaded!.iterations[0].status).toBe('completed');
+      expect(loaded!.iterations[0].duration).toBe(2000);
+    });
+  });
+
   describe('completeSession', () => {
     it('should mark session as completed and set end time', async () => {
       const session = await manager.startSession(100);
