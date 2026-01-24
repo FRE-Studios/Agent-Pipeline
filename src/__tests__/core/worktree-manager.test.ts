@@ -431,6 +431,48 @@ describe('WorktreeManager', () => {
         );
       });
 
+      it('should show helpful guidance when branch is not fully merged', async () => {
+        mockGit.deleteLocalBranch.mockRejectedValue(
+          new Error("error: The branch 'pipeline/test-pipeline' is not fully merged")
+        );
+
+        await worktreeManager.cleanupWorktree(worktreePath, true);
+
+        // Should show warning about unmerged branch
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Branch not deleted:')
+        );
+        // Should show explanation
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('not merged into the base branch')
+        );
+        // Should show git merge command suggestion
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('git merge')
+        );
+        // Should show git branch -D command suggestion
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('git branch -D')
+        );
+      });
+
+      it('should show generic error for non-merge branch deletion failures', async () => {
+        mockGit.deleteLocalBranch.mockRejectedValue(
+          new Error('Permission denied: cannot delete branch')
+        );
+
+        await worktreeManager.cleanupWorktree(worktreePath, true);
+
+        // Should show generic warning
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Could not delete branch')
+        );
+        // Should show the error message
+        expect(consoleSpy).toHaveBeenCalledWith(
+          expect.stringContaining('Permission denied')
+        );
+      });
+
       it('should not attempt branch deletion when worktree has no branch', async () => {
         mockGit.raw.mockImplementation(async (args: string[]) => {
           if (args[0] === 'worktree' && args[1] === 'list') {

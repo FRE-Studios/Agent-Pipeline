@@ -925,6 +925,435 @@ describe('ClaudeCodeHeadlessRuntime', () => {
     });
   });
 
+  describe('Tool Activity Formatting', () => {
+    it('should format Read tool activity with truncated path', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'Read', input: { file_path: '/very/long/path/to/src/components/Button.tsx' } }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      expect(onOutputUpdate).toHaveBeenCalledWith('📖 Reading .../components/Button.tsx');
+    });
+
+    it('should format Write tool activity', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'Write', input: { file_path: '/src/new-file.ts' } }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      expect(onOutputUpdate).toHaveBeenCalledWith('📝 Writing .../src/new-file.ts');
+    });
+
+    it('should format LS tool activity with path', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'LS', input: { path: '/src/components' } }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      expect(onOutputUpdate).toHaveBeenCalledWith('📂 Listing .../src/components');
+    });
+
+    it('should format LS tool activity with default path when undefined', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'LS', input: {} }  // No path
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      expect(onOutputUpdate).toHaveBeenCalledWith('📂 Listing .');
+    });
+
+    it('should format WebFetch tool with truncated URL', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'WebFetch', input: { url: 'https://example.com/very/long/path/to/resource' } }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      // URL should be truncated
+      expect(onOutputUpdate).toHaveBeenCalledWith(expect.stringContaining('🌐 Fetching example.com'));
+    });
+
+    it('should format WebSearch tool activity', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'WebSearch', input: { query: 'typescript best practices' } }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      expect(onOutputUpdate).toHaveBeenCalledWith('🔍 Searching: typescript best practices');
+    });
+
+    it('should format Task tool activity with description', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'Task', input: { description: 'Run tests', subagent_type: 'test-runner' } }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      expect(onOutputUpdate).toHaveBeenCalledWith('🤖 Spawning agent: Run tests');
+    });
+
+    it('should format TodoWrite tool activity', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'TodoWrite', input: {} }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      expect(onOutputUpdate).toHaveBeenCalledWith('📋 Updating task list');
+    });
+
+    it('should format NotebookEdit tool activity', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'NotebookEdit', input: { notebook_path: '/notebooks/analysis.ipynb' } }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      expect(onOutputUpdate).toHaveBeenCalledWith('📓 Editing notebook .../notebooks/analysis.ipynb');
+    });
+
+    it('should format unknown tool with default icon', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'CustomTool', input: {} }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      expect(onOutputUpdate).toHaveBeenCalledWith('⚡ CustomTool');
+    });
+
+    it('should truncate long bash commands', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      const longCommand = 'npm run build && npm run test && npm run lint && npm run format && npm run coverage';
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'Bash', input: { command: longCommand } }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      const call = onOutputUpdate.mock.calls[0][0];
+      expect(call).toContain('🔧 Running:');
+      expect(call.length).toBeLessThan(longCommand.length + 20);  // Should be truncated
+      expect(call).toContain('...');
+    });
+
+    it('should handle short path without truncation', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'Read', input: { file_path: '/src/index.ts' } }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      expect(onOutputUpdate).toHaveBeenCalledWith('📖 Reading .../src/index.ts');
+    });
+
+    it('should handle invalid URL gracefully when truncating', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'WebFetch', input: { url: 'not-a-valid-url-but-very-long-string-that-needs-truncation' } }
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      // Should fall back to substring truncation for invalid URL
+      expect(onOutputUpdate).toHaveBeenCalledWith(expect.stringContaining('🌐 Fetching'));
+    });
+
+    it('should handle undefined file path', async () => {
+      const mockProcess = createMockProcess();
+      mockSpawn.mockReturnValue(mockProcess);
+
+      const onOutputUpdate = vi.fn();
+      const request: AgentExecutionRequest = {
+        systemPrompt: 'System',
+        userPrompt: 'User',
+        options: { onOutputUpdate }
+      };
+
+      setTimeout(() => {
+        const msg = {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'tool_use', name: 'Read', input: {} }  // No file_path
+            ]
+          }
+        };
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(msg) + '\n'));
+        mockProcess.stdout.emit('data', Buffer.from(JSON.stringify({ result: 'Done' })));
+        mockProcess.emit('exit', 0);
+      }, 10);
+
+      await runtime.execute(request);
+
+      expect(onOutputUpdate).toHaveBeenCalledWith('📖 Reading ');
+    });
+  });
+
   describe('Edge Cases', () => {
     it('should handle empty output', async () => {
       const mockProcess = createMockProcess();

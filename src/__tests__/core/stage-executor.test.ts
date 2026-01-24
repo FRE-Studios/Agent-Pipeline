@@ -11,7 +11,7 @@ import {
   stageWithInputs,
   stageWithLongTimeout,
 } from '../fixtures/stage-configs.js';
-import type { PipelineState } from '../../config/schema.js';
+import type { PipelineState, AgentStageConfig } from '../../config/schema.js';
 import type { HandoverManager } from '../../core/handover-manager.js';
 
 function createMockHandoverManager() {
@@ -1294,6 +1294,193 @@ describe('StageExecutor', () => {
 
       const executeCall = mockRuntime.execute.mock.calls[0];
       expect(executeCall[0].options.permissionMode).toBe('bypassPermissions');
+    });
+  });
+
+  describe('Verbose Mode Logging', () => {
+    it('should log commit SHA in verbose mode when commit succeeds', async () => {
+      mockGitManager = createMockGitManager({
+        hasChanges: true,
+        commitSha: 'abc1234567890',
+        commitMessage: '[pipeline:test-stage] Test commit',
+      });
+      // Enable verbose logging
+      executor = new StageExecutor(
+        mockGitManager, false, mockHandoverManager, mockRuntime,
+        undefined, undefined, undefined,
+        { interactive: false, verbose: true }
+      );
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('✅ Committed changes: abc1234'));
+      consoleSpy.mockRestore();
+    });
+
+    it('should log no changes message in verbose mode when no commit needed', async () => {
+      mockGitManager = createMockGitManager({
+        hasChanges: true,
+        commitSha: null,  // No commit needed (no actual changes)
+        commitMessage: undefined,
+      });
+      // Enable verbose logging
+      executor = new StageExecutor(
+        mockGitManager, false, mockHandoverManager, mockRuntime,
+        undefined, undefined, undefined,
+        { interactive: false, verbose: true }
+      );
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('No changes to commit'));
+      consoleSpy.mockRestore();
+    });
+
+    it('should log token usage in verbose mode after stage completion', async () => {
+      mockRuntime.execute.mockResolvedValue({
+        textOutput: 'Output',
+        tokenUsage: {
+          inputTokens: 1000,
+          outputTokens: 500,
+          totalTokens: 1500
+        },
+        numTurns: 3
+      });
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      // Enable verbose logging
+      executor = new StageExecutor(
+        mockGitManager, false, mockHandoverManager, mockRuntime,
+        undefined, undefined, undefined,
+        { interactive: false, verbose: true }
+      );
+
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      // Should log token usage
+      const logCalls = consoleSpy.mock.calls.map(c => c[0]).join('\n');
+      expect(logCalls).toMatch(/input|output|tokens/i);
+      consoleSpy.mockRestore();
+    });
+
+    it('should log error suggestion in non-interactive mode on failure', async () => {
+      mockRuntime.execute.mockRejectedValue(new Error('API error: 401 Unauthorized'));
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      // Non-interactive mode shows error details
+      executor = new StageExecutor(
+        mockGitManager, false, mockHandoverManager, mockRuntime,
+        undefined, undefined, undefined,
+        { interactive: false, verbose: false }
+      );
+
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('💡'));
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('Worktree Execution Environment', () => {
+    // Note: The worktree execution path test is skipped because creating a StageExecutor
+    // with a different executionRepoPath triggers GitManager initialization which requires
+    // the directory to exist. The worktree context building functionality is tested indirectly
+    // through the buildAgentContext tests and the verbose logging tests.
+    // The core functionality of buildExecutionEnvironmentSection() which adds worktree info
+    // to the context is unit-testable but requires mocking the private method or refactoring.
+
+    it('should include working directory in context', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+
+      // Create executor without worktree
+      executor = new StageExecutor(
+        mockGitManager, false, mockHandoverManager, mockRuntime,
+        undefined,
+        testRepoPath,
+        undefined,  // No worktree path
+        { interactive: true, verbose: false }
+      );
+
+      await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      const executeCall = mockRuntime.execute.mock.calls[0];
+      const userPrompt = executeCall[0].userPrompt;
+
+      // Should include working directory
+      expect(userPrompt).toContain('Working Directory');
+      // Should NOT include worktree-specific text when not in worktree
+      expect(userPrompt).not.toContain('Main Repository Path');
+    });
+  });
+
+  describe('Runtime Resolution Error Handling', () => {
+    it('should throw descriptive error when stage runtime is invalid', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+
+      // Create executor without any default runtime
+      executor = new StageExecutor(
+        mockGitManager, false, mockHandoverManager,
+        undefined,  // No default runtime
+        undefined, undefined, undefined,
+        { interactive: false, verbose: false }
+      );
+
+      // Clear registry to simulate invalid runtime
+      const { AgentRuntimeRegistry } = await import('../../core/agent-runtime-registry.js');
+      AgentRuntimeRegistry.clear();
+
+      const stageWithInvalidRuntime: AgentStageConfig = {
+        ...basicStageConfig,
+        runtime: {
+          type: 'nonexistent-runtime' as any,
+          options: {}
+        }
+      };
+
+      // Runtime resolution errors are thrown (not caught by internal try-catch)
+      await expect(
+        executor.executeStage(stageWithInvalidRuntime, runningPipelineState)
+      ).rejects.toThrow('nonexistent-runtime');
+    });
+
+    it('should include attempted runtime type in thrown error message', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+
+      executor = new StageExecutor(
+        mockGitManager, false, mockHandoverManager,
+        undefined,
+        undefined, undefined, undefined,
+        { interactive: false, verbose: false }
+      );
+
+      // Clear registry
+      const { AgentRuntimeRegistry } = await import('../../core/agent-runtime-registry.js');
+      AgentRuntimeRegistry.clear();
+
+      // Pipeline with invalid runtime type
+      const pipelineWithBadRuntime: PipelineState = {
+        ...runningPipelineState,
+        pipelineConfig: {
+          ...runningPipelineState.pipelineConfig,
+          runtime: {
+            type: 'bad-runtime-type' as any,
+            options: {}
+          }
+        }
+      };
+
+      // Runtime resolution errors are thrown with the runtime type in message
+      await expect(
+        executor.executeStage(basicStageConfig, pipelineWithBadRuntime)
+      ).rejects.toThrow('bad-runtime-type');
     });
   });
 

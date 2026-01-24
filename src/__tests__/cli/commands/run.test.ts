@@ -848,6 +848,76 @@ describe('runCommand', () => {
     });
   });
 
+  describe('SIGINT Handling', () => {
+    it('should register SIGINT handler and pass abort controller to runner', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
+
+      try {
+        await runCommand(tempDir, 'test-pipeline');
+      } catch (error) {
+        // Expected
+      }
+
+      // Runner should receive abortController
+      expect(mockRunner.runPipeline).toHaveBeenCalledWith(config, expect.objectContaining({
+        abortController: expect.any(Object)
+      }));
+    });
+
+    it('should exit with code 130 when pipeline is aborted', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockResolvedValue({ status: 'aborted' });
+
+      await expect(
+        runCommand(tempDir, 'test-pipeline')
+      ).rejects.toThrow('process.exit(130)');
+
+      expect(processExitSpy).toHaveBeenCalledWith(130);
+    });
+
+    it('should clean up SIGINT handler after pipeline completes', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata: { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() } });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      mockRunner.runPipeline.mockResolvedValue({ status: 'completed' });
+
+      const processOffSpy = vi.spyOn(process, 'off');
+
+      try {
+        await runCommand(tempDir, 'test-pipeline');
+      } catch (error) {
+        // Expected
+      }
+
+      // Should remove SIGINT handler
+      expect(processOffSpy).toHaveBeenCalledWith('SIGINT', expect.any(Function));
+      processOffSpy.mockRestore();
+    });
+
+    it('should exit with code 1 when loop limit is reached with limit-reached termination reason', async () => {
+      const config = { name: 'test-pipeline', trigger: 'manual', agents: [] };
+      const metadata = { sourcePath: "/test/path.yml", sourceType: "library" as const, loadedAt: new Date().toISOString() };
+      mockLoader.loadPipeline.mockResolvedValue({ config, metadata });
+      mockValidator.validateAndReport.mockResolvedValue(true);
+      // Simulate loop completed but due to limit being reached
+      mockRunner.runPipeline.mockResolvedValue({
+        status: 'completed',
+        loopContext: { terminationReason: 'limit-reached' }
+      });
+
+      await expect(
+        runCommand(tempDir, 'test-pipeline', { loop: true, maxLoopIterations: 5 })
+      ).rejects.toThrow('process.exit(1)');
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
   describe('Integration', () => {
     it('should complete full workflow successfully', async () => {
       const config = {
