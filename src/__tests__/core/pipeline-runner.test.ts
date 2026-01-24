@@ -439,6 +439,133 @@ describe('PipelineRunner', () => {
 
         consoleSpy.mockRestore();
       });
+
+      it('should log failed notification channels without crashing pipeline', async () => {
+        const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        // Create a mock notification manager that returns failed results
+        const mockNotificationManager = {
+          notify: vi.fn().mockResolvedValue([
+            { success: true, channel: 'local' },
+            { success: false, channel: 'slack', error: 'Webhook URL not configured' },
+            { success: false, channel: 'email', error: 'SMTP connection failed' },
+          ]),
+        };
+
+        // Have initializer return the mock notification manager
+        mockInitializerInstance.initialize.mockResolvedValue({
+          state: createMockState(),
+          parallelExecutor: { executeParallelGroup: vi.fn(), executeSequentialGroup: vi.fn() },
+          pipelineBranch: 'pipeline/test',
+          worktreePath: undefined,
+          executionRepoPath: '/test/repo',
+          startTime: Date.now(),
+          handoverManager: { getHandoverPath: vi.fn() },
+          notificationManager: mockNotificationManager,
+        });
+
+        // Make finalizer call the notifyCallback to trigger a notification
+        mockFinalizerInstance.finalize.mockImplementation(async (
+          state: PipelineState,
+          _config: PipelineConfig,
+          _branch: string | undefined,
+          _worktree: string | undefined,
+          _execPath: string,
+          _startTime: number,
+          _interactive: boolean,
+          _verbose: boolean,
+          notifyCallback: (context: { event: string; pipelineState: PipelineState }) => Promise<void>
+        ) => {
+          state.status = 'completed';
+          // Trigger notification which will use the mock notification manager
+          await notifyCallback({ event: 'pipeline.completed', pipelineState: state });
+          return state;
+        });
+
+        const configWithNotifications = {
+          ...simplePipelineConfig,
+          notifications: {
+            enabled: true,
+            events: ['pipeline.completed' as const],
+            channels: { local: { enabled: true }, slack: { enabled: true, webhookUrl: 'invalid' } },
+          },
+        };
+
+        const result = await runner.runPipeline(configWithNotifications);
+
+        // Pipeline should still complete successfully
+        expect(result.status).toBe('completed');
+        expect(mockFinalizerInstance.finalize).toHaveBeenCalled();
+
+        // Should log the failure warning header
+        expect(consoleSpy).toHaveBeenCalledWith('⚠️  Some notifications failed:');
+
+        // Should log each failed channel with its error
+        expect(consoleSpy).toHaveBeenCalledWith('   slack: Webhook URL not configured');
+        expect(consoleSpy).toHaveBeenCalledWith('   email: SMTP connection failed');
+
+        consoleSpy.mockRestore();
+      });
+
+      it('should catch thrown notification errors without crashing pipeline', async () => {
+        const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        // Create a mock notification manager that throws an error
+        const notificationError = new Error('NotificationManager internal error');
+        const mockNotificationManager = {
+          notify: vi.fn().mockRejectedValue(notificationError),
+        };
+
+        // Have initializer return the mock notification manager
+        mockInitializerInstance.initialize.mockResolvedValue({
+          state: createMockState(),
+          parallelExecutor: { executeParallelGroup: vi.fn(), executeSequentialGroup: vi.fn() },
+          pipelineBranch: 'pipeline/test',
+          worktreePath: undefined,
+          executionRepoPath: '/test/repo',
+          startTime: Date.now(),
+          handoverManager: { getHandoverPath: vi.fn() },
+          notificationManager: mockNotificationManager,
+        });
+
+        // Make finalizer call the notifyCallback to trigger a notification
+        mockFinalizerInstance.finalize.mockImplementation(async (
+          state: PipelineState,
+          _config: PipelineConfig,
+          _branch: string | undefined,
+          _worktree: string | undefined,
+          _execPath: string,
+          _startTime: number,
+          _interactive: boolean,
+          _verbose: boolean,
+          notifyCallback: (context: { event: string; pipelineState: PipelineState }) => Promise<void>
+        ) => {
+          state.status = 'completed';
+          // Trigger notification which will throw
+          await notifyCallback({ event: 'pipeline.completed', pipelineState: state });
+          return state;
+        });
+
+        const configWithNotifications = {
+          ...simplePipelineConfig,
+          notifications: {
+            enabled: true,
+            events: ['pipeline.completed' as const],
+            channels: { local: { enabled: true } },
+          },
+        };
+
+        const result = await runner.runPipeline(configWithNotifications);
+
+        // Pipeline should still complete successfully despite notification error
+        expect(result.status).toBe('completed');
+        expect(mockFinalizerInstance.finalize).toHaveBeenCalled();
+
+        // Should log the caught error
+        expect(consoleSpy).toHaveBeenCalledWith('⚠️  Notification error:', notificationError);
+
+        consoleSpy.mockRestore();
+      });
     });
   });
 
