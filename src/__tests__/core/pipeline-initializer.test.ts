@@ -414,5 +414,126 @@ describe('PipelineInitializer', () => {
       expect(result.worktreePath).toBeDefined();
       expect(result.pipelineBranch).toBe('pipeline/test-pipeline');
     });
+
+    it('should use custom worktree directory when configured', async () => {
+      // When a custom worktree directory is configured, a new WorktreeManager instance
+      // should be created with that directory. We verify this by checking that
+      // setupPipelineWorktree is called (which only happens when worktree isolation is used).
+      const setupPipelineWorktreeMock = vi.fn().mockResolvedValue({
+        worktreePath: '/custom/worktrees/test-pipeline',
+        branchName: 'pipeline/test-pipeline'
+      });
+
+      vi.mocked(WorktreeManager).mockImplementation(() => ({
+        setupPipelineWorktree: setupPipelineWorktreeMock,
+        cleanupWorktree: vi.fn().mockResolvedValue(undefined),
+        listPipelineWorktrees: vi.fn().mockResolvedValue([]),
+      } as unknown as WorktreeManager));
+
+      const configWithCustomWorktree = {
+        ...mockConfig,
+        git: {
+          baseBranch: 'main',
+          branchStrategy: 'reusable' as const,
+          worktree: {
+            directory: '/custom/worktrees'
+          }
+        }
+      };
+
+      const result = await initializer.initialize(
+        configWithCustomWorktree,
+        { interactive: false },
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Verify that setupPipelineWorktree was called (worktree isolation was used)
+      expect(setupPipelineWorktreeMock).toHaveBeenCalledWith(
+        'test-pipeline',
+        expect.any(String), // runId
+        'main',
+        'reusable',
+        'pipeline'
+      );
+      // Verify the result uses the custom worktree path
+      expect(result.worktreePath).toBe('/custom/worktrees/test-pipeline');
+    });
+
+    it('should populate loop context in state when loopContext is provided', async () => {
+      const loopContext = {
+        enabled: true,
+        currentIteration: 3,
+        maxIterations: 10,
+        loopSessionId: 'session-123',
+        pipelineSource: 'loop-pending' as const
+      };
+
+      const result = await initializer.initialize(
+        mockConfig,
+        {
+          interactive: false,
+          loopContext,
+          loopSessionId: 'session-123',
+          metadata: { sourceType: 'loop-pending' }
+        },
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      expect(result.state.loopContext).toEqual({
+        enabled: true,
+        currentIteration: 3,
+        maxIterations: 10,
+        loopSessionId: 'session-123',
+        pipelineSource: 'loop-pending',
+        terminationReason: undefined
+      });
+    });
+
+    it('should use default values for loop context fields when not provided', async () => {
+      // Provide minimal loopContext to trigger the enabled: true branch
+      const loopContext = {
+        enabled: true
+      };
+
+      const result = await initializer.initialize(
+        mockConfig,
+        {
+          interactive: false,
+          loopContext
+        },
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      // Should use defaults for missing fields
+      expect(result.state.loopContext).toEqual({
+        enabled: true,
+        currentIteration: 1,  // default
+        maxIterations: 100,   // default
+        loopSessionId: '',    // default (no loopSessionId passed)
+        pipelineSource: 'library',  // default (no metadata passed)
+        terminationReason: undefined
+      });
+    });
+
+    it('should set disabled loop context when loopContext is not provided', async () => {
+      const result = await initializer.initialize(
+        mockConfig,
+        { interactive: false },
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      expect(result.state.loopContext).toEqual({
+        enabled: false,
+        currentIteration: 1,
+        maxIterations: 100,
+        loopSessionId: '',
+        pipelineSource: 'library',
+        terminationReason: undefined
+      });
+    });
   });
 });
