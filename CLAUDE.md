@@ -131,11 +131,3 @@ When planning new features or fixes, if you notice the changes will require a la
 ### Testing Style
 Spawn tasks or agents whenver you identify large patterned changes required in tests (eg. replace all instances of mockQuery(...) with mockRuntime.execute(...))
 
-## Codemap CLI Tool
-To quickly understand file structure use codemap CLI tool
-```bash
-codemap .                     # Project structure
-codemap --deps                # How files connect
-codemap --diff                # What changed vs main
-codemap --diff --ref <branch> # Changes vs specific branch
-```
