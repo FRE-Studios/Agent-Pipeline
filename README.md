@@ -1,20 +1,36 @@
 # Agent Pipeline
 
-> Intelligent agent orchestration with parallel execution, conditional logic, git workflow automation, and multi-channel notifications for Claude Code
+> Intelligent agent orchestration with DAG-planned parallelism, conditional logic, automated git hygiene, and multi-channel notifications for Claude Code.
 
-Last update: 2026-1-23
+## Key Use Cases 
 
-Agent Pipeline delivers an agent-driven CI/CD workflow with full visibility. Execute Claude agents with DAG-planned parallelism, conditional logic, retries, and automated git hygiene. Branch isolation, GitHub PR creation, local/Slack notifications, and a live terminal UI keep humans in the loop.
+- Offload common agentic tasks that consume time and context off the main agent loop.
+- Quickly explore new and divergent design concepts.
 
 ## Agent Pipeline Ergonomics
 
+- Everything is a file in the filesystem
 - Agents are just `.md` files located in the `.agent-pipeline/agents/` directory.
-- Agents use the filesystem for handoff to the next agent via `.agent-pipeline/instructions/handover.md`.
+- Agents use the `handover.md` file for handoff to the next agent via `.agent-pipeline/instructions/handover.md`.
 - The last agent in a pipeline may create a loop using `.agent-pipeline/instructions/loop.md`.
 
-SOTA models like Claude Opus 4.5 can understand directions very well — you can tell any agent (in their respective `.md` file) to "pass X data to next agent" or "create new pipeline for next plan phase if plan status is not complete" and the agent and pipeline will most likely perform as you expect.
+```yaml
+name: my-pipeline 
+trigger: manual
 
-> **Note:** Looping must be enabled in the pipeline YAML since it's a high potential cost feature.
+agents:
+  - name: first-agent
+    agent: .agent-pipeline/agents/first-agent.md
+
+  - name: second-agent
+    agent: .agent-pipeline/agents/second-agent.md
+    dependsOn: 
+      - first-agent
+```
+
+SOTA models like Claude Opus 4.5 can understand directions very well: you can tell any agent (in their respective `.md` file) to "pass X data to next agent" or "create new pipeline for next plan phase if plan status is not complete" and the agent and pipeline will perform as you expect.
+
+> **Note:** Looping must be enabled in the pipeline YAML for loops to run.
 
 ## Quick Start
 
@@ -42,7 +58,7 @@ agent-pipeline run post-commit-example
 
 - **Node.js** (v18 or higher)
 - **Git** (configured with user name and email)
-- **Claude API Key** (set in environment or Claude Code settings)
+- **Claude Login or API Key** (set in Claude Code settings or in environment)
 - **GitHub CLI** (`gh`) – optional unless you enable automated PR creation
   - Install: `brew install gh` (macOS) or [see docs](https://cli.github.com/)
   - Authenticate: `gh auth login`
@@ -73,7 +89,7 @@ npm link
 agent-pipeline init
 ```
 
-This scaffolds two robust example pipelines (`front-end-parallel-example` and `post-commit-example`), required agent definitions, and the directory structure (`.agent-pipeline/`, `.agent-pipeline/agents/`). Agents from installed Claude Code plugins are automatically discovered.
+This scaffolds three example pipelines (`front-end-parallel-example`, `post-commit-example`, and `loop-example`), required agent definitions, and the directory structure (`.agent-pipeline/`, `.agent-pipeline/agents/`). Agents from installed Claude Code plugins are automatically discovered.
 
 ### 2. Run Your First Pipeline
 
@@ -83,10 +99,13 @@ agent-pipeline run front-end-parallel-example
 
 # For existing projects, try the post-commit workflow
 agent-pipeline run post-commit-example
+
+# Try the looping Socratic exploration (demonstrates iterative agents)
+agent-pipeline run loop-example
 ```
 
 **What you'll see:** live terminal UI with status badges, real-time agent output streaming, atomic commits per stage, and a pipeline summary with timing and results.
-Runs execute in isolated git worktrees by default, so your working directory stays untouched.
+Git configured runs execute in isolated git worktrees by default, so your working directory stays untouched.
 
 ### 3. Explore Your Pipeline History
 
@@ -125,16 +144,18 @@ git:
   autoCommit: true
   commitPrefix: "[pipeline:{{stage}}]"
 
-execution:
-  failureStrategy: continue
-
 agents:
   - name: code-review
     agent: .agent-pipeline/agents/code-reviewer.md
-    timeout: 120
 
-  - name: code-reducer
-    agent: .agent-pipeline/agents/code-reducer.md
+  - name: security-review
+    agent: .agent-pipeline/agents/security-reviewer.md
+
+  - name: memory-updater
+    agent: .agent-pipeline/agents/memory-updater.md
+    dependsOn: 
+      - code-review
+      - security-review
 ```
 
 #### 2. Create Agent Definitions
