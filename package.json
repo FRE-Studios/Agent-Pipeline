@@ -1,0 +1,96 @@
+{
+  "name": "agent-pipeline",
+  "version": "0.1.1",
+  "description": "Intelligent agent orchestration with parallel execution, conditional logic, git workflow automation, and multi-channel notifications for Claude Code",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "agent-pipeline": "dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node node_modules/typescript/bin/tsc && node scripts/generate-schema.mjs && node scripts/copy-templates.mjs",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "test:unit": "vitest --exclude '**/smoke/claude-cli-e2e.test.ts'",
+    "test:e2e": "RUN_E2E_TESTS=true vitest src/__tests__/smoke/claude-cli-e2e.test.ts",
+    "start": "node dist/index.js",
+    "generate:schema": "node scripts/generate-schema.mjs",
+    "postinstall": "test ! -d node_modules/typescript || npm run build",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/**/*.d.ts.map",
+    "dist/**/*.js.map",
+    "dist/**/*.yml",
+    "dist/**/*.yaml",
+    "dist/**/*.json",
+    "dist/**/*.md",
+    "!dist/**/*.test.*",
+    "!dist/__tests__",
+    "README.md",
+    "LICENSE",
+    "CLAUDE.md"
+  ],
+  "keywords": [
+    "agent",
+    "pipeline",
+    "claude",
+    "ai",
+    "automation",
+    "git",
+    "ci-cd",
+    "workflow",
+    "orchestration",
+    "parallel-execution",
+    "dag",
+    "notifications"
+  ],
+  "author": "Fernando Rojas <fernando@fre-studios.com> (https://fre-studios.com/)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FRE-Studios/agent-pipeline.git"
+  },
+  "homepage": "https://github.com/FRE-Studios/agent-pipeline#readme",
+  "bugs": {
+    "url": "https://github.com/FRE-Studios/agent-pipeline/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/FRE-Studios"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.19",
+    "chalk": "^5.6.0",
+    "ink": "^4.4.1",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^5.0.1",
+    "node-notifier": "^10.0.1",
+    "react": "^18.2.0",
+    "simple-git": "^3.30.0",
+    "tiktoken": "^1.0.22",
+    "uuid": "^10.0.0",
+    "yaml": "^2.8.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/node-notifier": "^8.0.5",
+    "@types/react": "^18.3.0",
+    "@types/uuid": "^10.0.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "ink-testing-library": "^4.0.0",
+    "ts-json-schema-generator": "^2.4.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

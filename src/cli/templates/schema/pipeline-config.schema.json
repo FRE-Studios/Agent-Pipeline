@@ -1,0 +1,400 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$ref": "#/definitions/PipelineConfig",
+  "definitions": {
+    "PipelineConfig": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "pre-commit",
+            "post-commit",
+            "pre-push",
+            "post-merge",
+            "manual"
+          ]
+        },
+        "git": {
+          "$ref": "#/definitions/GitConfig"
+        },
+        "execution": {
+          "$ref": "#/definitions/ExecutionConfig"
+        },
+        "handover": {
+          "$ref": "#/definitions/HandoverConfig"
+        },
+        "notifications": {
+          "$ref": "#/definitions/NotificationConfig"
+        },
+        "looping": {
+          "$ref": "#/definitions/LoopingConfig"
+        },
+        "runtime": {
+          "$ref": "#/definitions/RuntimeConfig"
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AgentStageConfig"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "trigger",
+        "agents"
+      ],
+      "additionalProperties": false
+    },
+    "GitConfig": {
+      "type": "object",
+      "properties": {
+        "autoCommit": {
+          "type": "boolean"
+        },
+        "commitPrefix": {
+          "type": "string"
+        },
+        "baseBranch": {
+          "type": "string"
+        },
+        "branchStrategy": {
+          "type": "string",
+          "enum": [
+            "reusable",
+            "unique-per-run",
+            "unique-and-delete"
+          ]
+        },
+        "branchPrefix": {
+          "type": "string"
+        },
+        "mergeStrategy": {
+          "$ref": "#/definitions/MergeStrategy"
+        },
+        "pullRequest": {
+          "$ref": "#/definitions/PRConfig"
+        },
+        "worktree": {
+          "$ref": "#/definitions/WorktreeConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MergeStrategy": {
+      "type": "string",
+      "enum": [
+        "pull-request",
+        "local-merge",
+        "none"
+      ],
+      "description": "Merge strategy for pipeline completion\n- pull-request: Push branch and create GitHub PR\n- local-merge: Merge branch to baseBranch locally (no remote interaction)\n- none: No merge action (work stays in branch/worktree)\n\nNote: 'unique-and-delete' branchStrategy cannot be used with 'none' mergeStrategy"
+    },
+    "PRConfig": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        },
+        "reviewers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "draft": {
+          "type": "boolean"
+        },
+        "assignees": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "milestone": {
+          "type": "string"
+        },
+        "web": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeConfig": {
+      "type": "object",
+      "properties": {
+        "directory": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Worktree configuration for pipeline isolation Pipelines execute in dedicated git worktrees, leaving user's working directory untouched"
+    },
+    "ExecutionConfig": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "sequential",
+            "parallel"
+          ]
+        },
+        "failureStrategy": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "continue"
+          ]
+        },
+        "permissionMode": {
+          "$ref": "#/definitions/PermissionMode"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Execution configuration - controls pipeline runtime behavior"
+    },
+    "PermissionMode": {
+      "type": "string",
+      "enum": [
+        "default",
+        "acceptEdits",
+        "bypassPermissions",
+        "plan"
+      ],
+      "description": "Permission mode for agent execution\n- default: Prompts for permission based on .claude/settings.json rules\n- acceptEdits: Auto-accepts file edits (Write, Edit tools) while respecting allow/deny rules\n- bypassPermissions: Bypasses all permission checks (use with caution)\n- plan: Read-only mode, no actual execution",
+      "default": "'acceptEdits' - Optimized for automated workflows"
+    },
+    "HandoverConfig": {
+      "type": "object",
+      "properties": {
+        "directory": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Handover configuration - inter-stage communication settings"
+    },
+    "NotificationConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/NotificationEvent"
+          }
+        },
+        "channels": {
+          "type": "object",
+          "properties": {
+            "local": {
+              "$ref": "#/definitions/LocalNotificationConfig"
+            },
+            "slack": {
+              "$ref": "#/definitions/SlackNotificationConfig"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "NotificationEvent": {
+      "type": "string",
+      "enum": [
+        "pipeline.started",
+        "pipeline.completed",
+        "pipeline.failed",
+        "pipeline.aborted",
+        "stage.completed",
+        "stage.failed",
+        "pr.created"
+      ]
+    },
+    "LocalNotificationConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "sound": {
+          "type": "boolean"
+        },
+        "openUrl": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SlackNotificationConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "webhookUrl": {
+          "type": "string"
+        },
+        "channel": {
+          "type": "string"
+        },
+        "mentionOnFailure": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "LoopingConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "maxIterations": {
+          "type": "number"
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "directories": {
+          "type": "object",
+          "properties": {
+            "pending": {
+              "type": "string"
+            },
+            "running": {
+              "type": "string"
+            },
+            "finished": {
+              "type": "string"
+            },
+            "failed": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "additionalProperties": false
+    },
+    "RuntimeConfig": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "description": "Runtime configuration for agent execution Supports multiple runtime types: 'claude-sdk', 'claude-code-headless', etc."
+    },
+    "AgentStageConfig": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "agent": {
+          "type": "string"
+        },
+        "runtime": {
+          "$ref": "#/definitions/RuntimeConfig"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "onFail": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "continue",
+            "warn"
+          ]
+        },
+        "timeout": {
+          "type": "number"
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "retry": {
+          "$ref": "#/definitions/RetryConfig"
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "agent"
+      ],
+      "additionalProperties": false
+    },
+    "RetryConfig": {
+      "type": "object",
+      "properties": {
+        "maxAttempts": {
+          "type": "number"
+        },
+        "backoff": {
+          "type": "string",
+          "enum": [
+            "exponential",
+            "linear",
+            "fixed"
+          ]
+        },
+        "initialDelay": {
+          "type": "number"
+        },
+        "maxDelay": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "maxAttempts",
+        "backoff"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "title": "Agent Pipeline Configuration",
+  "description": "Schema for .agent-pipeline/pipelines/*.yml configuration files"
+}

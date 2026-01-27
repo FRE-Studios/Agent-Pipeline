@@ -1,0 +1,25 @@
+# Loop Pipeline Example
+# Demonstrates pipeline-level looping configuration
+# Docs: https://github.com/FRE-Studios/agent-pipeline
+
+name: loop-example
+trigger: manual
+
+agents:
+  - name: socratic-explorer
+    agent: .agent-pipeline/agents/socratic-explorer.md
+    timeout: 300
+
+looping:
+  enabled: true
+  maxIterations: 5
+
+# Handover settings - inter-stage communication
+handover:
+  directory: pipeline-runs/loop-example
+
+# Notification configuration (optional)
+notifications:
+  enabled: true
+
+

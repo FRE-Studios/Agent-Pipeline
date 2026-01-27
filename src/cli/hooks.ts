@@ -1,0 +1,227 @@
+// src/cli/hooks.ts
+
+import * as fs from 'fs/promises';
+import * as path from 'path';
+
+export class HookInstaller {
+  constructor(private repoPath: string) {}
+
+  async install(pipelineName: string, hookType: string): Promise<void> {
+    const hookPath = path.join(this.repoPath, '.git', 'hooks', hookType);
+
+    // Check if hook already exists
+    let existingHook = '';
+    try {
+      existingHook = await fs.readFile(hookPath, 'utf-8');
+    } catch {
+      // File doesn't exist, that's fine
+    }
+
+    // Generate hook script
+    const hookScript = this.generateHookScript(pipelineName);
+
+    // Check if this specific pipeline is already installed in this hook
+    const hookMarker = `# Agent Pipeline (${hookType}): ${pipelineName}`;
+
+    if (existingHook) {
+      // Check if already installed
+      if (existingHook.includes(hookMarker)) {
+        console.log(`⚠️  Agent Pipeline already installed for ${pipelineName} on ${hookType}`);
+        return;
+      }
+
+      // Append to existing hook
+      const combinedHook = `${existingHook}\n\n${hookMarker}\n${hookScript}`;
+      await fs.writeFile(hookPath, combinedHook, 'utf-8');
+    } else {
+      // Create new hook
+      await fs.writeFile(hookPath, `#!/bin/bash\n\n${hookMarker}\n${hookScript}`, 'utf-8');
+    }
+
+    // Make executable
+    await fs.chmod(hookPath, 0o755);
+
+    console.log(`✅ ${hookType} hook installed`);
+    console.log(`   Pipeline: ${pipelineName}`);
+    console.log(`   Hook: .git/hooks/${hookType}`);
+  }
+
+  async uninstall(
+    hookTypeOrOptions?: string | { hookType?: string; pipelineName?: string; removeAll?: boolean }
+  ): Promise<void> {
+    const options = typeof hookTypeOrOptions === 'string'
+      ? { hookType: hookTypeOrOptions }
+      : hookTypeOrOptions ?? {};
+
+    // If hookType specified, only uninstall from that hook
+    // Otherwise, check all common hook types
+    const hookTypes = options.hookType
+      ? [options.hookType]
+      : ['pre-commit', 'post-commit', 'pre-push', 'post-merge'];
+
+    let uninstalledCount = 0;
+    const pipelineName = options.pipelineName;
+    const removeAll = options.removeAll ?? !pipelineName;
+
+    for (const type of hookTypes) {
+      const hookPath = path.join(this.repoPath, '.git', 'hooks', type);
+
+      try {
+        const content = await fs.readFile(hookPath, 'utf-8');
+
+        // Remove agent-pipeline sections
+        const lines = content.split('\n');
+        const filtered = [];
+        let inPipelineSection = false;
+        let blankLineCount = 0;
+        let removedSection = false;
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+
+          if (line.includes('# Agent Pipeline')) {
+            const isTargetPipeline = pipelineName
+              ? line.includes(`: ${pipelineName}`)
+              : false;
+
+            if (removeAll || isTargetPipeline) {
+              inPipelineSection = true;
+              blankLineCount = 0;
+              removedSection = true;
+              continue;
+            }
+
+            filtered.push(line);
+            continue;
+          }
+
+          if (inPipelineSection) {
+            if (line.trim() === '') {
+              blankLineCount++;
+              // End section after 2 consecutive blank lines or if at end of file
+              if (blankLineCount >= 2 || i === lines.length - 1) {
+                inPipelineSection = false;
+                blankLineCount = 0;
+              }
+              continue;
+            } else {
+              // Non-blank line, reset blank counter and skip
+              blankLineCount = 0;
+              continue;
+            }
+          }
+
+          filtered.push(line);
+        }
+
+        if (!removedSection) {
+          continue;
+        }
+
+        const newContent = filtered.join('\n').trim();
+
+        if (newContent === '#!/bin/bash' || !newContent) {
+          // Hook only had agent-pipeline, remove it
+          await fs.unlink(hookPath);
+          console.log(`✅ ${type} hook removed (no other hook content found)`);
+          uninstalledCount++;
+        } else {
+          // Other hooks exist, just remove our section
+          await fs.writeFile(hookPath, newContent, 'utf-8');
+          if (pipelineName) {
+            console.log(`✅ Removed ${pipelineName} from ${type} hook`);
+          } else {
+            console.log(`✅ Agent Pipeline section removed from ${type} hook`);
+          }
+          uninstalledCount++;
+        }
+      } catch (error) {
+        // Hook doesn't exist or can't be read, skip silently
+        continue;
+      }
+    }
+
+    if (uninstalledCount === 0) {
+      if (pipelineName) {
+        console.log(`ℹ️  No Agent Pipeline hooks found for ${pipelineName}`);
+      } else {
+        console.log('ℹ️  No Agent Pipeline hooks found to uninstall');
+      }
+    }
+  }
+
+  private generateHookScript(pipelineName: string): string {
+    return `# Skip if last commit was created by Agent Pipeline
+if git log -1 --pretty=%B | grep -Eq "^Agent-Pipeline: true$"; then
+  exit 0
+fi
+
+# Load user environment for ANTHROPIC_API_KEY if set (workaround for GUI git clients)
+# Note: Claude Code's Keychain auth won't work from GUI apps - see docs/configuration.md
+for profile in "$HOME/.zshenv" "$HOME/.profile"; do
+  if [ -f "$profile" ]; then
+    . "$profile" 2>/dev/null || true
+    break
+  fi
+done
+
+# Load repo-specific env overrides (e.g., ANTHROPIC_API_KEY)
+if [ -f ".agent-pipeline/env" ]; then
+  . ".agent-pipeline/env" 2>/dev/null || true
+fi
+
+# Ensure PATH includes common locations for non-interactive hooks
+if ! command -v npx >/dev/null 2>&1 && [ -s "$HOME/.nvm/nvm.sh" ]; then
+  . "$HOME/.nvm/nvm.sh"
+fi
+export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+
+# Prevent overlapping runs for the same pipeline
+lockDir=".agent-pipeline/locks"
+lockPath="$lockDir/${pipelineName}.lock"
+logDir=".agent-pipeline/logs"
+logPath="$logDir/${pipelineName}.log"
+
+mkdir -p "$lockDir"
+mkdir -p "$logDir"
+
+if [ -f "$lockPath/pid" ]; then
+  oldPid=$(cat "$lockPath/pid")
+  if ! kill -0 "$oldPid" 2>/dev/null; then
+    rm -rf "$lockPath"
+  fi
+fi
+
+if ! mkdir "$lockPath" 2>/dev/null; then
+  exit 0
+fi
+
+# Run Agent Pipeline in background to avoid blocking
+if command -v agent-pipeline >/dev/null 2>&1; then
+  runner="agent-pipeline"
+else
+  runner="npx agent-pipeline"
+fi
+
+# Brief delay to let git fully release index locks after commit
+sleep 1
+
+# Unset git env vars set by hook context - relative paths cause worktree failures
+unset GIT_INDEX_FILE
+unset GIT_DIR
+unset GIT_WORK_TREE
+unset GIT_EXEC_PATH
+
+echo "[agent-pipeline] $(date) starting ${pipelineName}" >> "$logPath"
+nohup $runner run ${pipelineName} --quiet >> "$logPath" 2>&1 &
+pipelinePid=$!
+echo "$pipelinePid" > "$lockPath/pid"
+
+( wait "$pipelinePid"; rm -rf "$lockPath" ) >/dev/null 2>&1 &
+
+# Notify user with helpful details
+echo "🤖 Agent Pipeline running in background (${pipelineName})"
+echo "   Log: $logPath"
+echo "   Run: agent-pipeline history --last"`;
+  }
+}

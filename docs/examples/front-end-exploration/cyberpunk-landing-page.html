@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AGENT://PIPELINE - Orchestrate AI Agents Like a Mainframe</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Matrix color scheme */
+      --color-bg: #0a0a0a;
+      --color-surface: #0f0f0f;
+      --color-text: #00ff41;
+      --color-text-dim: #00aa2a;
+      --color-primary: #00ff41;
+      --color-secondary: #00ffff;
+      --color-accent: #00ffff;
+      --color-error: #ff0040;
+      --color-warning: #ffaa00;
+      --color-glow: rgba(0, 255, 65, 0.4);
+      --color-glow-cyan: rgba(0, 255, 255, 0.3);
+
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+      --font-display: 'Share Tech Mono', monospace;
+
+      --text-xs: 0.7rem;
+      --text-sm: 0.8rem;
+      --text-base: 0.9rem;
+      --text-lg: 1.1rem;
+      --text-xl: 1.4rem;
+      --text-2xl: 2rem;
+      --text-3xl: 3rem;
+
+      --space-1: 0.25rem;
+      --space-2: 0.5rem;
+      --space-3: 0.75rem;
+      --space-4: 1rem;
+      --space-6: 1.5rem;
+      --space-8: 2rem;
+      --space-12: 3rem;
+      --space-16: 4rem;
+
+      --border: 1px solid var(--color-text-dim);
+      --border-glow: 1px solid var(--color-primary);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-mono);
+      font-size: var(--text-base);
+      line-height: 1.6;
+      background: var(--color-bg);
+      color: var(--color-text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Scanlines overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent 0px,
+        transparent 1px,
+        rgba(0, 0, 0, 0.3) 1px,
+        rgba(0, 0, 0, 0.3) 2px
+      );
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    /* CRT flicker */
+    @keyframes flicker {
+      0%, 100% { opacity: 1; }
+      92% { opacity: 1; }
+      93% { opacity: 0.9; }
+      94% { opacity: 1; }
+      97% { opacity: 0.95; }
+    }
+
+    body {
+      animation: flicker 4s infinite;
+    }
+
+    /* Noise grain */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      opacity: 0.02;
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    /* Utility classes */
+    .glow {
+      text-shadow:
+        0 0 5px currentColor,
+        0 0 10px currentColor,
+        0 0 20px currentColor;
+    }
+
+    .glow-cyan {
+      text-shadow:
+        0 0 5px var(--color-accent),
+        0 0 10px var(--color-accent),
+        0 0 20px var(--color-accent);
+      color: var(--color-accent);
+    }
+
+    .box-glow {
+      box-shadow:
+        0 0 5px var(--color-glow),
+        0 0 10px var(--color-glow),
+        inset 0 0 5px var(--color-glow);
+    }
+
+    /* Glitch effect */
+    @keyframes glitch {
+      0%, 100% {
+        clip-path: inset(0 0 0 0);
+        transform: translate(0);
+      }
+      20% {
+        clip-path: inset(20% 0 60% 0);
+        transform: translate(-2px, 1px);
+      }
+      40% {
+        clip-path: inset(60% 0 20% 0);
+        transform: translate(2px, -1px);
+      }
+      60% {
+        clip-path: inset(40% 0 40% 0);
+        transform: translate(-1px, 1px);
+      }
+      80% {
+        clip-path: inset(10% 0 80% 0);
+        transform: translate(1px, -1px);
+      }
+    }
+
+    .glitch {
+      position: relative;
+    }
+
+    .glitch::before,
+    .glitch::after {
+      content: attr(data-text);
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .glitch::before {
+      color: var(--color-accent);
+      animation: glitch 3s infinite;
+      clip-path: inset(0 0 50% 0);
+    }
+
+    .glitch::after {
+      color: var(--color-error);
+      animation: glitch 2s infinite reverse;
+      clip-path: inset(50% 0 0 0);
+    }
+
+    /* Blinking cursor */
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    .cursor {
+      display: inline-block;
+      width: 0.6em;
+      height: 1.2em;
+      background: var(--color-primary);
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+    }
+
+    /* Type animation */
+    @keyframes typeIn {
+      from { width: 0; }
+      to { width: 100%; }
+    }
+
+    .type-in {
+      overflow: hidden;
+      white-space: nowrap;
+      animation: typeIn 2s steps(40) forwards;
+      border-right: 2px solid var(--color-primary);
+    }
+
+    /* Layout */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 var(--space-4);
+    }
+
+    /* Navigation */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(10, 10, 10, 0.95);
+      border-bottom: var(--border);
+      backdrop-filter: blur(10px);
+    }
+
+    .nav-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-3) var(--space-4);
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .nav-logo {
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-primary);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: var(--space-6);
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--color-text-dim);
+      text-decoration: none;
+      text-transform: uppercase;
+      font-size: var(--text-sm);
+      letter-spacing: 0.05em;
+      transition: color 0.2s, text-shadow 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--color-primary);
+      text-shadow: 0 0 10px var(--color-glow);
+    }
+
+    /* Hero section */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding: var(--space-16) 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Matrix rain background */
+    .matrix-bg {
+      position: absolute;
+      inset: 0;
+      opacity: 0.1;
+      background:
+        linear-gradient(180deg, transparent 0%, var(--color-bg) 100%),
+        url("data:image/svg+xml,%3Csvg width='20' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='0' y='15' fill='%2300ff41' font-family='monospace' font-size='12'%3E01%3C/text%3E%3Ctext x='0' y='35' fill='%2300ff41' font-family='monospace' font-size='12'%3E10%3C/text%3E%3Ctext x='0' y='55' fill='%2300ff41' font-family='monospace' font-size='12'%3E11%3C/text%3E%3Ctext x='0' y='75' fill='%2300ff41' font-family='monospace' font-size='12'%3E00%3C/text%3E%3C/svg%3E");
+      background-size: 20px 100px;
+      animation: rain 20s linear infinite;
+    }
+
+    @keyframes rain {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 1000px; }
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .ascii-logo {
+      font-size: var(--text-xs);
+      line-height: 1.1;
+      white-space: pre;
+      color: var(--color-primary);
+      margin-bottom: var(--space-6);
+    }
+
+    .hero-tagline {
+      font-family: var(--font-display);
+      font-size: var(--text-2xl);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-4);
+      color: var(--color-accent);
+    }
+
+    .hero-description {
+      font-size: var(--text-lg);
+      color: var(--color-text-dim);
+      max-width: 600px;
+      margin-bottom: var(--space-8);
+    }
+
+    .hero-description strong {
+      color: var(--color-text);
+    }
+
+    /* Terminal window */
+    .terminal-window {
+      background: var(--color-surface);
+      border: var(--border);
+      margin-bottom: var(--space-8);
+      max-width: 700px;
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      border-bottom: var(--border);
+      font-size: var(--text-sm);
+      color: var(--color-text-dim);
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: var(--space-1);
+    }
+
+    .terminal-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-text-dim);
+    }
+
+    .terminal-dot--red { background: var(--color-error); }
+    .terminal-dot--yellow { background: var(--color-warning); }
+    .terminal-dot--green { background: var(--color-primary); }
+
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .terminal-body {
+      padding: var(--space-4);
+      font-size: var(--text-sm);
+      line-height: 1.8;
+    }
+
+    .terminal-line {
+      margin-bottom: var(--space-1);
+    }
+
+    .terminal-prompt {
+      color: var(--color-accent);
+    }
+
+    .terminal-output {
+      color: var(--color-text-dim);
+      padding-left: var(--space-4);
+    }
+
+    /* CTA buttons */
+    .cta-group {
+      display: flex;
+      gap: var(--space-4);
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-6);
+      background: transparent;
+      border: var(--border-glow);
+      color: var(--color-primary);
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: rgba(0, 255, 65, 0.1);
+      box-shadow:
+        0 0 10px var(--color-glow),
+        inset 0 0 10px var(--color-glow);
+    }
+
+    .btn--primary {
+      background: var(--color-primary);
+      color: var(--color-bg);
+    }
+
+    .btn--primary:hover {
+      background: var(--color-text);
+      box-shadow: 0 0 20px var(--color-glow);
+    }
+
+    .btn--secondary {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+    }
+
+    .btn--secondary:hover {
+      background: rgba(0, 255, 255, 0.1);
+      box-shadow:
+        0 0 10px var(--color-glow-cyan),
+        inset 0 0 10px var(--color-glow-cyan);
+    }
+
+    /* Section styling */
+    section {
+      padding: var(--space-16) 0;
+      border-top: var(--border);
+    }
+
+    .section-header {
+      margin-bottom: var(--space-12);
+    }
+
+    .section-label {
+      font-size: var(--text-sm);
+      color: var(--color-text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      margin-bottom: var(--space-2);
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: var(--text-2xl);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Features grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: var(--space-4);
+    }
+
+    .feature-card {
+      background: var(--color-surface);
+      border: var(--border);
+      padding: var(--space-6);
+      transition: all 0.3s;
+    }
+
+    .feature-card:hover {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 20px var(--color-glow);
+    }
+
+    .feature-icon {
+      font-size: var(--text-2xl);
+      margin-bottom: var(--space-4);
+      color: var(--color-accent);
+    }
+
+    .feature-title {
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-2);
+    }
+
+    .feature-description {
+      color: var(--color-text-dim);
+      font-size: var(--text-sm);
+    }
+
+    /* Code block */
+    .code-block {
+      background: var(--color-surface);
+      border: var(--border);
+      overflow: hidden;
+    }
+
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--space-2) var(--space-3);
+      border-bottom: var(--border);
+      font-size: var(--text-sm);
+      color: var(--color-text-dim);
+    }
+
+    .code-body {
+      padding: var(--space-4);
+      overflow-x: auto;
+      font-size: var(--text-sm);
+      line-height: 1.8;
+    }
+
+    .code-body pre {
+      margin: 0;
+    }
+
+    .code-comment { color: var(--color-text-dim); }
+    .code-key { color: var(--color-accent); }
+    .code-string { color: var(--color-primary); }
+    .code-number { color: var(--color-warning); }
+
+    /* Workflow section */
+    .workflow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--space-4);
+      margin-top: var(--space-8);
+    }
+
+    .workflow-step {
+      text-align: center;
+      padding: var(--space-6);
+      border: var(--border);
+      position: relative;
+    }
+
+    .workflow-step::after {
+      content: '>';
+      position: absolute;
+      right: -16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--color-text-dim);
+      font-size: var(--text-xl);
+    }
+
+    .workflow-step:last-child::after {
+      display: none;
+    }
+
+    .workflow-number {
+      font-family: var(--font-display);
+      font-size: var(--text-3xl);
+      color: var(--color-accent);
+      margin-bottom: var(--space-2);
+    }
+
+    .workflow-label {
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-size: var(--text-sm);
+    }
+
+    /* Use cases */
+    .use-cases {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: var(--space-4);
+    }
+
+    .use-case {
+      padding: var(--space-4);
+      border-left: 2px solid var(--color-primary);
+      background: rgba(0, 255, 65, 0.02);
+    }
+
+    .use-case-title {
+      font-size: var(--text-lg);
+      margin-bottom: var(--space-2);
+      color: var(--color-primary);
+    }
+
+    .use-case-description {
+      color: var(--color-text-dim);
+      font-size: var(--text-sm);
+    }
+
+    /* Installation section */
+    .install-command {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      background: var(--color-surface);
+      border: var(--border);
+      padding: var(--space-4);
+      max-width: 500px;
+    }
+
+    .install-prompt {
+      color: var(--color-accent);
+    }
+
+    .install-text {
+      flex: 1;
+      color: var(--color-text);
+    }
+
+    .install-copy {
+      background: none;
+      border: none;
+      color: var(--color-text-dim);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      text-transform: uppercase;
+      transition: color 0.2s;
+    }
+
+    .install-copy:hover {
+      color: var(--color-primary);
+    }
+
+    /* Status indicators */
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      font-size: var(--text-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .status--online { color: var(--color-primary); }
+
+    /* Footer */
+    .footer {
+      padding: var(--space-8) 0;
+      border-top: var(--border);
+      text-align: center;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: var(--space-6);
+      margin-bottom: var(--space-4);
+    }
+
+    .footer-links a {
+      color: var(--color-text-dim);
+      text-decoration: none;
+      text-transform: uppercase;
+      font-size: var(--text-sm);
+      letter-spacing: 0.05em;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--color-primary);
+    }
+
+    .footer-copyright {
+      color: var(--color-text-dim);
+      font-size: var(--text-xs);
+    }
+
+    .footer-ascii {
+      margin-top: var(--space-4);
+      font-size: var(--text-xs);
+      color: var(--color-text-dim);
+      white-space: pre;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .nav-links {
+        display: none;
+      }
+
+      .hero-tagline {
+        font-size: var(--text-xl);
+      }
+
+      .ascii-logo {
+        font-size: 0.5rem;
+      }
+
+      .workflow-step::after {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-inner">
+      <div class="nav-logo glow">> AGENT://PIPELINE</div>
+      <ul class="nav-links">
+        <li><a href="#features">FEATURES</a></li>
+        <li><a href="#workflow">WORKFLOW</a></li>
+        <li><a href="#install">INSTALL</a></li>
+        <li><a href="https://github.com/FRE-Studios/agent-pipeline">GITHUB</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="matrix-bg"></div>
+    <div class="container">
+      <div class="hero-content">
+        <pre class="ascii-logo glow">
+ █████╗  ██████╗ ███████╗███╗   ██╗████████╗
+██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝
+███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║
+██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║
+██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║
+╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝
+██████╗ ██╗██████╗ ███████╗██╗     ██╗███╗   ██╗███████╗
+██╔══██╗██║██╔══██╗██╔════╝██║     ██║████╗  ██║██╔════╝
+██████╔╝██║██████╔╝█████╗  ██║     ██║██╔██╗ ██║█████╗
+██╔═══╝ ██║██╔═══╝ ██╔══╝  ██║     ██║██║╚██╗██║██╔══╝
+██║     ██║██║     ███████╗███████╗██║██║ ╚████║███████╗
+╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝╚═╝╚═╝  ╚═══╝╚══════╝
+        </pre>
+
+        <h1 class="hero-tagline glow-cyan">
+          ORCHESTRATE AI AGENTS LIKE A MAINFRAME
+        </h1>
+
+        <p class="hero-description">
+          <strong>Multi-agent orchestration</strong> for the command line.
+          Chain AI agents together with <strong>parallel execution</strong>,
+          <strong>dependency management</strong>, and <strong>seamless handover</strong>
+          between stages. Your pipelines, your rules.
+        </p>
+
+        <div class="terminal-window box-glow">
+          <div class="terminal-header">
+            <div class="terminal-dots">
+              <span class="terminal-dot terminal-dot--red"></span>
+              <span class="terminal-dot terminal-dot--yellow"></span>
+              <span class="terminal-dot terminal-dot--green"></span>
+            </div>
+            <span class="terminal-title">TERMINAL://DEMO</span>
+            <span class="status status--online">
+              <span class="status-dot"></span>
+              LIVE
+            </span>
+          </div>
+          <div class="terminal-body">
+            <div class="terminal-line">
+              <span class="terminal-prompt">root@pipeline:~$</span> agent-pipeline run design-workflow.yaml
+            </div>
+            <div class="terminal-output">
+              [14:23:01] INIT    Pipeline: design-workflow<br>
+              [14:23:02] START   Stage: product-owner<br>
+              [14:23:58] SUCCESS Stage: product-owner [56.2s]<br>
+              [14:23:59] PARALLEL Spawning 3 agents...<br>
+              [14:24:00] START   Stage: brutalist-designer<br>
+              [14:24:00] START   Stage: cyberpunk-designer<br>
+              [14:24:00] START   Stage: indie-game-designer<br>
+              [14:25:12] SUCCESS All parallel stages complete<br>
+              [14:25:13] <span class="glow">ACCESS GRANTED</span><span class="cursor"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="cta-group">
+          <a href="#install" class="btn btn--primary">> INSTALL NOW</a>
+          <a href="https://github.com/FRE-Studios/agent-pipeline" class="btn btn--secondary">> VIEW SOURCE</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-label">> SYSTEM://CAPABILITIES</p>
+        <h2 class="section-title glow">CORE FEATURES</h2>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">[||]</div>
+          <h3 class="feature-title">PARALLEL EXECUTION</h3>
+          <p class="feature-description">
+            Run multiple AI agents simultaneously. Maximize throughput by executing
+            independent stages in parallel across your pipeline.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">{=>}</div>
+          <h3 class="feature-title">DEPENDENCY GRAPH</h3>
+          <p class="feature-description">
+            Define stage dependencies with precision. The pipeline engine resolves
+            execution order and manages the flow automatically.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">[>>]</div>
+          <h3 class="feature-title">AUTO HANDOVER</h3>
+          <p class="feature-description">
+            Context flows between agents seamlessly. Each stage receives outputs
+            from its dependencies via structured handover files.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">/*.yaml</div>
+          <h3 class="feature-title">YAML CONFIGS</h3>
+          <p class="feature-description">
+            Define pipelines declaratively. YAML-based configuration keeps your
+            workflows version-controlled and reproducible.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">[!!]</div>
+          <h3 class="feature-title">FAILURE STRATEGIES</h3>
+          <p class="feature-description">
+            Configure how the pipeline handles failures. Stop on error, continue
+            with warnings, or implement custom recovery logic.
+          </p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">[~~]</div>
+          <h3 class="feature-title">TIMEOUT CONTROL</h3>
+          <p class="feature-description">
+            Set per-stage timeouts to prevent runaway agents. Kill stages that
+            exceed their allocated execution window.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Workflow Section -->
+  <section id="workflow">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-label">> PROCESS://FLOW</p>
+        <h2 class="section-title glow">HOW IT WORKS</h2>
+      </div>
+
+      <div class="workflow">
+        <div class="workflow-step">
+          <div class="workflow-number glow-cyan">01</div>
+          <div class="workflow-label">DEFINE YAML</div>
+        </div>
+        <div class="workflow-step">
+          <div class="workflow-number glow-cyan">02</div>
+          <div class="workflow-label">RUN PIPELINE</div>
+        </div>
+        <div class="workflow-step">
+          <div class="workflow-number glow-cyan">03</div>
+          <div class="workflow-label">AGENTS EXECUTE</div>
+        </div>
+        <div class="workflow-step">
+          <div class="workflow-number glow-cyan">04</div>
+          <div class="workflow-label">COLLECT OUTPUT</div>
+        </div>
+      </div>
+
+      <div class="code-block" style="margin-top: var(--space-8);">
+        <div class="code-header">
+          <span>pipeline.yaml</span>
+          <span class="status status--online">
+            <span class="status-dot"></span>
+            VALID
+          </span>
+        </div>
+        <div class="code-body">
+<pre><span class="code-comment"># Multi-agent design pipeline</span>
+<span class="code-key">name:</span> <span class="code-string">design-exploration</span>
+<span class="code-key">version:</span> <span class="code-string">"1.0"</span>
+
+<span class="code-key">stages:</span>
+  <span class="code-key">product-owner:</span>
+    <span class="code-key">agent:</span> <span class="code-string">./agents/product-owner.md</span>
+    <span class="code-key">timeout:</span> <span class="code-number">120</span>
+
+  <span class="code-key">brutalist-designer:</span>
+    <span class="code-key">agent:</span> <span class="code-string">./agents/brutalist.md</span>
+    <span class="code-key">depends_on:</span> <span class="code-string">[product-owner]</span>
+    <span class="code-key">parallel:</span> <span class="code-string">true</span>
+
+  <span class="code-key">cyberpunk-designer:</span>
+    <span class="code-key">agent:</span> <span class="code-string">./agents/cyberpunk.md</span>
+    <span class="code-key">depends_on:</span> <span class="code-string">[product-owner]</span>
+    <span class="code-key">parallel:</span> <span class="code-string">true</span>
+
+  <span class="code-key">final-review:</span>
+    <span class="code-key">agent:</span> <span class="code-string">./agents/reviewer.md</span>
+    <span class="code-key">depends_on:</span> <span class="code-string">[brutalist-designer, cyberpunk-designer]</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Use Cases Section -->
+  <section>
+    <div class="container">
+      <div class="section-header">
+        <p class="section-label">> TARGET://SCENARIOS</p>
+        <h2 class="section-title glow">USE CASES</h2>
+      </div>
+
+      <div class="use-cases">
+        <div class="use-case">
+          <h3 class="use-case-title">> DESIGN EXPLORATION</h3>
+          <p class="use-case-description">
+            Run multiple design agents in parallel to explore different aesthetic
+            directions. Compare outputs and iterate quickly.
+          </p>
+        </div>
+        <div class="use-case">
+          <h3 class="use-case-title">> CODE GENERATION</h3>
+          <p class="use-case-description">
+            Chain code generation, review, and testing agents. Automated quality
+            gates ensure only passing code moves forward.
+          </p>
+        </div>
+        <div class="use-case">
+          <h3 class="use-case-title">> CONTENT PIPELINES</h3>
+          <p class="use-case-description">
+            Research, write, edit, and fact-check with specialized agents.
+            Each stage refines the output of the previous.
+          </p>
+        </div>
+        <div class="use-case">
+          <h3 class="use-case-title">> DATA PROCESSING</h3>
+          <p class="use-case-description">
+            Extract, transform, and analyze data with agent chains. Parallel
+            processing handles large datasets efficiently.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Installation Section -->
+  <section id="install">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-label">> INIT://SEQUENCE</p>
+        <h2 class="section-title glow">QUICK START</h2>
+      </div>
+
+      <div class="install-command box-glow">
+        <span class="install-prompt">$</span>
+        <code class="install-text">npm install -g agent-pipeline</code>
+        <button class="install-copy" onclick="navigator.clipboard.writeText('npm install -g agent-pipeline')">[COPY]</button>
+      </div>
+
+      <div class="terminal-window" style="margin-top: var(--space-6); max-width: 600px;">
+        <div class="terminal-header">
+          <div class="terminal-dots">
+            <span class="terminal-dot terminal-dot--red"></span>
+            <span class="terminal-dot terminal-dot--yellow"></span>
+            <span class="terminal-dot terminal-dot--green"></span>
+          </div>
+          <span class="terminal-title">TERMINAL://QUICKSTART</span>
+        </div>
+        <div class="terminal-body">
+          <div class="terminal-line">
+            <span class="terminal-prompt">$</span> npm install -g agent-pipeline
+          </div>
+          <div class="terminal-line">
+            <span class="terminal-prompt">$</span> agent-pipeline init my-pipeline
+          </div>
+          <div class="terminal-line">
+            <span class="terminal-prompt">$</span> agent-pipeline run my-pipeline/pipeline.yaml
+          </div>
+          <div class="terminal-output" style="margin-top: var(--space-2);">
+            [OK] Pipeline initialized<br>
+            [OK] Configuration valid<br>
+            [OK] Executing stages...<span class="cursor"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section style="text-align: center;">
+    <div class="container">
+      <h2 class="section-title glitch glow" data-text="JACK IN">JACK IN</h2>
+      <p style="color: var(--color-text-dim); margin: var(--space-6) 0; max-width: 500px; margin-left: auto; margin-right: auto;">
+        Open source. MIT licensed. Ready for production.<br>
+        Join the network of developers orchestrating the future.
+      </p>
+      <div class="cta-group" style="justify-content: center;">
+        <a href="https://github.com/FRE-Studios/agent-pipeline" class="btn btn--primary">> GITHUB</a>
+        <a href="https://github.com/FRE-Studios/agent-pipeline#documentation" class="btn btn--secondary">> DOCS</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-links">
+        <a href="https://github.com/FRE-Studios/agent-pipeline">SOURCE</a>
+        <a href="https://github.com/FRE-Studios/agent-pipeline/issues">ISSUES</a>
+        <a href="https://github.com/FRE-Studios/agent-pipeline#license">LICENSE</a>
+      </div>
+      <p class="footer-copyright">
+        > FRE-STUDIOS // MIT LICENSE // 2024
+      </p>
+      <pre class="footer-ascii">
+═══════════════════════════════════════════════════
+         CONNECTION TERMINATED // END TRANSMISSION
+═══════════════════════════════════════════════════
+      </pre>
+    </div>
+  </footer>
+
+</body>
+</html>

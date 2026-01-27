@@ -1,0 +1,81 @@
+# Design Exploration Pipeline
+# Rapidly prototype requirements across multiple design aesthetics in parallel
+# Docs: https://github.com/FRE-Studios/agent-pipeline
+
+name: front-end-parallel-example
+trigger: manual
+
+agents:
+  # Stage 1: Transform user input into structured requirements
+  - name: product-owner
+    agent: .agent-pipeline/agents/product_owner.md
+    timeout: 300
+    inputs:
+      prompt: "Design a compelling landing page for the Agent Pipeline cli tool. Run bash `agent-pipeline help` and `agent-pipeline schema` to get up to date capabilities of this tool."
+
+  # Stage 2: Design agents run in parallel, each interpreting requirements differently
+  - name: brutalist
+    agent: .agent-pipeline/agents/brutalist_purist.md
+    dependsOn:
+      - product-owner
+    timeout: 900
+
+  - name: indie-game
+    agent: .agent-pipeline/agents/indie_game_dev.md
+    dependsOn:
+      - product-owner
+    timeout: 900
+
+  - name: cyberpunk
+    agent: .agent-pipeline/agents/cyberpunk_hacker.md
+    dependsOn:
+      - product-owner
+    timeout: 900
+
+  # # Example Agents - Remove comments to run full pipeline
+
+  # # Uncomment below agents for more diverse exploration (check dependsOn on showcase agent!)
+
+  # # Warning - Pipelines may use many tokens, use with caution.
+
+  # - name: luxury-editorial
+  #   agent: .agent-pipeline/agents/luxury_editorial.md
+  #   dependsOn:
+  #     - product-owner
+  #   timeout: 600
+
+  # - name: retro-90s
+  #   agent: .agent-pipeline/agents/retro_90s_webmaster.md
+  #   dependsOn:
+  #     - product-owner
+  #   timeout: 600
+
+  # - name: swiss-modernist
+  #   agent: .agent-pipeline/agents/swiss_modernist.md
+  #   dependsOn:
+  #     - product-owner
+  #   timeout: 600
+
+  # Stage 3: Collect all prototypes into a showcase
+  - name: showcase
+    agent: .agent-pipeline/agents/showcase.md
+    dependsOn:
+      - brutalist
+      - indie-game
+      - cyberpunk
+      # - luxury-editorial
+      # - retro-90s
+      # - swiss-modernist
+    timeout: 300
+
+# Handover settings - inter-stage communication
+handover:
+  directory: pipeline-runs/front-end-parallel-example
+
+# Execution settings
+execution:
+  failureStrategy: continue           # Keep going even if one design agent fails
+
+# Notification configuration (optional)
+notifications:
+  enabled: true                       # Enable local notifications for hook runs

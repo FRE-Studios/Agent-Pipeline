@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# State and runtime data
+.agent-pipeline/state/
+
+# Test outputs
+*.log
+.tmp/
+
+# Test coverage reports
+coverage/
+.vitest-cache/
+*.lcov
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+

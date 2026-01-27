@@ -1,0 +1,58 @@
+# Post-Commit Review Pipeline
+# Automated code review triggered after each commit
+# Docs: https://github.com/FRE-Studios/agent-pipeline
+
+name: post-commit-example
+trigger: post-commit
+
+# Agent stages
+agents:
+  - name: memory-doc-updater
+    agent: .agent-pipeline/agents/memory-doc-updater.md
+    timeout: 300
+
+  # # Example Flow - Remove comments to run full pipeline
+
+  # # Uncomment the full flow below AND delete standalone doc-updater for comprehensive review.
+
+  # # Warning - Pipelines may use many tokens, use with caution.
+
+  # # Sequential execution: code-review -> quality-check -> doc-updater
+  # # Each stage builds on the previous stage's results
+  # - name: code-review
+  #   agent: .agent-pipeline/agents/code-reviewer.md
+  #   timeout: 900                    # Hard limit per agent run (seconds)
+
+  # - name: quality-check
+  #   agent: .agent-pipeline/agents/quality-checker.md
+  #   dependsOn:
+  #     - code-review
+  #   timeout: 900                    # Hard limit per agent run (seconds)
+  #   onFail: warn                    # Non-blocking: log but keep running
+
+  # - name: memory-doc-updater
+  #   agent: .agent-pipeline/agents/memory-doc-updater.md
+  #   dependsOn:
+  #     - quality-check
+  #   timeout: 300                    # Hard limit per agent run (seconds)
+
+# Git workflow configuration - all git-related settings
+git:
+  autoCommit: true                    # Enable when agents should commit fixes after each stage
+  commitPrefix: "[pipeline:{{stage}}]"  # Standardized prefix for easy commit filtering
+  baseBranch: main                    # PR base and merge target for the pipeline branch
+  branchStrategy: unique-and-delete   # Self-cleaning: auto-removes worktree on success, preserves on failure for debugging
+  branchPrefix: review-pipeline       # Keeps pipeline branches easy to find/clean up
+  mergeStrategy: local-merge          # Options: 'pull-request' (push + PR), 'local-merge' (merge locally), 'none' (keep on branch)
+  # pullRequest:
+    # title: "Post Commit Automations" 
+    # reviewers: []                   # Optional GitHub usernames to request review from
+    # labels:                         # Optional PR labels (must exist in GitHub repo first)
+    #   - automated
+    #   - code-review
+
+# Notification configuration (optional)
+notifications:
+  enabled: true                       # Enable local notifications for hook runs
+
+
