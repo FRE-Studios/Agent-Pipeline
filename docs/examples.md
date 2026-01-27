@@ -1,6 +1,6 @@
 # Example Pipelines
 
-Agent Pipeline ships with two ready-to-run examples. Run `agent-pipeline init` to create both. Both examples are configured with sensible defaults to minimize token usage - uncomment additional agents to unlock full capabilities.
+Agent Pipeline ships with three ready-to-run examples. Run `agent-pipeline init` to create them all. These examples are configured with sensible defaults to minimize token usage (uncomment additional agents to unlock full capabilities).
 
 ## Front-End Parallel Example (`front-end-parallel-example.yml`)
 
@@ -28,8 +28,8 @@ Agent Pipeline ships with two ready-to-run examples. Run `agent-pipeline init` t
 **Features**:
 - True parallel execution with DAG dependencies
 - Design diversity from the same requirements
-- Worktree isolation - your working directory stays untouched
-- `autoCommit: false` - exploration mode
+- Worktree isolation (your working directory stays untouched)
+- `autoCommit: false` (exploration mode)
 
 Run it with:
 
@@ -54,8 +54,8 @@ agent-pipeline run front-end-parallel-example
 When the full flow is enabled, agents run sequentially: `code-review` → `quality-check` → `doc-updater`
 
 **Features**:
-- `failureStrategy: continue` - keeps going if a stage fails
-- `onFail: warn` on quality-check - non-blocking improvements
+- `failureStrategy: continue` (keeps going if a stage fails)
+- `onFail: warn` on quality-check (non-blocking improvements)
 - Automated commits with `[pipeline:{{stage}}]` prefix
 
 Run it with:
@@ -65,7 +65,7 @@ Run it with:
 agent-pipeline run post-commit-example
 
 # Or install as git hook for automatic execution
-agent-pipeline install post-commit-example
+agent-pipeline hooks install post-commit-example
 ```
 
 Note: enable `git.branchStrategy` in the pipeline config before installing the hook.

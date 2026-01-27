@@ -69,7 +69,7 @@ handover:
 # Looping settings - inter-pipeline communication
 looping:
   enabled: true                    # Auto-enable loop mode for this pipeline
-  maxIterations: 100 
+  maxIterations: 100
 
 # Runtime configuration - agent execution backend
 runtime:

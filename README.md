@@ -4,7 +4,7 @@
 
 ## Key Use Cases 
 
-- Offload common agentic tasks that consume time and context off the main agent loop.
+- Offload common agentic tasks that consume time and context from the main agent loop.
 - Quickly explore new and divergent design concepts.
 
 ## Agent Pipeline Ergonomics
@@ -28,7 +28,7 @@ agents:
       - first-agent
 ```
 
-SOTA models like Claude Opus 4.5 can understand directions very well: you can tell any agent (in their respective `.md` file) to "pass X data to next agent" or "create new pipeline for next plan phase if plan status is not complete" and the agent and pipeline will perform as you expect.
+State of the art models like Claude Opus 4.5 can understand directions very well: you can tell any agent (in their respective `.md` file) to "pass X data to next agent" or "create new pipeline for next plan phase if plan status is not complete" and the agent and pipeline will perform as you expect.
 
 > **Note:** Looping must be enabled in the pipeline YAML for loops to run.
 
@@ -105,7 +105,7 @@ agent-pipeline run loop-example
 ```
 
 **What you'll see:** live terminal UI with status badges, real-time agent output streaming, atomic commits per stage, and a pipeline summary with timing and results.
-Git configured runs execute in isolated git worktrees by default, so your working directory stays untouched.
+Pipelines with git configured execute in isolated git worktrees by default, so your working directory stays untouched.
 
 ### 3. Explore Your Pipeline History
 
