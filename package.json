@@ -1,6 +1,6 @@
 {
   "name": "agent-pipeline",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Intelligent agent orchestration with parallel execution, conditional logic, git workflow automation, and multi-channel notifications for Claude Code",
   "type": "module",
   "main": "dist/index.js",
