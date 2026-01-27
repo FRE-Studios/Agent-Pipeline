@@ -34,7 +34,7 @@
     "!dist/**/*.test.*",
     "!dist/__tests__",
     "README.md",
-    "license",
+    "LICENSE",
     "CLAUDE.md"
   ],
   "keywords": [
