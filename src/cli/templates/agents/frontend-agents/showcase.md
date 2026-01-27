@@ -91,14 +91,14 @@ Output a single `showcase.html` file:
     
     .showcase-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-      max-width: calc(400px * 3 + 2px); /* Limit to 3 columns */
+      grid-template-columns: repeat(auto-fit, minmax(520px, 1fr));
+      max-width: calc(520px * 3 + 2px);
       gap: 1px;
       background: #222;
       margin: 0 auto;
     }
     
-    @media (min-width: 1203px) {
+    @media (min-width: 1563px) {
       .showcase-grid {
         grid-template-columns: repeat(3, 1fr);
       }
