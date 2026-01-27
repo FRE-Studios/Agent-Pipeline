@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Pipeline CLI</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #fff;
+      --text: #000;
+      --border-thin: 1px solid #000;
+      --border-thick: 3px solid #000;
+      --border-heavy: 5px solid #000;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      font-size: 18px;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    a:hover {
+      text-decoration-thickness: 3px;
+    }
+
+    code, pre {
+      font-family: "SF Mono", Monaco, "Fira Mono", ui-monospace, monospace;
+      font-size: 16px;
+    }
+
+    pre {
+      background: var(--bg);
+      border: var(--border-thin);
+      padding: 1rem;
+      overflow-x: auto;
+    }
+
+    /* Header */
+    header {
+      border-bottom: var(--border-heavy);
+      padding-bottom: 2rem;
+      margin-bottom: 3rem;
+    }
+
+    header h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 1rem;
+    }
+
+    header p {
+      font-size: 1.25rem;
+    }
+
+    nav {
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: var(--border-thin);
+    }
+
+    nav ul {
+      list-style: none;
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
+    /* Sections */
+    section {
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: var(--border-thin);
+    }
+
+    section:last-of-type {
+      border-bottom: none;
+    }
+
+    h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      line-height: 1.2;
+    }
+
+    h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-top: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    p + p {
+      margin-top: 1rem;
+    }
+
+    /* Install box */
+    .install-box {
+      border: var(--border-thick);
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+    }
+
+    .install-box code {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    /* Features grid */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 1px;
+      background: var(--text);
+      border: var(--border-thin);
+      margin: 1.5rem 0;
+    }
+
+    .feature {
+      background: var(--bg);
+      padding: 1.25rem;
+    }
+
+    .feature strong {
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+
+    /* Table */
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 1.5rem 0;
+    }
+
+    th, td {
+      border: var(--border-thin);
+      padding: 0.75rem;
+      text-align: left;
+    }
+
+    th {
+      font-weight: 700;
+      border-bottom: var(--border-thick);
+    }
+
+    /* Buttons */
+    .actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-top: 1.5rem;
+    }
+
+    .btn {
+      display: inline-block;
+      font-family: inherit;
+      font-size: inherit;
+      background: var(--bg);
+      color: var(--text);
+      border: var(--border-thick);
+      padding: 0.75em 1.5em;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      background: var(--text);
+      color: var(--bg);
+      text-decoration: none;
+    }
+
+    .btn.primary {
+      background: var(--text);
+      color: var(--bg);
+    }
+
+    .btn.primary:hover {
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* Footer */
+    footer {
+      border-top: var(--border-heavy);
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Agent Pipeline CLI</h1>
+      <p>Orchestrate AI agents like a pipeline. Define stages. Declare dependencies. Let agents work.</p>
+
+      <nav>
+        <ul>
+          <li><a href="#install">Install</a></li>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#how">How It Works</a></li>
+          <li><a href="#use-cases">Use Cases</a></li>
+          <li><a href="https://github.com/FRE-Studios/agent-pipeline">GitHub</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main>
+      <section id="install">
+        <h2>Install</h2>
+        <div class="install-box">
+          <code>npm install -g agent-pipeline</code>
+        </div>
+        <p>Requires Node.js 18+. That's it.</p>
+      </section>
+
+      <section id="features">
+        <h2>Features</h2>
+        <div class="features">
+          <div class="feature">
+            <strong>YAML Pipelines</strong>
+            Define your workflow in a single configuration file. Stages, dependencies, timeouts—all declarative.
+          </div>
+          <div class="feature">
+            <strong>Parallel Execution</strong>
+            Independent stages run simultaneously. No waiting when you don't have to.
+          </div>
+          <div class="feature">
+            <strong>Dependency Management</strong>
+            Stage B needs Stage A? Declare it. The orchestrator handles the rest.
+          </div>
+          <div class="feature">
+            <strong>Automatic Handover</strong>
+            Output from one agent becomes input for the next. Context flows through the pipeline.
+          </div>
+          <div class="feature">
+            <strong>Failure Strategies</strong>
+            fail-fast, continue, or retry. You decide how errors propagate.
+          </div>
+          <div class="feature">
+            <strong>Local Notifications</strong>
+            Get notified when pipelines complete or fail. Works on macOS and Linux.
+          </div>
+        </div>
+      </section>
+
+      <section id="how">
+        <h2>How It Works</h2>
+
+        <h3>1. Define a pipeline</h3>
+        <pre><code>name: design-system
+stages:
+  - name: research
+    agent: researcher
+    timeout: 300s
+
+  - name: design
+    agent: designer
+    dependsOn: [research]
+
+  - name: review
+    agent: reviewer
+    dependsOn: [design]</code></pre>
+
+        <h3>2. Run it</h3>
+        <pre><code>agent-pipeline run pipeline.yaml</code></pre>
+
+        <h3>3. Agents execute</h3>
+        <p>The CLI spawns agents, manages dependencies, passes context between stages, and reports results.</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>agent-pipeline run &lt;file&gt;</code></td>
+              <td>Execute a pipeline</td>
+            </tr>
+            <tr>
+              <td><code>agent-pipeline validate &lt;file&gt;</code></td>
+              <td>Check pipeline syntax</td>
+            </tr>
+            <tr>
+              <td><code>agent-pipeline schema</code></td>
+              <td>Output JSON schema for pipelines</td>
+            </tr>
+            <tr>
+              <td><code>agent-pipeline help</code></td>
+              <td>Show all commands</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="use-cases">
+        <h2>Use Cases</h2>
+
+        <h3>Multi-Agent Development</h3>
+        <p>Product owner defines requirements → Designer creates mockups → Developer implements → Reviewer checks code. Each stage is an agent. Each agent does its job.</p>
+
+        <h3>Content Pipelines</h3>
+        <p>Research → Write → Edit → Publish. Chain content agents with automatic handover. Output of one becomes input of the next.</p>
+
+        <h3>Code Review Workflows</h3>
+        <p>Lint → Test → Security scan → Review. Parallel where possible, sequential where necessary.</p>
+
+        <h3>Data Processing</h3>
+        <p>Extract → Transform → Validate → Load. AI agents at each stage, orchestrated by YAML.</p>
+      </section>
+
+      <section>
+        <h2>Get Started</h2>
+        <p>Install the CLI. Write a pipeline. Run it.</p>
+
+        <div class="actions">
+          <a href="https://github.com/FRE-Studios/agent-pipeline" class="btn primary">View on GitHub</a>
+          <a href="https://github.com/FRE-Studios/agent-pipeline#readme" class="btn">Documentation</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p><a href="https://github.com/FRE-Studios/agent-pipeline">github.com/FRE-Studios/agent-pipeline</a></p>
+      <p>No tracking. No cookies. Just HTML.</p>
+    </footer>
+  </div>
+</body>
+</html>
