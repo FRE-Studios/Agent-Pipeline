@@ -2,6 +2,12 @@
 
 > Intelligent agent orchestration with DAG-planned parallelism, conditional logic, automated git hygiene, and multi-channel notifications for Claude Code.
 
+<p align="center">
+  <video src="https://github.com/FRE-Studios/agent-pipeline/raw/main/docs/examples/front-end-exploration/demo-preview.webm" width="720" autoplay loop muted playsinline></video>
+  <br>
+  <em>Running the front-end-parallel-example pipeline (9x speed)</em>
+</p>
+
 ## Key Use Cases 
 
 - Offload common agentic tasks that consume time and context from the main agent loop.

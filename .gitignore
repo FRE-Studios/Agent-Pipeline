@@ -27,3 +27,5 @@ Thumbs.db
 *.swo
 *~
 
+# Large Asset Files
+assets/
