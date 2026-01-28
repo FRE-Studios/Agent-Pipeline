@@ -4,9 +4,8 @@
 
 <p align="center">
   <video src="https://github.com/user-attachments/assets/eef9bda8-6184-45db-af6e-77307695f02e" width="720" autoplay loop muted playsinline></video>
-  <br>
   <em>Running the front-end-parallel-example pipeline (9x speed)</em>
-  <br><br>
+  <br>
   <strong><a href="https://fre-studios.github.io/Agent-Pipeline/examples/front-end-exploration/index.html">See what the agents built →</a></strong>
 </p>
 
