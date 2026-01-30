@@ -324,7 +324,7 @@ describe('NotificationValidator', () => {
               channels: {
                 slack: {
                   enabled: true,
-                  webhookUrl: '',
+                  webhookUrl: 'https://hooks.slack.com/services/EXAMPLE',
                 },
               },
             },
