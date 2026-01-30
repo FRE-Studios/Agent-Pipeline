@@ -273,7 +273,7 @@ describe('PipelineInitializer', () => {
         mockStateChangeCallback
       );
 
-      // StageExecutor constructor: (gitManager, dryRun, handoverManager, defaultRuntime, loopContext, repoPath, executionRepoPath, loggingContext, abortController)
+      // StageExecutor constructor: (gitManager, dryRun, handoverManager, defaultRuntime, loopContext, repoPath, executionRepoPath, loggingContext, abortController, pipelineLogger)
       expect(stageExecutorMock).toHaveBeenCalledWith(
         mockGitManager,
         false,  // dryRun
@@ -283,7 +283,8 @@ describe('PipelineInitializer', () => {
         '/test/repo',  // repoPath (for file-driven instruction loading)
         '/test/repo',  // executionRepoPath (where agents execute)
         { interactive: false, verbose: false },  // loggingContext
-        undefined  // abortController
+        undefined,  // abortController
+        expect.any(Object)  // pipelineLogger
       );
       expect(result.stageExecutor).toBe(stageExecutorMock.mock.instances[0]);
 
