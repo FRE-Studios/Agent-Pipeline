@@ -113,6 +113,7 @@ describe('CodexHeadlessRuntime', () => {
     expect(spawnArgs).toContain('--output-last-message');
     expect(spawnArgs).toContain('/tmp/codex-test/output.txt');
     expect(spawnArgs).toContain('--full-auto');
+    expect(spawnArgs).toContain('--json');
   });
 
   it('execute should throw PipelineAbortError when aborted before start', async () => {
@@ -126,5 +127,39 @@ describe('CodexHeadlessRuntime', () => {
     };
 
     await expect(runtime.execute(request, abortController)).rejects.toThrow(PipelineAbortError);
+  });
+
+  it('streams tool activity from JSON output', async () => {
+    const mockProcess = createMockProcess();
+    mockSpawn.mockReturnValue(mockProcess);
+    mockMkdtemp.mockResolvedValue('/tmp/codex-test');
+    mockReadFile.mockResolvedValue('Final output');
+
+    const onOutputUpdate = vi.fn();
+
+    const request: AgentExecutionRequest = {
+      systemPrompt: 'You are a test agent',
+      userPrompt: 'Do the thing',
+      options: {
+        onOutputUpdate
+      }
+    };
+
+    setTimeout(() => {
+      const event = {
+        type: 'item.started',
+        item: {
+          id: 'item_1',
+          type: 'command_execution',
+          command: "/bin/zsh -lc 'cat package.json'"
+        }
+      };
+      mockProcess.stdout.emit('data', Buffer.from(JSON.stringify(event) + '\n'));
+      mockProcess.emit('exit', 0);
+    }, 10);
+
+    await runtime.execute(request);
+
+    expect(onOutputUpdate).toHaveBeenCalledWith(expect.stringContaining('Running'));
   });
 });

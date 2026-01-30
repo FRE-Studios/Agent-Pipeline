@@ -119,6 +119,7 @@ export class CodexHeadlessRuntime implements AgentRuntime {
     // Output handling
     args.push('--output-last-message', outputPath);
     args.push('--color', 'never');
+    args.push('--json');
 
     // Working directory (Codex-specific)
     if (runtimeOpts.cwd && typeof runtimeOpts.cwd === 'string') {
@@ -240,6 +241,9 @@ export class CodexHeadlessRuntime implements AgentRuntime {
       let aborted = false;
       let child: ChildProcess | null = null;
       const startTime = Date.now();
+      let jsonBuffer = '';
+      let jsonErrBuffer = '';
+      const emittedToolCallIds = new Set<string>();
 
       const timer = setTimeout(() => {
         timedOut = true;
@@ -284,12 +288,46 @@ export class CodexHeadlessRuntime implements AgentRuntime {
           const chunk = data.toString();
           stdout += chunk;
           if (options.onOutputUpdate) {
-            options.onOutputUpdate(chunk);
+            jsonBuffer += chunk;
+            const lines = jsonBuffer.split('\n');
+            jsonBuffer = lines.pop() ?? '';
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+              try {
+                const parsed = JSON.parse(trimmed);
+                const activities = this.extractToolActivities(parsed, emittedToolCallIds);
+                for (const activity of activities) {
+                  options.onOutputUpdate(activity);
+                }
+              } catch {
+                // Ignore non-JSON lines
+              }
+            }
           }
         });
 
         child.stderr?.on('data', (data: Buffer) => {
-          stderr += data.toString();
+          const chunk = data.toString();
+          stderr += chunk;
+          if (options.onOutputUpdate) {
+            jsonErrBuffer += chunk;
+            const lines = jsonErrBuffer.split('\n');
+            jsonErrBuffer = lines.pop() ?? '';
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+              try {
+                const parsed = JSON.parse(trimmed);
+                const activities = this.extractToolActivities(parsed, emittedToolCallIds);
+                for (const activity of activities) {
+                  options.onOutputUpdate(activity);
+                }
+              } catch {
+                // Ignore non-JSON stderr
+              }
+            }
+          }
         });
 
         if (options.stdinInput && child.stdin) {
@@ -359,7 +397,8 @@ export class CodexHeadlessRuntime implements AgentRuntime {
       const content = await fs.readFile(outputPath, 'utf-8');
       return content.trim() || fallback.trim();
     } catch {
-      return fallback.trim();
+      const parsed = this.extractTextFromJsonOutput(fallback);
+      return parsed || fallback.trim();
     }
   }
 
@@ -416,5 +455,297 @@ export class CodexHeadlessRuntime implements AgentRuntime {
 
   private escapeRegex(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  private extractToolActivities(
+    event: any,
+    emittedToolCallIds: Set<string>
+  ): string[] {
+    const activities: string[] = [];
+    const addActivity = (name: unknown, input: unknown, id?: unknown) => {
+      if (typeof name !== 'string' || !name) return;
+      if (typeof id === 'string' && emittedToolCallIds.has(id)) return;
+      if (typeof id === 'string') emittedToolCallIds.add(id);
+      const activity = this.formatToolActivity(name, input);
+      if (activity) activities.push(activity);
+    };
+
+    const toolTypes = new Set(['tool_use', 'tool_call', 'function_call', 'command_execution']);
+
+    const addFromObject = (obj: any) => {
+      if (!obj || typeof obj !== 'object') return;
+      const name = obj.name ?? obj.tool_name ?? obj?.function?.name;
+      const input = obj.input ?? obj.arguments ?? obj.args ?? obj.parameters ?? obj.params ?? obj?.function?.arguments;
+      const id = obj.id ?? obj.tool_call_id ?? obj.call_id;
+      if (name) {
+        addActivity(name, input, id);
+      }
+    };
+
+    const scan = (node: any, depth: number) => {
+      if (!node || depth > 6) return;
+      if (Array.isArray(node)) {
+        for (const entry of node) {
+          scan(entry, depth + 1);
+        }
+        return;
+      }
+      if (typeof node !== 'object') return;
+
+      if (node.type === 'command_execution') {
+        const input = { command: node.command };
+        addActivity('command_execution', input, node.id);
+      }
+
+      if (node.type && toolTypes.has(node.type)) {
+        addFromObject(node);
+      }
+
+      if (node.tool_call) {
+        addFromObject(node.tool_call);
+      }
+
+      if (Array.isArray(node.tool_calls)) {
+        for (const call of node.tool_calls) {
+          addFromObject(call);
+        }
+      }
+
+      if (
+        node.name &&
+        (node.arguments !== undefined || node.input !== undefined) &&
+        (String(node.type || '').includes('tool') || String(node.event || '').includes('tool'))
+      ) {
+        addActivity(node.name, node.arguments ?? node.input, node.id ?? node.tool_call_id);
+      }
+
+      for (const value of Object.values(node)) {
+        scan(value, depth + 1);
+      }
+    };
+
+    scan(event, 0);
+
+    return activities;
+  }
+
+  private formatToolActivity(toolName: string, input: unknown): string {
+    const icons: Record<string, string> = {
+      read: '📖',
+      read_file: '📖',
+      write: '📝',
+      write_file: '📝',
+      edit: '✏️',
+      edit_file: '✏️',
+      apply_patch: '✏️',
+      patch: '✏️',
+      shell: '🔧',
+      bash: '🔧',
+      exec: '🔧',
+      command_execution: '🔧',
+      list: '📂',
+      ls: '📂',
+      list_files: '📂',
+      glob: '🔍',
+      grep: '🔎',
+      search: '🔎',
+      ripgrep: '🔎',
+      web_search: '🔍',
+      websearch: '🔍',
+      web_fetch: '🌐',
+      fetch: '🌐',
+      http: '🌐'
+    };
+
+    const normalizedName = this.normalizeToolName(toolName);
+    const icon = icons[normalizedName] || '⚡';
+    const normalizedInput = this.normalizeToolInput(input);
+
+    const filePath = this.getFirstString(normalizedInput, [
+      'file_path',
+      'path',
+      'file',
+      'filename',
+      'target'
+    ]);
+    const command = this.getFirstString(normalizedInput, [
+      'command',
+      'cmd',
+      'shell',
+      'script',
+      'bash'
+    ]);
+    const pattern = this.getFirstString(normalizedInput, [
+      'pattern',
+      'query',
+      'search',
+      'glob',
+      'regex'
+    ]);
+    const url = this.getFirstString(normalizedInput, ['url', 'uri', 'href']);
+
+    switch (normalizedName) {
+      case 'read':
+      case 'read_file':
+        return `${icon} Reading ${this.truncatePath(filePath)}`;
+      case 'write':
+      case 'write_file':
+        return `${icon} Writing ${this.truncatePath(filePath)}`;
+      case 'edit':
+      case 'edit_file':
+      case 'apply_patch':
+      case 'patch':
+        return `${icon} Editing ${this.truncatePath(filePath) || 'patch'}`;
+      case 'shell':
+      case 'bash':
+      case 'exec':
+      case 'command_execution': {
+        const rawCmd = this.simplifyCommand(
+          command || this.getFirstString(normalizedInput, ['_raw']) || ''
+        );
+        const shortCmd = rawCmd.length > 50 ? rawCmd.substring(0, 47) + '...' : rawCmd;
+        return `${icon} Running: ${shortCmd}`;
+      }
+      case 'glob':
+        return `${icon} Finding ${pattern}`;
+      case 'grep':
+      case 'search':
+      case 'ripgrep':
+        return `${icon} Searching for "${pattern}"`;
+      case 'list':
+      case 'ls':
+      case 'list_files':
+        return `${icon} Listing ${this.truncatePath(filePath) || '.'}`;
+      case 'web_search':
+      case 'websearch':
+        return `${icon} Searching: ${pattern}`;
+      case 'web_fetch':
+      case 'fetch':
+      case 'http':
+        return `${icon} Fetching ${this.truncateUrl(url)}`;
+      default:
+        return `${icon} ${toolName}`;
+    }
+  }
+
+  private normalizeToolName(toolName: string): string {
+    const normalized = toolName.toLowerCase();
+    const parts = normalized.split(/[./:]/);
+    return parts[parts.length - 1] || normalized;
+  }
+
+  private normalizeToolInput(input: unknown): Record<string, unknown> {
+    if (!input) return {};
+    if (typeof input === 'object' && !Array.isArray(input)) {
+      return input as Record<string, unknown>;
+    }
+    if (typeof input === 'string') {
+      const trimmed = input.trim();
+      if (
+        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))
+      ) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (typeof parsed === 'object' && parsed !== null) {
+            return parsed as Record<string, unknown>;
+          }
+        } catch {
+          // fall through to raw
+        }
+      }
+      return { _raw: input };
+    }
+    return { _raw: String(input) };
+  }
+
+  private getFirstString(
+    input: Record<string, unknown>,
+    keys: string[]
+  ): string | undefined {
+    for (const key of keys) {
+      const value = input[key];
+      if (typeof value === 'string' && value.trim()) {
+        return value;
+      }
+    }
+    return undefined;
+  }
+
+  private truncatePath(filePath: string | undefined): string {
+    if (!filePath) return '';
+    const parts = filePath.split('/');
+    if (parts.length <= 2) return filePath;
+    return '.../' + parts.slice(-2).join('/');
+  }
+
+  private truncateUrl(url: string | undefined): string {
+    if (!url) return '';
+    try {
+      const parsed = new URL(url);
+      return parsed.hostname + (parsed.pathname.length > 20 ? parsed.pathname.substring(0, 17) + '...' : parsed.pathname);
+    } catch {
+      return url.substring(0, 40);
+    }
+  }
+
+  private simplifyCommand(command: string): string {
+    const trimmed = command.trim();
+    const zshMatch = trimmed.match(/\/bin\/zsh -lc '([\s\S]*)'/);
+    if (zshMatch && zshMatch[1]) return zshMatch[1];
+    const bashMatch = trimmed.match(/\/bin\/bash -lc '([\s\S]*)'/);
+    if (bashMatch && bashMatch[1]) return bashMatch[1];
+    return trimmed;
+  }
+
+  private extractTextFromJsonOutput(stdout: string): string | undefined {
+    const lines = stdout.trim().split('\n');
+    let lastText: string | undefined;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed);
+        const text = this.extractTextFromEvent(parsed);
+        if (text) {
+          lastText = text;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+
+    return lastText;
+  }
+
+  private extractTextFromEvent(event: any): string | undefined {
+    if (typeof event?.result === 'string') return event.result;
+    if (typeof event?.output === 'string') return event.output;
+    if (typeof event?.text === 'string') return event.text;
+    if (typeof event?.output_text === 'string') return event.output_text;
+
+    const messageContent = event?.message?.content;
+    if (Array.isArray(messageContent)) {
+      const textBlocks = messageContent
+        .map((block: any) => {
+          if (typeof block?.text === 'string') return block.text;
+          if (block?.type === 'output_text' && typeof block?.text === 'string') return block.text;
+          if (block?.type === 'text' && typeof block?.text === 'string') return block.text;
+          return '';
+        })
+        .filter(Boolean);
+      if (textBlocks.length > 0) return textBlocks.join('');
+    }
+
+    const item = event?.item;
+    if (item?.type === 'message' && Array.isArray(item?.content)) {
+      const textBlocks = item.content
+        .map((block: any) => (typeof block?.text === 'string' ? block.text : ''))
+        .filter(Boolean);
+      if (textBlocks.length > 0) return textBlocks.join('');
+    }
+
+    return undefined;
   }
 }
