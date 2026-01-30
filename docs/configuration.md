@@ -73,7 +73,7 @@ looping:
 
 # Runtime configuration - agent execution backend
 runtime:
-  type: claude-code-headless         # claude-code-headless (default) or claude-sdk
+  type: claude-code-headless         # claude-code-headless (default), claude-sdk, or codex-headless
   options:
     model: sonnet                    # haiku, sonnet, or opus
 

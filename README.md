@@ -194,7 +194,7 @@ agent-pipeline run my-pipeline
 - **Pipeline orchestration** – `PipelineRunner` combines DAG planning, conditional gating, and per-stage retries backed by `RetryHandler`.
 - **Git workflow automation** – Worktrees isolate runs by default, while `BranchManager` and `PRCreator` manage dedicated branches and PRs.
 - **State & context management** – `StateManager` persists run history while `HandoverManager` enables filesystem-based communication between stages.
-- **Runtime flexibility** – Pluggable agent runtimes (Claude SDK, Claude Code Headless) registered via `AgentRuntimeRegistry`.
+- **Runtime flexibility** – Pluggable agent runtimes (Claude SDK, Claude Code Headless, Codex Headless) registered via `AgentRuntimeRegistry`.
 - **Model flexibility** – Mix Haiku, Sonnet, and Opus models per stage for cost optimization (up to 90% savings on simple tasks).
 - **Cost controls** – Set `maxTurns` and `maxThinkingTokens` to prevent runaway agents and enable deep reasoning when needed.
 - **Observability** – Ink-powered live UI, interactive history browser, and analytics reports generated from stored run data.
