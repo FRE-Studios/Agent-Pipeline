@@ -9,24 +9,22 @@ import { simpleGit } from 'simple-git';
 import { AgentRuntimeRegistry } from '../../../core/agent-runtime-registry.js';
 import { ClaudeCodeHeadlessRuntime } from '../../../core/agent-runtimes/claude-code-headless-runtime.js';
 
-// Expected agents for each pipeline (only active/non-commented agents)
-const FRONTEND_AGENTS = [
+// All agent templates that should be copied during init
+const ALL_EXPECTED_AGENTS = [
   'brutalist_purist.md',
+  'code-reviewer.md',
   'cyberpunk_hacker.md',
+  'frontend-pipeline-ref.md',
   'indie_game_dev.md',
+  'luxury_editorial.md',
+  'memory-doc-updater.md',
   'product_owner.md',
-  'showcase.md'
+  'quality-checker.md',
+  'retro_90s_webmaster.md',
+  'showcase.md',
+  'socratic-explorer.md',
+  'swiss_modernist.md',
 ];
-
-const POST_COMMIT_AGENTS = [
-  'memory-doc-updater.md'
-];
-
-const LOOP_AGENTS = [
-  'socratic-explorer.md'
-];
-
-const ALL_EXPECTED_AGENTS = [...FRONTEND_AGENTS, ...POST_COMMIT_AGENTS, ...LOOP_AGENTS].sort();
 
 describe('initCommand', () => {
   let tempDir: string;
@@ -226,7 +224,7 @@ describe('initCommand', () => {
   });
 
   describe('Agent Creation', () => {
-    it('should create all agents required by both pipelines', async () => {
+    it('should create all agent templates', async () => {
       await initCommand(tempDir);
 
       const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
@@ -234,30 +232,6 @@ describe('initCommand', () => {
       const mdFiles = files.filter(f => f.endsWith('.md') && !f.startsWith('.')).sort();
 
       expect(mdFiles).toEqual(ALL_EXPECTED_AGENTS);
-    });
-
-    it('should create frontend design agents', async () => {
-      await initCommand(tempDir);
-
-      const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
-      const files = await fs.readdir(agentsDir);
-      const mdFiles = files.filter(f => f.endsWith('.md'));
-
-      for (const agent of FRONTEND_AGENTS) {
-        expect(mdFiles).toContain(agent);
-      }
-    });
-
-    it('should create post-commit agents', async () => {
-      await initCommand(tempDir);
-
-      const agentsDir = path.join(tempDir, '.agent-pipeline', 'agents');
-      const files = await fs.readdir(agentsDir);
-      const mdFiles = files.filter(f => f.endsWith('.md'));
-
-      for (const agent of POST_COMMIT_AGENTS) {
-        expect(mdFiles).toContain(agent);
-      }
     });
 
     it('should include valid markdown in memory-doc-updater agent', async () => {
@@ -384,7 +358,7 @@ describe('initCommand', () => {
       await initCommand(tempDir);
 
       expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Created'));
-      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent(s)'));
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent(s):'));
     });
 
     it('should log success message', async () => {
@@ -446,17 +420,12 @@ describe('initCommand', () => {
       expect(content).toContain('# Plugin Agent');
     });
 
-    it('should show fallback agent summary when creating required agents', async () => {
+    it('should show agent creation summary', async () => {
       vi.spyOn(AgentImporter, 'discoverPluginAgents').mockResolvedValue([]);
 
       await initCommand(tempDir);
 
-      const calls = (console.log as any).mock.calls;
-      const hasFallbackMessage = calls.some((call: any[]) =>
-        call[0]?.includes('required by your pipelines')
-      );
-
-      expect(hasFallbackMessage).toBe(true);
+      expect(console.log).toHaveBeenCalledWith(expect.stringContaining('agent(s):'));
     });
   });
 
@@ -560,23 +529,6 @@ describe('initCommand', () => {
 
       const content = buffer.toString('utf-8');
       expect(content).toContain('front-end-parallel-example');
-    });
-  });
-
-  describe('Agent Template Warnings', () => {
-    // Note: The "no template available" warning (line 261) is triggered when:
-    // 1. A pipeline references an agent file that doesn't have a template
-    // 2. The agent doesn't already exist in the agents directory
-    // This is defensive code for handling missing templates in the bundled CLI.
-    // Since all bundled pipeline templates have corresponding agent templates,
-    // this path is only hit if the CLI installation is corrupted.
-    // Testing this would require mocking the file system at a low level,
-    // which is complex in ESM modules. The code path is validated manually.
-    it.skip('should log warning when agent template is not available (requires fs mocking)', () => {
-      // This test is skipped because:
-      // - The init command only processes bundled pipeline templates
-      // - All bundled templates have corresponding agent templates
-      // - Testing would require deep fs mocking to simulate missing templates
     });
   });
 

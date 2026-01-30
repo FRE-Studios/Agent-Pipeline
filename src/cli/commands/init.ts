@@ -3,7 +3,6 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import * as YAML from 'yaml';
 import chalk from 'chalk';
 import { AgentImporter } from '../utils/agent-importer.js';
 import { PipelineLoader } from '../../config/pipeline-loader.js';
@@ -77,29 +76,15 @@ export async function initCommand(repoPath: string): Promise<void> {
     }
     console.log('');
 
-    // Determine which agents are required by the selected pipelines
-    const requiredAgents = await getRequiredAgents(pipelinesToCreate);
+    // Copy all agent templates (skip existing files to preserve user customizations)
+    const createdAgents = await copyAllAgentTemplates(agentsDir);
 
-    // Check which agents already exist (from plugin import or previous runs)
-    const existingAgents = await fs.readdir(agentsDir);
-    const existingMdAgents = new Set(
-      existingAgents.filter(f => f.endsWith('.md') && !f.startsWith('.'))
-    );
-
-    // Determine which agents need to be created
-    const agentsToCreate = requiredAgents.filter(agent => !existingMdAgents.has(agent));
-
-    // Create required agents that don't already exist
-    if (agentsToCreate.length > 0) {
-      const createdAgents = await createRequiredAgents(agentsDir, agentsToCreate);
-
-      if (createdAgents.length > 0) {
-        console.log(`${c.success('✓')} ${c.header(`Created ${createdAgents.length} agent(s)`)} ${c.dim('required by your pipelines:')}`);
-        for (const agent of createdAgents) {
-          console.log(`   ${c.dim('•')} ${c.path(`.agent-pipeline/agents/${agent}`)}`);
-        }
-        console.log('');
+    if (createdAgents.length > 0) {
+      console.log(`${c.success('✓')} ${c.header(`Created ${createdAgents.length} agent(s):`)}`);
+      for (const agent of createdAgents) {
+        console.log(`   ${c.dim('•')} ${c.path(`.agent-pipeline/agents/${agent}`)}`);
       }
+      console.log('');
     }
 
     // Update .gitignore
@@ -164,101 +149,52 @@ async function copyPipelineTemplate(
 }
 
 /**
- * Parse pipeline YAML and extract required agent file names
+ * Discover all .md agent templates from root and subdirectories, copy to target.
+ * Skips files that already exist to preserve user customizations.
  */
-async function getRequiredAgents(pipelineNames: string[]): Promise<string[]> {
-  const templatesDir = path.join(__dirname, '../templates/pipelines');
-  const agentSet = new Set<string>();
-
-  for (const pipelineName of pipelineNames) {
-    const templatePath = path.join(templatesDir, `${pipelineName}.yml`);
-
-    try {
-      const content = await fs.readFile(templatePath, 'utf-8');
-      const parsed = YAML.parse(content);
-
-      if (parsed.agents && Array.isArray(parsed.agents)) {
-        for (const agent of parsed.agents) {
-          if (agent.agent && typeof agent.agent === 'string') {
-            // Extract filename from path like ".claude/agents/code-reviewer.md"
-            const filename = path.basename(agent.agent);
-            agentSet.add(filename);
-          }
-        }
-      }
-    } catch (error) {
-      console.log(`   ${c.warn('⚠')}  ${c.dim('Could not parse')} ${c.path(`${pipelineName}.yml`)}: ${c.dim((error as Error).message)}`);
-    }
-  }
-
-  return Array.from(agentSet);
-}
-
-/**
- * Find an agent template file, searching root and subdirectories
- */
-async function findAgentTemplate(
-  templatesDir: string,
-  filename: string
-): Promise<string | null> {
-  // First check root
-  const rootPath = path.join(templatesDir, filename);
-  try {
-    await fs.access(rootPath);
-    return rootPath;
-  } catch {
-    // Not in root, check subdirectories
-  }
-
-  // Then check subdirectories
-  try {
-    const entries = await fs.readdir(templatesDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const subPath = path.join(templatesDir, entry.name, filename);
-        try {
-          await fs.access(subPath);
-          return subPath;
-        } catch {
-          // Not in this subdirectory
-        }
-      }
-    }
-  } catch {
-    // Failed to read directory
-  }
-
-  return null;
-}
-
-/**
- * Create only the required agents by copying from template files
- */
-async function createRequiredAgents(
-  agentsDir: string,
-  requiredAgents: string[]
-): Promise<string[]> {
+async function copyAllAgentTemplates(agentsDir: string): Promise<string[]> {
   const templatesDir = path.join(__dirname, '../templates/agents');
   const createdAgents: string[] = [];
 
-  for (const agentFilename of requiredAgents) {
-    const templatePath = await findAgentTemplate(templatesDir, agentFilename);
+  // Collect all .md template files from root and subdirectories
+  const templates: { filename: string; sourcePath: string }[] = [];
 
-    if (templatePath) {
-      try {
-        const templateContent = await fs.readFile(templatePath, 'utf-8');
-        await fs.writeFile(
-          path.join(agentsDir, agentFilename),
-          templateContent,
-          'utf-8'
-        );
-        createdAgents.push(agentFilename);
-      } catch (error) {
-        console.log(`   ${c.warn('⚠')}  ${c.dim('Agent')} ${c.path(agentFilename)} ${c.dim('failed to copy:')} ${c.dim((error as Error).message)}`);
+  try {
+    const entries = await fs.readdir(templatesDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.md')) {
+        templates.push({ filename: entry.name, sourcePath: path.join(templatesDir, entry.name) });
+      } else if (entry.isDirectory()) {
+        const subEntries = await fs.readdir(path.join(templatesDir, entry.name), { withFileTypes: true });
+        for (const subEntry of subEntries) {
+          if (subEntry.isFile() && subEntry.name.endsWith('.md')) {
+            templates.push({ filename: subEntry.name, sourcePath: path.join(templatesDir, entry.name, subEntry.name) });
+          }
+        }
       }
-    } else {
-      // Agent template doesn't exist - skip it
-      console.log(`   ${c.warn('⚠')}  ${c.dim('Agent')} ${c.path(agentFilename)} ${c.dim('is required but no template available (import from plugins or create manually)')}`);
+    }
+  } catch (error) {
+    console.log(`   ${c.warn('⚠')}  ${c.dim('Could not read agent templates:')} ${c.dim((error as Error).message)}`);
+    return createdAgents;
+  }
+
+  for (const { filename, sourcePath } of templates) {
+    const targetPath = path.join(agentsDir, filename);
+
+    // Skip if file already exists
+    try {
+      await fs.access(targetPath);
+      continue;
+    } catch {
+      // File doesn't exist, proceed to copy
+    }
+
+    try {
+      const content = await fs.readFile(sourcePath, 'utf-8');
+      await fs.writeFile(targetPath, content, 'utf-8');
+      createdAgents.push(filename);
+    } catch (error) {
+      console.log(`   ${c.warn('⚠')}  ${c.dim('Agent')} ${c.path(filename)} ${c.dim('failed to copy:')} ${c.dim((error as Error).message)}`);
     }
   }
 

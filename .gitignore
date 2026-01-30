@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Local Dev Notes
+docs/dev/
+
 # Build output
 dist/
 
