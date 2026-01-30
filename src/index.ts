@@ -20,6 +20,7 @@ import { Logger } from './utils/logger.js';
 import { AgentRuntimeRegistry } from './core/agent-runtime-registry.js';
 import { ClaudeSDKRuntime } from './core/agent-runtimes/claude-sdk-runtime.js';
 import { ClaudeCodeHeadlessRuntime } from './core/agent-runtimes/claude-code-headless-runtime.js';
+import { CodexHeadlessRuntime } from './core/agent-runtimes/codex-headless-runtime.js';
 
 // Command imports
 import { runCommand } from './cli/commands/run.js';
@@ -93,6 +94,24 @@ async function main() {
       console.error(err);
     }
     // Continue execution - runtime registration failure shouldn't block CLI commands
+  }
+
+  // Register Codex Headless runtime on startup
+  try {
+    const codexRuntime = new CodexHeadlessRuntime();
+    AgentRuntimeRegistry.register(codexRuntime);
+
+    const validation = await codexRuntime.validate();
+    if (!validation.valid && process.env.DEBUG) {
+      Logger.warn('Codex Headless runtime registered but CLI not available');
+      validation.warnings.forEach((warning) => Logger.warn(`  ${warning}`));
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    Logger.error(`Failed to register Codex Headless runtime: ${message}`);
+    if (process.env.DEBUG) {
+      console.error(err);
+    }
   }
 
   try {

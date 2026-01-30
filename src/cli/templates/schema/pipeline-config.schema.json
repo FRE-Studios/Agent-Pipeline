@@ -317,7 +317,7 @@
         "type"
       ],
       "additionalProperties": false,
-      "description": "Runtime configuration for agent execution Supports multiple runtime types: 'claude-sdk', 'claude-code-headless', etc."
+      "description": "Runtime configuration for agent execution Supports multiple runtime types: 'claude-sdk', 'claude-code-headless', 'codex-headless', etc."
     },
     "AgentStageConfig": {
       "type": "object",

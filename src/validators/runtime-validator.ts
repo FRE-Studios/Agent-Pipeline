@@ -95,7 +95,7 @@ export class RuntimeValidator implements Validator {
 
     // Validate model selection (case-insensitive)
     const model = runtime.options?.model;
-    if (model && typeof model === 'string') {
+    if (model && typeof model === 'string' && capabilities.availableModels.length > 0) {
       if (!capabilities.availableModels.includes(model.toLowerCase())) {
         const availableModels = capabilities.availableModels.join(', ');
         errors.push({

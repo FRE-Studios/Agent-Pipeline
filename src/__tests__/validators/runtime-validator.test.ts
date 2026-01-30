@@ -216,6 +216,34 @@ describe('RuntimeValidator', () => {
     });
   });
 
+  describe('validate - model validation with empty model list', () => {
+    it('should skip model validation when runtime provides no available models', async () => {
+      const mockRuntime = createMockRuntime({
+        capabilities: {
+          availableModels: []
+        }
+      });
+
+      vi.mocked(AgentRuntimeRegistry.hasRuntime).mockReturnValue(true);
+      vi.mocked(AgentRuntimeRegistry.getRuntime).mockReturnValue(mockRuntime);
+
+      const config: PipelineConfig = {
+        ...baseConfig,
+        runtime: {
+          type: 'codex-headless',
+          options: {
+            model: 'gpt-4.1'
+          }
+        }
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      expect(context.errors).toEqual([]);
+    });
+  });
+
   describe('validate - valid runtime type', () => {
     it('should pass when runtime type is registered', async () => {
       const mockRuntime = createMockRuntime();

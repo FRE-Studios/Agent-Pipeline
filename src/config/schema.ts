@@ -30,7 +30,7 @@ export interface ClaudeAgentSettings {
 
 /**
  * Runtime configuration for agent execution
- * Supports multiple runtime types: 'claude-sdk', 'claude-code-headless', etc.
+ * Supports multiple runtime types: 'claude-sdk', 'claude-code-headless', 'codex-headless', etc.
  */
 export interface RuntimeConfig {
   type: string;                   // Runtime type identifier (e.g., 'claude-sdk', 'claude-code-headless')

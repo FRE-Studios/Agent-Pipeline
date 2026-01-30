@@ -105,6 +105,51 @@ export class StageExecutor {
   }
 
   /**
+   * Merge runtime options (pipeline-level + stage-level).
+   * Stage options override pipeline options.
+   */
+  private buildRuntimeOptions(
+    stageConfig: AgentStageConfig,
+    pipelineState: PipelineState
+  ): Record<string, unknown> | undefined {
+    const pipelineOptions = pipelineState.pipelineConfig.runtime?.options || {};
+    const stageOptions = stageConfig.runtime?.options || {};
+
+    const merged = {
+      ...pipelineOptions,
+      ...stageOptions
+    };
+
+    return Object.keys(merged).length > 0 ? merged : undefined;
+  }
+
+  /**
+   * Resolve permission mode (stage runtime options override pipeline runtime options override execution config).
+   */
+  private resolvePermissionMode(
+    stageConfig: AgentStageConfig,
+    pipelineState: PipelineState
+  ): 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' {
+    const stagePermission = stageConfig.runtime?.options?.permissionMode as
+      | 'default'
+      | 'acceptEdits'
+      | 'bypassPermissions'
+      | 'plan'
+      | undefined;
+    const pipelinePermission = pipelineState.pipelineConfig.runtime?.options?.permissionMode as
+      | 'default'
+      | 'acceptEdits'
+      | 'bypassPermissions'
+      | 'plan'
+      | undefined;
+
+    return stagePermission ||
+      pipelinePermission ||
+      pipelineState.pipelineConfig.execution?.permissionMode ||
+      'acceptEdits';
+  }
+
+  /**
    * Resolve runtime for a stage based on priority:
    * 1. Stage-level runtime config (highest priority)
    * 2. Pipeline-level runtime config
@@ -223,6 +268,9 @@ export class StageExecutor {
       // Build Claude Agent SDK options (model, maxTurns, maxThinkingTokens)
       const claudeAgentOptions = this.buildClaudeAgentOptions(stageConfig, pipelineState);
 
+      const runtimeOptions = this.buildRuntimeOptions(stageConfig, pipelineState);
+      const permissionMode = this.resolvePermissionMode(stageConfig, pipelineState);
+
       // Run agent using resolved runtime
       const retryInfo = PipelineFormatter.formatRetryInfo(execution.retryAttempt, execution.maxRetries);
       if (this.shouldLog()) {
@@ -237,9 +285,10 @@ export class StageExecutor {
         userPrompt,
         systemPrompt,
         stageConfig.timeout,
-        pipelineState.pipelineConfig.execution?.permissionMode || 'acceptEdits',
+        permissionMode,
         claudeAgentOptions,
-        onOutputUpdate
+        onOutputUpdate,
+        runtimeOptions
       );
 
       execution.agentOutput = result.textOutput;
@@ -508,7 +557,8 @@ Create a pipeline in the pending directory ONLY when:
       maxTurns: number;
       maxThinkingTokens: number;
     }>,
-    onOutputUpdate?: (output: string) => void
+    onOutputUpdate?: (output: string) => void,
+    runtimeOptions?: Record<string, unknown>
   ): Promise<{
     textOutput: string;
     tokenUsage?: {
@@ -546,6 +596,11 @@ Create a pipeline in the pending directory ONLY when:
       });
 
       // Build agent execution request using runtime abstraction
+      const mergedRuntimeOptions = {
+        ...(runtimeOptions || {}),
+        ...(this.executionCwd ? { cwd: this.executionCwd } : {})
+      };
+
       const request: AgentExecutionRequest = {
         systemPrompt,
         userPrompt,
@@ -556,7 +611,7 @@ Create a pipeline in the pending directory ONLY when:
           maxTurns: claudeAgentOptions?.maxTurns,
           maxThinkingTokens: claudeAgentOptions?.maxThinkingTokens,
           onOutputUpdate,
-          runtimeOptions: this.executionCwd ? { cwd: this.executionCwd } : undefined
+          runtimeOptions: Object.keys(mergedRuntimeOptions).length > 0 ? mergedRuntimeOptions : undefined
         }
       };
 

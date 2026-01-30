@@ -178,9 +178,21 @@ agents:
         model: haiku
 ```
 
+**Codex headless example:**
+```yaml
+runtime:
+  type: codex-headless
+  options:
+    model: gpt-4.1
+    sandbox: workspace-write
+```
+
 **Available Runtimes:**
 - `claude-code-headless` (default): Full Claude Code tool suite, local execution, session continuation support
+- `codex-headless`: Codex CLI execution via `codex exec` (local auth or API key)
 - `claude-sdk`: Library-based execution, MCP tools, used internally for context reduction
+
+**Codex Auth:** `codex-headless` works with local Codex auth, `OPENAI_API_KEY`, or `CODEX_API_KEY` via CLI config.
 
 **Cost Optimization:** Use `haiku` for simple tasks (linting, formatting) to reduce costs by up to 90%. Reserve `opus` for complex reasoning (architecture, design decisions). Per-stage overrides allow mixing models within a pipeline.
 
