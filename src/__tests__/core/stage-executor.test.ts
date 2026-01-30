@@ -947,6 +947,59 @@ describe('StageExecutor', () => {
       const executeCall = mockRuntime.execute.mock.calls[0];
       expect(executeCall[0].options.onOutputUpdate).toBe(callback);
     });
+
+    it('should not inherit pipeline runtime options when stage runtime type differs', async () => {
+      const { AgentRuntimeRegistry } = await import('../../core/agent-runtime-registry.js');
+      const codexRuntime = { ...createMockRuntime(), type: 'codex-headless', name: 'Codex Headless Runtime' };
+      codexRuntime.execute.mockResolvedValue({
+        textOutput: 'Codex output',
+        extractedData: undefined,
+        tokenUsage: {
+          inputTokens: 100,
+          outputTokens: 50,
+          totalTokens: 150
+        },
+        numTurns: 1
+      });
+      AgentRuntimeRegistry.register(codexRuntime);
+
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
+
+      const pipelineState: PipelineState = {
+        ...runningPipelineState,
+        pipelineConfig: {
+          ...runningPipelineState.pipelineConfig,
+          runtime: {
+            type: 'claude-code-headless',
+            options: {
+              disallowedTools: ['WebSearch']
+            }
+          }
+        },
+        stages: [...runningPipelineState.stages]
+      };
+
+      const stageConfig: AgentStageConfig = {
+        ...basicStageConfig,
+        runtime: {
+          type: 'codex-headless',
+          options: {
+            fullAuto: true,
+            sandbox: 'workspace-write'
+          }
+        }
+      };
+
+      await executor.executeStage(stageConfig, pipelineState);
+
+      const executeCall = codexRuntime.execute.mock.calls[0];
+      expect(executeCall[0].options.runtimeOptions).toEqual({
+        fullAuto: true,
+        sandbox: 'workspace-write'
+      });
+      expect(executeCall[0].options.runtimeOptions).not.toHaveProperty('disallowedTools');
+    });
   });
 
   // REMOVED: "Tool-based output extraction" and "extractOutputs" blocks

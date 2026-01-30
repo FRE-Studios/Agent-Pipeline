@@ -116,7 +116,13 @@ export class StageExecutor {
     stageConfig: AgentStageConfig,
     pipelineState: PipelineState
   ): Record<string, unknown> | undefined {
-    const pipelineOptions = pipelineState.pipelineConfig.runtime?.options || {};
+    const pipelineRuntimeType = pipelineState.pipelineConfig.runtime?.type;
+    const stageRuntimeType = stageConfig.runtime?.type;
+
+    const pipelineOptions =
+      !stageRuntimeType || (pipelineRuntimeType && stageRuntimeType === pipelineRuntimeType)
+        ? pipelineState.pipelineConfig.runtime?.options || {}
+        : {};
     const stageOptions = stageConfig.runtime?.options || {};
 
     const merged = {
