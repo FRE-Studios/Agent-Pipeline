@@ -37,13 +37,15 @@ export class CodexHeadlessRuntime implements AgentRuntime {
     const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), 'codex-'));
     const outputPath = path.join(outputDir, 'output.txt');
 
+    const prompt = this.buildPrompt(request);
     const args = this.buildCliArgs(request, outputPath);
 
     const cliResult = await this.executeCodexCLI(args, {
       timeout: options.timeout ? options.timeout * 1000 : 120000,
       onOutputUpdate: options.onOutputUpdate,
       cwd: options.runtimeOptions?.cwd as string | undefined,
-      abortController
+      abortController,
+      stdinInput: prompt
     });
 
     const textOutput = await this.readOutputFile(outputPath, cliResult.stdout);
@@ -101,17 +103,18 @@ export class CodexHeadlessRuntime implements AgentRuntime {
     }
   }
 
+  private buildPrompt(request: AgentExecutionRequest): string {
+    const { systemPrompt, userPrompt } = request;
+    return systemPrompt?.trim()
+      ? `${systemPrompt.trim()}\n\n${userPrompt}`
+      : userPrompt;
+  }
+
   private buildCliArgs(request: AgentExecutionRequest, outputPath: string): string[] {
-    const { systemPrompt, userPrompt, options } = request;
+    const { options } = request;
     const args: string[] = ['exec'];
 
     const runtimeOpts = options.runtimeOptions || {};
-
-    // Prompt: Codex exec takes a single prompt string
-    const combinedPrompt = systemPrompt?.trim()
-      ? `${systemPrompt.trim()}\n\n${userPrompt}`
-      : userPrompt;
-    args.push(combinedPrompt);
 
     // Output handling
     args.push('--output-last-message', outputPath);
@@ -203,6 +206,9 @@ export class CodexHeadlessRuntime implements AgentRuntime {
       }
     }
 
+    // Prompt: provide via stdin to avoid CLI arg parsing issues
+    args.push('-');
+
     return args;
   }
 
@@ -213,6 +219,7 @@ export class CodexHeadlessRuntime implements AgentRuntime {
       onOutputUpdate?: (output: string) => void;
       cwd?: string;
       abortController?: PipelineAbortController;
+      stdinInput?: string;
     }
   ): Promise<{
     stdout: string;
@@ -264,7 +271,7 @@ export class CodexHeadlessRuntime implements AgentRuntime {
 
       try {
         child = spawn('codex', args, {
-          stdio: ['ignore', 'pipe', 'pipe'],
+          stdio: ['pipe', 'pipe', 'pipe'],
           shell: false,
           cwd: options.cwd || process.cwd()
         });
@@ -284,6 +291,11 @@ export class CodexHeadlessRuntime implements AgentRuntime {
         child.stderr?.on('data', (data: Buffer) => {
           stderr += data.toString();
         });
+
+        if (options.stdinInput && child.stdin) {
+          child.stdin.write(options.stdinInput);
+          child.stdin.end();
+        }
 
         child.on('exit', (code) => {
           clearTimeout(timer);

@@ -109,6 +109,7 @@ describe('CodexHeadlessRuntime', () => {
 
     const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
     expect(spawnArgs).toContain('exec');
+    expect(spawnArgs).toContain('-');
     expect(spawnArgs).toContain('--output-last-message');
     expect(spawnArgs).toContain('/tmp/codex-test/output.txt');
     expect(spawnArgs).toContain('--full-auto');

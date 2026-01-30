@@ -12,6 +12,7 @@ import { ErrorFactory } from '../utils/error-factory.js';
 import { TokenEstimator } from '../utils/token-estimator.js';
 import { InstructionLoader, InstructionContext } from './instruction-loader.js';
 import { PipelineAbortController } from './abort-controller.js';
+import { PipelineLogger } from '../utils/pipeline-logger.js';
 
 export class StageExecutor {
   private retryHandler: RetryHandler;
@@ -21,6 +22,7 @@ export class StageExecutor {
   private mainRepoPath: string | undefined;
   private loggingContext: LoggingContext;
   private abortController?: PipelineAbortController;
+  private pipelineLogger?: PipelineLogger;
 
   constructor(
     private gitManager: GitManager,
@@ -31,13 +33,15 @@ export class StageExecutor {
     repoPath?: string,
     executionRepoPath?: string,
     loggingContext?: LoggingContext,
-    abortController?: PipelineAbortController
+    abortController?: PipelineAbortController,
+    pipelineLogger?: PipelineLogger
   ) {
     this.retryHandler = new RetryHandler();
     this.instructionLoader = repoPath ? new InstructionLoader(repoPath) : null;
     this.mainRepoPath = repoPath;
     this.loggingContext = loggingContext ?? { interactive: true, verbose: false };
     this.abortController = abortController;
+    this.pipelineLogger = pipelineLogger;
 
     // If execution happens in a worktree, create a separate GitManager for it
     if (executionRepoPath && executionRepoPath !== repoPath) {
@@ -272,6 +276,9 @@ export class StageExecutor {
       const permissionMode = this.resolvePermissionMode(stageConfig, pipelineState);
 
       // Run agent using resolved runtime
+      if (this.pipelineLogger) {
+        this.pipelineLogger.stageStart(stageConfig.name, execution.retryAttempt);
+      }
       const retryInfo = PipelineFormatter.formatRetryInfo(execution.retryAttempt, execution.maxRetries);
       if (this.shouldLog()) {
         console.log(`▶ ${stageConfig.name}${retryInfo}...`);
@@ -361,6 +368,12 @@ export class StageExecutor {
             );
             console.log(`   Error: ${errorMsg}`);
           }
+          if (this.pipelineLogger) {
+            this.pipelineLogger.log(
+              `Stage ${stageConfig.name} failed (attempt ${context.attemptNumber + 1}/${context.maxAttempts}). ` +
+                `Retrying in ${RetryHandler.formatDelay(delay)}. Error: ${errorMsg}`
+            );
+          }
         }
       );
 
@@ -384,6 +397,14 @@ export class StageExecutor {
         }
       }
 
+      if (this.pipelineLogger) {
+        this.pipelineLogger.stageComplete(
+          stageConfig.name,
+          execution.duration,
+          execution.commitSha
+        );
+      }
+
       return execution;
 
     } catch (error) {
@@ -405,6 +426,10 @@ export class StageExecutor {
         if (this.isVerbose() && errorDetails.agentPath) {
           console.error(`   Agent: ${errorDetails.agentPath}`);
         }
+      }
+
+      if (this.pipelineLogger) {
+        this.pipelineLogger.stageFailed(stageConfig.name, errorDetails.message);
       }
 
       return execution;

@@ -140,7 +140,8 @@ export class PipelineInitializer {
       this.repoPath,                    // For file-driven instruction loading
       isolation.executionRepoPath,      // Where agents execute (worktree or main repo)
       { interactive: options.interactive ?? true, verbose },
-      options.abortController
+      options.abortController,
+      pipelineLogger
     );
     const parallelExecutor = new ParallelExecutor(
       stageExecutor,
