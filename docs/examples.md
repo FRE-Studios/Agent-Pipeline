@@ -81,9 +81,10 @@ Tip: for hook-triggered pipelines, prefer `unique-per-run` (or `unique-and-delet
 - `socratic-explorer` - Reads a question, answers thoughtfully, poses a deeper follow-up question
 
 **Execution Flow**:
-- The agent reads `question.md` (creates it if missing with an opening question)
+- The `socratic-explorer` agent reads `question.md` (creates it if missing with an opening question)
 - Answers the current question in 2-3 sentences
 - Poses a deeper follow-up question
+- A dedicated loop agent then runs to decide whether to queue the next iteration
 - Loop repeats up to `maxIterations` (default: 5)
 
 **Features**:

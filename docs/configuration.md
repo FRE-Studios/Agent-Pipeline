@@ -73,7 +73,7 @@ looping:
 
 # Runtime configuration - agent execution backend
 runtime:
-  type: claude-code-headless         # claude-code-headless (default), claude-sdk, or codex-headless
+  type: claude-code-headless         # claude-code-headless (default), claude-sdk, codex-headless, or openai-compatible
   options:
     model: sonnet                    # haiku, sonnet, or opus
 
@@ -157,7 +157,7 @@ Inter-stage communication settings are under the `handover:` section:
 
 ## Runtime Configuration
 
-Agent Pipeline supports multiple agent execution backends via the `runtime` field. The default is `claude-code-headless` (Claude Code CLI), which provides the full Claude Code tool suite (Bash, Read, Write, etc.) and local execution. Alternatively, use `claude-sdk` (Claude Agent SDK) for library-based execution with MCP tools.
+Agent Pipeline supports multiple agent execution backends via the `runtime` field. The default is `claude-code-headless` (Claude Code CLI), which provides the full Claude Code tool suite (Bash, Read, Write, etc.) and local execution. Other options include `claude-sdk` for library-based execution with MCP tools, `codex-headless` for OpenAI's Codex CLI with filesystem tools, and `openai-compatible` for text-in/text-out execution against any OpenAI-compatible Chat Completions endpoint.
 
 **Pipeline-level runtime** (applies to all stages unless overridden):
 ```yaml
@@ -214,6 +214,13 @@ runtime:
 **Codex Auth:** `codex-headless` works with local Codex auth, `OPENAI_API_KEY`, or `CODEX_API_KEY` via CLI config.
 
 **OpenAI-Compatible Auth:** API key resolution order: `runtimeOptions.apiKey` (inline) → `process.env[runtimeOptions.apiKeyEnv]` → `process.env.OPENAI_API_KEY`. API key is required only when using the default OpenAI base URL; if `runtimeOptions.baseUrl` or `OPENAI_BASE_URL` is set, the `Authorization` header is omitted when no key is provided. Base URL resolution: `runtimeOptions.baseUrl` → `process.env.OPENAI_BASE_URL` → `https://api.openai.com/v1`.
+
+**OpenAI-Compatible Limitations:** This runtime is **text-in/text-out only** — agents have no filesystem tools (no Bash, Read, Write, Edit). They cannot read files, create files, or modify code directly. The pipeline automatically saves each agent's text response to `stages/{stageName}/output.md`, and the next stage receives that path in its handover context. However, a downstream `openai-compatible` agent also cannot read those files — it only sees the handover instructions embedded in its prompt. This makes the runtime best suited for:
+- Text generation and analysis (summaries, reviews, brainstorming)
+- Planning and ideation stages that feed into a tool-capable runtime
+- Pipelines where a tool-capable runtime (e.g. `claude-code-headless`) handles file operations in later stages
+
+Agent prompts for this runtime should **not** reference filesystem operations (reading handover files, writing output files, creating code). Instead, write prompts that ask the agent to produce its answer as text — the pipeline handles the rest.
 
 **Cost Optimization:** Use `haiku` for simple tasks (linting, formatting) to reduce costs by up to 90%. Reserve `opus` for complex reasoning (architecture, design decisions). Per-stage overrides allow mixing models within a pipeline.
 
@@ -273,8 +280,8 @@ looping:
 - Directories are created automatically when looping is enabled
 - Use `--no-loop` CLI flag to force-disable looping for a single run (useful for testing)
 
-**Agent Instructions:**
-Agents in the final stage group receive loop instructions automatically, directing them to create new pipeline YAML files in the pending directory when continuation is needed.
+**Loop Agent:**
+After all pipeline stages complete, a dedicated loop agent is automatically created and executed as a separate stage. This agent receives the loop instructions template as its system prompt and decides whether to queue a new pipeline iteration by writing a YAML file to the pending directory. Your agents are never modified with loop logic.
 
 ## Stage Configuration
 

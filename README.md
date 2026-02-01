@@ -1,6 +1,6 @@
 # Agent Pipeline
 
-> Intelligent agent orchestration with DAG-planned parallelism, conditional logic, automated git hygiene, and multi-channel notifications for Claude Code.
+> Intelligent multi-runtime agent orchestration with DAG-planned parallelism, conditional logic, automated git hygiene, and multi-channel notifications. Supports Claude Code, Codex, and any OpenAI-compatible API.
 
 <p align="center">
   <video src="https://github.com/user-attachments/assets/eef9bda8-6184-45db-af6e-77307695f02e" width="720" autoplay loop muted playsinline></video>
@@ -19,7 +19,7 @@
 - Everything is a file in the filesystem
 - Agents are just `.md` files located in the `.agent-pipeline/agents/` directory.
 - Agents use the `handover.md` file for handoff to the next agent via `.agent-pipeline/instructions/handover.md`.
-- The last agent in a pipeline may create a loop using `.agent-pipeline/instructions/loop.md`.
+- When looping is enabled, a dedicated loop agent runs after all stages to decide whether to queue the next iteration using `.agent-pipeline/instructions/loop.md`.
 
 ```yaml
 name: my-pipeline 
@@ -35,7 +35,7 @@ agents:
       - first-agent
 ```
 
-State of the art models like Claude Opus 4.5 can understand directions very well: you can tell any agent (in their respective `.md` file) to "pass X data to next agent" or "create new pipeline for next plan phase if plan status is not complete" and the agent and pipeline will perform as you expect.
+Capable models (Claude Opus/Sonnet, GPT-5.2, DeepSeek V3.2, etc.) can understand directions very well: you can tell any agent (in their respective `.md` file) to "pass X data to next agent" or "create new pipeline for next plan phase if plan status is not complete" and the agent and pipeline will perform as you expect.
 
 > **Note:** Looping must be enabled in the pipeline YAML for loops to run.
 
@@ -65,7 +65,10 @@ agent-pipeline run post-commit-example
 
 - **Node.js** (v18 or higher)
 - **Git** (configured with user name and email)
-- **Claude Login or API Key** (set in Claude Code settings or in environment)
+- **At least one agent runtime:**
+  - **Claude Code** (`claude` CLI) – default runtime with full tool suite
+  - **Codex** (`codex` CLI) – OpenAI's Codex with filesystem tools
+  - **OpenAI-compatible API key** – for any Chat Completions endpoint (OpenAI, DeepSeek, Together, Groq, Ollama, etc.)
 - **GitHub CLI** (`gh`) – optional unless you enable automated PR creation
   - Install: `brew install gh` (macOS) or [see docs](https://cli.github.com/)
   - Authenticate: `gh auth login`
@@ -96,7 +99,7 @@ npm link
 agent-pipeline init
 ```
 
-This scaffolds three example pipelines (`front-end-parallel-example`, `post-commit-example`, and `loop-example`), required agent definitions, and the directory structure (`.agent-pipeline/`, `.agent-pipeline/agents/`). Agents from installed Claude Code plugins are automatically discovered.
+This scaffolds three example pipelines (`front-end-parallel-example`, `post-commit-example`, and `loop-example`), required agent definitions, and the directory structure (`.agent-pipeline/`, `.agent-pipeline/agents/`). Agents from installed Claude Code plugins are automatically discovered, with support for additional runtime agent discovery coming soon.
 
 ### 2. Run Your First Pipeline
 
@@ -194,8 +197,8 @@ agent-pipeline run my-pipeline
 - **Pipeline orchestration** – `PipelineRunner` combines DAG planning, conditional gating, and per-stage retries backed by `RetryHandler`.
 - **Git workflow automation** – Worktrees isolate runs by default, while `BranchManager` and `PRCreator` manage dedicated branches and PRs.
 - **State & context management** – `StateManager` persists run history while `HandoverManager` enables filesystem-based communication between stages.
-- **Runtime flexibility** – Pluggable agent runtimes (Claude SDK, Claude Code Headless, Codex Headless) registered via `AgentRuntimeRegistry`.
-- **Model flexibility** – Mix Haiku, Sonnet, and Opus models per stage for cost optimization (up to 90% savings on simple tasks).
+- **Runtime flexibility** – Pluggable agent runtimes (Claude Code Headless, Claude SDK, Codex Headless, OpenAI-compatible) registered via `AgentRuntimeRegistry`.
+- **Model flexibility** – Mix models across runtimes and providers per stage for cost optimization (up to 90% savings on simple tasks).
 - **Cost controls** – Set `maxTurns` and `maxThinkingTokens` to prevent runaway agents and enable deep reasoning when needed.
 - **Observability** – Ink-powered live UI, interactive history browser, and analytics reports generated from stored run data.
 - **Notifications** – `NotificationManager` sends desktop and Slack notifications with event filtering and fail-safe delivery.
@@ -214,7 +217,7 @@ Key components:
 - `src/core/branch-manager.ts` / `src/core/git-manager.ts` – Handle branch isolation and git commands.
 - `src/core/handover-manager.ts` – Manages filesystem-based stage communication via handover files.
 - `src/core/pr-creator.ts` – Integrates with GitHub CLI for PR automation.
-- `src/core/agent-runtime-registry.ts` – Registry for pluggable agent runtimes (Claude SDK, Claude Code Headless).
+- `src/core/agent-runtime-registry.ts` – Registry for pluggable agent runtimes (Claude Code Headless, Claude SDK, Codex Headless, OpenAI-compatible).
 - `src/utils/token-estimator.ts` – Provides `smartCount()` for context window monitoring.
 - `src/ui/pipeline-ui.tsx` & `src/cli/commands/history.tsx` – Ink UIs for live runs and history browsing.
 - `src/analytics/pipeline-analytics.ts` – Generates aggregated metrics for the `analytics` command.
