@@ -213,7 +213,7 @@ runtime:
 
 **Codex Auth:** `codex-headless` works with local Codex auth, `OPENAI_API_KEY`, or `CODEX_API_KEY` via CLI config.
 
-**OpenAI-Compatible Auth:** API key resolution order: `runtimeOptions.apiKey` (inline) → `process.env[runtimeOptions.apiKeyEnv]` → `process.env.OPENAI_API_KEY`. Base URL resolution: `runtimeOptions.baseUrl` → `process.env.OPENAI_BASE_URL` → `https://api.openai.com/v1`.
+**OpenAI-Compatible Auth:** API key resolution order: `runtimeOptions.apiKey` (inline) → `process.env[runtimeOptions.apiKeyEnv]` → `process.env.OPENAI_API_KEY`. API key is required only when using the default OpenAI base URL; if `runtimeOptions.baseUrl` or `OPENAI_BASE_URL` is set, the `Authorization` header is omitted when no key is provided. Base URL resolution: `runtimeOptions.baseUrl` → `process.env.OPENAI_BASE_URL` → `https://api.openai.com/v1`.
 
 **Cost Optimization:** Use `haiku` for simple tasks (linting, formatting) to reduce costs by up to 90%. Reserve `opus` for complex reasoning (architecture, design decisions). Per-stage overrides allow mixing models within a pipeline.
 

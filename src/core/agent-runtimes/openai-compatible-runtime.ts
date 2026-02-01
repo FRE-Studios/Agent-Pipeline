@@ -35,17 +35,18 @@ export class OpenAICompatibleRuntime implements AgentRuntime {
     const { systemPrompt, userPrompt, options } = request;
     const runtimeOpts = options.runtimeOptions || {};
 
-    // Resolve API key
+    // Resolve base URL
+    const explicitBaseUrl = this.resolveExplicitBaseUrl(runtimeOpts);
+    const baseUrl = explicitBaseUrl || 'https://api.openai.com/v1';
+
+    // Resolve API key (required only for default OpenAI base URL)
     const apiKey = this.resolveApiKey(runtimeOpts);
-    if (!apiKey) {
+    if (!apiKey && !explicitBaseUrl) {
       const envVar = (runtimeOpts.apiKeyEnv as string) || 'OPENAI_API_KEY';
       throw new Error(
         `No API key found. Set ${envVar} environment variable or provide apiKey in runtime options.`
       );
     }
-
-    // Resolve base URL
-    const baseUrl = this.resolveBaseUrl(runtimeOpts);
 
     // Build messages
     const messages: Array<{ role: string; content: string }> = [];
@@ -90,12 +91,16 @@ export class OpenAICompatibleRuntime implements AgentRuntime {
     try {
       const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
 
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      };
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
+        headers,
         body: JSON.stringify(body),
         signal: nativeAbort.signal
       });
@@ -174,11 +179,11 @@ export class OpenAICompatibleRuntime implements AgentRuntime {
     return process.env.OPENAI_API_KEY;
   }
 
-  private resolveBaseUrl(runtimeOpts: Record<string, unknown>): string {
+  private resolveExplicitBaseUrl(runtimeOpts: Record<string, unknown>): string | undefined {
     if (runtimeOpts.baseUrl && typeof runtimeOpts.baseUrl === 'string') {
       return runtimeOpts.baseUrl;
     }
-    return process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+    return process.env.OPENAI_BASE_URL;
   }
 
   private async handleNonStreamingResponse(
@@ -208,7 +213,11 @@ export class OpenAICompatibleRuntime implements AgentRuntime {
     onOutputUpdate: (output: string) => void,
     model: string
   ): Promise<AgentExecutionResult> {
-    const reader = response.body!.getReader();
+    if (!response.body) {
+      throw new Error('Streaming response body missing');
+    }
+
+    const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
     let accumulated = '';
@@ -220,17 +229,23 @@ export class OpenAICompatibleRuntime implements AgentRuntime {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
+        const normalized = buffer.replace(/\r\n/g, '\n');
+        const events = normalized.split('\n\n');
+        buffer = events.pop() ?? '';
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed === 'data: [DONE]') continue;
-          if (!trimmed.startsWith('data: ')) continue;
+        for (const event of events) {
+          const lines = event.split('\n');
+          const dataLines = lines
+            .filter((line) => line.startsWith('data:'))
+            .map((line) => line.replace(/^data:\s?/, ''));
 
-          const jsonStr = trimmed.slice(6);
+          if (dataLines.length === 0) continue;
+
+          const payload = dataLines.join('\n').trim();
+          if (!payload || payload === '[DONE]') continue;
+
           try {
-            const chunk = JSON.parse(jsonStr);
+            const chunk = JSON.parse(payload);
 
             // Extract content delta
             const delta = chunk.choices?.[0]?.delta?.content;
