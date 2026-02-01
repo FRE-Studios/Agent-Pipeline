@@ -187,12 +187,33 @@ runtime:
     sandbox: workspace-write
 ```
 
+**OpenAI-compatible example (works with OpenAI, Together, Groq, Mistral, DeepSeek, etc.):**
+```yaml
+runtime:
+  type: openai-compatible
+  options:
+    model: gpt-4o
+    apiKeyEnv: OPENAI_API_KEY       # optional, this is the default
+```
+
+**Local Ollama example:**
+```yaml
+runtime:
+  type: openai-compatible
+  options:
+    model: llama3.1:70b
+    baseUrl: http://localhost:11434/v1
+```
+
 **Available Runtimes:**
 - `claude-code-headless` (default): Full Claude Code tool suite, local execution, session continuation support
 - `codex-headless`: Codex CLI execution via `codex exec` (local auth or API key)
 - `claude-sdk`: Library-based execution, MCP tools, used internally for context reduction
+- `openai-compatible`: HTTP calls to any OpenAI-compatible Chat Completions endpoint (no extra dependencies)
 
 **Codex Auth:** `codex-headless` works with local Codex auth, `OPENAI_API_KEY`, or `CODEX_API_KEY` via CLI config.
+
+**OpenAI-Compatible Auth:** API key resolution order: `runtimeOptions.apiKey` (inline) → `process.env[runtimeOptions.apiKeyEnv]` → `process.env.OPENAI_API_KEY`. Base URL resolution: `runtimeOptions.baseUrl` → `process.env.OPENAI_BASE_URL` → `https://api.openai.com/v1`.
 
 **Cost Optimization:** Use `haiku` for simple tasks (linting, formatting) to reduce costs by up to 90%. Reserve `opus` for complex reasoning (architecture, design decisions). Per-stage overrides allow mixing models within a pipeline.
 

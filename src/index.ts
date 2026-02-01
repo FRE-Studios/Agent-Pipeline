@@ -21,6 +21,7 @@ import { AgentRuntimeRegistry } from './core/agent-runtime-registry.js';
 import { ClaudeSDKRuntime } from './core/agent-runtimes/claude-sdk-runtime.js';
 import { ClaudeCodeHeadlessRuntime } from './core/agent-runtimes/claude-code-headless-runtime.js';
 import { CodexHeadlessRuntime } from './core/agent-runtimes/codex-headless-runtime.js';
+import { OpenAICompatibleRuntime } from './core/agent-runtimes/openai-compatible-runtime.js';
 
 // Command imports
 import { runCommand } from './cli/commands/run.js';
@@ -109,6 +110,23 @@ async function main() {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     Logger.error(`Failed to register Codex Headless runtime: ${message}`);
+    if (process.env.DEBUG) {
+      console.error(err);
+    }
+  }
+
+  // Register OpenAI-Compatible API runtime on startup
+  try {
+    const openaiRuntime = new OpenAICompatibleRuntime();
+    AgentRuntimeRegistry.register(openaiRuntime);
+
+    const validation = await openaiRuntime.validate();
+    if (validation.warnings.length > 0 && process.env.DEBUG) {
+      validation.warnings.forEach((warning) => Logger.warn(`  ${warning}`));
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    Logger.error(`Failed to register OpenAI-Compatible runtime: ${message}`);
     if (process.env.DEBUG) {
       console.error(err);
     }
