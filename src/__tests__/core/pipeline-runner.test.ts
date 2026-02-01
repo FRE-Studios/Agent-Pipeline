@@ -183,12 +183,28 @@ describe('PipelineRunner', () => {
     mockPipelineState = createMockState();
 
     // Re-setup hoisted mock implementations after clearAllMocks
-    mockDAGPlannerInstance.buildExecutionPlan.mockReturnValue({
-      plan: {
-        groups: [{ stages: [{ name: 'stage-1', agent: 'test.md' }] }],
-        maxParallelism: 1,
-      },
-      validation: { warnings: [], isValid: true },
+    // Smart DAG mock: returns an extra group for the loop agent when injected
+    mockDAGPlannerInstance.buildExecutionPlan.mockImplementation((config: PipelineConfig) => {
+      const loopStage = config.agents.find(a => a.agent === '__inline__');
+      if (loopStage) {
+        return {
+          plan: {
+            groups: [
+              { stages: config.agents.filter(a => a.agent !== '__inline__') },
+              { stages: [loopStage] },
+            ],
+            maxParallelism: 1,
+          },
+          validation: { warnings: [], isValid: true },
+        };
+      }
+      return {
+        plan: {
+          groups: [{ stages: [{ name: 'stage-1', agent: 'test.md' }] }],
+          maxParallelism: 1,
+        },
+        validation: { warnings: [], isValid: true },
+      };
     });
     mockLoopStateManagerInstance.startSession.mockResolvedValue({ sessionId: 'session-123' });
     mockLoopStateManagerInstance.appendIteration.mockResolvedValue(undefined);
@@ -1902,6 +1918,62 @@ describe('PipelineRunner', () => {
       expect(mockInstructionLoaderInstance.loadLoopInstructions).toHaveBeenCalledWith(
         '.agent-pipeline/instructions/custom-loop.md',
         expect.any(Object)
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should pass config with loop agent to DAG planner', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      const loopConfig: PipelineConfig = {
+        ...simplePipelineConfig,
+        looping: {
+          enabled: true,
+          maxIterations: 5,
+          directories: defaultLoopDirs,
+        },
+      };
+
+      await runner.runPipeline(loopConfig, { interactive: false });
+
+      // DAG planner should receive a config that includes the loop agent
+      expect(mockDAGPlannerInstance.buildExecutionPlan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agents: expect.arrayContaining([
+            expect.objectContaining({ name: 'loop-agent', agent: '__inline__' }),
+          ]),
+        })
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should update state.pipelineConfig with loop agent for UI rendering', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      let capturedState: PipelineState | undefined;
+      mockOrchestratorInstance.processGroup.mockImplementation(async (_group, state) => {
+        capturedState = state;
+        return { state, shouldStopPipeline: false };
+      });
+
+      const loopConfig: PipelineConfig = {
+        ...simplePipelineConfig,
+        looping: {
+          enabled: true,
+          maxIterations: 5,
+          directories: defaultLoopDirs,
+        },
+      };
+
+      await runner.runPipeline(loopConfig, { interactive: false });
+
+      // state.pipelineConfig should include the loop agent so the UI can render it
+      expect(capturedState?.pipelineConfig.agents).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'loop-agent', agent: '__inline__' }),
+        ])
       );
 
       consoleSpy.mockRestore();
