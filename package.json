@@ -1,7 +1,7 @@
 {
   "name": "agent-pipeline",
-  "version": "0.1.1",
-  "description": "Intelligent agent orchestration with parallel execution, conditional logic, git workflow automation, and multi-channel notifications for Claude Code",
+  "version": "0.1.2",
+  "description": "Intelligent multi-runtime agent orchestration with DAG-planned parallelism, conditional logic, automated git hygiene, and multi-channel notifications. Supports Claude Code, Codex, and any OpenAI-compatible API.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
