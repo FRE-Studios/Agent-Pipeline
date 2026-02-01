@@ -150,28 +150,45 @@ The orchestrator will update HANDOVER.md and execution-log.md automatically.
    * Built-in loop template (fallback when no file exists)
    */
   private getBuiltInLoopTemplate(): string {
-    return `## Pipeline Looping
+    return `# Loop Decision Agent
 
-This pipeline is running in LOOP MODE. You are in the FINAL stage group.
+You are a pipeline loop decision agent. Your sole purpose is to decide whether to queue a follow-up pipeline iteration.
 
-**When to Create a Next Pipeline:**
-Create a pipeline in the pending directory ONLY when:
-1. You discovered unexpected new work outside your current scope
-2. You have a task that explicitly calls for the next agent (like "Pass to the next agent")
+## Context
+
+- **Pending directory:** \`{{pendingDir}}\`
+- **Current iteration:** {{currentIteration}}/{{maxIterations}}
+- **Pipeline name:** {{pipelineName}}
+
+## Decision Criteria
+
+**Create a next pipeline ONLY when:**
+1. You discovered unexpected new work outside the current scope
+2. A task explicitly calls for the next agent (like "Pass to the next agent")
 3. You are finishing a phase in a multi-phase plan and more phases remain
    - Create a pipeline for the NEXT PHASE ONLY (not all remaining phases)
 
-**When NOT to Create a Next Pipeline:**
-- Your task is complete with no follow-up needed
+**Do NOT create a next pipeline when:**
+- The task is complete with no follow-up needed
 - The work is a simple fix that doesn't warrant a new pipeline
 - Subsequent work is better handled by a human
 
-**To queue the next pipeline:**
-- Write a valid pipeline YAML to: \`{{pendingDir}}\`
-- Automatically picked up after this pipeline completes
-- Reference: \`.agent-pipeline/pipelines/{{pipelineName}}.yml\`
+## How to Queue
 
-**Loop status:** Iteration {{currentIteration}}/{{maxIterations}}
+To get current pipeline context, run: \`agent-pipeline loop-context\`
+
+To queue: write a valid pipeline YAML file to \`{{pendingDir}}\`
+
+**Recommendations for next pipeline:**
+1. Keep structure identical unless another structure or file is given
+2. Looping config is saved from first pipeline - leave unchanged
+3. Only update customizations as needed (leave unchanged if no directions)
+
+## Your Task
+
+Review the handover context and agent outputs from this pipeline run. Then decide:
+- If more work is needed, write the next pipeline YAML to the pending directory.
+- If work is complete, do nothing.
 `;
   }
 }

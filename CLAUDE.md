@@ -125,6 +125,8 @@ Tests use Vitest with extensive mocking:
 
 **Dry Run Mode**: When enabled, skip all git commits but execute agents. Useful for testing pipelines.
 
+**Publishing**: Always use `git tag vX.Y.Z` alongside `npm publish` so the git history and npm registry stay aligned.
+
 ### Development Flow
 When planning new features or fixes, if you notice the changes will require a large refactoring, only do a detailed plan of the first phase of required changes and ask user for review before the next phases. 
 

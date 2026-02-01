@@ -351,7 +351,7 @@ describe('StageExecutor', () => {
       // Pass verbose logging context to see log messages
       executor = new StageExecutor(
         mockGitManager, true, mockHandoverManager, mockRuntime,
-        undefined, undefined, undefined,
+        undefined, undefined,
         { interactive: false, verbose: true }
       ); // dry-run mode
 
@@ -491,7 +491,7 @@ describe('StageExecutor', () => {
       // Pass verbose logging context to see retry log messages
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager, mockRuntime,
-        undefined, undefined, undefined,
+        undefined, undefined,
         { interactive: false, verbose: true }
       );
 
@@ -608,7 +608,7 @@ describe('StageExecutor', () => {
       // Pass non-interactive logging context to see error log messages
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager, mockRuntime,
-        undefined, undefined, undefined,
+        undefined, undefined,
         { interactive: false, verbose: false }
       );
 
@@ -1172,7 +1172,7 @@ describe('StageExecutor', () => {
       // Pass verbose logging context to see retry log messages
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager, mockRuntime,
-        undefined, undefined, undefined,
+        undefined, undefined,
         { interactive: false, verbose: true }
       );
 
@@ -1360,7 +1360,7 @@ describe('StageExecutor', () => {
       // Enable verbose logging
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager, mockRuntime,
-        undefined, undefined, undefined,
+        undefined, undefined,
         { interactive: false, verbose: true }
       );
 
@@ -1381,7 +1381,7 @@ describe('StageExecutor', () => {
       // Enable verbose logging
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager, mockRuntime,
-        undefined, undefined, undefined,
+        undefined, undefined,
         { interactive: false, verbose: true }
       );
 
@@ -1408,7 +1408,7 @@ describe('StageExecutor', () => {
       // Enable verbose logging
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager, mockRuntime,
-        undefined, undefined, undefined,
+        undefined, undefined,
         { interactive: false, verbose: true }
       );
 
@@ -1429,7 +1429,7 @@ describe('StageExecutor', () => {
       // Non-interactive mode shows error details
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager, mockRuntime,
-        undefined, undefined, undefined,
+        undefined, undefined,
         { interactive: false, verbose: false }
       );
 
@@ -1456,7 +1456,6 @@ describe('StageExecutor', () => {
       // Create executor without worktree
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager, mockRuntime,
-        undefined,
         testRepoPath,
         undefined,  // No worktree path
         { interactive: true, verbose: false }
@@ -1482,7 +1481,7 @@ describe('StageExecutor', () => {
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager,
         undefined,  // No default runtime
-        undefined, undefined, undefined,
+        undefined, undefined,
         { interactive: false, verbose: false }
       );
 
@@ -1510,7 +1509,7 @@ describe('StageExecutor', () => {
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager,
         undefined,
-        undefined, undefined, undefined,
+        undefined, undefined,
         { interactive: false, verbose: false }
       );
 
@@ -1543,7 +1542,7 @@ describe('StageExecutor', () => {
       // Pass verbose logging context to see runtime resolution logs
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager, mockRuntime,
-        undefined, undefined, undefined,
+        undefined, undefined,
         { interactive: false, verbose: true }
       );
 
@@ -1570,7 +1569,7 @@ describe('StageExecutor', () => {
       // Pass verbose logging context to see runtime resolution logs
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager,
-        undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined,
         { interactive: false, verbose: true }
       );
 
@@ -1601,7 +1600,7 @@ describe('StageExecutor', () => {
       // Pass verbose logging context to see runtime resolution logs
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager,
-        undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined,
         { interactive: false, verbose: true }
       );
 
@@ -1629,7 +1628,7 @@ describe('StageExecutor', () => {
       // Pass verbose logging context to see runtime resolution logs
       executor = new StageExecutor(
         mockGitManager, false, mockHandoverManager,
-        undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined,
         { interactive: false, verbose: true }
       );
 
@@ -1679,7 +1678,6 @@ describe('StageExecutor', () => {
         false,
         mockHandoverManager,
         mockRuntime,
-        undefined,
         samePath,
         samePath,  // Same as repoPath - no worktree GitManager created
         { interactive: false, verbose: false }
@@ -1703,7 +1701,6 @@ describe('StageExecutor', () => {
         false,
         mockHandoverManager,
         mockRuntime,
-        undefined,
         process.cwd(),
         undefined,  // No executionRepoPath - no worktree GitManager created
         { interactive: false, verbose: false }
@@ -1730,7 +1727,6 @@ describe('StageExecutor', () => {
         false,
         mockHandoverManager,
         undefined,  // No default runtime
-        undefined,
         undefined,
         undefined,
         { interactive: false, verbose: false }
@@ -1765,176 +1761,36 @@ describe('StageExecutor', () => {
   // Note: Worktree Context Injection tests (lines 432-437) are in stage-executor-worktree.test.ts
   // That file mocks GitManager at the module level to avoid slow simpleGit operations;
 
-  describe('Loop Instructions via InstructionLoader (lines 459-466)', () => {
-    it('should use InstructionLoader when repoPath is provided and loop context is active', async () => {
+  describe('systemPromptOverride', () => {
+    it('should use systemPromptOverride instead of loading from agent file', async () => {
       mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
-      const loopContext = {
-        enabled: true,
-        directories: {
-          pending: '/repo/.agent-pipeline/next/pending',
-          running: '/repo/.agent-pipeline/next/running',
-          finished: '/repo/.agent-pipeline/next/finished',
-          failed: '/repo/.agent-pipeline/next/failed'
-        },
-        currentIteration: 5,
-        maxIterations: 50,
-        isFinalGroup: true
-      };
+      const overridePrompt = '# Custom Loop Agent\nYou are a loop decision agent.';
 
-      // Create executor with repoPath (triggers InstructionLoader creation)
-      executor = new StageExecutor(
-        mockGitManager,
-        false,
-        mockHandoverManager,
-        mockRuntime,
-        loopContext,
-        testRepoPath,  // repoPath - enables InstructionLoader
+      await executor.executeStage(
+        basicStageConfig,
+        runningPipelineState,
         undefined,
-        { interactive: false, verbose: false }
+        overridePrompt
       );
 
-      // Mock fs.readFile to simulate InstructionLoader loading a custom template
-      const fs = await import('fs/promises');
-      vi.mocked(fs.readFile).mockImplementation(async (path: any) => {
-        if (path.includes('loop.md')) {
-          return 'Custom loop template: {{pendingDir}} iteration {{currentIteration}}/{{maxIterations}}';
-        }
-        return 'Mock agent system prompt';
-      });
-
-      await executor.executeStage(basicStageConfig, runningPipelineState);
-
       const executeCall = mockRuntime.execute.mock.calls[0];
-      const userPrompt = executeCall[0].userPrompt;
-
-      // Should contain interpolated custom loop template
-      expect(userPrompt).toContain('/repo/.agent-pipeline/next/pending');
-      expect(userPrompt).toContain('5/50');
+      // Should use the override as the system prompt
+      expect(executeCall[0].systemPrompt).toBe(overridePrompt);
     });
 
-    it('should pass pipeline name to InstructionLoader context', async () => {
+    it('should still load from agent file when systemPromptOverride is not provided', async () => {
+      const fsModule = await import('fs/promises');
+      vi.mocked(fsModule.readFile).mockResolvedValue('Agent file system prompt');
+
       mockGitManager = createMockGitManager({ hasChanges: false });
-
-      const loopContext = {
-        enabled: true,
-        directories: {
-          pending: '/repo/pending',
-          running: '/repo/running',
-          finished: '/repo/finished',
-          failed: '/repo/failed'
-        },
-        currentIteration: 1,
-        maxIterations: 10,
-        isFinalGroup: true
-      };
-
-      executor = new StageExecutor(
-        mockGitManager,
-        false,
-        mockHandoverManager,
-        mockRuntime,
-        loopContext,
-        testRepoPath,
-        undefined,
-        { interactive: false, verbose: false }
-      );
-
-      // Mock fs.readFile to return template with pipelineName variable
-      const fs = await import('fs/promises');
-      vi.mocked(fs.readFile).mockImplementation(async (path: any) => {
-        if (path.includes('loop.md')) {
-          return 'Pipeline: {{pipelineName}}';
-        }
-        return 'Mock agent system prompt';
-      });
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
 
       await executor.executeStage(basicStageConfig, runningPipelineState);
 
       const executeCall = mockRuntime.execute.mock.calls[0];
-      const userPrompt = executeCall[0].userPrompt;
-
-      // Pipeline name should be interpolated from pipelineConfig.name (which is 'simple-test')
-      expect(userPrompt).toContain('simple-test');
-    });
-
-    it('should fall back to hardcoded template when InstructionLoader is not available', async () => {
-      mockGitManager = createMockGitManager({ hasChanges: false });
-
-      const loopContext = {
-        enabled: true,
-        directories: {
-          pending: '/repo/pending',
-          running: '/repo/running',
-          finished: '/repo/finished',
-          failed: '/repo/failed'
-        },
-        currentIteration: 3,
-        maxIterations: 20,
-        isFinalGroup: true
-      };
-
-      // Create executor WITHOUT repoPath (no InstructionLoader)
-      executor = new StageExecutor(
-        mockGitManager,
-        false,
-        mockHandoverManager,
-        mockRuntime,
-        loopContext,
-        undefined,  // No repoPath - InstructionLoader won't be created
-        undefined,
-        { interactive: false, verbose: false }
-      );
-
-      await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      const executeCall = mockRuntime.execute.mock.calls[0];
-      const userPrompt = executeCall[0].userPrompt;
-
-      // Should use hardcoded fallback template (lines 473-496)
-      expect(userPrompt).toContain('## Pipeline Looping');
-      expect(userPrompt).toContain('LOOP MODE');
-      expect(userPrompt).toContain('FINAL stage group');
-      expect(userPrompt).toContain('When to Create a Next Pipeline');
-      expect(userPrompt).toContain('When NOT to Create a Next Pipeline');
-      expect(userPrompt).toContain('/repo/pending');
-      expect(userPrompt).toContain('3/20');
-    });
-
-    it('should include pipeline reference in hardcoded fallback when pipelineName provided', async () => {
-      mockGitManager = createMockGitManager({ hasChanges: false });
-
-      const loopContext = {
-        enabled: true,
-        directories: {
-          pending: '/test/pending',
-          running: '/test/running',
-          finished: '/test/finished',
-          failed: '/test/failed'
-        },
-        currentIteration: 1,
-        maxIterations: 5,
-        isFinalGroup: true
-      };
-
-      executor = new StageExecutor(
-        mockGitManager,
-        false,
-        mockHandoverManager,
-        mockRuntime,
-        loopContext,
-        undefined,  // No repoPath - uses hardcoded fallback
-        undefined,
-        { interactive: false, verbose: false }
-      );
-
-      await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      const executeCall = mockRuntime.execute.mock.calls[0];
-      const userPrompt = executeCall[0].userPrompt;
-
-      // Should include reference to current pipeline (name from fixture is 'simple-test')
-      expect(userPrompt).toContain('.agent-pipeline/pipelines/simple-test.yml');
+      expect(executeCall[0].systemPrompt).toBe('Agent file system prompt');
     });
   });
 });

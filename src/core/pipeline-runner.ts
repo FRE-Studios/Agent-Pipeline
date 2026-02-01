@@ -8,7 +8,8 @@ import { DAGPlanner } from './dag-planner.js';
 import { PipelineInitializer } from './pipeline-initializer.js';
 import { GroupExecutionOrchestrator } from './group-execution-orchestrator.js';
 import { PipelineFinalizer } from './pipeline-finalizer.js';
-import { PipelineConfig, PipelineState, PipelineMetadata, ResolvedLoopingConfig, LoopContext, IterationHistoryEntry } from '../config/schema.js';
+import { PipelineConfig, PipelineState, PipelineMetadata, ResolvedLoopingConfig, LoopContext, IterationHistoryEntry, AgentStageConfig } from '../config/schema.js';
+import { InstructionLoader, InstructionContext } from './instruction-loader.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
 import { PipelineLoader } from '../config/pipeline-loader.js';
@@ -770,7 +771,7 @@ export class PipelineRunner {
       return failedState;
     }
 
-    let { state, parallelExecutor, pipelineBranch, worktreePath, executionRepoPath, startTime, pipelineLogger } = initResult;
+    let { state, parallelExecutor, stageExecutor, pipelineBranch, worktreePath, executionRepoPath, startTime, pipelineLogger } = initResult;
     this.notificationManager = initResult.notificationManager;
 
     // Create loop directories on first iteration (after we know worktree path)
@@ -833,7 +834,6 @@ export class PipelineRunner {
         }
 
         const group = executionGraph.plan.groups[groupIndex];
-        const isFinalGroup = groupIndex === totalGroups - 1;
 
         const result = await this.groupOrchestrator.processGroup(
           group,
@@ -842,7 +842,6 @@ export class PipelineRunner {
           parallelExecutor,
           interactive,
           initResult.handoverManager,
-          { isFinalGroup },
           verbose
         );
 
@@ -869,6 +868,61 @@ export class PipelineRunner {
       // Set final status if still running
       if (state.status === 'running' && !abortController?.aborted) {
         state.status = 'completed';
+      }
+
+      // Execute loop agent as a dedicated stage (after all DAG groups, before finalization)
+      if (loopContext?.enabled && state.status !== 'failed' && state.status !== 'aborted') {
+        try {
+          // Load & interpolate loop template
+          const instructionLoader = new InstructionLoader(this.repoPath);
+          const loopInstructionsPath = config.looping?.instructions;
+          const loopTemplateContext: InstructionContext = {
+            pendingDir: loopContext.directories.pending,
+            currentIteration: loopContext.currentIteration,
+            maxIterations: loopContext.maxIterations,
+            pipelineName: config.name
+          };
+          const loopSystemPrompt = await instructionLoader.loadLoopInstructions(
+            loopInstructionsPath,
+            loopTemplateContext
+          );
+
+          // Create synthetic stage config for the loop agent
+          const loopStageConfig: AgentStageConfig = {
+            name: 'loop-agent',
+            agent: '__inline__'
+          };
+
+          if (this.shouldLog(interactive)) {
+            console.log('🔁 Running loop agent...');
+          }
+
+          // Execute via stageExecutor with systemPromptOverride
+          const loopExecution = await stageExecutor.executeStage(
+            loopStageConfig,
+            state,
+            undefined,
+            loopSystemPrompt
+          );
+
+          // Push execution to state and notify
+          state.stages.push(loopExecution);
+          this.notifyStateChange(state);
+          await this.stateManager.saveState(state);
+
+          if (this.shouldLog(interactive)) {
+            if (loopExecution.status === 'success') {
+              console.log(`✅ loop-agent (${loopExecution.duration?.toFixed(0) ?? 0}s)`);
+            } else {
+              console.log(`⚠️  loop-agent failed (non-fatal): ${loopExecution.error?.message ?? 'unknown'}`);
+            }
+          }
+        } catch (error) {
+          // Loop agent failure is non-fatal
+          if (this.shouldLog(interactive)) {
+            console.warn(`⚠️  Loop agent error (non-fatal): ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
       }
     } catch (error) {
       // Handle abort error specially (thrown from deeper in the call stack)

@@ -163,9 +163,8 @@ Previous: {{previousStagesSection}}
         maxIterations: 100
       });
 
-      expect(result).toContain('## Pipeline Looping');
-      expect(result).toContain('LOOP MODE');
-      expect(result).toContain('FINAL stage group');
+      expect(result).toContain('# Loop Decision Agent');
+      expect(result).toContain('loop decision agent');
       expect(result).toContain('/pending/dir');
       expect(result).toContain('5/100');
     });
@@ -261,12 +260,12 @@ Iteration: {{currentIteration}}/{{maxIterations}}
         maxIterations: 10
       });
 
-      expect(result).toContain('## Pipeline Looping');
-      expect(result).toContain('LOOP MODE');
-      expect(result).toContain('To queue the next pipeline');
-      expect(result).toContain('When to Create a Next Pipeline');
-      expect(result).toContain('When NOT to Create a Next Pipeline');
-      expect(result).toContain('Loop status');
+      expect(result).toContain('# Loop Decision Agent');
+      expect(result).toContain('loop decision agent');
+      expect(result).toContain('## Decision Criteria');
+      expect(result).toContain('Create a next pipeline ONLY when');
+      expect(result).toContain('Do NOT create a next pipeline when');
+      expect(result).toContain('## Your Task');
     });
   });
 });

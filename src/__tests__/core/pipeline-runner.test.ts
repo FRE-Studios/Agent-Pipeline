@@ -330,46 +330,6 @@ describe('PipelineRunner', () => {
         expect(mockOrchestratorInstance.processGroup).toHaveBeenCalledTimes(1);
       });
 
-      it('should set final group flag correctly', async () => {
-        mockDAGPlannerInstance.buildExecutionPlan.mockReturnValue({
-          plan: {
-            groups: [
-              { stages: [{ name: 'group-1' }] },
-              { stages: [{ name: 'group-2' }] },
-            ],
-            maxParallelism: 1,
-          },
-          validation: { warnings: [] },
-        });
-
-        await runner.runPipeline(simplePipelineConfig);
-
-        // First call should have isFinalGroup: false
-        expect(mockOrchestratorInstance.processGroup).toHaveBeenNthCalledWith(
-          1,
-          expect.any(Object),
-          expect.any(Object),
-          expect.any(Object),
-          expect.any(Object),
-          expect.any(Boolean),
-          expect.any(Object),
-          { isFinalGroup: false },
-          expect.any(Boolean)
-        );
-
-        // Second call should have isFinalGroup: true
-        expect(mockOrchestratorInstance.processGroup).toHaveBeenNthCalledWith(
-          2,
-          expect.any(Object),
-          expect.any(Object),
-          expect.any(Object),
-          expect.any(Object),
-          expect.any(Boolean),
-          expect.any(Object),
-          { isFinalGroup: true },
-          expect.any(Boolean)
-        );
-      });
     });
 
     describe('error handling', () => {

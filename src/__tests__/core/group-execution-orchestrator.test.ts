@@ -1,7 +1,7 @@
 // src/__tests__/core/group-execution-orchestrator.test.ts
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { GroupExecutionOrchestrator, GroupContext } from '../../core/group-execution-orchestrator.js';
+import { GroupExecutionOrchestrator } from '../../core/group-execution-orchestrator.js';
 import { StateManager } from '../../core/state-manager.js';
 import { ParallelExecutor, ParallelExecutionResult } from '../../core/parallel-executor.js';
 import { HandoverManager } from '../../core/handover-manager.js';
@@ -796,38 +796,6 @@ describe('GroupExecutionOrchestrator', () => {
       });
     });
 
-    describe('group context', () => {
-      it('should pass group context to executor', async () => {
-        const stages: AgentStageConfig[] = [
-          { name: 'stage1', agent: 'agent1.md' },
-        ];
-        const group = createExecutionGroup(stages, 0);
-        const state = createMockState();
-        const groupContext: GroupContext = { isFinalGroup: true };
-
-        vi.mocked(mockParallelExecutor.executeSequentialGroup).mockResolvedValue(
-          createSuccessfulResult(['stage1'])
-        );
-
-        await orchestrator.processGroup(
-          group,
-          state,
-          simplePipelineConfig,
-          mockParallelExecutor,
-          false,
-          undefined,
-          groupContext
-        );
-
-        expect(mockParallelExecutor.executeSequentialGroup).toHaveBeenCalledWith(
-          expect.any(Array),
-          expect.any(Object),
-          expect.any(Function),
-          groupContext
-        );
-      });
-    });
-
     describe('state management', () => {
       it('should save state after group execution', async () => {
         const stages: AgentStageConfig[] = [
@@ -996,8 +964,7 @@ describe('GroupExecutionOrchestrator', () => {
         expect(mockParallelExecutor.executeSequentialGroup).toHaveBeenCalledWith(
           expect.arrayContaining([expect.objectContaining({ name: 'stage-no-enabled' })]),
           expect.any(Object),
-          expect.any(Function),
-          undefined
+          expect.any(Function)
         );
       });
 

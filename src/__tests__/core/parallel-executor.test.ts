@@ -17,7 +17,6 @@ describe('ParallelExecutor', () => {
     // Create mock StageExecutor
     mockStageExecutor = {
       executeStage: vi.fn(),
-      updateLoopContext: vi.fn(),
     } as any;
 
     onStateChangeSpy = vi.fn();
@@ -1229,95 +1228,4 @@ describe('ParallelExecutor', () => {
     });
   });
 
-  describe('groupContext handling', () => {
-    describe('executeParallelGroup with groupContext', () => {
-      it('should call updateLoopContext with isFinalGroup=true', async () => {
-        const stages: AgentStageConfig[] = [
-          { name: 'stage1', agent: 'agent1.md' },
-        ];
-
-        (mockStageExecutor.executeStage as any)
-          .mockResolvedValue({ ...successfulStageExecution });
-
-        await parallelExecutor.executeParallelGroup(
-          stages,
-          runningPipelineState,
-          undefined,
-          { isFinalGroup: true }
-        );
-
-        expect(mockStageExecutor.updateLoopContext).toHaveBeenCalledWith({ isFinalGroup: true });
-      });
-
-      it('should call updateLoopContext with isFinalGroup=false', async () => {
-        const stages: AgentStageConfig[] = [
-          { name: 'stage1', agent: 'agent1.md' },
-        ];
-
-        (mockStageExecutor.executeStage as any)
-          .mockResolvedValue({ ...successfulStageExecution });
-
-        await parallelExecutor.executeParallelGroup(
-          stages,
-          runningPipelineState,
-          undefined,
-          { isFinalGroup: false }
-        );
-
-        expect(mockStageExecutor.updateLoopContext).toHaveBeenCalledWith({ isFinalGroup: false });
-      });
-
-      it('should not call updateLoopContext when groupContext is undefined', async () => {
-        const stages: AgentStageConfig[] = [
-          { name: 'stage1', agent: 'agent1.md' },
-        ];
-
-        (mockStageExecutor.executeStage as any)
-          .mockResolvedValue({ ...successfulStageExecution });
-
-        await parallelExecutor.executeParallelGroup(
-          stages,
-          runningPipelineState
-        );
-
-        expect(mockStageExecutor.updateLoopContext).not.toHaveBeenCalled();
-      });
-    });
-
-    describe('executeSequentialGroup with groupContext', () => {
-      it('should call updateLoopContext with isFinalGroup when provided', async () => {
-        const stages: AgentStageConfig[] = [
-          { name: 'stage1', agent: 'agent1.md' },
-        ];
-
-        (mockStageExecutor.executeStage as any)
-          .mockResolvedValue({ ...successfulStageExecution });
-
-        await parallelExecutor.executeSequentialGroup(
-          stages,
-          runningPipelineState,
-          undefined,
-          { isFinalGroup: true }
-        );
-
-        expect(mockStageExecutor.updateLoopContext).toHaveBeenCalledWith({ isFinalGroup: true });
-      });
-
-      it('should not call updateLoopContext when groupContext is undefined', async () => {
-        const stages: AgentStageConfig[] = [
-          { name: 'stage1', agent: 'agent1.md' },
-        ];
-
-        (mockStageExecutor.executeStage as any)
-          .mockResolvedValue({ ...successfulStageExecution });
-
-        await parallelExecutor.executeSequentialGroup(
-          stages,
-          runningPipelineState
-        );
-
-        expect(mockStageExecutor.updateLoopContext).not.toHaveBeenCalled();
-      });
-    });
-  });
 });

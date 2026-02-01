@@ -76,7 +76,6 @@ export interface LoopContext {
   directories: ResolvedLoopingConfig['directories'];
   currentIteration?: number;
   maxIterations?: number;
-  isFinalGroup?: boolean;  // Only inject loop instructions in final group
   sessionId?: string;      // Loop session UUID for directory scoping
 }
 

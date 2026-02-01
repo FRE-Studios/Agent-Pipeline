@@ -136,7 +136,6 @@ describe('StageExecutor - Worktree GitManager Initialization', () => {
         false,
         mockHandoverManager,
         mockRuntime,
-        undefined,
         mainRepoPath,
         worktreePath,  // Different from mainRepoPath
         { interactive: false, verbose: false }
@@ -170,7 +169,6 @@ describe('StageExecutor - Worktree GitManager Initialization', () => {
         false,
         mockHandoverManager,
         mockRuntime,
-        undefined,
         samePath,
         samePath,  // Same as repoPath
         { interactive: false, verbose: false }
@@ -197,7 +195,6 @@ describe('StageExecutor - Worktree GitManager Initialization', () => {
         false,
         mockHandoverManager,
         mockRuntime,
-        undefined,
         '/main/repo',
         undefined,  // No executionRepoPath
         { interactive: false, verbose: false }
@@ -225,7 +222,6 @@ describe('StageExecutor - Worktree GitManager Initialization', () => {
         false,
         mockHandoverManager,
         mockRuntime,
-        undefined,
         mainRepoPath,
         worktreePath,
         { interactive: false, verbose: false }
@@ -236,7 +232,7 @@ describe('StageExecutor - Worktree GitManager Initialization', () => {
       const executeCall = mockRuntime.execute.mock.calls[0];
       const userPrompt = executeCall[0].userPrompt;
 
-      // Verify all worktree-specific context is included (lines 432-437)
+      // Verify all worktree-specific context is included
       expect(userPrompt).toContain('## Execution Environment');
       expect(userPrompt).toContain(`**Working Directory:** \`${worktreePath}\``);
       expect(userPrompt).toContain(`**Main Repository:** \`${mainRepoPath}\``);
@@ -254,7 +250,6 @@ describe('StageExecutor - Worktree GitManager Initialization', () => {
         false,
         mockHandoverManager,
         mockRuntime,
-        undefined,
         mainRepoPath,
         worktreePath,
         { interactive: false, verbose: false }
@@ -282,7 +277,6 @@ describe('StageExecutor - Worktree GitManager Initialization', () => {
         false,
         mockHandoverManager,
         mockRuntime,
-        undefined,
         mainRepoPath,
         worktreePath,
         { interactive: false, verbose: false }

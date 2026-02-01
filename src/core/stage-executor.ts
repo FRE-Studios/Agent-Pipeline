@@ -6,17 +6,15 @@ import { RetryHandler } from './retry-handler.js';
 import { HandoverManager } from './handover-manager.js';
 import { AgentRuntime, AgentExecutionRequest } from './types/agent-runtime.js';
 import { AgentRuntimeRegistry } from './agent-runtime-registry.js';
-import { AgentStageConfig, StageExecution, PipelineState, LoopContext, ClaudeAgentSettings, LoggingContext } from '../config/schema.js';
+import { AgentStageConfig, StageExecution, PipelineState, ClaudeAgentSettings, LoggingContext } from '../config/schema.js';
 import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { ErrorFactory } from '../utils/error-factory.js';
 import { TokenEstimator } from '../utils/token-estimator.js';
-import { InstructionLoader, InstructionContext } from './instruction-loader.js';
 import { PipelineAbortController } from './abort-controller.js';
 import { PipelineLogger } from '../utils/pipeline-logger.js';
 
 export class StageExecutor {
   private retryHandler: RetryHandler;
-  private instructionLoader: InstructionLoader | null;
   private worktreeGitManager: GitManager | null = null;
   private executionCwd: string | undefined;
   private mainRepoPath: string | undefined;
@@ -29,7 +27,6 @@ export class StageExecutor {
     private dryRun: boolean,
     private handoverManager: HandoverManager,
     private defaultRuntime?: AgentRuntime,
-    private loopContext?: LoopContext,
     repoPath?: string,
     executionRepoPath?: string,
     loggingContext?: LoggingContext,
@@ -37,7 +34,6 @@ export class StageExecutor {
     pipelineLogger?: PipelineLogger
   ) {
     this.retryHandler = new RetryHandler();
-    this.instructionLoader = repoPath ? new InstructionLoader(repoPath) : null;
     this.mainRepoPath = repoPath;
     this.loggingContext = loggingContext ?? { interactive: true, verbose: false };
     this.abortController = abortController;
@@ -248,7 +244,8 @@ export class StageExecutor {
   async executeStage(
     stageConfig: AgentStageConfig,
     pipelineState: PipelineState,
-    onOutputUpdate?: (output: string) => void
+    onOutputUpdate?: (output: string) => void,
+    systemPromptOverride?: string
   ): Promise<StageExecution> {
     const execution: StageExecution = {
       stageName: stageConfig.name,
@@ -267,7 +264,7 @@ export class StageExecutor {
     // Define the core execution logic
     const executeAttempt = async (): Promise<void> => {
       // Load agent prompts
-      const systemPrompt = await this.loadSystemPrompt(stageConfig.agent);
+      const systemPrompt = systemPromptOverride ?? await this.loadSystemPrompt(stageConfig.agent);
       const userPrompt = await this.buildUserPrompt(stageConfig, pipelineState);
 
       // Estimate input tokens before execution
@@ -459,15 +456,6 @@ export class StageExecutor {
       handoverInstructions
     );
 
-    // Get loop instructions path from looping config
-    const loopInstructions = pipelineState.pipelineConfig.looping?.instructions;
-
-    // Build loop context section from file (async, if enabled)
-    const loopContextSection = await this.buildLoopContextSectionAsync(
-      loopInstructions,
-      pipelineState.pipelineConfig.name
-    );
-
     // Build inputs section - format as readable key: value pairs
     const inputsSection = stageConfig.inputs && Object.keys(stageConfig.inputs).length > 0
       ? `## User Inputs to Help with Your Task\n${Object.entries(stageConfig.inputs).map(([key, value]) => `- **${key}**: ${value}`).join('\n')}`
@@ -487,8 +475,6 @@ export class StageExecutor {
 ${executionEnvSection}
 
 ${handoverContext}
-
-${loopContextSection}
 
 ${inputsSection}
     `.trim();
@@ -518,64 +504,6 @@ You are running in a git worktree located within the main repository directory. 
 
     return section;
   }
-
-  /**
-   * Update loop context dynamically (for per-group context changes)
-   */
-  updateLoopContext(updates: Partial<LoopContext>): void {
-    if (this.loopContext) {
-      this.loopContext = { ...this.loopContext, ...updates };
-    }
-  }
-
-  private async buildLoopContextSectionAsync(customPath?: string, pipelineName?: string): Promise<string> {
-    // Only inject loop context if enabled AND in final group
-    if (!this.loopContext?.enabled || !this.loopContext?.isFinalGroup) {
-      return '';
-    }
-
-    // Use InstructionLoader if available, otherwise fall back to hardcoded
-    if (this.instructionLoader) {
-      const context: InstructionContext = {
-        pendingDir: this.loopContext.directories.pending,
-        currentIteration: this.loopContext.currentIteration,
-        maxIterations: this.loopContext.maxIterations,
-        pipelineName
-      };
-      return this.instructionLoader.loadLoopInstructions(customPath, context);
-    }
-
-    // Fallback to hardcoded template (for backwards compatibility)
-    const pipelineRef = pipelineName
-      ? `Reference: \`.agent-pipeline/pipelines/${pipelineName}.yml\``
-      : 'Use same format as `.agent-pipeline/pipelines/`';
-
-    return `
-## Pipeline Looping
-
-This pipeline is running in LOOP MODE. You are in the FINAL stage group.
-
-**When to Create a Next Pipeline:**
-Create a pipeline in the pending directory ONLY when:
-1. You discovered unexpected new work outside your current scope
-2. You have a task that explicitly calls for the next agent (like "Pass to the next agent")
-3. You are finishing a phase in a multi-phase plan and more phases remain
-   - Create a pipeline for the NEXT PHASE ONLY (not all remaining phases)
-
-**When NOT to Create a Next Pipeline:**
-- Your task is complete with no follow-up needed
-- The work is a simple fix that doesn't warrant a new pipeline
-- Subsequent work is better handled by a human
-
-**To queue the next pipeline:**
-- Write a valid pipeline YAML to: \`${this.loopContext.directories.pending}\`
-- Automatically picked up after this pipeline completes
-- ${pipelineRef}
-
-**Loop status:** Iteration ${this.loopContext.currentIteration}/${this.loopContext.maxIterations}
-`.trim();
-  }
-
 
   private async runAgentWithTimeout(
     runtime: AgentRuntime,

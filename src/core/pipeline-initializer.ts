@@ -136,7 +136,6 @@ export class PipelineInitializer {
       this.dryRun,
       handoverManager,
       this.runtime,
-      options.loopContext,
       this.repoPath,                    // For file-driven instruction loading
       isolation.executionRepoPath,      // Where agents execute (worktree or main repo)
       { interactive: options.interactive ?? true, verbose },
