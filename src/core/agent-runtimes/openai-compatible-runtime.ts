@@ -147,19 +147,12 @@ export class OpenAICompatibleRuntime implements AgentRuntime {
   }
 
   async validate(): Promise<ValidationResult> {
-    const warnings: string[] = [];
-
-    if (!process.env.OPENAI_API_KEY) {
-      warnings.push(
-        'OPENAI_API_KEY environment variable is not set. ' +
-        'You may configure a different apiKeyEnv per pipeline.'
-      );
-    }
-
+    // No startup warnings — API key is validated at execution time in execute(),
+    // where runtimeOptions.apiKeyEnv is available for proper resolution.
     return {
       valid: true,
       errors: [],
-      warnings
+      warnings: []
     };
   }
 

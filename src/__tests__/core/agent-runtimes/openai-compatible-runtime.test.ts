@@ -101,17 +101,8 @@ describe('OpenAICompatibleRuntime', () => {
 
   // --- validate() ---
 
-  it('validate should return valid with warning when OPENAI_API_KEY is not set', async () => {
+  it('validate should always return valid with no warnings', async () => {
     delete process.env.OPENAI_API_KEY;
-    const result = await runtime.validate();
-    expect(result.valid).toBe(true);
-    expect(result.errors).toEqual([]);
-    expect(result.warnings.length).toBe(1);
-    expect(result.warnings[0]).toContain('OPENAI_API_KEY');
-  });
-
-  it('validate should return valid with no warnings when OPENAI_API_KEY is set', async () => {
-    process.env.OPENAI_API_KEY = 'sk-test';
     const result = await runtime.validate();
     expect(result.valid).toBe(true);
     expect(result.errors).toEqual([]);

@@ -726,7 +726,7 @@ describe('PipelineRunner', () => {
         return state;
       });
 
-      await runner.runPipeline(loopConfig, { interactive: false });
+      const result = await runner.runPipeline(loopConfig, { interactive: false });
 
       expect(consoleSpy).toHaveBeenCalledWith(
         expect.stringContaining('Loop: terminating after failure')
@@ -753,7 +753,7 @@ describe('PipelineRunner', () => {
         return state;
       });
 
-      await runner.runPipeline(loopConfig, { interactive: false });
+      const result = await runner.runPipeline(loopConfig, { interactive: false });
 
       expect(consoleSpy).toHaveBeenCalledWith('Loop: terminating due to abort');
       expect(mockLoopStateManagerInstance.completeSession).toHaveBeenCalledWith(
@@ -777,7 +777,7 @@ describe('PipelineRunner', () => {
       };
 
       // readdir returns empty array by default (from top-level mock)
-      await runner.runPipeline(loopConfig, { interactive: false });
+      const result = await runner.runPipeline(loopConfig, { interactive: false });
 
       expect(consoleSpy).toHaveBeenCalledWith('Loop: no pending pipelines, exiting.');
 
@@ -796,7 +796,7 @@ describe('PipelineRunner', () => {
         },
       };
 
-      await runner.runPipeline(loopConfig, { interactive: false });
+      const result = await runner.runPipeline(loopConfig, { interactive: false });
 
       // Should log about creating loop directories
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -824,7 +824,7 @@ describe('PipelineRunner', () => {
         },
       };
 
-      await runner.runPipeline(loopConfig, { interactive: false });
+      const result = await runner.runPipeline(loopConfig, { interactive: false });
 
       // Should call createSessionDirectories (line 786) instead of ensureLoopDirectoriesExist
       expect(mockLoopStateManagerInstance.createSessionDirectories).toHaveBeenCalledWith(
@@ -1614,6 +1614,26 @@ describe('PipelineRunner', () => {
 
     it('should execute loop agent when loop mode is enabled and pipeline succeeds', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const loopExecution: StageExecution = {
+        stageName: 'loop-agent',
+        status: 'success',
+        startTime: new Date().toISOString(),
+        duration: 5,
+      };
+      const loopState: PipelineState = {
+        ...mockPipelineState,
+        stages: [...mockPipelineState.stages, loopExecution],
+      };
+
+      mockOrchestratorInstance.processGroup
+        .mockResolvedValueOnce({
+          state: mockPipelineState,
+          shouldStopPipeline: false,
+        })
+        .mockResolvedValueOnce({
+          state: loopState,
+          shouldStopPipeline: false,
+        });
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1626,12 +1646,19 @@ describe('PipelineRunner', () => {
 
       await runner.runPipeline(loopConfig, { interactive: false });
 
-      // Should execute loop agent stage
-      expect(mockStageExecutorInstance.executeStage).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'loop-agent', agent: '__inline__' }),
+      // Should execute loop agent via orchestrator with system prompt override
+      expect(mockOrchestratorInstance.processGroup).toHaveBeenCalledTimes(2);
+      expect(mockOrchestratorInstance.processGroup).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          stages: [expect.objectContaining({ name: 'loop-agent', agent: '__inline__' })],
+        }),
         expect.any(Object),
-        undefined,
-        expect.any(String) // systemPromptOverride from InstructionLoader
+        expect.any(Object),
+        expect.any(Object),
+        expect.any(Boolean),
+        expect.any(Object),
+        expect.any(Boolean),
+        { 'loop-agent': expect.any(String) }
       );
 
       consoleSpy.mockRestore();
@@ -1667,7 +1694,7 @@ describe('PipelineRunner', () => {
       await runner.runPipeline(simplePipelineConfig);
 
       // No loop context → no loop agent execution
-      expect(mockStageExecutorInstance.executeStage).not.toHaveBeenCalled();
+      expect(mockOrchestratorInstance.processGroup).toHaveBeenCalledTimes(1);
     });
 
     it('should not execute loop agent when pipeline fails', async () => {
@@ -1691,7 +1718,7 @@ describe('PipelineRunner', () => {
       await runner.runPipeline(loopConfig, { interactive: false });
 
       // Loop agent should not run when pipeline failed
-      expect(mockStageExecutorInstance.executeStage).not.toHaveBeenCalled();
+      expect(mockOrchestratorInstance.processGroup).toHaveBeenCalledTimes(1);
 
       consoleSpy.mockRestore();
     });
@@ -1700,10 +1727,12 @@ describe('PipelineRunner', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      // Make loop agent throw
-      mockStageExecutorInstance.executeStage.mockRejectedValueOnce(
-        new Error('Loop agent crashed')
-      );
+      mockOrchestratorInstance.processGroup
+        .mockResolvedValueOnce({
+          state: mockPipelineState,
+          shouldStopPipeline: false,
+        })
+        .mockRejectedValueOnce(new Error('Loop agent crashed'));
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1729,13 +1758,25 @@ describe('PipelineRunner', () => {
     it('should push loop agent execution to pipeline state', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      const loopExecution = {
+      const loopExecution: StageExecution = {
         stageName: 'loop-agent',
         status: 'success' as const,
         startTime: new Date().toISOString(),
         duration: 5,
       };
-      mockStageExecutorInstance.executeStage.mockResolvedValueOnce(loopExecution);
+      const loopState: PipelineState = {
+        ...mockPipelineState,
+        stages: [...mockPipelineState.stages, loopExecution],
+      };
+      mockOrchestratorInstance.processGroup
+        .mockResolvedValueOnce({
+          state: mockPipelineState,
+          shouldStopPipeline: false,
+        })
+        .mockResolvedValueOnce({
+          state: loopState,
+          shouldStopPipeline: false,
+        });
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1746,15 +1787,10 @@ describe('PipelineRunner', () => {
         },
       };
 
-      await runner.runPipeline(loopConfig, { interactive: false });
+      const result = await runner.runPipeline(loopConfig, { interactive: false });
 
-      // State should be saved after loop agent execution
-      expect(mockStateManagerInstance.saveState).toHaveBeenCalledWith(
-        expect.objectContaining({
-          stages: expect.arrayContaining([
-            expect.objectContaining({ stageName: 'loop-agent' }),
-          ]),
-        })
+      expect(result.stages).toEqual(
+        expect.arrayContaining([expect.objectContaining({ stageName: 'loop-agent' })])
       );
 
       consoleSpy.mockRestore();
@@ -1763,12 +1799,25 @@ describe('PipelineRunner', () => {
     it('should log loop agent status on success', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      mockStageExecutorInstance.executeStage.mockResolvedValueOnce({
+      const loopExecution: StageExecution = {
         stageName: 'loop-agent',
         status: 'success',
         startTime: new Date().toISOString(),
         duration: 5,
-      });
+      };
+      const loopState: PipelineState = {
+        ...mockPipelineState,
+        stages: [...mockPipelineState.stages, loopExecution],
+      };
+      mockOrchestratorInstance.processGroup
+        .mockResolvedValueOnce({
+          state: mockPipelineState,
+          shouldStopPipeline: false,
+        })
+        .mockResolvedValueOnce({
+          state: loopState,
+          shouldStopPipeline: false,
+        });
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1794,13 +1843,26 @@ describe('PipelineRunner', () => {
     it('should log loop agent failure as non-fatal when executeStage returns failed', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      mockStageExecutorInstance.executeStage.mockResolvedValueOnce({
+      const loopExecution: StageExecution = {
         stageName: 'loop-agent',
         status: 'failed',
         startTime: new Date().toISOString(),
         duration: 2,
         error: { message: 'agent failed', timestamp: new Date().toISOString() },
-      });
+      };
+      const loopState: PipelineState = {
+        ...mockPipelineState,
+        stages: [...mockPipelineState.stages, loopExecution],
+      };
+      mockOrchestratorInstance.processGroup
+        .mockResolvedValueOnce({
+          state: mockPipelineState,
+          shouldStopPipeline: false,
+        })
+        .mockResolvedValueOnce({
+          state: loopState,
+          shouldStopPipeline: false,
+        });
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,

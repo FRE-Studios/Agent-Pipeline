@@ -119,11 +119,6 @@ async function main() {
   try {
     const openaiRuntime = new OpenAICompatibleRuntime();
     AgentRuntimeRegistry.register(openaiRuntime);
-
-    const validation = await openaiRuntime.validate();
-    if (validation.warnings.length > 0 && process.env.DEBUG) {
-      validation.warnings.forEach((warning) => Logger.warn(`  ${warning}`));
-    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     Logger.error(`Failed to register OpenAI-Compatible runtime: ${message}`);
