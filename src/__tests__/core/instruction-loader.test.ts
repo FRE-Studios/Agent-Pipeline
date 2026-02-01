@@ -163,8 +163,8 @@ Previous: {{previousStagesSection}}
         maxIterations: 100
       });
 
-      expect(result).toContain('# Loop Decision Agent');
-      expect(result).toContain('loop decision agent');
+      expect(result).toContain('## Loop Agent');
+      expect(result).toContain('You are the Loop Agent');
       expect(result).toContain('/pending/dir');
       expect(result).toContain('5/100');
     });
@@ -260,12 +260,12 @@ Iteration: {{currentIteration}}/{{maxIterations}}
         maxIterations: 10
       });
 
-      expect(result).toContain('# Loop Decision Agent');
-      expect(result).toContain('loop decision agent');
-      expect(result).toContain('## Decision Criteria');
-      expect(result).toContain('Create a next pipeline ONLY when');
-      expect(result).toContain('Do NOT create a next pipeline when');
-      expect(result).toContain('## Your Task');
+      expect(result).toContain('## Loop Agent');
+      expect(result).toContain('You are the Loop Agent');
+      expect(result).toContain('Notes on creating new Pipelines');
+      expect(result).toContain('NEXT PHASE ONLY');
+      expect(result).toContain('When NOT to Create a Next Pipeline');
+      expect(result).toContain('Your only task is to create a new pipeline.yml');
     });
   });
 });
