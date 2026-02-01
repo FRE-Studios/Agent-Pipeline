@@ -733,7 +733,6 @@ describe('GroupExecutionOrchestrator', () => {
           mockParallelExecutor,
           false,
           undefined,
-          undefined,
           true // verbose
         );
 
@@ -784,7 +783,6 @@ describe('GroupExecutionOrchestrator', () => {
           config,
           mockParallelExecutor,
           false,
-          undefined,
           undefined,
           true // verbose
         );
