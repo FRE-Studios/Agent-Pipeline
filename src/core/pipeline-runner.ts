@@ -10,6 +10,7 @@ import { GroupExecutionOrchestrator } from './group-execution-orchestrator.js';
 import { PipelineFinalizer } from './pipeline-finalizer.js';
 import { PipelineConfig, PipelineState, PipelineMetadata, ResolvedLoopingConfig, LoopContext, IterationHistoryEntry, AgentStageConfig } from '../config/schema.js';
 import { InstructionLoader, InstructionContext } from './instruction-loader.js';
+import { ExecutionGroup } from './types/execution-graph.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
 import { PipelineLoader } from '../config/pipeline-loader.js';
@@ -771,7 +772,7 @@ export class PipelineRunner {
       return failedState;
     }
 
-    let { state, parallelExecutor, stageExecutor, pipelineBranch, worktreePath, executionRepoPath, startTime, pipelineLogger } = initResult;
+    let { state, parallelExecutor, pipelineBranch, worktreePath, executionRepoPath, startTime, pipelineLogger } = initResult;
     this.notificationManager = initResult.notificationManager;
 
     // Create loop directories on first iteration (after we know worktree path)
@@ -887,34 +888,45 @@ export class PipelineRunner {
             loopTemplateContext
           );
 
+          const loopStageName = this.getUniqueLoopStageName(config, state);
+
           // Create synthetic stage config for the loop agent
           const loopStageConfig: AgentStageConfig = {
-            name: 'loop-agent',
-            agent: '__inline__'
+            name: loopStageName,
+            agent: '__inline__',
+            onFail: 'warn'
           };
 
           if (this.shouldLog(interactive)) {
             console.log('🔁 Running loop agent...');
           }
 
-          // Execute via stageExecutor with systemPromptOverride
-          const loopExecution = await stageExecutor.executeStage(
-            loopStageConfig,
+          const loopGroup: ExecutionGroup = {
+            level: executionGraph.plan.groups.length,
+            stages: [loopStageConfig]
+          };
+
+          const loopResult = await this.groupOrchestrator.processGroup(
+            loopGroup,
             state,
-            undefined,
-            loopSystemPrompt
+            config,
+            parallelExecutor,
+            interactive,
+            initResult.handoverManager,
+            verbose,
+            { [loopStageName]: loopSystemPrompt }
           );
 
-          // Push execution to state and notify
-          state.stages.push(loopExecution);
-          this.notifyStateChange(state);
-          await this.stateManager.saveState(state);
+          state = loopResult.state;
 
           if (this.shouldLog(interactive)) {
-            if (loopExecution.status === 'success') {
-              console.log(`✅ loop-agent (${loopExecution.duration?.toFixed(0) ?? 0}s)`);
-            } else {
-              console.log(`⚠️  loop-agent failed (non-fatal): ${loopExecution.error?.message ?? 'unknown'}`);
+            const loopExecution = loopResult.state.stages.find(
+              (stage) => stage.stageName === loopStageName
+            );
+            if (loopExecution?.status === 'success') {
+              console.log(`✅ ${loopStageName} (${loopExecution.duration?.toFixed(0) ?? 0}s)`);
+            } else if (loopExecution) {
+              console.log(`⚠️  ${loopStageName} failed (non-fatal): ${loopExecution.error?.message ?? 'unknown'}`);
             }
           }
         } catch (error) {
@@ -987,6 +999,31 @@ export class PipelineRunner {
         triggeredNext
       });
     }
+  }
+
+  private getUniqueLoopStageName(
+    config: PipelineConfig,
+    state: PipelineState
+  ): string {
+    const baseName = 'loop-agent';
+    const usedNames = new Set<string>([
+      ...config.agents.map((agent) => agent.name),
+      ...state.stages.map((stage) => stage.stageName)
+    ]);
+
+    if (!usedNames.has(baseName)) {
+      return baseName;
+    }
+
+    const runIdSuffix = state.runId?.slice(0, 8) ?? 'run';
+    let counter = 1;
+    let candidate = `${baseName}-${runIdSuffix}`;
+    while (usedNames.has(candidate)) {
+      candidate = `${baseName}-${runIdSuffix}-${counter}`;
+      counter += 1;
+    }
+
+    return candidate;
   }
 
   private getPipelineName(config: PipelineConfig, metadata?: PipelineMetadata): string {

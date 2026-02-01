@@ -114,7 +114,8 @@ export class ParallelExecutor {
   async executeParallelGroup(
     stages: AgentStageConfig[],
     pipelineState: PipelineState,
-    onOutputUpdate?: (stageName: string, output: string) => void
+    onOutputUpdate?: (stageName: string, output: string) => void,
+    systemPromptOverrides?: Record<string, string>
   ): Promise<ParallelExecutionResult> {
     const startTime = Date.now();
 
@@ -147,10 +148,12 @@ export class ParallelExecutor {
       const stageOutputCallback = this.createStageCallback(stageConfig.name, onOutputUpdate);
 
       try {
+        const systemPromptOverride = systemPromptOverrides?.[stageConfig.name];
         const execution = await this.stageExecutor.executeStage(
           stageConfig,
           pipelineState,
-          stageOutputCallback
+          stageOutputCallback,
+          systemPromptOverride
         );
         // Update the existing stage entry in state
         this.updateStageInState(execution, pipelineState);
@@ -187,7 +190,8 @@ export class ParallelExecutor {
   async executeSequentialGroup(
     stages: AgentStageConfig[],
     pipelineState: PipelineState,
-    onOutputUpdate?: (stageName: string, output: string) => void
+    onOutputUpdate?: (stageName: string, output: string) => void,
+    systemPromptOverrides?: Record<string, string>
   ): Promise<ParallelExecutionResult> {
     const startTime = Date.now();
     const executions: StageExecution[] = [];
@@ -216,10 +220,12 @@ export class ParallelExecutor {
 
       const stageOutputCallback = this.createStageCallback(stageConfig.name, onOutputUpdate);
       try {
+        const systemPromptOverride = systemPromptOverrides?.[stageConfig.name];
         const execution = await this.stageExecutor.executeStage(
           stageConfig,
           pipelineState,
-          stageOutputCallback
+          stageOutputCallback,
+          systemPromptOverride
         );
         executions.push(execution);
         // Update existing stage entry
