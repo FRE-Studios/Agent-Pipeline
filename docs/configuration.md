@@ -73,7 +73,7 @@ looping:
 
 # Runtime configuration - agent execution backend
 runtime:
-  type: claude-code-headless         # claude-code-headless (default), claude-sdk, codex-headless, gemini-headless, or openai-compatible
+  type: claude-code-headless         # claude-code-headless (default), claude-sdk, codex-headless, gemini-headless, or pi-agent
   options:
     model: sonnet                    # haiku, sonnet, or opus
 
@@ -157,7 +157,7 @@ Inter-stage communication settings are under the `handover:` section:
 
 ## Runtime Configuration
 
-Agent Pipeline supports multiple agent execution backends via the `runtime` field. The default is `claude-code-headless` (Claude Code CLI), which provides the full Claude Code tool suite (Bash, Read, Write, etc.) and local execution. Other options include `claude-sdk` for library-based execution with MCP tools, `codex-headless` for OpenAI's Codex CLI with filesystem tools, `gemini-headless` for Google's Gemini CLI with tool use and sandbox modes, and `openai-compatible` for text-in/text-out execution against any OpenAI-compatible Chat Completions endpoint.
+Agent Pipeline supports multiple agent execution backends via the `runtime` field. The default is `claude-code-headless` (Claude Code CLI), which provides the full Claude Code tool suite (Bash, Read, Write, etc.) and local execution. Other options include `claude-sdk` for library-based execution with MCP tools, `codex-headless` for OpenAI's Codex CLI with filesystem tools, `gemini-headless` for Google's Gemini CLI with tool use and sandbox modes, and `pi-agent` for multi-provider execution via the Pi Agent CLI with built-in tools (read, bash, edit, write, grep, find, ls).
 
 **Pipeline-level runtime** (applies to all stages unless overridden):
 ```yaml
@@ -195,22 +195,22 @@ runtime:
     model: gemini-2.5-flash
 ```
 
-**OpenAI-compatible example (works with OpenAI, Together, Groq, Mistral, DeepSeek, etc.):**
+**Pi Agent example (works with Anthropic, OpenAI, Google, Mistral, Groq, xAI, OpenRouter, etc.):**
 ```yaml
 runtime:
-  type: openai-compatible
+  type: pi-agent
   options:
-    model: gpt-4o
-    apiKeyEnv: OPENAI_API_KEY       # optional, this is the default
+    model: claude-sonnet-4-20250514    # Provider inferred from model name
 ```
 
-**Local Ollama example:**
+**Pi Agent with explicit provider:**
 ```yaml
 runtime:
-  type: openai-compatible
+  type: pi-agent
   options:
-    model: llama3.1:70b
-    baseUrl: http://localhost:11434/v1
+    provider: groq                     # Explicit provider for disambiguation
+    model: llama-3.3-70b-versatile
+    apiKeyEnv: GROQ_API_KEY
 ```
 
 **Available Runtimes:**
@@ -218,20 +218,15 @@ runtime:
 - `codex-headless`: Codex CLI execution via `codex exec` (local auth or API key)
 - `gemini-headless`: Gemini CLI execution with tool use, sandbox, and approval modes
 - `claude-sdk`: Library-based execution, MCP tools, used internally for context reduction
-- `openai-compatible`: HTTP calls to any OpenAI-compatible Chat Completions endpoint (no extra dependencies)
+- `pi-agent`: Multi-provider coding agent via Pi Agent CLI with built-in tools (15+ providers)
 
 **Codex Auth:** `codex-headless` works with local Codex auth, `OPENAI_API_KEY`, or `CODEX_API_KEY` via CLI config.
 
 **Gemini Auth:** `gemini-headless` uses `GEMINI_API_KEY` or `GOOGLE_API_KEY` for authentication. Run `gemini` interactively once to complete initial setup.
 
-**OpenAI-Compatible Auth:** API key resolution order: `runtimeOptions.apiKey` (inline) → `process.env[runtimeOptions.apiKeyEnv]` → `process.env.OPENAI_API_KEY`. API key is required only when using the default OpenAI base URL; if `runtimeOptions.baseUrl` or `OPENAI_BASE_URL` is set, the `Authorization` header is omitted when no key is provided. Base URL resolution: `runtimeOptions.baseUrl` → `process.env.OPENAI_BASE_URL` → `https://api.openai.com/v1`.
+**Pi Agent Auth:** API key resolution order: `runtimeOptions.apiKey` (inline) → `process.env[runtimeOptions.apiKeyEnv]` → Pi Agent's own per-provider env var resolution (e.g., `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`). Pi Agent infers the provider from the model name (e.g., `claude-*` → Anthropic, `gpt-*` → OpenAI, `gemini-*` → Google). Use `provider` for disambiguation or custom providers.
 
-**OpenAI-Compatible Limitations:** This runtime is **text-in/text-out only** — agents have no filesystem tools (no Bash, Read, Write, Edit). They cannot read files, create files, or modify code directly. The pipeline automatically saves each agent's text response to `stages/{stageName}/output.md`, and the next stage receives that path in its handover context. However, a downstream `openai-compatible` agent also cannot read those files — it only sees the handover instructions embedded in its prompt. This makes the runtime best suited for:
-- Text generation and analysis (summaries, reviews, brainstorming)
-- Planning and ideation stages that feed into a tool-capable runtime
-- Pipelines where a tool-capable runtime (e.g. `claude-code-headless`) handles file operations in later stages
-
-Agent prompts for this runtime should **not** reference filesystem operations (reading handover files, writing output files, creating code). Instead, write prompts that ask the agent to produce its answer as text — the pipeline handles the rest.
+**Pi Agent Options:** `model` (required), `provider` (optional), `apiKey`/`apiKeyEnv` (optional), `thinking` (off/minimal/low/medium/high/xhigh), `tools` (comma-separated tool list), `noTools` (disable all tools), `systemPromptMode` (replace/append), `verbose`, `args` (extra CLI args passthrough).
 
 **Cost Optimization:** Use `haiku` for simple tasks (linting, formatting) to reduce costs by up to 90%. Reserve `opus` for complex reasoning (architecture, design decisions). Per-stage overrides allow mixing models within a pipeline.
 

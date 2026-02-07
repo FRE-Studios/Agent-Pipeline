@@ -22,7 +22,7 @@ import { ClaudeSDKRuntime } from './core/agent-runtimes/claude-sdk-runtime.js';
 import { ClaudeCodeHeadlessRuntime } from './core/agent-runtimes/claude-code-headless-runtime.js';
 import { CodexHeadlessRuntime } from './core/agent-runtimes/codex-headless-runtime.js';
 import { GeminiHeadlessRuntime } from './core/agent-runtimes/gemini-headless-runtime.js';
-import { OpenAICompatibleRuntime } from './core/agent-runtimes/openai-compatible-runtime.js';
+import { PiAgentHeadlessRuntime } from './core/agent-runtimes/pi-agent-headless-runtime.js';
 
 // Command imports
 import { runCommand } from './cli/commands/run.js';
@@ -134,13 +134,19 @@ async function main() {
     }
   }
 
-  // Register OpenAI-Compatible API runtime on startup
+  // Register Pi Agent Headless runtime on startup
   try {
-    const openaiRuntime = new OpenAICompatibleRuntime();
-    AgentRuntimeRegistry.register(openaiRuntime);
+    const piAgentRuntime = new PiAgentHeadlessRuntime();
+    AgentRuntimeRegistry.register(piAgentRuntime);
+
+    const validation = await piAgentRuntime.validate();
+    if (!validation.valid && process.env.DEBUG) {
+      Logger.warn('Pi Agent Headless runtime registered but CLI not available');
+      validation.warnings.forEach((warning) => Logger.warn(`  ${warning}`));
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    Logger.error(`Failed to register OpenAI-Compatible runtime: ${message}`);
+    Logger.error(`Failed to register Pi Agent Headless runtime: ${message}`);
     if (process.env.DEBUG) {
       console.error(err);
     }

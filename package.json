@@ -1,7 +1,7 @@
 {
   "name": "agent-pipeline",
   "version": "0.1.2",
-  "description": "Intelligent multi-runtime agent orchestration with DAG-planned parallelism, conditional logic, automated git hygiene, and multi-channel notifications. Supports Claude Code, Codex, and any OpenAI-compatible API.",
+  "description": "Intelligent multi-runtime agent orchestration with DAG-planned parallelism, conditional logic, automated git hygiene, and multi-channel notifications. Supports Claude Code, Codex, Gemini, and Pi Agent (15+ providers with built-in tools).",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
