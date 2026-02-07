@@ -557,7 +557,7 @@ describe('StageExecutor', () => {
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
       expect(result.status).toBe('failed');
-      expect(result.error?.suggestion).toContain('ANTHROPIC_API_KEY');
+      expect(result.error?.suggestion).toContain('API key for your agent runtime');
     });
 
     it('should handle YAML parsing error', async () => {
@@ -1099,7 +1099,7 @@ describe('StageExecutor', () => {
 
       const result = await executor.executeStage(basicStageConfig, runningPipelineState);
 
-      expect(result.error?.suggestion).toContain('ANTHROPIC_API_KEY');
+      expect(result.error?.suggestion).toContain('API key for your agent runtime');
     });
 
     it('should capture YAML parse error with syntax suggestion', async () => {

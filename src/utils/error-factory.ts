@@ -72,7 +72,7 @@ export class ErrorFactory {
     }
 
     if (message.includes('API') || message.includes('401') || message.includes('403')) {
-      return 'Check ANTHROPIC_API_KEY environment variable is set correctly.';
+      return 'Check that the API key for your agent runtime is set correctly (e.g., ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY).';
     }
 
     if (message.includes('YAML') || message.includes('parse')) {

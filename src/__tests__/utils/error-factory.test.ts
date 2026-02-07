@@ -51,7 +51,7 @@ describe('ErrorFactory', () => {
       const error = new Error('API error: 401 unauthorized');
       const result = ErrorFactory.createStageError(error);
 
-      expect(result.suggestion).toContain('ANTHROPIC_API_KEY');
+      expect(result.suggestion).toContain('API key for your agent runtime');
     });
 
     it('should add suggestion for YAML parse errors', () => {
