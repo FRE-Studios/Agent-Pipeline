@@ -31,13 +31,14 @@ export class GeminiHeadlessRuntime implements AgentRuntime {
     const { options } = request;
 
     const prompt = this.buildPrompt(request);
-    const args = this.buildCliArgs(request, prompt);
+    const args = this.buildCliArgs(request);
 
     const cliResult = await this.executeGeminiCLI(args, {
       timeout: options.timeout ? options.timeout * 1000 : 120000,
       onOutputUpdate: options.onOutputUpdate,
       cwd: options.runtimeOptions?.cwd as string | undefined,
-      abortController
+      abortController,
+      stdinInput: prompt
     });
 
     const textOutput = this.extractTextFromStreamOutput(cliResult.stdout);
@@ -98,7 +99,7 @@ export class GeminiHeadlessRuntime implements AgentRuntime {
       : userPrompt;
   }
 
-  private buildCliArgs(request: AgentExecutionRequest, prompt: string): string[] {
+  private buildCliArgs(request: AgentExecutionRequest): string[] {
     const { options } = request;
     const args: string[] = [];
 
@@ -159,8 +160,8 @@ export class GeminiHeadlessRuntime implements AgentRuntime {
       }
     }
 
-    // Prompt via -p flag (Gemini's headless approach)
-    args.push('-p', prompt);
+    // Prompt is piped via stdin
+    args.push('-');
 
     return args;
   }
@@ -172,6 +173,7 @@ export class GeminiHeadlessRuntime implements AgentRuntime {
       onOutputUpdate?: (output: string) => void;
       cwd?: string;
       abortController?: PipelineAbortController;
+      stdinInput?: string;
     }
   ): Promise<{
     stdout: string;
@@ -222,13 +224,18 @@ export class GeminiHeadlessRuntime implements AgentRuntime {
 
       try {
         child = spawn('gemini', args, {
-          stdio: ['ignore', 'pipe', 'pipe'],
+          stdio: ['pipe', 'pipe', 'pipe'],
           shell: false,
           cwd: options.cwd || process.cwd()
         });
 
         if (options.abortController) {
           options.abortController.registerProcess(child);
+        }
+
+        if (options.stdinInput && child.stdin) {
+          child.stdin.write(options.stdinInput);
+          child.stdin.end();
         }
 
         child.stdout?.on('data', (data: Buffer) => {

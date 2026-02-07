@@ -13,6 +13,7 @@ function createMockProcess() {
   const proc = new EventEmitter() as any;
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
+  proc.stdin = { write: vi.fn(), end: vi.fn() };
   proc.kill = vi.fn();
   proc.killed = false;
   return proc;
@@ -105,8 +106,11 @@ describe('GeminiHeadlessRuntime', () => {
     expect(spawnArgs).toContain('stream-json');
     expect(spawnArgs).toContain('--approval-mode');
     expect(spawnArgs).toContain('auto_edit');
-    expect(spawnArgs).toContain('-p');
-    expect(spawnArgs).toContain('You are a test agent\n\nDo the thing');
+    expect(spawnArgs).toContain('-');
+
+    // Prompt is piped via stdin
+    expect(mockProcess.stdin.write).toHaveBeenCalledWith('You are a test agent\n\nDo the thing');
+    expect(mockProcess.stdin.end).toHaveBeenCalled();
   });
 
   it('execute should throw PipelineAbortError when aborted before start', async () => {
@@ -243,7 +247,7 @@ describe('GeminiHeadlessRuntime', () => {
     expect(spawnArgs).not.toContain('--sandbox');
   });
 
-  it('spawns gemini with stdio ignore for stdin', async () => {
+  it('spawns gemini with pipe for stdin to pass prompt', async () => {
     const mockProcess = createMockProcess();
     mockSpawn.mockReturnValue(mockProcess);
 
@@ -265,7 +269,7 @@ describe('GeminiHeadlessRuntime', () => {
       'gemini',
       expect.any(Array),
       expect.objectContaining({
-        stdio: ['ignore', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe']
       })
     );
   });
