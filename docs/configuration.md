@@ -73,7 +73,7 @@ looping:
 
 # Runtime configuration - agent execution backend
 runtime:
-  type: claude-code-headless         # claude-code-headless (default), claude-sdk, codex-headless, or openai-compatible
+  type: claude-code-headless         # claude-code-headless (default), claude-sdk, codex-headless, gemini-headless, or openai-compatible
   options:
     model: sonnet                    # haiku, sonnet, or opus
 
@@ -157,7 +157,7 @@ Inter-stage communication settings are under the `handover:` section:
 
 ## Runtime Configuration
 
-Agent Pipeline supports multiple agent execution backends via the `runtime` field. The default is `claude-code-headless` (Claude Code CLI), which provides the full Claude Code tool suite (Bash, Read, Write, etc.) and local execution. Other options include `claude-sdk` for library-based execution with MCP tools, `codex-headless` for OpenAI's Codex CLI with filesystem tools, and `openai-compatible` for text-in/text-out execution against any OpenAI-compatible Chat Completions endpoint.
+Agent Pipeline supports multiple agent execution backends via the `runtime` field. The default is `claude-code-headless` (Claude Code CLI), which provides the full Claude Code tool suite (Bash, Read, Write, etc.) and local execution. Other options include `claude-sdk` for library-based execution with MCP tools, `codex-headless` for OpenAI's Codex CLI with filesystem tools, `gemini-headless` for Google's Gemini CLI with tool use and sandbox modes, and `openai-compatible` for text-in/text-out execution against any OpenAI-compatible Chat Completions endpoint.
 
 **Pipeline-level runtime** (applies to all stages unless overridden):
 ```yaml
@@ -187,6 +187,14 @@ runtime:
     sandbox: workspace-write
 ```
 
+**Gemini headless example:**
+```yaml
+runtime:
+  type: gemini-headless
+  options:
+    model: gemini-2.5-flash
+```
+
 **OpenAI-compatible example (works with OpenAI, Together, Groq, Mistral, DeepSeek, etc.):**
 ```yaml
 runtime:
@@ -208,10 +216,13 @@ runtime:
 **Available Runtimes:**
 - `claude-code-headless` (default): Full Claude Code tool suite, local execution, session continuation support
 - `codex-headless`: Codex CLI execution via `codex exec` (local auth or API key)
+- `gemini-headless`: Gemini CLI execution with tool use, sandbox, and approval modes
 - `claude-sdk`: Library-based execution, MCP tools, used internally for context reduction
 - `openai-compatible`: HTTP calls to any OpenAI-compatible Chat Completions endpoint (no extra dependencies)
 
 **Codex Auth:** `codex-headless` works with local Codex auth, `OPENAI_API_KEY`, or `CODEX_API_KEY` via CLI config.
+
+**Gemini Auth:** `gemini-headless` uses `GEMINI_API_KEY` or `GOOGLE_API_KEY` for authentication. Run `gemini` interactively once to complete initial setup.
 
 **OpenAI-Compatible Auth:** API key resolution order: `runtimeOptions.apiKey` (inline) → `process.env[runtimeOptions.apiKeyEnv]` → `process.env.OPENAI_API_KEY`. API key is required only when using the default OpenAI base URL; if `runtimeOptions.baseUrl` or `OPENAI_BASE_URL` is set, the `Authorization` header is omitted when no key is provided. Base URL resolution: `runtimeOptions.baseUrl` → `process.env.OPENAI_BASE_URL` → `https://api.openai.com/v1`.
 

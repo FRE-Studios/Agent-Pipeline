@@ -1,6 +1,6 @@
 # Agent Pipeline
 
-> Intelligent multi-runtime agent orchestration with DAG-planned parallelism, conditional logic, automated git hygiene, and multi-channel notifications. Supports Claude Code, Codex, and any OpenAI-compatible API.
+> Intelligent multi-runtime agent orchestration with DAG-planned parallelism, conditional logic, automated git hygiene, and multi-channel notifications. Supports Claude Code, Codex, Gemini, and any OpenAI-compatible API.
 
 <p align="center">
   <video src="https://github.com/user-attachments/assets/eef9bda8-6184-45db-af6e-77307695f02e" width="720" autoplay loop muted playsinline></video>
@@ -68,6 +68,7 @@ agent-pipeline run post-commit-example
 - **At least one agent runtime:**
   - **Claude Code** (`claude` CLI) – default runtime with full tool suite
   - **Codex** (`codex` CLI) – OpenAI's Codex with filesystem tools
+  - **Gemini** (`gemini` CLI) – Google's Gemini with tool use and sandbox modes
   - **OpenAI-compatible API key** – for any Chat Completions endpoint (OpenAI, DeepSeek, Together, Groq, Ollama, etc.)
 - **GitHub CLI** (`gh`) – optional unless you enable automated PR creation
   - Install: `brew install gh` (macOS) or [see docs](https://cli.github.com/)
@@ -197,7 +198,7 @@ agent-pipeline run my-pipeline
 - **Pipeline orchestration** – `PipelineRunner` combines DAG planning, conditional gating, and per-stage retries backed by `RetryHandler`.
 - **Git workflow automation** – Worktrees isolate runs by default, while `BranchManager` and `PRCreator` manage dedicated branches and PRs.
 - **State & context management** – `StateManager` persists run history while `HandoverManager` enables filesystem-based communication between stages.
-- **Runtime flexibility** – Pluggable agent runtimes (Claude Code Headless, Claude SDK, Codex Headless, OpenAI-compatible) registered via `AgentRuntimeRegistry`.
+- **Runtime flexibility** – Pluggable agent runtimes (Claude Code Headless, Claude SDK, Codex Headless, Gemini Headless, OpenAI-compatible) registered via `AgentRuntimeRegistry`.
 - **Model flexibility** – Mix models across runtimes and providers per stage for cost optimization (up to 90% savings on simple tasks).
 - **Cost controls** – Set `maxTurns` and `maxThinkingTokens` to prevent runaway agents and enable deep reasoning when needed.
 - **Observability** – Ink-powered live UI, interactive history browser, and analytics reports generated from stored run data.
@@ -217,7 +218,7 @@ Key components:
 - `src/core/branch-manager.ts` / `src/core/git-manager.ts` – Handle branch isolation and git commands.
 - `src/core/handover-manager.ts` – Manages filesystem-based stage communication via handover files.
 - `src/core/pr-creator.ts` – Integrates with GitHub CLI for PR automation.
-- `src/core/agent-runtime-registry.ts` – Registry for pluggable agent runtimes (Claude Code Headless, Claude SDK, Codex Headless, OpenAI-compatible).
+- `src/core/agent-runtime-registry.ts` – Registry for pluggable agent runtimes (Claude Code Headless, Claude SDK, Codex Headless, Gemini Headless, OpenAI-compatible).
 - `src/utils/token-estimator.ts` – Provides `smartCount()` for context window monitoring.
 - `src/ui/pipeline-ui.tsx` & `src/cli/commands/history.tsx` – Ink UIs for live runs and history browsing.
 - `src/analytics/pipeline-analytics.ts` – Generates aggregated metrics for the `analytics` command.
