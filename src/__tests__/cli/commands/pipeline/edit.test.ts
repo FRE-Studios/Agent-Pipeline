@@ -118,7 +118,7 @@ describe('editPipelineCommand', () => {
       expect(spawn).toHaveBeenCalledWith(
         'nano',
         [path.join(tempDir, '.agent-pipeline', 'pipelines', 'test-pipeline.yml')],
-        expect.objectContaining({ stdio: 'inherit', shell: true })
+        expect.objectContaining({ stdio: 'inherit' })
       );
     });
 
@@ -155,6 +155,41 @@ describe('editPipelineCommand', () => {
         'emacs',
         expect.any(Array),
         expect.any(Object)
+      );
+    });
+
+    it('should parse editor with arguments (e.g. "code --wait")', async () => {
+      const mockConfig = {
+        name: 'test-pipeline',
+        trigger: 'manual',
+        agents: [],
+      };
+      mockLoader.loadPipeline.mockResolvedValue(mockConfig);
+
+      const mockChild = {
+        on: vi.fn((event, callback) => {
+          if (event === 'exit') {
+            setTimeout(() => callback(0), 0);
+          }
+        }),
+      } as unknown as ChildProcess;
+
+      vi.mocked(spawn).mockReturnValue(mockChild);
+      vi.mocked(fs.readFile).mockResolvedValue('name: test-pipeline\ntrigger: manual\nagents: []');
+      vi.mocked(PipelineValidator.validateAndReport).mockResolvedValue(true);
+
+      process.env.EDITOR = 'code --wait';
+
+      try {
+        await editPipelineCommand(tempDir, 'test-pipeline');
+      } catch (error) {
+        // Expected
+      }
+
+      expect(spawn).toHaveBeenCalledWith(
+        'code',
+        ['--wait', path.join(tempDir, '.agent-pipeline', 'pipelines', 'test-pipeline.yml')],
+        expect.objectContaining({ stdio: 'inherit' })
       );
     });
 
@@ -225,7 +260,7 @@ describe('editPipelineCommand', () => {
       expect(spawn).toHaveBeenCalledWith(
         'vi',
         [path.join(tempDir, '.agent-pipeline', 'pipelines', 'my-pipeline.yml')],
-        expect.objectContaining({ stdio: 'inherit', shell: true })
+        expect.objectContaining({ stdio: 'inherit' })
       );
     });
 

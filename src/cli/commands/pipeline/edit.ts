@@ -6,6 +6,22 @@ import { spawn } from 'child_process';
 import { PipelineValidator } from '../../../validators/pipeline-validator.js';
 import { PipelineLoader } from '../../../config/pipeline-loader.js';
 
+function parseCommand(input: string): { command: string; args: string[] } {
+  const parts: string[] = [];
+  const regex = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(input)) !== null) {
+    parts.push(match[1] ?? match[2] ?? match[3]);
+  }
+
+  if (parts.length === 0) {
+    return { command: 'vi', args: [] };
+  }
+
+  return { command: parts[0], args: parts.slice(1) };
+}
+
 export async function editPipelineCommand(
   repoPath: string,
   pipelineName: string
@@ -22,15 +38,15 @@ export async function editPipelineCommand(
       `${pipelineName}.yml`
     );
 
-    // Determine editor
-    const editor = process.env.EDITOR || process.env.VISUAL || 'vi';
+    // Determine editor - parse to handle editors with args (e.g. "code --wait")
+    const editorEnv = process.env.EDITOR || process.env.VISUAL || 'vi';
+    const { command: editor, args: editorArgs } = parseCommand(editorEnv);
 
-    console.log(`📝 Opening ${pipelineName} in ${editor}...\n`);
+    console.log(`📝 Opening ${pipelineName} in ${editorEnv}...\n`);
 
-    // Open editor
-    const child = spawn(editor, [pipelinePath], {
-      stdio: 'inherit',
-      shell: true
+    // Open editor without shell: true to avoid DEP0190 deprecation warning
+    const child = spawn(editor, [...editorArgs, pipelinePath], {
+      stdio: 'inherit'
     });
 
     await new Promise<void>((resolve, reject) => {
