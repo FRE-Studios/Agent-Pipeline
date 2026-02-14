@@ -68,6 +68,22 @@ describe('update-checker', () => {
       expect(compareSemver('1.0', '1.0.1')).toBe(-1);
       expect(compareSemver('1.0.1', '1.0')).toBe(1);
     });
+
+    it('should handle prerelease precedence', () => {
+      expect(compareSemver('1.0.0-alpha', '1.0.0')).toBe(-1);
+      expect(compareSemver('1.0.0', '1.0.0-alpha')).toBe(1);
+      expect(compareSemver('1.0.0-alpha.1', '1.0.0-alpha.2')).toBe(-1);
+      expect(compareSemver('1.0.0-beta', '1.0.0-alpha')).toBe(1);
+    });
+
+    it('should ignore build metadata', () => {
+      expect(compareSemver('1.0.0+build.1', '1.0.0+build.2')).toBe(0);
+    });
+
+    it('should treat invalid versions as equal', () => {
+      expect(compareSemver('not-a-version', '1.0.0')).toBe(0);
+      expect(compareSemver('1.0.0', 'also-bad')).toBe(0);
+    });
   });
 
   describe('shouldSkipCheck', () => {
@@ -99,6 +115,10 @@ describe('update-checker', () => {
 
     it('should skip for help command', () => {
       expect(shouldSkipCheck(['help'])).toBe(true);
+    });
+
+    it('should skip for history command', () => {
+      expect(shouldSkipCheck(['history'])).toBe(true);
     });
 
     it('should not skip for normal commands', () => {

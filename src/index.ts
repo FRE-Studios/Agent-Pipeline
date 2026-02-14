@@ -61,12 +61,26 @@ import * as fs from 'fs/promises';
 // Update checker
 import { checkForUpdate, formatUpdateNotification, shouldSkipCheck, type UpdateCheckResult } from './utils/update-checker.js';
 
+const UPDATE_NOTIFICATION_MAX_WAIT_MS = 150;
+
+async function waitForUpdateResult(
+  promise: Promise<UpdateCheckResult | null>,
+  maxWaitMs: number
+): Promise<UpdateCheckResult | null> {
+  const timeoutPromise = new Promise<null>((resolve) => {
+    const timeout = setTimeout(() => resolve(null), maxWaitMs);
+    timeout.unref?.();
+  });
+
+  return Promise.race([promise.catch(() => null), timeoutPromise]);
+}
+
 async function printUpdateNotification(promise: Promise<UpdateCheckResult | null> | null): Promise<void> {
   if (!promise) return;
   try {
-    const result = await promise;
+    const result = await waitForUpdateResult(promise, UPDATE_NOTIFICATION_MAX_WAIT_MS);
     if (result?.updateAvailable) {
-      console.log(formatUpdateNotification(result));
+      process.stderr.write(formatUpdateNotification(result));
     }
   } catch {
     // Silently ignore
