@@ -11,22 +11,23 @@
       "Bash(npm ls:*)",
       "Bash(grep:*)",
       "Bash(npm view:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []
   },
-    "hooks": {
-      "UserPromptSubmit": [
-        {
-          "matcher": "",
-          "hooks": [
-            {
-              "type": "command",
-              "command": "jq -r '.prompt' | { read -r p; head -n 2 /Users/fernandodelrey/Developer/Agent-Pipeline/cli/agent-pipeline-public/docs/dev/prompt_history.md; echo \"$(date '+%Y-%m-%d %H:%M:%S'): $p\"; tail -n +3 /Users/fernandodelrey/Developer/Agent-Pipeline/cli/agent-pipeline-public/docs/dev/prompt_history.md; } > /tmp/ph_tmp && mv /tmp/ph_tmp /Users/fernandodelrey/Developer/Agent-Pipeline/cli/agent-pipeline-public/docs/dev/prompt_history.md"
-            }
-          ]
-        }
-      ]
-    }
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.prompt' | { read -r p; head -n 2 /Users/fernandodelrey/Developer/Agent-Pipeline/cli/agent-pipeline-public/docs/dev/prompt_history.md; echo \"$(date '+%Y-%m-%d %H:%M:%S'): $p\"; tail -n +3 /Users/fernandodelrey/Developer/Agent-Pipeline/cli/agent-pipeline-public/docs/dev/prompt_history.md; } > /tmp/ph_tmp && mv /tmp/ph_tmp /Users/fernandodelrey/Developer/Agent-Pipeline/cli/agent-pipeline-public/docs/dev/prompt_history.md"
+          }
+        ]
+      }
+    ]
+  }
 }
