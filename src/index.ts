@@ -58,12 +58,35 @@ import { schemaCommand } from './cli/commands/schema.js';
 import { showHelp, showCommandHelp } from './cli/help/index.js';
 import * as fs from 'fs/promises';
 
+// Update checker
+import { checkForUpdate, formatUpdateNotification, shouldSkipCheck, type UpdateCheckResult } from './utils/update-checker.js';
+
+async function printUpdateNotification(promise: Promise<UpdateCheckResult | null> | null): Promise<void> {
+  if (!promise) return;
+  try {
+    const result = await promise;
+    if (result?.updateAvailable) {
+      console.log(formatUpdateNotification(result));
+    }
+  } catch {
+    // Silently ignore
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
   const subCommand = args[1];
 
   const repoPath = process.cwd();
+
+  // Fire non-blocking update check
+  let updateCheckPromise: Promise<UpdateCheckResult | null> | null = null;
+  if (!shouldSkipCheck(args)) {
+    const pkgPath = new URL('../package.json', import.meta.url);
+    const pkg = JSON.parse(await fs.readFile(pkgPath, 'utf-8'));
+    updateCheckPromise = checkForUpdate(pkg.version);
+  }
 
   // Register Claude SDK runtime on startup
   try {
@@ -509,11 +532,14 @@ Examples:
         showHelp();
       }
     }
+
+    await printUpdateNotification(updateCheckPromise);
   } catch (error) {
     Logger.error((error as Error).message);
     if (process.env.DEBUG) {
       console.error(error);
     }
+    await printUpdateNotification(updateCheckPromise);
     process.exit(1);
   }
 }
