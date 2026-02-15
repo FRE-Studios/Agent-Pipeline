@@ -147,7 +147,7 @@ describe('PipelineRunner - Loop Mode', () => {
       vi.spyOn(runner as any, '_executeSinglePipeline')
         .mockResolvedValue(mockPipelineState);
 
-      const findNextSpy = vi.spyOn(runner as any, '_findNextPipelineFile');
+      const findNextSpy = vi.spyOn((runner as any).loopExecutor, 'findNextPipelineFile');
 
       await runner.runPipeline(configWithoutLooping, {
         interactive: false,
@@ -611,7 +611,7 @@ describe('PipelineRunner - Loop Mode', () => {
       const executeSingleSpy = vi.spyOn(runner as any, '_executeSinglePipeline')
         .mockResolvedValue(mockPipelineState);
 
-      const findNextSpy = vi.spyOn(runner as any, '_findNextPipelineFile');
+      const findNextSpy = vi.spyOn((runner as any).loopExecutor, 'findNextPipelineFile');
 
       // Run with loop: false (--no-loop flag)
       await runner.runPipeline(mockPipelineConfig, {
@@ -877,7 +877,7 @@ describe('PipelineRunner - Loop Mode', () => {
         },
       };
 
-      const result = (runner as any).resolveLoopDirectories(
+      const result = (runner as any).loopExecutor.resolveLoopDirectories(
         loopContext,
         worktreePath,
         worktreePath
@@ -919,7 +919,7 @@ describe('PipelineRunner - Loop Mode', () => {
         },
       };
 
-      const result = (runner as any).resolveLoopDirectories(
+      const result = (runner as any).loopExecutor.resolveLoopDirectories(
         loopContext,
         worktreePath,
         worktreePath
@@ -937,8 +937,8 @@ describe('PipelineRunner - Loop Mode', () => {
       vi.spyOn(runner as any, '_executeSinglePipeline')
         .mockResolvedValue(mockPipelineState);
 
-      // Mock _findNextPipelineFile to simulate directory access error
-      vi.spyOn(runner as any, '_findNextPipelineFile')
+      // Mock findNextPipelineFile to simulate directory access error
+      vi.spyOn((runner as any).loopExecutor, 'findNextPipelineFile')
         .mockResolvedValueOnce(undefined); // Simulate error by returning undefined
 
       const result = await runner.runPipeline(mockPipelineConfig, {
@@ -950,13 +950,13 @@ describe('PipelineRunner - Loop Mode', () => {
       expect(result.status).toBe('completed');
     });
 
-    it('should return undefined from _findNextPipelineFile when directory is deleted', async () => {
+    it('should return undefined from findNextPipelineFile when directory is deleted', async () => {
       const runner = new PipelineRunner(tempDir);
 
       // Delete the pending directory mid-execution
       await fs.rm(pendingDir, { recursive: true, force: true });
 
-      const nextFile = await (runner as any)._findNextPipelineFile(mockLoopingConfig.directories);
+      const nextFile = await (runner as any).loopExecutor.findNextPipelineFile(mockLoopingConfig.directories);
 
       expect(nextFile).toBeUndefined();
     });
