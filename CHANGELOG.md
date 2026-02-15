@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-02-14
+
+### Added
+
+- **Gemini Headless runtime** – New agent runtime for Google's Gemini CLI with stdin-based prompt delivery and tool-activity parsing
+- **Pi Agent Headless runtime** – Multi-provider coding agent runtime supporting Anthropic, OpenAI, Google, Mistral, Groq, xAI, and OpenRouter
+- **Update checker** – Automatic npm update notifications with 24h cache TTL, semver-aware comparison, and stderr output to avoid stdout contamination
+- **`agentInput` in state** – State JSON files now include the agent input for each stage execution
+- **Commander-based CLI** – Migrated from custom argument parser to Commander with modular command registration (`register-core`, `register-pipeline`, `register-agent`, `register-hooks`)
+
+### Changed
+
+- **Loop executor extraction** – Refactored pipeline runner to extract loop execution logic into dedicated `loop-executor.ts`, reducing `pipeline-runner.ts` complexity
+- **Loop agent outside main flow** – Loop agent now executes directly via `AgentRuntimeRegistry` after all groups complete, no longer part of the DAG execution graph
+- **Runtime-agnostic error messages** – API key error suggestions now list common env vars across runtimes (Anthropic, OpenAI, Google) instead of hardcoding `ANTHROPIC_API_KEY`
+
+### Fixed
+
+- **Node.js DEP0190 deprecation warning** – Replaced `shell: true` spawn in `pipeline/edit.ts` with parsed command arguments
+- **Gemini CLI prompt delivery** – Fixed prompt piped via stdin instead of unsupported `-p` flag
+- **Update checker stability** – Notifications write to stderr, capped at 150ms non-blocking wait, timer unref'd to avoid keeping process alive
+
 ## [0.1.2] - 2026-02-06
 
 ### Added
