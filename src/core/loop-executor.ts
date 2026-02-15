@@ -74,12 +74,25 @@ export class LoopExecutor {
         console.log('🔁 Running loop agent...');
       }
 
+      // Wire up tool activity streaming so the UI shows live tool calls
+      const onOutputUpdate = (activity: string) => {
+        if (!execution.toolActivity) {
+          execution.toolActivity = [];
+        }
+        execution.toolActivity.push(activity);
+        if (execution.toolActivity.length > 3) {
+          execution.toolActivity = execution.toolActivity.slice(-3);
+        }
+        this.stateChangeCallback(state);
+      };
+
       const result = await runtime.execute({
         systemPrompt,
         userPrompt,
         options: {
           permissionMode: 'acceptEdits',
-          runtimeOptions: { cwd: executionRepoPath }
+          runtimeOptions: { cwd: executionRepoPath },
+          onOutputUpdate
         }
       });
 
