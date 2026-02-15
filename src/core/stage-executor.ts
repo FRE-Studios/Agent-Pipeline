@@ -300,6 +300,7 @@ export class StageExecutor {
         runtimeOptions
       );
 
+      execution.agentInput = `${systemPrompt}\n\n${userPrompt}`;
       execution.agentOutput = result.textOutput;
 
       // Store token usage (normalized from runtime)

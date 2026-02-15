@@ -179,6 +179,7 @@ describe('StageExecutor', () => {
 
       expect(result.status).toBe('success');
       expect(result.stageName).toBe('test-stage');
+      expect(result.agentInput).toContain('Mock agent system prompt');
       expect(result.agentOutput).toBe('Mock agent response');
       expect(result.startTime).toBeDefined();
       expect(result.endTime).toBeDefined();

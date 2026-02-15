@@ -191,6 +191,13 @@ const PipelineDetailView: React.FC<PipelineDetailViewProps> = ({ state }) => {
             {stage.duration && <Text dimColor> ({stage.duration.toFixed(1)}s)</Text>}
           </Text>
 
+          {stage.agentInput && (
+            <Box marginLeft={3}>
+              <Text dimColor>└─ Input: </Text>
+              <Text>{stage.agentInput.length > 120 ? stage.agentInput.substring(0, 120) + '…' : stage.agentInput}</Text>
+            </Box>
+          )}
+
           {stage.commitSha && (
             <Box marginLeft={3}>
               <Text dimColor>└─ Commit: </Text>

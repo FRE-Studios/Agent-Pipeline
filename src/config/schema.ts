@@ -286,6 +286,7 @@ export interface StageExecution {
   commitSha?: string;                  // Commit created by this stage
   commitMessage?: string;
 
+  agentInput?: string;                 // Full prompt sent to agent (system + user)
   agentOutput?: string;                // Raw agent response
   toolActivity?: string[];             // Rolling tool activity log (max 3 recent items)
 
