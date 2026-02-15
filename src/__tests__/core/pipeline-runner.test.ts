@@ -65,8 +65,8 @@ const {
     },
     mockRuntimeInstance: {
       execute: vi.fn().mockResolvedValue({
-        result: { output: 'Done' },
-        usage: { inputTokens: 100, outputTokens: 50 },
+        textOutput: 'Done',
+        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
       }),
     },
     mockPipelineLoaderInstance: {
@@ -150,6 +150,7 @@ vi.mock('fs/promises', () => ({
   access: vi.fn().mockRejectedValue(new Error('Not found')),
   rename: vi.fn().mockResolvedValue(undefined),
   cp: vi.fn().mockResolvedValue(undefined),
+  readFile: vi.fn().mockResolvedValue('name: test-pipeline\ntrigger: manual\nagents:\n  - name: stage-1\n    agent: test.md'),
 }));
 
 // Import the mocked fs module for use in tests
@@ -183,29 +184,20 @@ describe('PipelineRunner', () => {
     mockPipelineState = createMockState();
 
     // Re-setup hoisted mock implementations after clearAllMocks
-    // Smart DAG mock: returns an extra group for the loop agent when injected
-    mockDAGPlannerInstance.buildExecutionPlan.mockImplementation((config: PipelineConfig) => {
-      const loopStage = config.agents.find(a => a.agent === '__inline__');
-      if (loopStage) {
-        return {
-          plan: {
-            groups: [
-              { stages: config.agents.filter(a => a.agent !== '__inline__') },
-              { stages: [loopStage] },
-            ],
-            maxParallelism: 1,
-          },
-          validation: { warnings: [], isValid: true },
-        };
-      }
-      return {
-        plan: {
-          groups: [{ stages: [{ name: 'stage-1', agent: 'test.md' }] }],
-          maxParallelism: 1,
-        },
-        validation: { warnings: [], isValid: true },
-      };
+    // DAG planner now receives the ORIGINAL config (without loop stage)
+    mockDAGPlannerInstance.buildExecutionPlan.mockReturnValue({
+      plan: {
+        groups: [{ stages: [{ name: 'stage-1', agent: 'test.md' }] }],
+        maxParallelism: 1,
+      },
+      validation: { warnings: [], isValid: true },
     });
+    mockRuntimeInstance.execute.mockResolvedValue({
+      textOutput: 'Done',
+      tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+    });
+    // Re-setup fs mocks after clearAllMocks
+    vi.mocked(fs.readFile).mockResolvedValue('name: test-pipeline\ntrigger: manual\nagents:\n  - name: stage-1\n    agent: test.md');
     mockLoopStateManagerInstance.startSession.mockResolvedValue({ sessionId: 'session-123' });
     mockLoopStateManagerInstance.appendIteration.mockResolvedValue(undefined);
     mockLoopStateManagerInstance.updateIteration.mockResolvedValue(true);
@@ -1609,10 +1601,11 @@ describe('PipelineRunner', () => {
       const result = await runner.runPipeline(loopConfig, { interactive: false });
 
       // Should have iteration history with token usage
+      // Totals include loop agent tokens (100 input, 50 output from runtime mock)
       expect(result.loopIterationHistory).toBeDefined();
       expect(result.loopIterationHistory?.[0]?.tokenUsage).toEqual({
-        totalInput: 1000,
-        totalOutput: 500,
+        totalInput: 1100,
+        totalOutput: 550,
         totalCacheRead: 200,
       });
 
@@ -1630,26 +1623,6 @@ describe('PipelineRunner', () => {
 
     it('should execute loop agent when loop mode is enabled and pipeline succeeds', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      const loopExecution: StageExecution = {
-        stageName: 'loop-agent',
-        status: 'success',
-        startTime: new Date().toISOString(),
-        duration: 5,
-      };
-      const loopState: PipelineState = {
-        ...mockPipelineState,
-        stages: [...mockPipelineState.stages, loopExecution],
-      };
-
-      mockOrchestratorInstance.processGroup
-        .mockResolvedValueOnce({
-          state: mockPipelineState,
-          shouldStopPipeline: false,
-        })
-        .mockResolvedValueOnce({
-          state: loopState,
-          shouldStopPipeline: false,
-        });
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1662,19 +1635,14 @@ describe('PipelineRunner', () => {
 
       await runner.runPipeline(loopConfig, { interactive: false });
 
-      // Should execute loop agent via orchestrator with system prompt override
-      expect(mockOrchestratorInstance.processGroup).toHaveBeenCalledTimes(2);
-      expect(mockOrchestratorInstance.processGroup).toHaveBeenLastCalledWith(
+      // processGroup called once for normal stages only
+      expect(mockOrchestratorInstance.processGroup).toHaveBeenCalledTimes(1);
+      // Loop agent executed directly via runtime
+      expect(mockRuntimeInstance.execute).toHaveBeenCalledWith(
         expect.objectContaining({
-          stages: [expect.objectContaining({ name: 'loop-agent', agent: '__inline__' })],
-        }),
-        expect.any(Object),
-        expect.any(Object),
-        expect.any(Object),
-        expect.any(Boolean),
-        expect.any(Object),
-        expect.any(Boolean),
-        { 'loop-agent': expect.any(String) }
+          systemPrompt: expect.any(String),
+          userPrompt: expect.stringContaining('Loop Agent Task'),
+        })
       );
 
       consoleSpy.mockRestore();
@@ -1700,6 +1668,7 @@ describe('PipelineRunner', () => {
           currentIteration: 1,
           maxIterations: 5,
           pipelineName: simplePipelineConfig.name,
+          pipelineYaml: expect.any(String),
         })
       );
 
@@ -1709,14 +1678,13 @@ describe('PipelineRunner', () => {
     it('should not execute loop agent when loop mode is disabled', async () => {
       await runner.runPipeline(simplePipelineConfig);
 
-      // No loop context → no loop agent execution
       expect(mockOrchestratorInstance.processGroup).toHaveBeenCalledTimes(1);
+      expect(mockRuntimeInstance.execute).not.toHaveBeenCalled();
     });
 
     it('should not execute loop agent when pipeline fails', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      // Make orchestrator report failure
       mockOrchestratorInstance.processGroup.mockResolvedValue({
         state: createMockState('running'),
         shouldStopPipeline: true,
@@ -1733,8 +1701,8 @@ describe('PipelineRunner', () => {
 
       await runner.runPipeline(loopConfig, { interactive: false });
 
-      // Loop agent should not run when pipeline failed
       expect(mockOrchestratorInstance.processGroup).toHaveBeenCalledTimes(1);
+      expect(mockRuntimeInstance.execute).not.toHaveBeenCalled();
 
       consoleSpy.mockRestore();
     });
@@ -1743,12 +1711,8 @@ describe('PipelineRunner', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      mockOrchestratorInstance.processGroup
-        .mockResolvedValueOnce({
-          state: mockPipelineState,
-          shouldStopPipeline: false,
-        })
-        .mockRejectedValueOnce(new Error('Loop agent crashed'));
+      // Runtime execute fails for loop agent
+      mockRuntimeInstance.execute.mockRejectedValueOnce(new Error('Loop agent crashed'));
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1761,7 +1725,6 @@ describe('PipelineRunner', () => {
 
       const result = await runner.runPipeline(loopConfig, { interactive: false });
 
-      // Pipeline should still complete successfully
       expect(result.status).toBe('completed');
       expect(consoleWarnSpy).toHaveBeenCalledWith(
         expect.stringContaining('Loop agent error (non-fatal)')
@@ -1774,25 +1737,12 @@ describe('PipelineRunner', () => {
     it('should push loop agent execution to pipeline state', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      const loopExecution: StageExecution = {
-        stageName: 'loop-agent',
-        status: 'success' as const,
-        startTime: new Date().toISOString(),
-        duration: 5,
-      };
-      const loopState: PipelineState = {
-        ...mockPipelineState,
-        stages: [...mockPipelineState.stages, loopExecution],
-      };
-      mockOrchestratorInstance.processGroup
-        .mockResolvedValueOnce({
-          state: mockPipelineState,
-          shouldStopPipeline: false,
-        })
-        .mockResolvedValueOnce({
-          state: loopState,
-          shouldStopPipeline: false,
-        });
+      // Mock runtime to return success
+      mockRuntimeInstance.execute.mockResolvedValueOnce({
+        textOutput: 'Loop decision made',
+        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+        numTurns: 1,
+      });
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1815,25 +1765,10 @@ describe('PipelineRunner', () => {
     it('should log loop agent status on success', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      const loopExecution: StageExecution = {
-        stageName: 'loop-agent',
-        status: 'success',
-        startTime: new Date().toISOString(),
-        duration: 5,
-      };
-      const loopState: PipelineState = {
-        ...mockPipelineState,
-        stages: [...mockPipelineState.stages, loopExecution],
-      };
-      mockOrchestratorInstance.processGroup
-        .mockResolvedValueOnce({
-          state: mockPipelineState,
-          shouldStopPipeline: false,
-        })
-        .mockResolvedValueOnce({
-          state: loopState,
-          shouldStopPipeline: false,
-        });
+      mockRuntimeInstance.execute.mockResolvedValueOnce({
+        textOutput: 'Loop done',
+        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
+      });
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1856,29 +1791,11 @@ describe('PipelineRunner', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should log loop agent failure as non-fatal when executeStage returns failed', async () => {
+    it('should log loop agent failure as non-fatal when runtime execute fails', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      const loopExecution: StageExecution = {
-        stageName: 'loop-agent',
-        status: 'failed',
-        startTime: new Date().toISOString(),
-        duration: 2,
-        error: { message: 'agent failed', timestamp: new Date().toISOString() },
-      };
-      const loopState: PipelineState = {
-        ...mockPipelineState,
-        stages: [...mockPipelineState.stages, loopExecution],
-      };
-      mockOrchestratorInstance.processGroup
-        .mockResolvedValueOnce({
-          state: mockPipelineState,
-          shouldStopPipeline: false,
-        })
-        .mockResolvedValueOnce({
-          state: loopState,
-          shouldStopPipeline: false,
-        });
+      mockRuntimeInstance.execute.mockRejectedValueOnce(new Error('agent failed'));
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1891,13 +1808,13 @@ describe('PipelineRunner', () => {
 
       const result = await runner.runPipeline(loopConfig, { interactive: false });
 
-      // Pipeline still completes - loop agent failure is non-fatal
       expect(result.status).toBe('completed');
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('loop-agent failed (non-fatal)')
+      expect(consoleWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Loop agent error (non-fatal)')
       );
 
       consoleSpy.mockRestore();
+      consoleWarnSpy.mockRestore();
     });
 
     it('should pass custom loop instructions path from pipeline config', async () => {
@@ -1923,7 +1840,7 @@ describe('PipelineRunner', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should pass config with loop agent to DAG planner', async () => {
+    it('should pass original config (without loop agent) to DAG planner', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const loopConfig: PipelineConfig = {
@@ -1937,14 +1854,10 @@ describe('PipelineRunner', () => {
 
       await runner.runPipeline(loopConfig, { interactive: false });
 
-      // DAG planner should receive a config that includes the loop agent
-      expect(mockDAGPlannerInstance.buildExecutionPlan).toHaveBeenCalledWith(
-        expect.objectContaining({
-          agents: expect.arrayContaining([
-            expect.objectContaining({ name: 'loop-agent', agent: '__inline__' }),
-          ]),
-        })
-      );
+      // DAG planner should receive the ORIGINAL config without loop agent
+      const dagPlannerCall = mockDAGPlannerInstance.buildExecutionPlan.mock.calls[0][0];
+      const loopAgent = dagPlannerCall.agents.find((a: any) => a.agent === '__inline__');
+      expect(loopAgent).toBeUndefined();
 
       consoleSpy.mockRestore();
     });

@@ -962,8 +962,7 @@ describe('GroupExecutionOrchestrator', () => {
         expect(mockParallelExecutor.executeSequentialGroup).toHaveBeenCalledWith(
           expect.arrayContaining([expect.objectContaining({ name: 'stage-no-enabled' })]),
           expect.any(Object),
-          expect.any(Function),
-          undefined
+          expect.any(Function)
         );
       });
 

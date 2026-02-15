@@ -187,6 +187,18 @@ Iteration: {{currentIteration}}/{{maxIterations}}
       expect(result).toContain('/my/pending');
       expect(result).toContain('3/50');
     });
+
+    it('should interpolate pipelineYaml in loop template', async () => {
+      const template = 'Pipeline:\n{{pipelineYaml}}';
+      vi.mocked(fs.readFile).mockResolvedValue(template);
+
+      const result = await loader.loadLoopInstructions('template.md', {
+        pipelineYaml: 'name: my-pipeline\ntrigger: manual'
+      });
+
+      expect(result).toContain('name: my-pipeline');
+      expect(result).toContain('trigger: manual');
+    });
   });
 
   describe('interpolate', () => {
@@ -262,10 +274,9 @@ Iteration: {{currentIteration}}/{{maxIterations}}
 
       expect(result).toContain('## Loop Agent');
       expect(result).toContain('You are the Loop Agent');
-      expect(result).toContain('Notes on creating new Pipelines');
-      expect(result).toContain('NEXT PHASE ONLY');
-      expect(result).toContain('When NOT to Create a Next Pipeline');
-      expect(result).toContain('Your only task is to create a new pipeline.yml');
+      expect(result).toContain('{{pipelineYaml}}');
+      expect(result).toContain('When NOT to create a next pipeline');
+      expect(result).toContain('Your only task is to create a new pipeline YAML file');
     });
   });
 });

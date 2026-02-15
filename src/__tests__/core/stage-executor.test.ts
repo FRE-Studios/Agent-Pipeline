@@ -1760,37 +1760,4 @@ describe('StageExecutor', () => {
 
   // Note: Worktree Context Injection tests (lines 432-437) are in stage-executor-worktree.test.ts
   // That file mocks GitManager at the module level to avoid slow simpleGit operations;
-
-  describe('systemPromptOverride', () => {
-    it('should use systemPromptOverride instead of loading from agent file', async () => {
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
-
-      const overridePrompt = '# Custom Loop Agent\nYou are a loop decision agent.';
-
-      await executor.executeStage(
-        basicStageConfig,
-        runningPipelineState,
-        undefined,
-        overridePrompt
-      );
-
-      const executeCall = mockRuntime.execute.mock.calls[0];
-      // Should use the override as the system prompt
-      expect(executeCall[0].systemPrompt).toBe(overridePrompt);
-    });
-
-    it('should still load from agent file when systemPromptOverride is not provided', async () => {
-      const fsModule = await import('fs/promises');
-      vi.mocked(fsModule.readFile).mockResolvedValue('Agent file system prompt');
-
-      mockGitManager = createMockGitManager({ hasChanges: false });
-      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
-
-      await executor.executeStage(basicStageConfig, runningPipelineState);
-
-      const executeCall = mockRuntime.execute.mock.calls[0];
-      expect(executeCall[0].systemPrompt).toBe('Agent file system prompt');
-    });
-  });
 });

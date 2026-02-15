@@ -1001,8 +1001,7 @@ describe('ParallelExecutor', () => {
       expect(mockStageExecutor.executeStage).toHaveBeenCalledWith(
         stages[0],
         runningPipelineState,
-        expect.any(Function),
-        undefined
+        expect.any(Function)
       );
     });
 

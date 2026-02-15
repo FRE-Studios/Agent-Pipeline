@@ -244,8 +244,7 @@ export class StageExecutor {
   async executeStage(
     stageConfig: AgentStageConfig,
     pipelineState: PipelineState,
-    onOutputUpdate?: (output: string) => void,
-    systemPromptOverride?: string
+    onOutputUpdate?: (output: string) => void
   ): Promise<StageExecution> {
     const execution: StageExecution = {
       stageName: stageConfig.name,
@@ -264,7 +263,7 @@ export class StageExecutor {
     // Define the core execution logic
     const executeAttempt = async (): Promise<void> => {
       // Load agent prompts
-      const systemPrompt = systemPromptOverride ?? await this.loadSystemPrompt(stageConfig.agent);
+      const systemPrompt = await this.loadSystemPrompt(stageConfig.agent);
       const userPrompt = await this.buildUserPrompt(stageConfig, pipelineState);
 
       // Estimate input tokens before execution

@@ -8,7 +8,8 @@ import { DAGPlanner } from './dag-planner.js';
 import { PipelineInitializer } from './pipeline-initializer.js';
 import { GroupExecutionOrchestrator } from './group-execution-orchestrator.js';
 import { PipelineFinalizer } from './pipeline-finalizer.js';
-import { PipelineConfig, PipelineState, PipelineMetadata, ResolvedLoopingConfig, LoopContext, IterationHistoryEntry, AgentStageConfig } from '../config/schema.js';
+import { PipelineConfig, PipelineState, PipelineMetadata, ResolvedLoopingConfig, LoopContext, IterationHistoryEntry, AgentStageConfig, StageExecution } from '../config/schema.js';
+import YAML from 'yaml';
 import { InstructionLoader, InstructionContext } from './instruction-loader.js';
 import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
@@ -805,20 +806,17 @@ export class PipelineRunner {
     }
 
     try {
-      // Inject loop agent into config before DAG planning when looping is enabled.
-      // The DAG planner naturally places it in the last execution group (depends on all stages),
-      // and the UI automatically renders it as a first-class stage.
-      let effectiveConfig = config;
+      // Keep loop stage in pipelineConfig for UI rendering,
+      // but build the execution plan from the ORIGINAL config (without loop stage).
       let loopStageName: string | undefined;
       if (loopContext?.enabled) {
         const injected = this.injectLoopStageIntoConfig(config, state);
-        effectiveConfig = injected.modifiedConfig;
+        state.pipelineConfig = injected.modifiedConfig;  // UI sees loop stage
         loopStageName = injected.loopStageName;
-        state.pipelineConfig = effectiveConfig;
       }
 
-      // Build execution plan using DAG planner
-      const executionGraph = this.dagPlanner.buildExecutionPlan(effectiveConfig);
+      // Build execution plan from ORIGINAL config (without loop stage)
+      const executionGraph = this.dagPlanner.buildExecutionPlan(config);
 
       if (this.shouldLog(interactive) && executionGraph.plan.groups.length > 0) {
         console.log(
@@ -833,7 +831,7 @@ export class PipelineRunner {
         console.log('');
       }
 
-      // Phase 2: Execute each group in order
+      // Phase 2: Execute each group in order (no isLoopGroup branching)
       const totalGroups = executionGraph.plan.groups.length;
       let abortedAtGroup: number | undefined;
 
@@ -847,88 +845,39 @@ export class PipelineRunner {
 
         const group = executionGraph.plan.groups[groupIndex];
 
-        // Check if this group contains the injected loop stage
-        const isLoopGroup = loopStageName && group.stages.some(s => s.name === loopStageName);
+        const result = await this.groupOrchestrator.processGroup(
+          group,
+          state,
+          config,
+          parallelExecutor,
+          interactive,
+          initResult.handoverManager,
+          verbose
+        );
 
-        if (isLoopGroup) {
-          // Skip loop agent if pipeline has already failed or been aborted
-          if (state.status === 'failed' || state.status === 'aborted') {
-            break;
-          }
+        state = result.state;
 
-          try {
-            // Load loop instructions dynamically
-            const instructionLoader = new InstructionLoader(this.repoPath);
-            const loopInstructionsPath = config.looping?.instructions;
-            const loopTemplateContext: InstructionContext = {
-              pendingDir: loopContext!.directories.pending,
-              currentIteration: loopContext!.currentIteration,
-              maxIterations: loopContext!.maxIterations,
-              pipelineName: config.name
-            };
-            const loopSystemPrompt = await instructionLoader.loadLoopInstructions(
-              loopInstructionsPath,
-              loopTemplateContext
-            );
-
-            if (this.shouldLog(interactive)) {
-              console.log('🔁 Running loop agent...');
-            }
-
-            const result = await this.groupOrchestrator.processGroup(
-              group,
-              state,
-              effectiveConfig,
-              parallelExecutor,
-              interactive,
-              initResult.handoverManager,
-              verbose,
-              { [loopStageName!]: loopSystemPrompt }
-            );
-
-            state = result.state;
-
-            if (this.shouldLog(interactive)) {
-              const loopExecution = state.stages.find(
-                (stage) => stage.stageName === loopStageName
-              );
-              if (loopExecution?.status === 'success') {
-                console.log(`✅ ${loopStageName} (${loopExecution.duration?.toFixed(0) ?? 0}s)`);
-              } else if (loopExecution) {
-                console.log(`⚠️  ${loopStageName} failed (non-fatal): ${loopExecution.error?.message ?? 'unknown'}`);
-              }
-            }
-          } catch (error) {
-            // Loop agent failure is non-fatal
-            if (this.shouldLog(interactive)) {
-              console.warn(`⚠️  Loop agent error (non-fatal): ${error instanceof Error ? error.message : String(error)}`);
-            }
-          }
-        } else {
-          const result = await this.groupOrchestrator.processGroup(
-            group,
-            state,
-            effectiveConfig,
-            parallelExecutor,
-            interactive,
-            initResult.handoverManager,
-            verbose
-          );
-
-          state = result.state;
-
-          // Check for abort after group execution (may have been triggered during execution)
-          if (abortController?.aborted) {
-            state.status = 'aborted';
-            abortedAtGroup = groupIndex + 1;
-            break;
-          }
-
-          if (result.shouldStopPipeline) {
-            state.status = 'failed';
-            break;
-          }
+        // Check for abort after group execution (may have been triggered during execution)
+        if (abortController?.aborted) {
+          state.status = 'aborted';
+          abortedAtGroup = groupIndex + 1;
+          break;
         }
+
+        if (result.shouldStopPipeline) {
+          state.status = 'failed';
+          break;
+        }
+      }
+
+      // Execute loop agent directly after all groups (not through stage executor)
+      if (loopContext?.enabled && loopStageName
+          && state.status !== 'failed' && state.status !== 'aborted'
+          && !abortController?.aborted) {
+        await this.executeLoopAgent(
+          config, state, loopContext, loopStageName,
+          executionRepoPath, interactive, metadata
+        );
       }
 
       // Log abort once after the loop
@@ -1054,6 +1003,153 @@ export class PipelineRunner {
     }
 
     return candidate;
+  }
+
+  /**
+   * Execute the loop agent directly (not through the stage executor chain).
+   * Receives only pipeline YAML and loop metadata — no handover, no pipeline context.
+   */
+  private async executeLoopAgent(
+    config: PipelineConfig,
+    state: PipelineState,
+    loopContext: LoopContext,
+    loopStageName: string,
+    executionRepoPath: string,
+    interactive: boolean,
+    metadata?: PipelineMetadata
+  ): Promise<void> {
+    // 1. Add running stage entry to state (for UI tracking)
+    const execution: StageExecution = {
+      stageName: loopStageName,
+      status: 'running',
+      startTime: new Date().toISOString(),
+      retryAttempt: 0,
+      maxRetries: 0
+    };
+    state.stages.push(execution);
+
+    try {
+      // 2. Load loop instructions (system prompt)
+      const instructionLoader = new InstructionLoader(this.repoPath);
+      const pipelineYaml = await this.readPipelineYaml(config, metadata, executionRepoPath);
+      const templateContext: InstructionContext = {
+        pendingDir: loopContext.directories.pending,
+        currentIteration: loopContext.currentIteration,
+        maxIterations: loopContext.maxIterations,
+        pipelineName: config.name,
+        pipelineYaml
+      };
+      const systemPrompt = await instructionLoader.loadLoopInstructions(
+        config.looping?.instructions, templateContext
+      );
+
+      // 3. Minimal user prompt (no handover, no pipeline context)
+      const userPrompt = this.buildLoopAgentPrompt(config, loopContext, pipelineYaml);
+
+      // 4. Resolve runtime and execute directly
+      const runtimeType = config.runtime?.type || 'claude-code-headless';
+      const runtime = AgentRuntimeRegistry.getRuntime(runtimeType);
+
+      if (this.shouldLog(interactive)) {
+        console.log('🔁 Running loop agent...');
+      }
+
+      const result = await runtime.execute({
+        systemPrompt,
+        userPrompt,
+        options: {
+          permissionMode: 'acceptEdits',
+          runtimeOptions: { cwd: executionRepoPath }
+        }
+      });
+
+      // 5. Update execution entry
+      execution.status = 'success';
+      execution.endTime = new Date().toISOString();
+      execution.duration = (Date.now() - new Date(execution.startTime).getTime()) / 1000;
+      execution.agentOutput = result.textOutput;
+      if (result.tokenUsage) {
+        execution.tokenUsage = {
+          estimated_input: 0,
+          actual_input: result.tokenUsage.inputTokens,
+          output: result.tokenUsage.outputTokens,
+          cache_creation: result.tokenUsage.cacheCreationTokens,
+          cache_read: result.tokenUsage.cacheReadTokens,
+          num_turns: result.numTurns,
+          thinking_tokens: result.tokenUsage.thinkingTokens
+        };
+      }
+
+      if (this.shouldLog(interactive)) {
+        console.log(`✅ ${loopStageName} (${execution.duration?.toFixed(0) ?? 0}s)`);
+      }
+    } catch (error) {
+      // Non-fatal failure
+      execution.status = 'failed';
+      execution.endTime = new Date().toISOString();
+      execution.duration = (Date.now() - new Date(execution.startTime).getTime()) / 1000;
+      execution.error = { message: error instanceof Error ? error.message : String(error) };
+
+      if (this.shouldLog(interactive)) {
+        console.warn(`⚠️  Loop agent error (non-fatal): ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
+
+  /**
+   * Read the pipeline YAML for the loop agent prompt.
+   * Tries: metadata.sourcePath → .agent-pipeline/pipelines/{name}.yml → YAML.stringify(config) fallback.
+   */
+  private async readPipelineYaml(
+    config: PipelineConfig,
+    metadata: PipelineMetadata | undefined,
+    executionRepoPath: string
+  ): Promise<string> {
+    // Try metadata.sourcePath first
+    if (metadata?.sourcePath) {
+      try {
+        return await fs.readFile(metadata.sourcePath, 'utf-8');
+      } catch {
+        // Fall through
+      }
+    }
+
+    // Try conventional path
+    const conventionalPath = path.join(executionRepoPath, `.agent-pipeline/pipelines/${config.name}.yml`);
+    try {
+      return await fs.readFile(conventionalPath, 'utf-8');
+    } catch {
+      // Fall through
+    }
+
+    // Fallback: serialize config to YAML
+    return YAML.stringify(config);
+  }
+
+  /**
+   * Build minimal user prompt for loop agent.
+   * Contains only pipeline YAML, pending directory, and iteration status.
+   */
+  private buildLoopAgentPrompt(
+    config: PipelineConfig,
+    loopContext: LoopContext,
+    pipelineYaml: string
+  ): string {
+    return `# Loop Agent Task
+
+## Current Pipeline YAML
+\`\`\`yaml
+${pipelineYaml}
+\`\`\`
+
+## Pending Directory
+Write new pipeline YAML files to: \`${loopContext.directories.pending}\`
+
+## Loop Status
+Iteration ${loopContext.currentIteration}/${loopContext.maxIterations}
+Pipeline: ${config.name}
+
+Decide whether to create a new pipeline YAML file to continue the loop.`;
   }
 
   private getPipelineName(config: PipelineConfig, metadata?: PipelineMetadata): string {

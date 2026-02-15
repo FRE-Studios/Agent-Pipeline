@@ -38,8 +38,7 @@ export class GroupExecutionOrchestrator {
     parallelExecutor: ParallelExecutor,
     interactive: boolean,
     handoverManager?: HandoverManager,
-    verbose: boolean = false,
-    systemPromptOverrides?: Record<string, string>
+    verbose: boolean = false
   ): Promise<GroupProcessingResult> {
     // Filter stages by enabled status
     const { enabledStages } = this.filterDisabledStages(
@@ -73,8 +72,7 @@ export class GroupExecutionOrchestrator {
       state,
       executionMode,
       parallelExecutor,
-      interactive,
-      systemPromptOverrides
+      interactive
     );
 
     // Update HANDOVER.md based on execution mode
@@ -170,8 +168,7 @@ export class GroupExecutionOrchestrator {
     state: PipelineState,
     executionMode: 'parallel' | 'sequential',
     parallelExecutor: ParallelExecutor,
-    _interactive: boolean,
-    systemPromptOverrides?: Record<string, string>
+    _interactive: boolean
   ) {
     const shouldRunParallel =
       executionMode === 'parallel' && stagesToRun.length > 1;
@@ -200,16 +197,14 @@ export class GroupExecutionOrchestrator {
       return await parallelExecutor.executeParallelGroup(
         stagesToRun,
         state,
-        updateToolActivity,
-        systemPromptOverrides
+        updateToolActivity
       );
     } else {
       // Sequential execution
       return await parallelExecutor.executeSequentialGroup(
         stagesToRun,
         state,
-        updateToolActivity,
-        systemPromptOverrides
+        updateToolActivity
       );
     }
   }
