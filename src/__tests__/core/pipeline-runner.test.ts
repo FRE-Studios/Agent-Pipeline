@@ -20,7 +20,7 @@ const {
   mockRuntimeInstance,
   mockPipelineLoaderInstance,
   mockStageExecutorInstance,
-  mockInstructionLoaderInstance,
+  mockLoopExecutorInstance,
 } = vi.hoisted(() => {
   return {
     mockGitManagerInstance: {
@@ -80,8 +80,61 @@ const {
         duration: 5,
       }),
     },
-    mockInstructionLoaderInstance: {
-      loadLoopInstructions: vi.fn().mockResolvedValue('You are a loop decision agent.'),
+    mockLoopExecutorInstance: {
+      getDefaultLoopingConfig: vi.fn().mockReturnValue({
+        enabled: true,
+        maxIterations: 100,
+        directories: {
+          pending: '/test/repo/.agent-pipeline/loops/default/pending',
+          running: '/test/repo/.agent-pipeline/loops/default/running',
+          finished: '/test/repo/.agent-pipeline/loops/default/finished',
+          failed: '/test/repo/.agent-pipeline/loops/default/failed',
+        },
+      }),
+      getPipelineName: vi.fn().mockImplementation((config: PipelineConfig, metadata?: any) => {
+        return metadata?.sourcePath
+          ? metadata.sourcePath.replace(/^.*\//, '').replace(/\.yml$/, '')
+          : config.name;
+      }),
+      resolveLoopDirectories: vi.fn().mockImplementation((_loopContext: any, executionRepoPath: string) => {
+        const dirs = {
+          pending: `${executionRepoPath}/.agent-pipeline/loops/session-123/pending`,
+          running: `${executionRepoPath}/.agent-pipeline/loops/session-123/running`,
+          finished: `${executionRepoPath}/.agent-pipeline/loops/session-123/finished`,
+          failed: `${executionRepoPath}/.agent-pipeline/loops/session-123/failed`,
+        };
+        return { executionDirs: dirs, mainDirs: dirs, sessionExecutionDirs: dirs };
+      }),
+      areSameLoopDirs: vi.fn().mockReturnValue(true),
+      ensureLoopDirectoriesExist: vi.fn().mockResolvedValue(undefined),
+      copyLoopDirectories: vi.fn().mockResolvedValue(undefined),
+      injectLoopStageIntoConfig: vi.fn().mockImplementation((config: PipelineConfig) => ({
+        modifiedConfig: {
+          ...config,
+          agents: [...config.agents, { name: 'loop-agent', agent: '__inline__', onFail: 'warn', dependsOn: config.agents.map(a => a.name) }],
+        },
+        loopStageName: 'loop-agent',
+      })),
+      executeLoopAgent: vi.fn().mockImplementation(async (_config: any, state: PipelineState) => {
+        // Simulate adding loop agent stage to state (like real executeLoopAgent does)
+        state.stages.push({
+          stageName: 'loop-agent',
+          status: 'success',
+          startTime: new Date().toISOString(),
+          endTime: new Date().toISOString(),
+          duration: 5,
+          tokenUsage: {
+            estimated_input: 0,
+            actual_input: 100,
+            output: 50,
+          },
+        });
+      }),
+      findNextPipelineFile: vi.fn().mockResolvedValue(undefined),
+      moveFile: vi.fn().mockImplementation(async (_source: string, _destDir: string, fileName: string) => {
+        return `${_destDir}/${fileName}`;
+      }),
+      recordIteration: vi.fn().mockResolvedValue(undefined),
     },
   };
 });
@@ -123,6 +176,10 @@ vi.mock('../../core/loop-state-manager.js', () => ({
   LoopStateManager: vi.fn(() => mockLoopStateManagerInstance),
 }));
 
+vi.mock('../../core/loop-executor.js', () => ({
+  LoopExecutor: vi.fn(() => mockLoopExecutorInstance),
+}));
+
 vi.mock('../../core/agent-runtime-registry.js', () => ({
   AgentRuntimeRegistry: {
     getRuntime: vi.fn(() => mockRuntimeInstance),
@@ -137,10 +194,6 @@ vi.mock('../../notifications/notification-manager.js', () => ({
 
 vi.mock('../../config/pipeline-loader.js', () => ({
   PipelineLoader: vi.fn(() => mockPipelineLoaderInstance),
-}));
-
-vi.mock('../../core/instruction-loader.js', () => ({
-  InstructionLoader: vi.fn(() => mockInstructionLoaderInstance),
 }));
 
 vi.mock('fs/promises', () => ({
@@ -205,6 +258,61 @@ describe('PipelineRunner', () => {
     mockLoopStateManagerInstance.createSessionDirectories.mockResolvedValue(undefined);
     mockLoopStateManagerInstance.getSessionQueueDir.mockReturnValue('.agent-pipeline/loops/session-123');
 
+    // Re-setup LoopExecutor mock implementations after clearAllMocks
+    mockLoopExecutorInstance.getDefaultLoopingConfig.mockReturnValue({
+      enabled: true,
+      maxIterations: 100,
+      directories: {
+        pending: '/test/repo/.agent-pipeline/loops/default/pending',
+        running: '/test/repo/.agent-pipeline/loops/default/running',
+        finished: '/test/repo/.agent-pipeline/loops/default/finished',
+        failed: '/test/repo/.agent-pipeline/loops/default/failed',
+      },
+    });
+    mockLoopExecutorInstance.getPipelineName.mockImplementation((config: PipelineConfig, metadata?: any) => {
+      return metadata?.sourcePath
+        ? metadata.sourcePath.replace(/^.*\//, '').replace(/\.yml$/, '')
+        : config.name;
+    });
+    mockLoopExecutorInstance.resolveLoopDirectories.mockImplementation((_loopContext: any, executionRepoPath: string) => {
+      const dirs = {
+        pending: `${executionRepoPath}/.agent-pipeline/loops/session-123/pending`,
+        running: `${executionRepoPath}/.agent-pipeline/loops/session-123/running`,
+        finished: `${executionRepoPath}/.agent-pipeline/loops/session-123/finished`,
+        failed: `${executionRepoPath}/.agent-pipeline/loops/session-123/failed`,
+      };
+      return { executionDirs: dirs, mainDirs: dirs, sessionExecutionDirs: dirs };
+    });
+    mockLoopExecutorInstance.areSameLoopDirs.mockReturnValue(true);
+    mockLoopExecutorInstance.ensureLoopDirectoriesExist.mockResolvedValue(undefined);
+    mockLoopExecutorInstance.copyLoopDirectories.mockResolvedValue(undefined);
+    mockLoopExecutorInstance.injectLoopStageIntoConfig.mockImplementation((config: PipelineConfig) => ({
+      modifiedConfig: {
+        ...config,
+        agents: [...config.agents, { name: 'loop-agent', agent: '__inline__', onFail: 'warn', dependsOn: config.agents.map((a: any) => a.name) }],
+      },
+      loopStageName: 'loop-agent',
+    }));
+    mockLoopExecutorInstance.executeLoopAgent.mockImplementation(async (_config: any, state: PipelineState) => {
+      state.stages.push({
+        stageName: 'loop-agent',
+        status: 'success',
+        startTime: new Date().toISOString(),
+        endTime: new Date().toISOString(),
+        duration: 5,
+        tokenUsage: {
+          estimated_input: 0,
+          actual_input: 100,
+          output: 50,
+        },
+      });
+    });
+    mockLoopExecutorInstance.findNextPipelineFile.mockResolvedValue(undefined);
+    mockLoopExecutorInstance.moveFile.mockImplementation(async (_source: string, destDir: string, fileName: string) => {
+      return `${destDir}/${fileName}`;
+    });
+    mockLoopExecutorInstance.recordIteration.mockResolvedValue(undefined);
+
     // Default mock implementations
     mockStageExecutorInstance.executeStage.mockResolvedValue({
       stageName: 'loop-agent',
@@ -212,7 +320,6 @@ describe('PipelineRunner', () => {
       startTime: new Date().toISOString(),
       duration: 5,
     });
-    mockInstructionLoaderInstance.loadLoopInstructions.mockResolvedValue('You are a loop decision agent.');
 
     mockInitializerInstance.initialize.mockResolvedValue({
       state: mockPipelineState,
@@ -690,31 +797,6 @@ describe('PipelineRunner', () => {
       expect(mockLoopStateManagerInstance.startSession).not.toHaveBeenCalled();
     });
 
-    it('should fallback to appendIteration when updateIteration returns false', async () => {
-      // Make updateIteration return false to trigger fallback
-      mockLoopStateManagerInstance.updateIteration.mockResolvedValue(false);
-
-      const loopConfig: PipelineConfig = {
-        ...simplePipelineConfig,
-        looping: {
-          enabled: true,
-          maxIterations: 5,
-          directories: defaultLoopDirs,
-        },
-      };
-
-      await runner.runPipeline(loopConfig);
-
-      // Should have called appendIteration as fallback (second call after initial in-progress)
-      const appendCalls = mockLoopStateManagerInstance.appendIteration.mock.calls;
-      // First call is in-progress, second should be the fallback with completed status
-      expect(appendCalls.length).toBeGreaterThanOrEqual(2);
-      const fallbackCall = appendCalls.find(
-        (call) => call[1].status === 'completed' && call[1].triggeredNext !== undefined
-      );
-      expect(fallbackCall).toBeDefined();
-    });
-
     it('should handle loop termination on pipeline failure with stop strategy', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -784,7 +866,7 @@ describe('PipelineRunner', () => {
         },
       };
 
-      // readdir returns empty array by default (from top-level mock)
+      // findNextPipelineFile returns undefined by default (from mock)
       const result = await runner.runPipeline(loopConfig, { interactive: false });
 
       expect(consoleSpy).toHaveBeenCalledWith('Loop: no pending pipelines, exiting.');
@@ -814,86 +896,57 @@ describe('PipelineRunner', () => {
       consoleSpy.mockRestore();
     });
 
-    it('should use session directories when no custom directories are provided', async () => {
+    it('should use session directories when areSameLoopDirs returns true', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      // Use empty directories object - this causes the code to fall back to session directories
+      mockLoopExecutorInstance.areSameLoopDirs.mockReturnValue(true);
+
+      const loopConfig: PipelineConfig = {
+        ...simplePipelineConfig,
+        looping: {
+          enabled: true,
+          maxIterations: 5,
+          directories: defaultLoopDirs,
+        },
+      };
+
+      const result = await runner.runPipeline(loopConfig, { interactive: false });
+
+      // Should call createSessionDirectories when areSameLoopDirs returns true
+      expect(mockLoopStateManagerInstance.createSessionDirectories).toHaveBeenCalledWith(
+        'session-123',
+        '/test/repo'
+      );
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should use ensureLoopDirectoriesExist when areSameLoopDirs returns false', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+      // areSameLoopDirs returns false → use custom directories
+      mockLoopExecutorInstance.areSameLoopDirs.mockReturnValue(false);
+
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
         looping: {
           enabled: true,
           maxIterations: 5,
           directories: {
-            pending: '',
-            running: '',
-            finished: '',
-            failed: '',
+            pending: '/custom/path/pending',
+            running: '/custom/path/running',
+            finished: '/custom/path/finished',
+            failed: '/custom/path/failed',
           },
-        },
-      };
-
-      const result = await runner.runPipeline(loopConfig, { interactive: false });
-
-      // Should call createSessionDirectories (line 786) instead of ensureLoopDirectoriesExist
-      expect(mockLoopStateManagerInstance.createSessionDirectories).toHaveBeenCalledWith(
-        'session-123',
-        '/test/repo'
-      );
-
-      // Should call getSessionQueueDir for logging (line 800)
-      expect(mockLoopStateManagerInstance.getSessionQueueDir).toHaveBeenCalledWith(
-        'session-123',
-        '/test/repo'
-      );
-
-      // Should log about creating loop directories under session queue dir
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Created loop directories under: .agent-pipeline/loops/session-123')
-      );
-
-      consoleSpy.mockRestore();
-    });
-
-    it('should compare loop directories correctly via areSameLoopDirs', async () => {
-      // This test verifies the areSameLoopDirs comparison logic (lines 578-581)
-      // by using directories that DON'T match session directories
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      // Use custom directories that differ from session directories
-      const customDirs = {
-        pending: '/custom/path/pending',
-        running: '/custom/path/running',
-        finished: '/custom/path/finished',
-        failed: '/custom/path/failed',
-      };
-
-      const loopConfig: PipelineConfig = {
-        ...simplePipelineConfig,
-        looping: {
-          enabled: true,
-          maxIterations: 5,
-          directories: customDirs,
         },
       };
 
       await runner.runPipeline(loopConfig, { interactive: false });
 
       // Should NOT call createSessionDirectories when using custom directories
-      // Instead, ensureLoopDirectoriesExist should be called (line 788)
-      // We verify this indirectly by checking that createSessionDirectories was NOT called
-      // with the custom directories path (we can't easily mock ensureLoopDirectoriesExist)
-
-      // The mock may have been called from previous tests, so let's check the last call args
-      // If areSameLoopDirs returns false, createSessionDirectories should not be called for THIS run
-      const calls = mockLoopStateManagerInstance.createSessionDirectories.mock.calls;
-
-      // If called, it should be with session-123, not our custom paths
-      // The custom paths go through ensureLoopDirectoriesExist instead
-      if (calls.length > 0) {
-        const lastCall = calls[calls.length - 1];
-        // The second arg should be executionRepoPath, not our custom path
-        expect(lastCall[1]).toBe('/test/repo');
-      }
+      expect(mockLoopStateManagerInstance.createSessionDirectories).not.toHaveBeenCalled();
+      // Should call ensureLoopDirectoriesExist instead
+      expect(mockLoopExecutorInstance.ensureLoopDirectoriesExist).toHaveBeenCalled();
 
       consoleSpy.mockRestore();
     });
@@ -1128,45 +1181,8 @@ describe('PipelineRunner', () => {
       failed: '/test/repo/.agent-pipeline/loops/session-123/failed',
     };
 
-    it('should find next pipeline file sorted by mtime (oldest first)', async () => {
+    it('should find next pipeline file via loopExecutor', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      // Mock readdir to return multiple yaml files
-      vi.mocked(fs.readdir).mockResolvedValueOnce(['second.yml', 'first.yml', 'third.yaml'] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
-
-      // Mock stat to return different mtimes - first.yml is oldest
-      vi.mocked(fs.stat)
-        .mockResolvedValueOnce({ mtime: new Date('2024-01-02') } as Awaited<ReturnType<typeof fs.stat>>)  // second.yml
-        .mockResolvedValueOnce({ mtime: new Date('2024-01-01') } as Awaited<ReturnType<typeof fs.stat>>)  // first.yml (oldest)
-        .mockResolvedValueOnce({ mtime: new Date('2024-01-03') } as Awaited<ReturnType<typeof fs.stat>>); // third.yaml
-
-      const loopConfig: PipelineConfig = {
-        ...simplePipelineConfig,
-        looping: {
-          enabled: true,
-          maxIterations: 5,
-          directories: defaultLoopDirs,
-        },
-      };
-
-      // After first iteration completes, the runner will look for next file
-      await runner.runPipeline(loopConfig, { interactive: false });
-
-      // readdir should be called on the pending directory
-      expect(fs.readdir).toHaveBeenCalled();
-
-      consoleSpy.mockRestore();
-    });
-
-    it('should handle file collision by appending timestamp', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      // Mock readdir to return a file
-      vi.mocked(fs.readdir).mockResolvedValueOnce(['task.yml'] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
-      vi.mocked(fs.stat).mockResolvedValueOnce({ mtime: new Date() } as Awaited<ReturnType<typeof fs.stat>>);
-
-      // First access call succeeds (file exists in running dir)
-      vi.mocked(fs.access).mockResolvedValueOnce(undefined);
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1179,8 +1195,8 @@ describe('PipelineRunner', () => {
 
       await runner.runPipeline(loopConfig, { interactive: false });
 
-      // rename should have been called (for moving file to running)
-      expect(fs.rename).toHaveBeenCalled();
+      // findNextPipelineFile should be called on the loop executor
+      expect(mockLoopExecutorInstance.findNextPipelineFile).toHaveBeenCalled();
 
       consoleSpy.mockRestore();
     });
@@ -1188,31 +1204,22 @@ describe('PipelineRunner', () => {
     it('should move completed pipeline to finished directory', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-      // First call: find pending file for iteration 2
-      vi.mocked(fs.readdir)
-        .mockResolvedValueOnce(['next-task.yml'] as unknown as Awaited<ReturnType<typeof fs.readdir>>)
-        .mockResolvedValueOnce([] as unknown as Awaited<ReturnType<typeof fs.readdir>>); // No more files after
-
-      vi.mocked(fs.stat).mockResolvedValue({ mtime: new Date() } as Awaited<ReturnType<typeof fs.stat>>);
-      vi.mocked(fs.access).mockRejectedValue(new Error('Not found')); // No collision
+      // First iteration: find a pending file
+      mockLoopExecutorInstance.findNextPipelineFile
+        .mockResolvedValueOnce('/test/repo/.agent-pipeline/loops/session-123/pending/next-task.yml')
+        .mockResolvedValueOnce(undefined); // No more files after
 
       // Mock PipelineLoader for second iteration
-      const mockPipelineLoader = {
-        loadPipelineFromPath: vi.fn().mockResolvedValue({
-          config: {
-            ...simplePipelineConfig,
-            name: 'next-task',
-          },
-          metadata: {
-            sourcePath: '/test/repo/.agent-pipeline/loops/session-123/running/next-task.yml',
-            sourceType: 'loop-pending',
-          },
-        }),
-      };
-
-      vi.doMock('../../config/pipeline-loader.js', () => ({
-        PipelineLoader: vi.fn(() => mockPipelineLoader),
-      }));
+      mockPipelineLoaderInstance.loadPipelineFromPath.mockResolvedValue({
+        config: {
+          ...simplePipelineConfig,
+          name: 'next-task',
+        },
+        metadata: {
+          sourcePath: '/test/repo/.agent-pipeline/loops/session-123/running/next-task.yml',
+          sourceType: 'loop-pending',
+        },
+      });
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1225,8 +1232,8 @@ describe('PipelineRunner', () => {
 
       await runner.runPipeline(loopConfig, { interactive: false });
 
-      // rename should be called for file transitions
-      expect(fs.rename).toHaveBeenCalled();
+      // moveFile should be called for file transitions
+      expect(mockLoopExecutorInstance.moveFile).toHaveBeenCalled();
 
       consoleSpy.mockRestore();
     });
@@ -1235,12 +1242,19 @@ describe('PipelineRunner', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      vi.mocked(fs.readdir)
-        .mockResolvedValueOnce(['failing-task.yml'] as unknown as Awaited<ReturnType<typeof fs.readdir>>)
-        .mockResolvedValueOnce([] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
+      // First iteration finds a pending file
+      mockLoopExecutorInstance.findNextPipelineFile
+        .mockResolvedValueOnce('/test/repo/.agent-pipeline/loops/session-123/pending/failing-task.yml')
+        .mockResolvedValueOnce(undefined);
 
-      vi.mocked(fs.stat).mockResolvedValue({ mtime: new Date() } as Awaited<ReturnType<typeof fs.stat>>);
-      vi.mocked(fs.access).mockRejectedValue(new Error('Not found'));
+      // Mock PipelineLoader for second iteration
+      mockPipelineLoaderInstance.loadPipelineFromPath.mockResolvedValue({
+        config: { ...simplePipelineConfig, name: 'failing-task' },
+        metadata: {
+          sourcePath: '/test/repo/.agent-pipeline/loops/session-123/running/failing-task.yml',
+          sourceType: 'loop-pending',
+        },
+      });
 
       // Make second iteration fail
       let iterationCount = 0;
@@ -1283,9 +1297,7 @@ describe('PipelineRunner', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       // Always return a pending file to force continuous iteration
-      vi.mocked(fs.readdir).mockResolvedValue(['endless.yml'] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
-      vi.mocked(fs.stat).mockResolvedValue({ mtime: new Date() } as Awaited<ReturnType<typeof fs.stat>>);
-      vi.mocked(fs.access).mockRejectedValue(new Error('Not found'));
+      mockLoopExecutorInstance.findNextPipelineFile.mockResolvedValue('/path/to/endless.yml');
 
       // Mock PipelineLoader to return valid config for loaded pipelines
       mockPipelineLoaderInstance.loadPipelineFromPath.mockResolvedValue({
@@ -1316,9 +1328,7 @@ describe('PipelineRunner', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       // Always return a pending file to force continuous iteration
-      vi.mocked(fs.readdir).mockResolvedValue(['endless.yml'] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
-      vi.mocked(fs.stat).mockResolvedValue({ mtime: new Date() } as Awaited<ReturnType<typeof fs.stat>>);
-      vi.mocked(fs.access).mockRejectedValue(new Error('Not found'));
+      mockLoopExecutorInstance.findNextPipelineFile.mockResolvedValue('/path/to/endless.yml');
 
       // Mock PipelineLoader to return valid config for loaded pipelines
       mockPipelineLoaderInstance.loadPipelineFromPath.mockResolvedValue({
@@ -1362,6 +1372,25 @@ describe('PipelineRunner', () => {
       const stateWithWorktree = createMockState();
       stateWithWorktree.artifacts.worktreePath = '/tmp/worktree-123';
 
+      // resolveLoopDirectories returns different dirs for worktree
+      const worktreeDirs = {
+        pending: '/tmp/worktree-123/.agent-pipeline/loops/session-123/pending',
+        running: '/tmp/worktree-123/.agent-pipeline/loops/session-123/running',
+        finished: '/tmp/worktree-123/.agent-pipeline/loops/session-123/finished',
+        failed: '/tmp/worktree-123/.agent-pipeline/loops/session-123/failed',
+      };
+      const mainDirs = {
+        pending: '/test/repo/.agent-pipeline/loops/session-123/pending',
+        running: '/test/repo/.agent-pipeline/loops/session-123/running',
+        finished: '/test/repo/.agent-pipeline/loops/session-123/finished',
+        failed: '/test/repo/.agent-pipeline/loops/session-123/failed',
+      };
+      mockLoopExecutorInstance.resolveLoopDirectories.mockReturnValue({
+        executionDirs: worktreeDirs,
+        mainDirs: mainDirs,
+        sessionExecutionDirs: worktreeDirs,
+      });
+
       // Initialize returns a worktree path
       mockInitializerInstance.initialize.mockResolvedValue({
         state: stateWithWorktree,
@@ -1393,8 +1422,8 @@ describe('PipelineRunner', () => {
 
       await runner.runPipeline(loopConfig, { interactive: false });
 
-      // fs.cp should be called for copying directories
-      expect(fs.cp).toHaveBeenCalled();
+      // copyLoopDirectories should be called on the loop executor
+      expect(mockLoopExecutorInstance.copyLoopDirectories).toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalledWith('📋 Copied loop directories to main repo');
 
       consoleSpy.mockRestore();
@@ -1413,6 +1442,25 @@ describe('PipelineRunner', () => {
       // Create state with worktreePath set in artifacts
       const stateWithWorktree = createMockState();
       stateWithWorktree.artifacts.worktreePath = '/tmp/worktree-123';
+
+      // resolveLoopDirectories returns different dirs for worktree
+      const worktreeDirs = {
+        pending: '/tmp/worktree-123/.agent-pipeline/loops/session-123/pending',
+        running: '/tmp/worktree-123/.agent-pipeline/loops/session-123/running',
+        finished: '/tmp/worktree-123/.agent-pipeline/loops/session-123/finished',
+        failed: '/tmp/worktree-123/.agent-pipeline/loops/session-123/failed',
+      };
+      const mainDirs = {
+        pending: '/test/repo/.agent-pipeline/loops/session-123/pending',
+        running: '/test/repo/.agent-pipeline/loops/session-123/running',
+        finished: '/test/repo/.agent-pipeline/loops/session-123/finished',
+        failed: '/test/repo/.agent-pipeline/loops/session-123/failed',
+      };
+      mockLoopExecutorInstance.resolveLoopDirectories.mockReturnValue({
+        executionDirs: worktreeDirs,
+        mainDirs: mainDirs,
+        sessionExecutionDirs: worktreeDirs,
+      });
 
       // Initialize returns a worktree path
       mockInitializerInstance.initialize.mockResolvedValue({
@@ -1434,8 +1482,8 @@ describe('PipelineRunner', () => {
         return state;
       });
 
-      // Make cp fail
-      vi.mocked(fs.cp).mockRejectedValueOnce(new Error('Permission denied'));
+      // Make copyLoopDirectories fail
+      mockLoopExecutorInstance.copyLoopDirectories.mockRejectedValueOnce(new Error('Permission denied'));
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1458,7 +1506,7 @@ describe('PipelineRunner', () => {
     });
   });
 
-  describe('getPipelineName', () => {
+  describe('getPipelineName via loopExecutor', () => {
     it('should use metadata.sourcePath when available', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -1487,14 +1535,8 @@ describe('PipelineRunner', () => {
         },
       });
 
-      // The pipeline name should be extracted from sourcePath
-      // This is used in iteration recording
-      expect(mockLoopStateManagerInstance.appendIteration).toHaveBeenCalledWith(
-        'session-123',
-        expect.objectContaining({
-          pipelineName: 'my-custom-pipeline',
-        })
-      );
+      // getPipelineName should have been called on the loop executor
+      expect(mockLoopExecutorInstance.getPipelineName).toHaveBeenCalled();
 
       consoleSpy.mockRestore();
     });
@@ -1512,12 +1554,9 @@ describe('PipelineRunner', () => {
       };
 
       // Return a file for second iteration, then empty
-      vi.mocked(fs.readdir)
-        .mockResolvedValueOnce(['iteration2.yml'] as unknown as Awaited<ReturnType<typeof fs.readdir>>)
-        .mockResolvedValueOnce([] as unknown as Awaited<ReturnType<typeof fs.readdir>>);
-
-      vi.mocked(fs.stat).mockResolvedValue({ mtime: new Date() } as Awaited<ReturnType<typeof fs.stat>>);
-      vi.mocked(fs.access).mockRejectedValue(new Error('Not found'));
+      mockLoopExecutorInstance.findNextPipelineFile
+        .mockResolvedValueOnce('/test/repo/.agent-pipeline/loops/session-123/pending/iteration2.yml')
+        .mockResolvedValueOnce(undefined);
 
       // Mock PipelineLoader to return valid config for the second iteration
       mockPipelineLoaderInstance.loadPipelineFromPath.mockResolvedValue({
@@ -1564,6 +1603,7 @@ describe('PipelineRunner', () => {
           endTime: new Date().toISOString(),
           duration: 10,
           tokenUsage: {
+            estimated_input: 0,
             actual_input: 1000,
             output: 500,
             cache_read: 200,
@@ -1601,7 +1641,7 @@ describe('PipelineRunner', () => {
       const result = await runner.runPipeline(loopConfig, { interactive: false });
 
       // Should have iteration history with token usage
-      // Totals include loop agent tokens (100 input, 50 output from runtime mock)
+      // Totals include loop agent tokens (100 input, 50 output from mock executeLoopAgent)
       expect(result.loopIterationHistory).toBeDefined();
       expect(result.loopIterationHistory?.[0]?.tokenUsage).toEqual({
         totalInput: 1100,
@@ -1613,7 +1653,7 @@ describe('PipelineRunner', () => {
     });
   });
 
-  describe('loop agent execution', () => {
+  describe('loop agent execution via LoopExecutor', () => {
     const defaultLoopDirs = {
       pending: '.agent-pipeline/loops/default/pending',
       running: '.agent-pipeline/loops/default/running',
@@ -1621,7 +1661,7 @@ describe('PipelineRunner', () => {
       failed: '.agent-pipeline/loops/default/failed',
     };
 
-    it('should execute loop agent when loop mode is enabled and pipeline succeeds', async () => {
+    it('should execute loop agent via loopExecutor when loop mode is enabled', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const loopConfig: PipelineConfig = {
@@ -1635,41 +1675,15 @@ describe('PipelineRunner', () => {
 
       await runner.runPipeline(loopConfig, { interactive: false });
 
-      // processGroup called once for normal stages only
-      expect(mockOrchestratorInstance.processGroup).toHaveBeenCalledTimes(1);
-      // Loop agent executed directly via runtime
-      expect(mockRuntimeInstance.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          systemPrompt: expect.any(String),
-          userPrompt: expect.stringContaining('Loop Agent Task'),
-        })
-      );
-
-      consoleSpy.mockRestore();
-    });
-
-    it('should load loop instructions with correct template context', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      const loopConfig: PipelineConfig = {
-        ...simplePipelineConfig,
-        looping: {
-          enabled: true,
-          maxIterations: 5,
-          directories: defaultLoopDirs,
-        },
-      };
-
-      await runner.runPipeline(loopConfig, { interactive: false });
-
-      expect(mockInstructionLoaderInstance.loadLoopInstructions).toHaveBeenCalledWith(
-        undefined, // no custom instructions path in config
-        expect.objectContaining({
-          currentIteration: 1,
-          maxIterations: 5,
-          pipelineName: simplePipelineConfig.name,
-          pipelineYaml: expect.any(String),
-        })
+      // Loop agent executed via loopExecutor
+      expect(mockLoopExecutorInstance.executeLoopAgent).toHaveBeenCalledWith(
+        loopConfig,
+        expect.any(Object), // state
+        expect.objectContaining({ enabled: true }), // loopContext
+        'loop-agent', // loopStageName
+        '/test/repo', // executionRepoPath
+        false, // interactive
+        undefined // metadata
       );
 
       consoleSpy.mockRestore();
@@ -1678,8 +1692,7 @@ describe('PipelineRunner', () => {
     it('should not execute loop agent when loop mode is disabled', async () => {
       await runner.runPipeline(simplePipelineConfig);
 
-      expect(mockOrchestratorInstance.processGroup).toHaveBeenCalledTimes(1);
-      expect(mockRuntimeInstance.execute).not.toHaveBeenCalled();
+      expect(mockLoopExecutorInstance.executeLoopAgent).not.toHaveBeenCalled();
     });
 
     it('should not execute loop agent when pipeline fails', async () => {
@@ -1701,74 +1714,13 @@ describe('PipelineRunner', () => {
 
       await runner.runPipeline(loopConfig, { interactive: false });
 
-      expect(mockOrchestratorInstance.processGroup).toHaveBeenCalledTimes(1);
-      expect(mockRuntimeInstance.execute).not.toHaveBeenCalled();
+      expect(mockLoopExecutorInstance.executeLoopAgent).not.toHaveBeenCalled();
 
       consoleSpy.mockRestore();
     });
 
-    it('should treat loop agent failure as non-fatal', async () => {
+    it('should inject loop stage into config via loopExecutor', async () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      // Runtime execute fails for loop agent
-      mockRuntimeInstance.execute.mockRejectedValueOnce(new Error('Loop agent crashed'));
-
-      const loopConfig: PipelineConfig = {
-        ...simplePipelineConfig,
-        looping: {
-          enabled: true,
-          maxIterations: 5,
-          directories: defaultLoopDirs,
-        },
-      };
-
-      const result = await runner.runPipeline(loopConfig, { interactive: false });
-
-      expect(result.status).toBe('completed');
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Loop agent error (non-fatal)')
-      );
-
-      consoleSpy.mockRestore();
-      consoleWarnSpy.mockRestore();
-    });
-
-    it('should push loop agent execution to pipeline state', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      // Mock runtime to return success
-      mockRuntimeInstance.execute.mockResolvedValueOnce({
-        textOutput: 'Loop decision made',
-        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-        numTurns: 1,
-      });
-
-      const loopConfig: PipelineConfig = {
-        ...simplePipelineConfig,
-        looping: {
-          enabled: true,
-          maxIterations: 5,
-          directories: defaultLoopDirs,
-        },
-      };
-
-      const result = await runner.runPipeline(loopConfig, { interactive: false });
-
-      expect(result.stages).toEqual(
-        expect.arrayContaining([expect.objectContaining({ stageName: 'loop-agent' })])
-      );
-
-      consoleSpy.mockRestore();
-    });
-
-    it('should log loop agent status on success', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      mockRuntimeInstance.execute.mockResolvedValueOnce({
-        textOutput: 'Loop done',
-        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 },
-      });
 
       const loopConfig: PipelineConfig = {
         ...simplePipelineConfig,
@@ -1781,60 +1733,9 @@ describe('PipelineRunner', () => {
 
       await runner.runPipeline(loopConfig, { interactive: false });
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Running loop agent')
-      );
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('loop-agent')
-      );
-
-      consoleSpy.mockRestore();
-    });
-
-    it('should log loop agent failure as non-fatal when runtime execute fails', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      mockRuntimeInstance.execute.mockRejectedValueOnce(new Error('agent failed'));
-
-      const loopConfig: PipelineConfig = {
-        ...simplePipelineConfig,
-        looping: {
-          enabled: true,
-          maxIterations: 5,
-          directories: defaultLoopDirs,
-        },
-      };
-
-      const result = await runner.runPipeline(loopConfig, { interactive: false });
-
-      expect(result.status).toBe('completed');
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Loop agent error (non-fatal)')
-      );
-
-      consoleSpy.mockRestore();
-      consoleWarnSpy.mockRestore();
-    });
-
-    it('should pass custom loop instructions path from pipeline config', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-      const loopConfig: PipelineConfig = {
-        ...simplePipelineConfig,
-        looping: {
-          enabled: true,
-          maxIterations: 5,
-          directories: defaultLoopDirs,
-          instructions: '.agent-pipeline/instructions/custom-loop.md',
-        },
-      };
-
-      await runner.runPipeline(loopConfig, { interactive: false });
-
-      expect(mockInstructionLoaderInstance.loadLoopInstructions).toHaveBeenCalledWith(
-        '.agent-pipeline/instructions/custom-loop.md',
-        expect.any(Object)
+      expect(mockLoopExecutorInstance.injectLoopStageIntoConfig).toHaveBeenCalledWith(
+        loopConfig,
+        expect.any(Object) // state
       );
 
       consoleSpy.mockRestore();
