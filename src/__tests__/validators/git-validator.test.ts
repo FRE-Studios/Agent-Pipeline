@@ -800,6 +800,86 @@ describe('GitValidator', () => {
       );
       expect(prefixWarnings).toHaveLength(0);
     });
+
+    it('should warn when commitPrefix includes unknown template variables', async () => {
+      const config: PipelineConfig = {
+        ...baseConfig,
+        git: {
+          commitPrefix: '[{{pipelineName}}:{{unknownVar}}]',
+        },
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      expect(context.errors).toContainEqual({
+        field: 'git.commitPrefix',
+        message: 'Unknown template variable(s) in commitPrefix: {{unknownVar}}',
+        severity: 'warning',
+      });
+    });
+
+    it('should warn when pullRequest.title includes unknown template variables', async () => {
+      const config: PipelineConfig = {
+        ...baseConfig,
+        git: {
+          pullRequest: {
+            title: 'Pipeline {{pipelineName}} / {{badVar}}',
+          },
+        },
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      expect(context.errors).toContainEqual({
+        field: 'git.pullRequest.title',
+        message: 'Unknown template variable(s) in pullRequest.title: {{badVar}}',
+        severity: 'warning',
+      });
+    });
+
+    it('should warn when pullRequest.body includes unknown template variables', async () => {
+      const config: PipelineConfig = {
+        ...baseConfig,
+        git: {
+          pullRequest: {
+            body: 'Branch {{branch}} / {{stage}}',
+          },
+        },
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      expect(context.errors).toContainEqual({
+        field: 'git.pullRequest.body',
+        message: 'Unknown template variable(s) in pullRequest.body: {{stage}}',
+        severity: 'warning',
+      });
+    });
+
+    it('should not warn when pullRequest templates only use run-level variables', async () => {
+      const config: PipelineConfig = {
+        ...baseConfig,
+        git: {
+          pullRequest: {
+            title: 'Pipeline {{pipelineName}}',
+            body: 'Run {{runId}} on {{branch}}',
+          },
+        },
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      const prTemplateWarnings = context.errors.filter(
+        e =>
+          (e.field === 'git.pullRequest.title' || e.field === 'git.pullRequest.body') &&
+          e.severity === 'warning'
+      );
+      expect(prTemplateWarnings).toHaveLength(0);
+    });
   });
 
   describe('validate - multiple errors', () => {

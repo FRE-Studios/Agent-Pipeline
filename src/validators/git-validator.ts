@@ -4,6 +4,23 @@ import { simpleGit } from 'simple-git';
 import { checkGHCLI } from '../utils/gh-cli-checker.js';
 import { Validator, ValidationContext } from './types.js';
 
+const RUN_TEMPLATE_VARIABLES = [
+  'pipelineName',
+  'runId',
+  'trigger',
+  'timestamp',
+  'baseBranch',
+  'branch',
+  'initialCommit',
+] as const;
+
+const COMMIT_PREFIX_VARIABLES = new Set([
+  ...RUN_TEMPLATE_VARIABLES,
+  'stage',
+]);
+
+const PR_TEMPLATE_VARIABLES = new Set(RUN_TEMPLATE_VARIABLES);
+
 /**
  * Validates git-related configuration: repository, user config, strategies, GitHub CLI.
  */
@@ -53,6 +70,63 @@ export class GitValidator implements Validator {
         severity: 'warning',
       });
     }
+
+    // Warn when commitPrefix contains unknown template variables
+    if (config.git.commitPrefix) {
+      const unknownCommitPrefixVars = this.getUnknownTemplateVariables(
+        config.git.commitPrefix,
+        COMMIT_PREFIX_VARIABLES
+      );
+      if (unknownCommitPrefixVars.length > 0) {
+        errors.push({
+          field: 'git.commitPrefix',
+          message: `Unknown template variable(s) in commitPrefix: ${unknownCommitPrefixVars.map(v => `{{${v}}}`).join(', ')}`,
+          severity: 'warning',
+        });
+      }
+    }
+
+    const prTitle = config.git.pullRequest?.title;
+    if (prTitle) {
+      const unknownPrTitleVars = this.getUnknownTemplateVariables(
+        prTitle,
+        PR_TEMPLATE_VARIABLES
+      );
+      if (unknownPrTitleVars.length > 0) {
+        errors.push({
+          field: 'git.pullRequest.title',
+          message: `Unknown template variable(s) in pullRequest.title: ${unknownPrTitleVars.map(v => `{{${v}}}`).join(', ')}`,
+          severity: 'warning',
+        });
+      }
+    }
+
+    const prBody = config.git.pullRequest?.body;
+    if (prBody) {
+      const unknownPrBodyVars = this.getUnknownTemplateVariables(
+        prBody,
+        PR_TEMPLATE_VARIABLES
+      );
+      if (unknownPrBodyVars.length > 0) {
+        errors.push({
+          field: 'git.pullRequest.body',
+          message: `Unknown template variable(s) in pullRequest.body: ${unknownPrBodyVars.map(v => `{{${v}}}`).join(', ')}`,
+          severity: 'warning',
+        });
+      }
+    }
+  }
+
+  private getTemplateVariables(template: string): string[] {
+    const matches = template.matchAll(/\{\{(\w+)\}\}/g);
+    return [...new Set(Array.from(matches, (match) => match[1]))];
+  }
+
+  private getUnknownTemplateVariables(
+    template: string,
+    allowed: Set<string>
+  ): string[] {
+    return this.getTemplateVariables(template).filter((variable) => !allowed.has(variable));
   }
 
   private async validateRepository(

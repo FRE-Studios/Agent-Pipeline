@@ -69,6 +69,7 @@ describe('PipelineInitializer', () => {
     // Setup common mocks
     vi.spyOn(mockGitManager, 'getCurrentCommit').mockResolvedValue('abc123');
     vi.spyOn(mockGitManager, 'getChangedFiles').mockResolvedValue(['file1.ts', 'file2.ts']);
+    vi.spyOn(mockGitManager, 'getCurrentBranch').mockResolvedValue('main');
     vi.spyOn(mockBranchManager, 'getCurrentBranch').mockResolvedValue('main');
 
     // Setup HandoverManager mock
@@ -233,6 +234,37 @@ describe('PipelineInitializer', () => {
       );
 
       expect(result.pipelineBranch).toBeUndefined();
+    });
+
+    it('should use current checked-out branch in template context when no worktree branch exists', async () => {
+      const result = await initializer.initialize(
+        mockConfig,
+        { interactive: false },
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      expect(result.templateContext.branch).toBe('main');
+      expect(mockGitManager.getCurrentBranch).toHaveBeenCalled();
+    });
+
+    it('should use pipeline branch in template context when worktree branch exists', async () => {
+      const configWithGit = {
+        ...mockConfig,
+        git: {
+          baseBranch: 'main'
+        }
+      };
+
+      const result = await initializer.initialize(
+        configWithGit,
+        { interactive: false },
+        mockNotifyCallback,
+        mockStateChangeCallback
+      );
+
+      expect(result.templateContext.branch).toBe('pipeline/test-pipeline');
+      expect(mockGitManager.getCurrentBranch).not.toHaveBeenCalled();
     });
 
     it('should not setup branch in dry run mode', async () => {

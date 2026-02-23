@@ -130,6 +130,25 @@ describe('GitManager', () => {
     });
   });
 
+  describe('getCurrentBranch', () => {
+    it('should return current branch name when available', async () => {
+      mockGit.status.mockResolvedValue({ current: 'feature/my-branch' });
+
+      const result = await gitManager.getCurrentBranch();
+
+      expect(mockGit.status).toHaveBeenCalled();
+      expect(result).toBe('feature/my-branch');
+    });
+
+    it('should return empty string when branch is unavailable', async () => {
+      mockGit.status.mockResolvedValue({ current: '' });
+
+      const result = await gitManager.getCurrentBranch();
+
+      expect(result).toBe('');
+    });
+  });
+
   describe('getChangedFiles', () => {
     it('should return list of changed files for commit', async () => {
       mockGit.diff.mockResolvedValue('file1.ts\nfile2.ts\nfile3.ts');

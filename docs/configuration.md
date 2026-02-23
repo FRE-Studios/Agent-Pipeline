@@ -84,7 +84,7 @@ runtime:
 All git-related settings are unified under the `git:` section:
 
 - `autoCommit`: Stage executor commits any file changes when `true` (default: `true`).
-- `commitPrefix`: Template for commit messages, supports `{{stage}}` placeholder.
+- `commitPrefix`: Template for commit messages, supports `{{variable}}` interpolation (see [Template Variables](#template-variables)).
 - `baseBranch`: Branch to PR into (default: `main`).
 - `branchStrategy`: `reusable` keeps a predictable branch name (`pipeline/<name>`), `unique-per-run` appends the run ID, and `unique-and-delete` appends the run ID and auto-cleans on success.
 - `mergeStrategy`: Controls how pipeline work is merged after completion:
@@ -92,7 +92,38 @@ All git-related settings are unified under the `git:` section:
   - `local-merge`: Merge branch to `baseBranch` locally without remote interaction
   - `none` (default): No merge action; work stays on the pipeline branch
   - **Note:** `unique-and-delete` branchStrategy cannot be used with `mergeStrategy: none` (validation error)
-- `pullRequest`: Only used when `mergeStrategy: pull-request`. Supports `title`, `labels`, `reviewers`, `assignees`, `milestone`, and `draft` flags.
+- `pullRequest`: Only used when `mergeStrategy: pull-request`. Supports `title`, `labels`, `reviewers`, `assignees`, `milestone`, and `draft` flags. The `title` and `body` fields support `{{variable}}` interpolation (see [Template Variables](#template-variables)).
+
+### Template Variables
+
+Pipeline YAML supports `{{variable}}` interpolation in `commitPrefix`, `pullRequest.title`, `pullRequest.body`, and stage `inputs` values. Unknown variables are left as-is at runtime, and git validation warns for unknown variables in `commitPrefix`, `pullRequest.title`, and `pullRequest.body`.
+
+| Variable | Scope | Description |
+|---|---|---|
+| `{{pipelineName}}` | Pipeline | Pipeline name from config |
+| `{{runId}}` | Pipeline | Unique run identifier |
+| `{{trigger}}` | Pipeline | Trigger type (manual, post-commit, etc.) |
+| `{{timestamp}}` | Pipeline | ISO 8601 timestamp at run start |
+| `{{baseBranch}}` | Pipeline | Base branch (default: main) |
+| `{{branch}}` | Run | Pipeline execution branch (falls back to current checked-out branch when no worktree branch exists) |
+| `{{initialCommit}}` | Run | Commit SHA at run start |
+| `{{stage}}` | Stage | Current stage name |
+| `{{stageIndex}}` | Stage | Current stage index (0-based); parallel sibling stages can share the same value |
+
+```yaml
+git:
+  commitPrefix: "[{{pipelineName}}:{{stage}}]"
+  pullRequest:
+    title: "Pipeline: {{pipelineName}} (run {{runId}})"
+    body: "Automated changes from {{trigger}} on {{baseBranch}}"
+
+agents:
+  - name: reviewer
+    agent: .agent-pipeline/agents/reviewer.md
+    inputs:
+      targetBranch: "{{baseBranch}}"
+      runIdentifier: "{{runId}}"
+```
 
 ### Worktree Isolation
 
@@ -308,7 +339,7 @@ Each entry in `agents:` maps to a stage executed by `StageExecutor`:
 - `agent`: Path to the agent definition file. Can be reused across multiple stages.
 - `dependsOn`: Builds the DAG edges evaluated by `DAGPlanner`.
 - `retry`: Per-stage retry policy using `RetryHandler` (`maxAttempts`, `backoff`, `initialDelay`, `maxDelay`).
-- `inputs`: Adds ad-hoc key-value pairs to the agent prompt context.
+- `inputs`: Adds ad-hoc key-value pairs to the agent prompt context. Values support `{{variable}}` interpolation (see [Template Variables](#template-variables)).
 - `onFail`: Stage-level failure handling override (`stop`, `continue`, or `warn`).
 - `timeout`: Maximum execution time in seconds. Default is 900s (15 minutes) with non-blocking warnings at 5, 10, and 13 minutes. Customize for quick tasks (`timeout: 60`) or complex operations (`timeout: 600`).
 - `runtime`: Stage-level runtime override (see Runtime Configuration above).

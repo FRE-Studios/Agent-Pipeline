@@ -31,6 +31,11 @@ export class GitManager {
     return log.latest?.hash || '';
   }
 
+  async getCurrentBranch(): Promise<string> {
+    const status = await this.git.status();
+    return status.current || '';
+  }
+
   async getChangedFiles(commitSha: string): Promise<string[]> {
     try {
       const diff = await this.git.diff([

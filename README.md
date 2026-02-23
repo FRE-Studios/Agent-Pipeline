@@ -204,6 +204,7 @@ agent-pipeline run my-pipeline
 - **Observability** – Ink-powered live UI, interactive history browser, and analytics reports generated from stored run data.
 - **Notifications** – `NotificationManager` sends desktop and Slack notifications with event filtering and fail-safe delivery.
 - **Permission control** – Defaults to `acceptEdits` mode for automated workflows, respecting `.claude/settings.json` allow/deny rules.
+- **Template interpolation** – Use `{{variable}}` placeholders in commit prefixes, PR titles/bodies, and stage inputs with pipeline, run, and stage-level context.
 - **YAML-first configuration** – Schema-validated pipelines with filesystem-based stage handover and customizable commit messages.
 
 ## Architecture Overview
@@ -219,6 +220,7 @@ Key components:
 - `src/core/handover-manager.ts` – Manages filesystem-based stage communication via handover files.
 - `src/core/pr-creator.ts` – Integrates with GitHub CLI for PR automation.
 - `src/core/agent-runtime-registry.ts` – Registry for pluggable agent runtimes (Claude Code Headless, Claude SDK, Codex Headless, Gemini Headless, Pi Agent).
+- `src/utils/template-interpolator.ts` – Centralized `{{variable}}` interpolation for commit prefixes, PR config, and stage inputs.
 - `src/utils/token-estimator.ts` – Provides `smartCount()` for context window monitoring.
 - `src/ui/pipeline-ui.tsx` & `src/cli/commands/history.tsx` – Ink UIs for live runs and history browsing.
 - `src/analytics/pipeline-analytics.ts` – Generates aggregated metrics for the `analytics` command.

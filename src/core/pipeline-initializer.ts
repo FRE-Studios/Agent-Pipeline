@@ -166,9 +166,10 @@ export class PipelineInitializer {
 
     // Build template context for variable interpolation across pipeline YAML fields
     const staticCtx = buildStaticContext(config, runId);
+    const templateBranch = await this.resolveTemplateBranch(isolation.branchName);
     const templateContext = buildRunContext(
       staticCtx,
-      isolation.branchName || '',
+      templateBranch,
       triggerCommit
     );
 
@@ -186,6 +187,27 @@ export class PipelineInitializer {
       verbose,
       templateContext
     };
+  }
+
+  /**
+   * Resolve branch variable for template interpolation.
+   * Prefer pipeline branch, then current checked-out branch, then HEAD fallback.
+   */
+  private async resolveTemplateBranch(isolationBranch?: string): Promise<string> {
+    if (isolationBranch) {
+      return isolationBranch;
+    }
+
+    try {
+      const currentBranch = await this.gitManager.getCurrentBranch();
+      if (currentBranch) {
+        return currentBranch;
+      }
+    } catch {
+      // Fall through to detached HEAD fallback.
+    }
+
+    return 'HEAD';
   }
 
   /**

@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 **Documentation Philosophy**: Keep all documentation minimal and scannable. Write only essential information in 1-2 sentences per concept. Avoid verbose explanations, extensive examples, or redundant details.
 
 **Agent Pipeline Philosophy**: Less is more. Break up all tasks to the smallest fully coherent unit and use one agent per small task. This micro multi agent approach is how to get the most use of Agent Pipeline. Using the same agent with different inputs is perfectly fine as long as the agent itself is focused. The anti-pattern would be having a Swiss Army knife agent that does completely different things based on inputs.
@@ -53,6 +51,8 @@ The pipeline executes in this order:
 
 **Permission Control**: Agents default to `acceptEdits` mode for automated workflows, allowing file operations without prompts while respecting `.claude/settings.json` allow/deny rules. Configurable per pipeline via `settings.permissionMode`.
 
+**Template Interpolation**: `TemplateInterpolator` (`src/utils/template-interpolator.ts`) provides `{{variable}}` replacement across commit prefixes, PR titles/bodies, and stage inputs. Context builds progressively: static (pipeline-level) → run (branch, commit) → stage (name, index).
+
 ### Critical Files
 
 - `src/config/schema.ts` - TypeScript interfaces for all configuration and state types
@@ -62,6 +62,7 @@ The pipeline executes in this order:
 - `src/core/pipeline-finalizer.ts` - Cleans up, restores branches, triggers PR creation/summaries
 - `src/core/stage-executor.ts` - Stage execution with MCP tool integration and output extraction
 - `src/core/output-tool-builder.ts` - Singleton MCP server for `report_outputs` tool
+- `src/utils/template-interpolator.ts` - Centralized `{{variable}}` interpolation for YAML templates
 - `src/core/types/execution-graph.ts` - DAG type definitions
 - `src/index.ts` - CLI entry point with command routing
 
@@ -128,7 +129,7 @@ Tests use Vitest with extensive mocking:
 **Publishing**: Always use `git tag vX.Y.Z` alongside `npm publish` so the git history and npm registry stay aligned.
 
 ### Development Flow
-When planning new features or fixes, if you notice the changes will require a large refactoring, only do a detailed plan of the first phase of required changes and ask user for review before the next phases. 
+When planning new features or fixes, if you notice the changes will require a large refactoring, only do a detailed plan of the first phase of required changes and ask user for review before continuing to plan next phases. 
 
 ### Testing Style
 Spawn tasks or agents whenver you identify large patterned changes required in tests (eg. replace all instances of mockQuery(...) with mockRuntime.execute(...))
