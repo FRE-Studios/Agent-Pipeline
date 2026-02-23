@@ -2,6 +2,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { interpolateTemplate } from '../utils/template-interpolator.js';
 
 export interface InstructionContext {
   // Handover context
@@ -95,13 +96,7 @@ export class InstructionLoader {
    * Interpolate template variables using {{variable}} syntax
    */
   private interpolate(template: string, context: InstructionContext): string {
-    return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-      const value = context[key as keyof InstructionContext];
-      if (value === undefined || value === null) {
-        return match; // Keep placeholder if no value
-      }
-      return String(value);
-    });
+    return interpolateTemplate(template, context as unknown as Record<string, unknown>);
   }
 
   /**

@@ -2,6 +2,7 @@
 
 import { simpleGit, SimpleGit } from 'simple-git';
 import { ErrorFactory } from '../utils/error-factory.js';
+import { interpolateTemplate } from '../utils/template-interpolator.js';
 
 /**
  * Information about a git worktree
@@ -87,7 +88,8 @@ export class GitManager {
     stageName: string,
     runId: string,
     customMessage?: string,
-    commitPrefix?: string
+    commitPrefix?: string,
+    templateContext?: Record<string, unknown>
   ): Promise<string> {
     if (!(await this.hasUncommittedChanges())) {
       return '';
@@ -96,9 +98,16 @@ export class GitManager {
     await this.stageAllChanges();
 
     const message = customMessage || `Apply ${stageName} changes`;
-    const resolvedPrefix = commitPrefix
-      ? commitPrefix.replace('{{stage}}', stageName)
-      : `[pipeline:${stageName}]`;
+    let resolvedPrefix: string;
+    if (commitPrefix) {
+      // Use full template context if available, fall back to simple {{stage}} replacement
+      const ctx = templateContext
+        ? { ...templateContext, stage: stageName }
+        : { stage: stageName };
+      resolvedPrefix = interpolateTemplate(commitPrefix, ctx);
+    } else {
+      resolvedPrefix = `[pipeline:${stageName}]`;
+    }
     const separator = resolvedPrefix.endsWith(' ') ? '' : ' ';
     const commitMessage = `${resolvedPrefix}${separator}${message}`;
 

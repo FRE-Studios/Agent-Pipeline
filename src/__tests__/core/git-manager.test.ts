@@ -1354,5 +1354,58 @@ branch refs/heads/feature-branch`;
       const commitCall = mockGit.commit.mock.calls[0][0];
       expect(commitCall).toContain('[custom:test-stage] Custom message');
     });
+
+    it('should interpolate {{pipelineName}} and {{runId}} when templateContext is provided', async () => {
+      mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
+        isClean: () => false,
+      });
+
+      await gitManager.createPipelineCommit(
+        'test-stage',
+        'run-123',
+        undefined,
+        '[{{pipelineName}}:{{stage}}]',
+        { pipelineName: 'my-pipeline', runId: 'run-123', branch: 'pipeline/my-pipeline' }
+      );
+
+      const commitCall = mockGit.commit.mock.calls[0][0];
+      expect(commitCall).toContain('[my-pipeline:test-stage] Apply test-stage changes');
+    });
+
+    it('should still resolve {{stage}} without full template context (backward compat)', async () => {
+      mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
+        isClean: () => false,
+      });
+
+      await gitManager.createPipelineCommit(
+        'test-stage',
+        'run-123',
+        undefined,
+        '[pipeline:{{stage}}]'
+        // No templateContext
+      );
+
+      const commitCall = mockGit.commit.mock.calls[0][0];
+      expect(commitCall).toContain('[pipeline:test-stage] Apply test-stage changes');
+    });
+
+    it('should leave unknown variables as-is in commitPrefix', async () => {
+      mockGit.status.mockResolvedValue({
+        staged: ['file1.ts'],
+        isClean: () => false,
+      });
+
+      await gitManager.createPipelineCommit(
+        'test-stage',
+        'run-123',
+        undefined,
+        '[{{unknownVar}}:{{stage}}]'
+      );
+
+      const commitCall = mockGit.commit.mock.calls[0][0];
+      expect(commitCall).toContain('[{{unknownVar}}:test-stage]');
+    });
   });
 });

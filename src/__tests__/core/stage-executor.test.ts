@@ -285,7 +285,8 @@ describe('StageExecutor', () => {
         'test-stage',
         'test-run-123',
         undefined,
-        '[pipeline:{{stage}}]'
+        '[pipeline:{{stage}}]',
+        undefined // templateContext
       );
     });
 
@@ -1761,4 +1762,94 @@ describe('StageExecutor', () => {
 
   // Note: Worktree Context Injection tests (lines 432-437) are in stage-executor-worktree.test.ts
   // That file mocks GitManager at the module level to avoid slow simpleGit operations;
+
+  describe('Template Context (setTemplateContext)', () => {
+    it('should pass template context to createPipelineCommit when set', async () => {
+      mockGitManager = createMockGitManager({
+        hasChanges: true,
+        commitSha: 'commit-sha',
+        commitMessage: '[my-pipeline:test-stage] Apply test-stage changes',
+      });
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
+
+      // Set template context
+      executor.setTemplateContext({
+        pipelineName: 'my-pipeline',
+        runId: 'run-123',
+        trigger: 'manual',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        baseBranch: 'main',
+        branch: 'pipeline/my-pipeline',
+        initialCommit: 'abc123',
+      });
+
+      await executor.executeStage(basicStageConfig, runningPipelineState);
+
+      // Verify createPipelineCommit received template context as 5th arg
+      expect(mockGitManager.createPipelineCommit).toHaveBeenCalledWith(
+        'test-stage',
+        'test-run-123',
+        undefined,
+        '[pipeline:{{stage}}]',
+        expect.objectContaining({ pipelineName: 'my-pipeline' })
+      );
+    });
+
+    it('should interpolate template variables in stage inputs', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
+
+      executor.setTemplateContext({
+        pipelineName: 'my-pipeline',
+        runId: 'run-xyz',
+        trigger: 'manual',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        baseBranch: 'main',
+        branch: 'pipeline/my-pipeline',
+        initialCommit: 'abc123',
+      });
+
+      const stageWithTemplateInputs: AgentStageConfig = {
+        name: 'test-stage',
+        agent: '.agent-pipeline/agents/test-agent.md',
+        inputs: {
+          title: 'Pipeline: {{pipelineName}}',
+          runRef: 'Run {{runId}}',
+          plain: 'no variables here',
+        },
+      };
+
+      await executor.executeStage(stageWithTemplateInputs, runningPipelineState);
+
+      const executeCall = mockRuntime.execute.mock.calls[0];
+      const userPrompt = executeCall[0].userPrompt;
+
+      // Interpolated values should appear in the prompt
+      expect(userPrompt).toContain('Pipeline: my-pipeline');
+      expect(userPrompt).toContain('Run run-xyz');
+      expect(userPrompt).toContain('no variables here');
+    });
+
+    it('should not interpolate inputs when no template context is set', async () => {
+      mockGitManager = createMockGitManager({ hasChanges: false });
+      executor = new StageExecutor(mockGitManager, false, mockHandoverManager, mockRuntime);
+      // No setTemplateContext call
+
+      const stageWithTemplateInputs: AgentStageConfig = {
+        name: 'test-stage',
+        agent: '.agent-pipeline/agents/test-agent.md',
+        inputs: {
+          title: 'Pipeline: {{pipelineName}}',
+        },
+      };
+
+      await executor.executeStage(stageWithTemplateInputs, runningPipelineState);
+
+      const executeCall = mockRuntime.execute.mock.calls[0];
+      const userPrompt = executeCall[0].userPrompt;
+
+      // Without context, variables should remain as-is
+      expect(userPrompt).toContain('Pipeline: {{pipelineName}}');
+    });
+  });
 });

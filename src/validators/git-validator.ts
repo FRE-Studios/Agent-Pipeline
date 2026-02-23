@@ -45,11 +45,11 @@ export class GitValidator implements Validator {
   ): void {
     if (!config.git) return;
 
-    // Warn if commitPrefix doesn't include {{stage}} template variable
-    if (config.git.commitPrefix && !config.git.commitPrefix.includes('{{stage}}')) {
+    // Warn if commitPrefix doesn't include any template variables
+    if (config.git.commitPrefix && !/\{\{\w+\}\}/.test(config.git.commitPrefix)) {
       errors.push({
         field: 'git.commitPrefix',
-        message: 'commitPrefix should include {{stage}} template variable',
+        message: 'commitPrefix should include template variables (e.g., {{stage}}, {{pipelineName}})',
         severity: 'warning',
       });
     }

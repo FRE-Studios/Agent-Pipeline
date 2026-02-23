@@ -1476,6 +1476,105 @@ describe('PipelineFinalizer', () => {
     });
   });
 
+  describe('template variable interpolation in PR', () => {
+    it('should interpolate template variables in PR title and body', async () => {
+      vi.spyOn(mockPRCreator, 'prExists').mockResolvedValue(false);
+      vi.spyOn(mockPRCreator, 'createPR').mockResolvedValue({
+        url: 'https://github.com/test/repo/pull/123',
+        number: 123
+      });
+
+      const configWithPR = {
+        ...mockConfig,
+        git: {
+          baseBranch: 'main',
+          mergeStrategy: 'pull-request' as const,
+          pullRequest: {
+            title: 'Pipeline: {{pipelineName}} (run {{runId}})',
+            body: 'Branch: {{branch}}, Commit: {{initialCommit}}'
+          }
+        }
+      };
+
+      const templateContext = {
+        pipelineName: 'my-pipeline',
+        runId: 'run-abc-123',
+        trigger: 'manual',
+        timestamp: '2024-01-01T00:00:00.000Z',
+        baseBranch: 'main',
+        branch: 'pipeline/my-pipeline',
+        initialCommit: 'abc123def'
+      };
+
+      await finalizer.finalize(
+        mockState,
+        configWithPR,
+        'pipeline/test-branch',
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback,
+        { templateContext: templateContext as any }
+      );
+
+      expect(mockPRCreator.createPR).toHaveBeenCalledWith(
+        'pipeline/test-branch',
+        'main',
+        expect.objectContaining({
+          title: 'Pipeline: my-pipeline (run run-abc-123)',
+          body: 'Branch: pipeline/my-pipeline, Commit: abc123def'
+        }),
+        expect.any(Object)
+      );
+    });
+
+    it('should not interpolate PR title/body when no template context', async () => {
+      vi.spyOn(mockPRCreator, 'prExists').mockResolvedValue(false);
+      vi.spyOn(mockPRCreator, 'createPR').mockResolvedValue({
+        url: 'https://github.com/test/repo/pull/123',
+        number: 123
+      });
+
+      const configWithPR = {
+        ...mockConfig,
+        git: {
+          baseBranch: 'main',
+          mergeStrategy: 'pull-request' as const,
+          pullRequest: {
+            title: 'Pipeline: {{pipelineName}}'
+          }
+        }
+      };
+
+      await finalizer.finalize(
+        mockState,
+        configWithPR,
+        'pipeline/test-branch',
+        undefined,
+        '/test/repo',
+        Date.now(),
+        false,
+        false,
+        mockNotifyCallback,
+        mockStateChangeCallback
+        // No options with templateContext
+      );
+
+      // Without template context, title should pass through unchanged
+      expect(mockPRCreator.createPR).toHaveBeenCalledWith(
+        'pipeline/test-branch',
+        'main',
+        expect.objectContaining({
+          title: 'Pipeline: {{pipelineName}}'
+        }),
+        expect.any(Object)
+      );
+    });
+  });
+
   describe('suppressCompletionNotification option', () => {
     it('should skip completion notification when suppressCompletionNotification is true', async () => {
       const completedState = { ...mockState, status: 'completed' as const };

@@ -79,6 +79,7 @@ const {
         startTime: new Date().toISOString(),
         duration: 5,
       }),
+      setTemplateContext: vi.fn(),
     },
     mockLoopExecutorInstance: {
       getDefaultLoopingConfig: vi.fn().mockReturnValue({
@@ -320,6 +321,7 @@ describe('PipelineRunner', () => {
       startTime: new Date().toISOString(),
       duration: 5,
     });
+    mockStageExecutorInstance.setTemplateContext.mockImplementation(() => {});
 
     mockInitializerInstance.initialize.mockResolvedValue({
       state: mockPipelineState,
@@ -331,6 +333,17 @@ describe('PipelineRunner', () => {
       startTime: Date.now(),
       handoverManager: { getHandoverPath: vi.fn() },
       notificationManager: undefined,
+      pipelineLogger: { pipelineStart: vi.fn(), log: vi.fn(), stageStart: vi.fn(), stageComplete: vi.fn(), stageFailed: vi.fn(), pipelineComplete: vi.fn(), close: vi.fn(), getLogPath: vi.fn() },
+      verbose: false,
+      templateContext: {
+        pipelineName: 'test-pipeline',
+        runId: 'test-run-123',
+        trigger: 'manual',
+        timestamp: new Date().toISOString(),
+        baseBranch: 'main',
+        branch: 'pipeline/test',
+        initialCommit: 'abc123',
+      },
     });
 
     mockOrchestratorInstance.processGroup.mockResolvedValue({

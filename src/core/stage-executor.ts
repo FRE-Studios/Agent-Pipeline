@@ -12,6 +12,7 @@ import { ErrorFactory } from '../utils/error-factory.js';
 import { TokenEstimator } from '../utils/token-estimator.js';
 import { PipelineAbortController } from './abort-controller.js';
 import { PipelineLogger } from '../utils/pipeline-logger.js';
+import { RunTemplateContext, buildStageContext, interpolateTemplate } from '../utils/template-interpolator.js';
 
 export class StageExecutor {
   private retryHandler: RetryHandler;
@@ -21,6 +22,7 @@ export class StageExecutor {
   private loggingContext: LoggingContext;
   private abortController?: PipelineAbortController;
   private pipelineLogger?: PipelineLogger;
+  private templateContext?: RunTemplateContext;
 
   constructor(
     private gitManager: GitManager,
@@ -44,6 +46,13 @@ export class StageExecutor {
       this.worktreeGitManager = new GitManager(executionRepoPath);
       this.executionCwd = executionRepoPath;
     }
+  }
+
+  /**
+   * Set the run-level template context for variable interpolation.
+   */
+  setTemplateContext(ctx: RunTemplateContext): void {
+    this.templateContext = ctx;
   }
 
   /**
@@ -334,7 +343,8 @@ export class StageExecutor {
           stageConfig.name,
           pipelineState.runId,
           undefined, // commitMessage - no longer supported at stage level
-          commitPrefix
+          commitPrefix,
+          this.templateContext as Record<string, unknown> | undefined
         );
 
         if (commitSha) {
@@ -457,8 +467,19 @@ export class StageExecutor {
     );
 
     // Build inputs section - format as readable key: value pairs
-    const inputsSection = stageConfig.inputs && Object.keys(stageConfig.inputs).length > 0
-      ? `## User Inputs to Help with Your Task\n${Object.entries(stageConfig.inputs).map(([key, value]) => `- **${key}**: ${value}`).join('\n')}`
+    // Interpolate template variables in input values if template context is available
+    let interpolatedInputs = stageConfig.inputs;
+    if (interpolatedInputs && this.templateContext) {
+      const stageIndex = pipelineState.stages.length;
+      const stageCtx = buildStageContext(this.templateContext, stageConfig.name, stageIndex);
+      interpolatedInputs = Object.fromEntries(
+        Object.entries(interpolatedInputs).map(([key, value]) =>
+          [key, interpolateTemplate(value, stageCtx as unknown as Record<string, unknown>)]
+        )
+      );
+    }
+    const inputsSection = interpolatedInputs && Object.keys(interpolatedInputs).length > 0
+      ? `## User Inputs to Help with Your Task\n${Object.entries(interpolatedInputs).map(([key, value]) => `- **${key}**: ${value}`).join('\n')}`
       : '';
 
     // Build execution environment section (critical for worktree execution)

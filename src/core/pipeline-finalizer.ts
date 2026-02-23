@@ -12,6 +12,7 @@ import { PipelineFormatter } from '../utils/pipeline-formatter.js';
 import { PipelineConfig, PipelineState, MergeStrategy } from '../config/schema.js';
 import { NotificationContext } from '../notifications/types.js';
 import { PipelineLogger } from '../utils/pipeline-logger.js';
+import { RunTemplateContext, interpolateTemplate } from '../utils/template-interpolator.js';
 
 // Console output styling (consistent with cli/commands/init.ts)
 const c = {
@@ -54,9 +55,9 @@ export class PipelineFinalizer {
     verbose: boolean,
     notifyCallback: (context: NotificationContext) => Promise<void>,
     stateChangeCallback: (state: PipelineState) => void,
-    options?: { suppressCompletionNotification?: boolean; pipelineLogger?: PipelineLogger }
+    options?: { suppressCompletionNotification?: boolean; pipelineLogger?: PipelineLogger; templateContext?: RunTemplateContext }
   ): Promise<PipelineState> {
-    const { pipelineLogger } = options || {};
+    const { pipelineLogger, templateContext } = options || {};
     // Calculate metrics (use worktree git manager if executing in worktree)
     await this.calculateMetrics(state, startTime, executionRepoPath);
 
@@ -97,7 +98,8 @@ export class PipelineFinalizer {
         state,
         executionRepoPath,
         interactive,
-        notifyCallback
+        notifyCallback,
+        templateContext
       );
     }
 
@@ -171,7 +173,8 @@ export class PipelineFinalizer {
     state: PipelineState,
     executionRepoPath: string,
     interactive: boolean,
-    notifyCallback: (context: NotificationContext) => Promise<void>
+    notifyCallback: (context: NotificationContext) => Promise<void>,
+    templateContext?: RunTemplateContext
   ): Promise<void> {
     // Skip merge strategies if no commits were made
     const hasCommits = state.stages.some(s => s.commitSha);
@@ -184,7 +187,7 @@ export class PipelineFinalizer {
 
     switch (strategy) {
       case 'pull-request':
-        await this.handlePullRequest(config, branchName, state, executionRepoPath, interactive, notifyCallback);
+        await this.handlePullRequest(config, branchName, state, executionRepoPath, interactive, notifyCallback, templateContext);
         break;
       case 'local-merge':
         await this.handleLocalMerge(config, branchName, interactive);
@@ -207,7 +210,8 @@ export class PipelineFinalizer {
     state: PipelineState,
     executionRepoPath: string,
     interactive: boolean,
-    notifyCallback: (context: NotificationContext) => Promise<void>
+    notifyCallback: (context: NotificationContext) => Promise<void>,
+    templateContext?: RunTemplateContext
   ): Promise<void> {
     try {
       // Push branch to remote (use worktree branch manager if in worktree)
@@ -226,7 +230,18 @@ export class PipelineFinalizer {
       }
 
       // Create PR (use empty config if pullRequest not specified)
-      const prConfig = config.git?.pullRequest || {};
+      // Interpolate template variables in PR title and body
+      const rawPrConfig = config.git?.pullRequest || {};
+      const prConfig = { ...rawPrConfig };
+      if (templateContext) {
+        const ctx = templateContext as unknown as Record<string, unknown>;
+        if (prConfig.title) {
+          prConfig.title = interpolateTemplate(prConfig.title, ctx);
+        }
+        if (prConfig.body) {
+          prConfig.body = interpolateTemplate(prConfig.body, ctx);
+        }
+      }
       const result = await this.prCreator.createPR(
         branchName,
         config.git?.baseBranch || 'main',

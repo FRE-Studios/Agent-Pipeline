@@ -589,8 +589,11 @@ export class PipelineRunner {
       return failedState;
     }
 
-    let { state, parallelExecutor, pipelineBranch, worktreePath, executionRepoPath, startTime, pipelineLogger } = initResult;
+    let { state, parallelExecutor, pipelineBranch, worktreePath, executionRepoPath, startTime, pipelineLogger, templateContext } = initResult;
     this.notificationManager = initResult.notificationManager;
+
+    // Set template context on stage executor for variable interpolation
+    initResult.stageExecutor.setTemplateContext(templateContext);
 
     // Create loop directories on first iteration (after we know worktree path)
     if (isFirstLoopIteration && loopContext?.sessionId) {
@@ -733,7 +736,7 @@ export class PipelineRunner {
       verbose,
       this.notify.bind(this),
       this.notifyStateChange.bind(this),
-      { suppressCompletionNotification, pipelineLogger }
+      { suppressCompletionNotification, pipelineLogger, templateContext }
     );
 
     return state;

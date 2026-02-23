@@ -733,6 +733,75 @@ describe('GitValidator', () => {
     });
   });
 
+  describe('validateCommitSettings - commitPrefix warning', () => {
+    it('should warn when commitPrefix has no template variables at all', async () => {
+      const config: PipelineConfig = {
+        ...baseConfig,
+        git: {
+          commitPrefix: '[static-prefix]',
+        },
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      expect(context.errors).toContainEqual({
+        field: 'git.commitPrefix',
+        message: 'commitPrefix should include template variables (e.g., {{stage}}, {{pipelineName}})',
+        severity: 'warning',
+      });
+    });
+
+    it('should not warn when commitPrefix includes {{stage}}', async () => {
+      const config: PipelineConfig = {
+        ...baseConfig,
+        git: {
+          commitPrefix: '[pipeline:{{stage}}]',
+        },
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      const prefixWarnings = context.errors.filter(
+        e => e.field === 'git.commitPrefix' && e.severity === 'warning'
+      );
+      expect(prefixWarnings).toHaveLength(0);
+    });
+
+    it('should not warn when commitPrefix includes {{pipelineName}}', async () => {
+      const config: PipelineConfig = {
+        ...baseConfig,
+        git: {
+          commitPrefix: '[{{pipelineName}}]',
+        },
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      const prefixWarnings = context.errors.filter(
+        e => e.field === 'git.commitPrefix' && e.severity === 'warning'
+      );
+      expect(prefixWarnings).toHaveLength(0);
+    });
+
+    it('should not warn when commitPrefix is not set', async () => {
+      const config: PipelineConfig = {
+        ...baseConfig,
+        git: {},
+      };
+      const context = createContext(config);
+
+      await validator.validate(context);
+
+      const prefixWarnings = context.errors.filter(
+        e => e.field === 'git.commitPrefix' && e.severity === 'warning'
+      );
+      expect(prefixWarnings).toHaveLength(0);
+    });
+  });
+
   describe('validate - multiple errors', () => {
     it('should collect multiple validation errors', async () => {
       mockGit.getConfig.mockImplementation(async () => ({ value: null }));

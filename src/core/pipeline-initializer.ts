@@ -12,6 +12,7 @@ import { NotificationManager } from '../notifications/notification-manager.js';
 import { NotificationContext } from '../notifications/types.js';
 import { PipelineAbortController } from './abort-controller.js';
 import { PipelineLogger } from '../utils/pipeline-logger.js';
+import { RunTemplateContext, buildStaticContext, buildRunContext } from '../utils/template-interpolator.js';
 
 export interface InitializationResult {
   state: PipelineState;
@@ -25,6 +26,7 @@ export interface InitializationResult {
   pipelineLogger: PipelineLogger;
   startTime: number;
   verbose: boolean;
+  templateContext: RunTemplateContext;
 }
 
 export class PipelineInitializer {
@@ -162,6 +164,14 @@ export class PipelineInitializer {
 
     const startTime = Date.now();
 
+    // Build template context for variable interpolation across pipeline YAML fields
+    const staticCtx = buildStaticContext(config, runId);
+    const templateContext = buildRunContext(
+      staticCtx,
+      isolation.branchName || '',
+      triggerCommit
+    );
+
     return {
       state,
       stageExecutor,
@@ -173,7 +183,8 @@ export class PipelineInitializer {
       notificationManager,
       pipelineLogger,
       startTime,
-      verbose
+      verbose,
+      templateContext
     };
   }
 
