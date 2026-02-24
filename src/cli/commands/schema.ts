@@ -62,15 +62,22 @@ function colorizeYaml(yaml: string): string {
     if (kvMatch) {
       const [, indent, key, colon, rest] = kvMatch;
 
-      // Check if there's an inline comment
-      const commentMatch = rest.match(/^(\s*)(\S.*?)(\s+#.*)$/);
-      if (commentMatch) {
-        const [, space, val, comment] = commentMatch;
-        result.push(`${indent}${c.key(key)}${colon}${space}${colorizeValue(val)}${c.comment(comment)}`);
-      } else if (rest.trim()) {
-        result.push(`${indent}${c.key(key)}${colon}${colorizeValue(rest)}`);
+      // Check if rest is just a comment (key with no value)
+      const justCommentMatch = rest.match(/^(\s+)(#.*)$/);
+      if (justCommentMatch) {
+        const [, space, comment] = justCommentMatch;
+        result.push(`${indent}${c.key(key)}${colon}${space}${c.comment(comment)}`);
       } else {
-        result.push(`${indent}${c.key(key)}${colon}`);
+        // Check if there's an inline comment after a value
+        const commentMatch = rest.match(/^(\s*)(\S.*?)(\s+#.*)$/);
+        if (commentMatch) {
+          const [, space, val, comment] = commentMatch;
+          result.push(`${indent}${c.key(key)}${colon}${space}${colorizeValue(val)}${c.comment(comment)}`);
+        } else if (rest.trim()) {
+          result.push(`${indent}${c.key(key)}${colon}${colorizeValue(rest)}`);
+        } else {
+          result.push(`${indent}${c.key(key)}${colon}`);
+        }
       }
       continue;
     }
@@ -84,9 +91,23 @@ function colorizeYaml(yaml: string): string {
       const listKvMatch = val.match(/^([\w-]+)(:)(.*)$/);
       if (listKvMatch) {
         const [, k, col, v] = listKvMatch;
-        result.push(`${indent}${c.dim(dash)}${space}${c.key(k)}${col}${colorizeValue(v)}`);
+        // Check for inline comment in list key-value
+        const listKvCommentMatch = v.match(/^(\s*)(\S.*?)(\s+#.*)$/);
+        if (listKvCommentMatch) {
+          const [, sp, lv, lc] = listKvCommentMatch;
+          result.push(`${indent}${c.dim(dash)}${space}${c.key(k)}${col}${sp}${colorizeValue(lv)}${c.comment(lc)}`);
+        } else {
+          result.push(`${indent}${c.dim(dash)}${space}${c.key(k)}${col}${colorizeValue(v)}`);
+        }
       } else {
-        result.push(`${indent}${c.dim(dash)}${space}${colorizeValue(val)}`);
+        // Check for inline comment in plain list item
+        const listCommentMatch = val.match(/^(\S.*?)(\s+#.*)$/);
+        if (listCommentMatch) {
+          const [, lv, lc] = listCommentMatch;
+          result.push(`${indent}${c.dim(dash)}${space}${colorizeValue(lv)}${c.comment(lc)}`);
+        } else {
+          result.push(`${indent}${c.dim(dash)}${space}${colorizeValue(val)}`);
+        }
       }
       continue;
     }
@@ -157,21 +178,21 @@ function formatMinimalTemplate(): string {
 
 # Basic Pipeline Example
 
-name: my-pipeline
-trigger: manual  # pre-commit | post-commit | pre-push | post-merge | manual
+name: my-pipeline                    # Pipeline identifier (letters, numbers, hyphens)
+trigger: manual                      # When to run: manual | pre-commit | post-commit | pre-push | post-merge
 
 agents:
-  - name: planner
-    agent: .agent-pipeline/agents/planner.md
-    inputs:
+  - name: planner                    # Unique stage identifier (used in dependsOn, logs, commits)
+    agent: .agent-pipeline/agents/planner.md  # Path to agent prompt file (.md)
+    inputs:                          # Key-value context passed to the agent's prompt
       prompt: "Additional context for planner.md agent"
-    # timeout: 900           # Max seconds (default: 900)
-    # onFail: continue       # stop | continue | warn
+    # timeout: 900                   # Max seconds before stage is killed (default: 900)
+    # onFail: continue               # What happens on failure: stop | continue | warn
 
   - name: implement
     agent: .agent-pipeline/agents/implementer.md
-    dependsOn:
-      - planner              # Runs after 'planner' completes
+    dependsOn:                       # Stages that must complete before this one runs
+      - planner                      # Runs after 'planner' completes
 `;
 }
 
@@ -196,7 +217,7 @@ agents:
 
   - name: report
     agent: .agent-pipeline/agents/reporter.md
-    dependsOn: [analyze]
+    dependsOn: [analyze]             # Array shorthand; runs after 'analyze' completes
 
 ---
 # =============================================================================
@@ -205,9 +226,10 @@ agents:
 # =============================================================================
 
 name: parallel-checks
-trigger: pre-commit
+trigger: pre-commit                  # Runs automatically before each git commit
 
 agents:
+  # No dependsOn on any stage = all three run in parallel
   - name: lint
     agent: .agent-pipeline/agents/linter.md
 
@@ -216,7 +238,6 @@ agents:
 
   - name: security
     agent: .agent-pipeline/agents/security-scanner.md
-  # No dependsOn = all run in parallel
 
 ---
 # =============================================================================
@@ -249,13 +270,13 @@ name: feature-pipeline
 trigger: manual
 
 git:
-  autoCommit: true
-  commitPrefix: "[bot]"
-  baseBranch: main
-  branchStrategy: unique-per-run
-  mergeStrategy: pull-request
+  autoCommit: true                   # Commit after each stage completes
+  commitPrefix: "[bot]"             # Prefix for commit messages (supports {{variable}})
+  baseBranch: main                   # Target branch for PRs
+  branchStrategy: unique-per-run     # Branch naming: reusable | unique-per-run
+  mergeStrategy: pull-request        # How to merge: pull-request | local-merge | none
   pullRequest:
-    title: "Feature: {{pipelineName}}"
+    title: "Feature: {{pipelineName}}"  # PR title (supports {{variable}} interpolation)
 
 agents:
   - name: implement
@@ -275,9 +296,9 @@ name: iterative-refactor
 trigger: manual
 
 looping:
-  enabled: true
-  maxIterations: 10
-  instructions: .agent-pipeline/instructions/loop.md
+  enabled: true                      # Turn on iterative execution
+  maxIterations: 10                  # Safety cap to prevent runaway loops
+  instructions: .agent-pipeline/instructions/loop.md  # Loop continuation/exit criteria
 
 agents:
   - name: refactor
@@ -289,7 +310,43 @@ agents:
 
 ---
 # =============================================================================
-# Example 6: Mixed Models for Cost Optimization
+# Example 6: Multi-Runtime Pipeline
+# Mix runtimes (Codex, Gemini, Pi Agent) at pipeline and stage level
+# =============================================================================
+
+name: multi-runtime
+trigger: manual
+
+runtime:                             # Default runtime for all stages
+  type: codex-headless               # Use Codex CLI as the default
+  options:
+    model: gpt-4.1                   # Default model for Codex stages
+
+agents:
+  - name: scaffold
+    agent: .agent-pipeline/agents/scaffolder.md
+    # Inherits pipeline-level runtime (codex-headless with gpt-4.1)
+
+  - name: review
+    agent: .agent-pipeline/agents/reviewer.md
+    dependsOn: [scaffold]
+    runtime:                         # Override runtime for this stage only
+      type: gemini-headless           # Use Gemini CLI instead
+      options:
+        model: gemini-2.5-flash       # Gemini model
+
+  - name: polish
+    agent: .agent-pipeline/agents/polisher.md
+    dependsOn: [review]
+    runtime:
+      type: pi-agent                  # Use Pi Agent (multi-provider)
+      options:
+        model: claude-sonnet-4-20250514
+        thinking: medium              # Extended thinking level
+
+---
+# =============================================================================
+# Example 7: Mixed Models for Cost Optimization
 # Use cheaper models for simple tasks, expensive for complex
 # =============================================================================
 
@@ -299,19 +356,19 @@ trigger: manual
 agents:
   - name: quick-lint
     agent: .agent-pipeline/agents/linter.md
-    model: haiku        # Fast and cheap
+    model: haiku                     # Fast and cheap model for simple tasks
     timeout: 60
 
   - name: deep-review
     agent: .agent-pipeline/agents/reviewer.md
-    model: opus         # Thorough analysis
+    model: opus                      # Thorough analysis with best model
     dependsOn: [quick-lint]
-    maxTurns: 100
-    maxThinkingTokens: 32000
+    maxTurns: 100                    # Max agent conversation turns (limits cost)
+    maxThinkingTokens: 32000         # Tokens for extended thinking (deeper reasoning)
 
 ---
 # =============================================================================
-# Example 7: Notifications and Monitoring
+# Example 8: Notifications and Monitoring
 # Desktop and Slack alerts for pipeline events
 # =============================================================================
 
@@ -319,16 +376,16 @@ name: monitored-pipeline
 trigger: manual
 
 notifications:
-  desktop: true
+  desktop: true                      # Show OS-level desktop notifications
   slack:
-    webhookUrl: \$SLACK_WEBHOOK_URL
-    events: [started, completed, failed]
-    channel: "#deployments"
+    webhookUrl: \$SLACK_WEBHOOK_URL   # Webhook URL (use $ENV_VAR for secrets)
+    events: [started, completed, failed]  # Which events trigger notifications
+    channel: "#deployments"          # Override the webhook's default channel
 
 agents:
   - name: deploy
     agent: .agent-pipeline/agents/deployer.md
-    onFail: stop        # Stop pipeline and notify on failure
+    onFail: stop                     # Stop pipeline and notify on failure
 `;
 }
 

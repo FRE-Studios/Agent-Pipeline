@@ -2,6 +2,183 @@
 
 import { NotificationConfig } from '../notifications/types.js';
 
+// ─── User-facing types (included in generated JSON Schema) ───────────────
+
+/**
+ * Top-level pipeline configuration
+ *
+ * Defines the full specification for an agent pipeline: trigger, stages,
+ * git workflow, execution settings, handover, looping, and notifications.
+ */
+export interface PipelineConfig {
+  /** Unique pipeline name used for branch naming, state files, and logging */
+  name: string;
+  /** Event that starts the pipeline */
+  trigger: 'pre-commit' | 'post-commit' | 'pre-push' | 'post-merge' | 'manual';
+
+  /** Git workflow settings — commits, branches, PRs, worktree isolation */
+  git?: GitConfig;
+
+  /** Execution settings — controls runtime behavior */
+  execution?: ExecutionConfig;
+
+  /** Handover settings — inter-stage communication */
+  handover?: HandoverConfig;
+
+  /** Notification settings — desktop and Slack alerts */
+  notifications?: NotificationConfig;
+
+  /** Looping settings — enables continuous pipeline execution */
+  looping?: LoopingConfig;
+
+  /** Default runtime for all stages (individual stages can override) */
+  runtime?: RuntimeConfig;
+
+  /** Ordered list of agent stages to execute */
+  agents: AgentStageConfig[];
+}
+
+/**
+ * Individual agent stage configuration
+ *
+ * Each stage runs a single agent file with optional dependencies,
+ * retry logic, runtime overrides, and context inputs.
+ */
+export interface AgentStageConfig {
+  /**
+   * Unique stage identifier.
+   * Used for dependsOn references, handover directories, and logging.
+   * To reuse an agent, give each instance a different name (e.g., coder-1, coder-2).
+   */
+  name: string;
+  /** Path to the agent markdown file. Can be reused across stages with different names. */
+  agent: string;
+
+  /** Override pipeline-level runtime for this stage */
+  runtime?: RuntimeConfig;
+
+  /** Set to false to skip this stage (default: true) */
+  enabled?: boolean;
+  /** Failure handling: stop pipeline, continue to next stage, or warn and continue (default: inherited from execution.failureStrategy) */
+  onFail?: 'stop' | 'continue' | 'warn';
+  /** Max execution time in seconds (default: 900 / 15 min). Warnings at 5, 10, 13 min. */
+  timeout?: number;
+
+  /** Stage names this stage depends on (DAG edges) */
+  dependsOn?: string[];
+
+  /** Retry configuration for transient failures */
+  retry?: RetryConfig;
+
+  /** Additional key-value context passed to the agent. Supports {{variable}} interpolation. */
+  inputs?: Record<string, string>;
+}
+
+/**
+ * Retry behavior with configurable backoff
+ */
+export interface RetryConfig {
+  /** Maximum number of retry attempts (default: 3) */
+  maxAttempts: number;
+  /** Backoff strategy between retries */
+  backoff: 'exponential' | 'linear' | 'fixed';
+  /** Initial delay in milliseconds (default: 1000) */
+  initialDelay?: number;
+  /** Maximum delay in milliseconds (default: 30000) */
+  maxDelay?: number;
+}
+
+/**
+ * Runtime configuration for agent execution
+ *
+ * Supports multiple runtime types: 'claude-sdk', 'claude-code-headless',
+ * 'codex-headless', 'gemini-headless', 'pi-agent-headless', etc.
+ */
+export interface RuntimeConfig {
+  /** Runtime type identifier (e.g., 'claude-sdk', 'claude-code-headless', 'codex-headless') */
+  type: string;
+  /** Runtime-specific options (model, maxTurns, maxThinkingTokens, etc.) */
+  options?: Record<string, unknown>;
+}
+
+/**
+ * Git workflow — commits, branches, PRs, worktree isolation
+ */
+export interface GitConfig {
+  /** Auto-commit agent changes after each stage (default: true) */
+  autoCommit?: boolean;
+  /** Commit message prefix. Supports {{stage}} interpolation (e.g., "[pipeline:{{stage}}]") */
+  commitPrefix?: string;
+
+  /** Base branch to create pipeline branches from and PR into (default: 'main') */
+  baseBranch?: string;
+  /** Branch naming strategy (default: 'reusable'). 'reusable' reuses the same branch, 'unique-per-run' creates a new branch per run, 'unique-and-delete' creates and deletes after merge. */
+  branchStrategy?: 'reusable' | 'unique-per-run' | 'unique-and-delete';
+  /** Custom branch prefix (default: 'pipeline') */
+  branchPrefix?: string;
+  /** How to handle completed pipeline work (default: 'none') */
+  mergeStrategy?: MergeStrategy;
+  /** Pull request settings (only used when mergeStrategy is 'pull-request') */
+  pullRequest?: PRConfig;
+
+  /** Worktree settings for pipeline isolation */
+  worktree?: WorktreeConfig;
+}
+
+/**
+ * Merge strategy for pipeline completion
+ * - pull-request: Push branch and create GitHub PR
+ * - local-merge: Merge branch to baseBranch locally (no remote interaction)
+ * - none: No merge action (work stays in branch/worktree)
+ *
+ * Note: 'unique-and-delete' branchStrategy cannot be used with 'none' mergeStrategy
+ */
+export type MergeStrategy = 'pull-request' | 'local-merge' | 'none';
+
+/**
+ * GitHub pull request settings
+ */
+export interface PRConfig {
+  /** Custom PR title. Supports {{variable}} interpolation. Has smart default if omitted. */
+  title?: string;
+  /** Custom PR body. Supports {{variable}} interpolation. Defaults to a stage summary. */
+  body?: string;
+  /** GitHub usernames to request review from */
+  reviewers?: string[];
+  /** Labels to apply to the PR */
+  labels?: string[];
+  /** Create as draft PR (default: false) */
+  draft?: boolean;
+  /** GitHub usernames to assign to the PR */
+  assignees?: string[];
+  /** Milestone name or number to add the PR to */
+  milestone?: string;
+  /** Open PR in browser for interactive editing (default: false) */
+  web?: boolean;
+}
+
+/**
+ * Worktree configuration for pipeline isolation
+ *
+ * Pipelines execute in dedicated git worktrees, leaving the user's working directory untouched.
+ */
+export interface WorktreeConfig {
+  /** Override default worktree directory (default: .agent-pipeline/worktrees) */
+  directory?: string;
+}
+
+/**
+ * Execution configuration — controls pipeline runtime behavior
+ */
+export interface ExecutionConfig {
+  /** Execution strategy: sequential runs stages one-by-one, parallel uses DAG-planned concurrency (default: 'parallel') */
+  mode?: 'sequential' | 'parallel';
+  /** Default failure handling for stages without explicit onFail (default: 'continue') */
+  failureStrategy?: 'stop' | 'continue';
+  /** Permission mode for agents (default: 'acceptEdits') */
+  permissionMode?: PermissionMode;
+}
+
 /**
  * Permission mode for agent execution
  * - default: Prompts for permission based on .claude/settings.json rules
@@ -12,6 +189,48 @@ import { NotificationConfig } from '../notifications/types.js';
  * @default 'acceptEdits' - Optimized for automated workflows
  */
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+
+/**
+ * Handover configuration — inter-stage communication settings
+ */
+export interface HandoverConfig {
+  /**
+   * Base handover directory. RunId is always appended for run isolation.
+   * Default: .agent-pipeline/runs/{pipeline-name}-{runId}/
+   * Custom example: ".my-handover" → ".my-handover/{runId}/"
+   */
+  directory?: string;
+  /** Path to handover instructions template (default: .agent-pipeline/instructions/handover.md) */
+  instructions?: string;
+}
+
+/**
+ * Pipeline looping for iterative execution
+ *
+ * When enabled, a loop agent evaluates after each full pipeline run
+ * and decides whether to queue the next iteration.
+ */
+export interface LoopingConfig {
+  /** Enable looping for this pipeline */
+  enabled: boolean;
+  /** Maximum number of loop iterations before stopping (default: 100) */
+  maxIterations?: number;
+  /** Path to loop instructions template (default: .agent-pipeline/instructions/loop.md) */
+  instructions?: string;
+  /** Custom directories for loop queue management (defaults to .agent-pipeline/loops/{sessionId}/) */
+  directories?: {
+    /** Directory for pending loop iterations (default: .agent-pipeline/loops/{sessionId}/pending) */
+    pending?: string;
+    /** Directory for currently running iteration (default: .agent-pipeline/loops/{sessionId}/running) */
+    running?: string;
+    /** Directory for completed iterations (default: .agent-pipeline/loops/{sessionId}/finished) */
+    finished?: string;
+    /** Directory for failed iterations (default: .agent-pipeline/loops/{sessionId}/failed) */
+    failed?: string;
+  };
+}
+
+// ─── Internal types (not included in generated JSON Schema) ──────────────
 
 /**
  * Claude Agent SDK model types
@@ -26,27 +245,6 @@ export interface ClaudeAgentSettings {
   model?: ClaudeModelName;        // Model selection for cost/performance optimization
   maxTurns?: number;              // Maximum conversation turns (prevents runaway agents)
   maxThinkingTokens?: number;     // Extended thinking budget for complex reasoning
-}
-
-/**
- * Runtime configuration for agent execution
- * Supports multiple runtime types: 'claude-sdk', 'claude-code-headless', 'codex-headless', etc.
- */
-export interface RuntimeConfig {
-  type: string;                   // Runtime type identifier (e.g., 'claude-sdk', 'claude-code-headless')
-  options?: Record<string, unknown>; // Runtime-specific options (model, maxTurns, etc.)
-}
-
-export interface LoopingConfig {
-  enabled: boolean;
-  maxIterations?: number;  // Default: 100
-  instructions?: string;   // Path to loop instructions template (default: .agent-pipeline/instructions/loop.md)
-  directories?: {          // Optional - defaults to .agent-pipeline/loops/{sessionId}/
-    pending?: string;      // Default: .agent-pipeline/loops/{sessionId}/pending
-    running?: string;      // Default: .agent-pipeline/loops/{sessionId}/running
-    finished?: string;     // Default: .agent-pipeline/loops/{sessionId}/finished
-    failed?: string;       // Default: .agent-pipeline/loops/{sessionId}/failed
-  };
 }
 
 /**
@@ -107,126 +305,6 @@ export interface IterationHistoryEntry {
 export interface LoggingContext {
   interactive: boolean;
   verbose: boolean;
-}
-
-/**
- * Merge strategy for pipeline completion
- * - pull-request: Push branch and create GitHub PR
- * - local-merge: Merge branch to baseBranch locally (no remote interaction)
- * - none: No merge action (work stays in branch/worktree)
- *
- * Note: 'unique-and-delete' branchStrategy cannot be used with 'none' mergeStrategy
- */
-export type MergeStrategy = 'pull-request' | 'local-merge' | 'none';
-
-export interface GitConfig {
-  // Commit settings (moved from settings:)
-  autoCommit?: boolean;                   // Auto-commit agent changes (default: true)
-  commitPrefix?: string;                  // Commit message prefix, e.g., "[pipeline:{{stage}}]"
-
-  // Branch workflow
-  baseBranch?: string;                    // Branch to PR into (default: 'main')
-  branchStrategy?: 'reusable' | 'unique-per-run' | 'unique-and-delete'; // Branch naming strategy (default: 'reusable')
-  branchPrefix?: string;                  // Custom branch prefix (default: 'pipeline')
-  mergeStrategy?: MergeStrategy;          // How to handle completed pipeline (default: 'none')
-  pullRequest?: PRConfig;                 // Pull request settings (only used when mergeStrategy: 'pull-request')
-
-  // Worktree isolation (moved from settings.worktree)
-  worktree?: WorktreeConfig;              // Worktree settings for pipeline isolation
-}
-
-export interface PRConfig {
-  title?: string;                         // Custom PR title (has smart default)
-  body?: string;                          // Custom PR body (has smart default with stage summary)
-  reviewers?: string[];                   // GitHub usernames to request review from
-  labels?: string[];                      // Labels to apply to PR
-  draft?: boolean;                        // Create as draft PR
-  assignees?: string[];                   // Assign to specific users
-  milestone?: string;                     // Add to milestone
-  web?: boolean;                          // Open in browser for interactive editing
-}
-
-/**
- * Worktree configuration for pipeline isolation
- * Pipelines execute in dedicated git worktrees, leaving user's working directory untouched
- */
-export interface WorktreeConfig {
-  directory?: string;                     // Override default .agent-pipeline/worktrees
-}
-
-/**
- * Execution configuration - controls pipeline runtime behavior
- */
-export interface ExecutionConfig {
-  mode?: 'sequential' | 'parallel';       // Execution strategy (default: parallel with DAG)
-  failureStrategy?: 'stop' | 'continue';  // Default failure handling (default: continue)
-  permissionMode?: PermissionMode;        // Permission mode for agents (default: 'acceptEdits')
-}
-
-/**
- * Handover configuration - inter-stage communication settings
- */
-export interface HandoverConfig {
-  directory?: string;                     // Base handover directory. RunId is always appended for run isolation.
-                                          // Default: .agent-pipeline/runs/{pipeline-name}-{runId}/
-                                          // Custom example: ".my-handover" → ".my-handover/{runId}/"
-  instructions?: string;                  // Path to handover instructions template (default: .agent-pipeline/instructions/handover.md)
-}
-
-export interface PipelineConfig {
-  name: string;
-  trigger: 'pre-commit' | 'post-commit' | 'pre-push' | 'post-merge' | 'manual';
-
-  // Git workflow settings (optional) - includes commits, branches, PRs, worktree
-  git?: GitConfig;
-
-  // Execution settings (optional) - controls runtime behavior
-  execution?: ExecutionConfig;
-
-  // Handover settings (optional) - inter-stage communication
-  handover?: HandoverConfig;
-
-  // Notification settings (optional)
-  notifications?: NotificationConfig;
-
-  // Looping settings (optional) - enables continuous pipeline execution
-  looping?: LoopingConfig;
-
-  // Runtime configuration (optional, defaults to claude-code-headless)
-  runtime?: RuntimeConfig;
-
-  // Agent stages
-  agents: AgentStageConfig[];
-}
-
-export interface RetryConfig {
-  maxAttempts: number;                 // Max retry attempts (default: 3)
-  backoff: 'exponential' | 'linear' | 'fixed'; // Backoff strategy
-  initialDelay?: number;               // Initial delay in ms (default: 1000)
-  maxDelay?: number;                   // Max delay in ms (default: 30000)
-}
-
-export interface AgentStageConfig {
-  name: string;                        // Unique stage identifier. Used for dependsOn, handover dirs, and logging.
-                                       // To reuse an agent, use different names (e.g., coder-1, coder-2).
-  agent: string;                       // Path to agent file. Can be reused across stages with different names.
-
-  // Runtime configuration (per-stage override)
-  runtime?: RuntimeConfig;             // Override pipeline-level runtime for this stage
-
-  // Stage-specific behavior
-  enabled?: boolean;                   // Skip if false
-  onFail?: 'stop' | 'continue' | 'warn';
-  timeout?: number;                    // Max execution time (seconds). Default: 900 (15 min). Warnings at 5, 10, 13 min.
-
-  // Dependencies
-  dependsOn?: string[];                // Stage names this stage depends on
-
-  // Retry behavior
-  retry?: RetryConfig;                 // Retry configuration
-
-  // Context passing
-  inputs?: Record<string, string>;     // Additional context for agent
 }
 
 export interface PipelineState {

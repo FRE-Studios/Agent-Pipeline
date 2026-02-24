@@ -86,6 +86,7 @@ describe('schemaCommand', () => {
       expect(output).toContain('Multi-Stage Review with Handover');
       expect(output).toContain('Git Integration with Auto-PR');
       expect(output).toContain('Loop Pipeline');
+      expect(output).toContain('Multi-Runtime Pipeline');
       expect(output).toContain('Mixed Models for Cost Optimization');
       expect(output).toContain('Notifications and Monitoring');
     });

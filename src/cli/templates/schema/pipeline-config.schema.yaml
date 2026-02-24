@@ -6,6 +6,7 @@ definitions:
     properties:
       name:
         type: string
+        description: Unique pipeline name used for branch naming, state files, and logging
       trigger:
         type: string
         enum:
@@ -14,51 +15,78 @@ definitions:
           - pre-push
           - post-merge
           - manual
+        description: Event that starts the pipeline
       git:
         $ref: "#/definitions/GitConfig"
+        description: Git workflow settings — commits, branches, PRs, worktree isolation
       execution:
         $ref: "#/definitions/ExecutionConfig"
+        description: Execution settings — controls runtime behavior
       handover:
         $ref: "#/definitions/HandoverConfig"
+        description: Handover settings — inter-stage communication
       notifications:
         $ref: "#/definitions/NotificationConfig"
+        description: Notification settings — desktop and Slack alerts
       looping:
         $ref: "#/definitions/LoopingConfig"
+        description: Looping settings — enables continuous pipeline execution
       runtime:
         $ref: "#/definitions/RuntimeConfig"
+        description: Default runtime for all stages (individual stages can override)
       agents:
         type: array
         items:
           $ref: "#/definitions/AgentStageConfig"
+        description: Ordered list of agent stages to execute
     required:
       - name
       - trigger
       - agents
     additionalProperties: false
+    description: >-
+      Top-level pipeline configuration
+
+
+      Defines the full specification for an agent pipeline: trigger, stages, git
+      workflow, execution settings, handover, looping, and notifications.
   GitConfig:
     type: object
     properties:
       autoCommit:
         type: boolean
+        description: "Auto-commit agent changes after each stage (default: true)"
       commitPrefix:
         type: string
+        description: Commit message prefix. Supports {{stage}} interpolation (e.g.,
+          "[pipeline:{{stage}}]")
       baseBranch:
         type: string
+        description: "Base branch to create pipeline branches from and PR into (default:
+          'main')"
       branchStrategy:
         type: string
         enum:
           - reusable
           - unique-per-run
           - unique-and-delete
+        description: "Branch naming strategy (default: 'reusable'). 'reusable' reuses
+          the same branch, 'unique-per-run' creates a new branch per run,
+          'unique-and-delete' creates and deletes after merge."
       branchPrefix:
         type: string
+        description: "Custom branch prefix (default: 'pipeline')"
       mergeStrategy:
         $ref: "#/definitions/MergeStrategy"
+        description: "How to handle completed pipeline work (default: 'none')"
       pullRequest:
         $ref: "#/definitions/PRConfig"
+        description: Pull request settings (only used when mergeStrategy is 'pull-request')
       worktree:
         $ref: "#/definitions/WorktreeConfig"
+        description: Worktree settings for pipeline isolation
     additionalProperties: false
+    description: Git workflow — commits, branches, PRs, worktree isolation
   MergeStrategy:
     type: string
     enum:
@@ -82,35 +110,52 @@ definitions:
     properties:
       title:
         type: string
+        description: Custom PR title. Supports {{variable}} interpolation. Has smart
+          default if omitted.
       body:
         type: string
+        description: Custom PR body. Supports {{variable}} interpolation. Defaults to a
+          stage summary.
       reviewers:
         type: array
         items:
           type: string
+        description: GitHub usernames to request review from
       labels:
         type: array
         items:
           type: string
+        description: Labels to apply to the PR
       draft:
         type: boolean
+        description: "Create as draft PR (default: false)"
       assignees:
         type: array
         items:
           type: string
+        description: GitHub usernames to assign to the PR
       milestone:
         type: string
+        description: Milestone name or number to add the PR to
       web:
         type: boolean
+        description: "Open PR in browser for interactive editing (default: false)"
     additionalProperties: false
+    description: GitHub pull request settings
   WorktreeConfig:
     type: object
     properties:
       directory:
         type: string
+        description: "Override default worktree directory (default:
+          .agent-pipeline/worktrees)"
     additionalProperties: false
-    description: Worktree configuration for pipeline isolation Pipelines execute in
-      dedicated git worktrees, leaving user's working directory untouched
+    description: >-
+      Worktree configuration for pipeline isolation
+
+
+      Pipelines execute in dedicated git worktrees, leaving the user's working
+      directory untouched.
   ExecutionConfig:
     type: object
     properties:
@@ -119,15 +164,20 @@ definitions:
         enum:
           - sequential
           - parallel
+        description: "Execution strategy: sequential runs stages one-by-one, parallel
+          uses DAG-planned concurrency (default: 'parallel')"
       failureStrategy:
         type: string
         enum:
           - stop
           - continue
+        description: "Default failure handling for stages without explicit onFail
+          (default: 'continue')"
       permissionMode:
         $ref: "#/definitions/PermissionMode"
+        description: "Permission mode for agents (default: 'acceptEdits')"
     additionalProperties: false
-    description: Execution configuration - controls pipeline runtime behavior
+    description: Execution configuration — controls pipeline runtime behavior
   PermissionMode:
     type: string
     enum:
@@ -152,10 +202,15 @@ definitions:
     properties:
       directory:
         type: string
+        description: 'Base handover directory. RunId is always appended for run
+          isolation. Default: .agent-pipeline/runs/{pipeline-name}-{runId}/
+          Custom example: ".my-handover" → ".my-handover/{runId}/"'
       instructions:
         type: string
+        description: "Path to handover instructions template (default:
+          .agent-pipeline/instructions/handover.md)"
     additionalProperties: false
-    description: Handover configuration - inter-stage communication settings
+    description: Handover configuration — inter-stage communication settings
   NotificationConfig:
     type: object
     properties:
@@ -213,90 +268,142 @@ definitions:
     properties:
       enabled:
         type: boolean
+        description: Enable looping for this pipeline
       maxIterations:
         type: number
+        description: "Maximum number of loop iterations before stopping (default: 100)"
       instructions:
         type: string
+        description: "Path to loop instructions template (default:
+          .agent-pipeline/instructions/loop.md)"
       directories:
         type: object
         properties:
           pending:
             type: string
+            description: "Directory for pending loop iterations (default:
+              .agent-pipeline/loops/{sessionId}/pending)"
           running:
             type: string
+            description: "Directory for currently running iteration (default:
+              .agent-pipeline/loops/{sessionId}/running)"
           finished:
             type: string
+            description: "Directory for completed iterations (default:
+              .agent-pipeline/loops/{sessionId}/finished)"
           failed:
             type: string
+            description: "Directory for failed iterations (default:
+              .agent-pipeline/loops/{sessionId}/failed)"
         additionalProperties: false
+        description: Custom directories for loop queue management (defaults to
+          .agent-pipeline/loops/{sessionId}/)
     required:
       - enabled
     additionalProperties: false
+    description: >-
+      Pipeline looping for iterative execution
+
+
+      When enabled, a loop agent evaluates after each full pipeline run and
+      decides whether to queue the next iteration.
   RuntimeConfig:
     type: object
     properties:
       type:
         type: string
+        description: Runtime type identifier (e.g., 'claude-sdk',
+          'claude-code-headless', 'codex-headless')
       options:
         type: object
         additionalProperties: {}
+        description: Runtime-specific options (model, maxTurns, maxThinkingTokens, etc.)
     required:
       - type
     additionalProperties: false
-    description: "Runtime configuration for agent execution Supports multiple
-      runtime types: 'claude-sdk', 'claude-code-headless', 'codex-headless',
-      etc."
+    description: >-
+      Runtime configuration for agent execution
+
+
+      Supports multiple runtime types: 'claude-sdk', 'claude-code-headless',
+      'codex-headless', 'gemini-headless', 'pi-agent-headless', etc.
   AgentStageConfig:
     type: object
     properties:
       name:
         type: string
+        description: Unique stage identifier. Used for dependsOn references, handover
+          directories, and logging. To reuse an agent, give each instance a
+          different name (e.g., coder-1, coder-2).
       agent:
         type: string
+        description: Path to the agent markdown file. Can be reused across stages with
+          different names.
       runtime:
         $ref: "#/definitions/RuntimeConfig"
+        description: Override pipeline-level runtime for this stage
       enabled:
         type: boolean
+        description: "Set to false to skip this stage (default: true)"
       onFail:
         type: string
         enum:
           - stop
           - continue
           - warn
+        description: "Failure handling: stop pipeline, continue to next stage, or warn
+          and continue (default: inherited from execution.failureStrategy)"
       timeout:
         type: number
+        description: "Max execution time in seconds (default: 900 / 15 min). Warnings at
+          5, 10, 13 min."
       dependsOn:
         type: array
         items:
           type: string
+        description: Stage names this stage depends on (DAG edges)
       retry:
         $ref: "#/definitions/RetryConfig"
+        description: Retry configuration for transient failures
       inputs:
         type: object
         additionalProperties:
           type: string
+        description: Additional key-value context passed to the agent. Supports
+          {{variable}} interpolation.
     required:
       - name
       - agent
     additionalProperties: false
+    description: >-
+      Individual agent stage configuration
+
+
+      Each stage runs a single agent file with optional dependencies, retry
+      logic, runtime overrides, and context inputs.
   RetryConfig:
     type: object
     properties:
       maxAttempts:
         type: number
+        description: "Maximum number of retry attempts (default: 3)"
       backoff:
         type: string
         enum:
           - exponential
           - linear
           - fixed
+        description: Backoff strategy between retries
       initialDelay:
         type: number
+        description: "Initial delay in milliseconds (default: 1000)"
       maxDelay:
         type: number
+        description: "Maximum delay in milliseconds (default: 30000)"
     required:
       - maxAttempts
       - backoff
     additionalProperties: false
+    description: Retry behavior with configurable backoff
 title: Agent Pipeline Configuration
 description: Schema for .agent-pipeline/pipelines/*.yml configuration files
