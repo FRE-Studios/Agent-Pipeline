@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-08-06
+
+### Removed
+
+- **Gemini Headless runtime** (breaking) – Google deprecated the Gemini CLI. `runtime.type: gemini-headless` now fails validation with the available-runtime list. Migrate to `antigravity-headless` and remap `runtimeOptions`: `yolo`/`approvalMode`/`debug` are gone; `sandbox` is a boolean rather than a string.
+
+### Added
+
+- **Antigravity Headless runtime** – New agent runtime for Google's Antigravity CLI (`agy`), serving Gemini, Claude, and GPT-OSS models. Delivers the prompt as the `-p` argument, parses the `stream-json` event feed for text, token usage, and live tool activity, and adds `effort`, `agent`, `addDirs`, and `jsonSchema` options.
+- **Token tracking for the Google runtime** – `agy` reports input, output, thinking, and cache-read tokens; the Gemini runtime reported none.
+
+### Changed
+
+- **Antigravity auth is Google sign-in** (breaking) – `GEMINI_API_KEY`/`GOOGLE_API_KEY` no longer authenticate the Google runtime. Run `agy` interactively once per machine, including on CI hosts.
+- **Antigravity permission handling** – `agy`'s `--mode` sets execution posture, not permission mode, so `acceptEdits` leaves tools auto-denied. Use `bypassPermissions` or `permissions.allow` rules in `agy`'s `settings.json`. A denied tool exits 0 with empty output, which the runtime now raises as an error so stage retries engage.
+- **Workspace preamble** – The runtime names the absolute working directory in the prompt; without it `agy` writes to its own scratch directory and stages commit nothing.
+
+## [0.1.4] - 2026-03-19
+
+### Added
+
+- **Pipeline-wide template interpolation** – New `TemplateInterpolator` (`src/utils/template-interpolator.ts`) centralizes `{{variable}}` replacement across `git.commitPrefix`, `git.pullRequest.title`, `git.pullRequest.body`, and stage `inputs` values; previously only `{{stage}}` in `commitPrefix` was substituted. Context builds in layers: pipeline (`{{pipelineName}}`, `{{runId}}`, `{{trigger}}`, `{{timestamp}}`, `{{baseBranch}}`) → run (`{{branch}}`, `{{initialCommit}}`) → stage (`{{stage}}`, `{{stageIndex}}`). Unknown variables are left as-is at runtime.
+- **Template-variable validation** – `GitValidator` warns when `commitPrefix`, `pullRequest.title`, or `pullRequest.body` reference unknown variables, naming each offending placeholder. `{{stage}}` and `{{stageIndex}}` are valid only in `commitPrefix`, since PR templates resolve outside stage scope.
+- **Branch fallback for template context** – `{{branch}}` resolves to the pipeline branch, then the currently checked-out branch, then `HEAD`, instead of an empty string when a run has no isolation branch. Backed by a new `GitManager.getCurrentBranch()`.
+- **Multi-runtime schema example** – `agent-pipeline schema --examples` gained an example mixing runtimes across stages.
+- **Template Variables reference** – `docs/configuration.md` documents every variable, its scope, and the caveat that parallel sibling stages can share a `{{stageIndex}}`.
+
+### Changed
+
+- **`schema` command output** – All 10 user-facing config interfaces (`PipelineConfig`, `AgentStageConfig`, `RetryConfig`, `RuntimeConfig`, `GitConfig`, `PRConfig`, `WorktreeConfig`, `ExecutionConfig`, `HandoverConfig`, `LoopingConfig`) carry JSDoc on the interface and on each field, which now flows into the generated JSON and YAML schema templates. Types were reordered so user-facing config reads top-down and internal types sit at the bottom.
+- **Schema example annotations** – The minimal template and every shipped example gained inline comments explaining each field.
+- **YAML colorization** – `colorizeYaml` now dims inline comments on key-only lines (`inputs:  # ...`), list-item key-values (`- name: planner  # ...`), and plain list items; these were previously colored as string values.
+
 ## [0.1.3] - 2026-02-14
 
 ### Added
@@ -58,7 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`gh` CLI errors** – Errors from `gh` are now properly logged and surfaced to the user
 - **Error diagnostics** – `stdout` is included in error output for easier debugging
 
-## [0.1.1] - 2025-01-26
+## [0.1.1] - 2026-01-26
 
 ### Added
 
