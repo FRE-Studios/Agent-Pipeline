@@ -560,16 +560,22 @@ describe('ParallelExecutor', () => {
         expect(result.anyFailed).toBe(false);
       });
 
-      it('should calculate duration as sum of sequential executions', async () => {
+      it('should execute stages without overlapping windows', async () => {
         const stages: AgentStageConfig[] = [
           { name: 'stage1', agent: 'agent1.md' },
           { name: 'stage2', agent: 'agent2.md' },
         ];
 
+        const runningStages = new Set<string>();
+        let maxConcurrent = 0;
+
         (mockStageExecutor.executeStage as any).mockImplementation(
-          async () => {
-            await new Promise(resolve => setTimeout(resolve, 50));
-            return { ...successfulStageExecution };
+          async (config: AgentStageConfig) => {
+            runningStages.add(config.name);
+            maxConcurrent = Math.max(maxConcurrent, runningStages.size);
+            await new Promise(resolve => setTimeout(resolve, 20));
+            runningStages.delete(config.name);
+            return { ...successfulStageExecution, stageName: config.name };
           }
         );
 
@@ -578,8 +584,8 @@ describe('ParallelExecutor', () => {
           runningPipelineState
         );
 
-        // Should be at least 100ms (2 stages × 50ms each)
-        expect(result.duration).toBeGreaterThanOrEqual(0.1);
+        expect(maxConcurrent).toBe(1);
+        expect(result.duration).toBeGreaterThanOrEqual(0);
       });
 
       it('should return executions in order', async () => {

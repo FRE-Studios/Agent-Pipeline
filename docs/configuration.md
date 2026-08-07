@@ -231,7 +231,7 @@ runtime:
 runtime:
   type: pi-agent
   options:
-    model: claude-sonnet-4-20250514    # Provider inferred from model name
+    model: claude-sonnet-4-5    # Provider inferred from model name; `pi --list-models` lists options
 ```
 
 **Pi Agent with explicit provider:**

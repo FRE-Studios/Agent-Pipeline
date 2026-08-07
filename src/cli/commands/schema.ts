@@ -341,7 +341,7 @@ agents:
     runtime:
       type: pi-agent                  # Use Pi Agent (multi-provider)
       options:
-        model: claude-sonnet-4-20250514
+        model: claude-sonnet-4-5      # Run "pi --list-models" to see options
         thinking: medium              # Extended thinking level
 
 ---
