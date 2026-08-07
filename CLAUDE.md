@@ -41,7 +41,7 @@ The pipeline executes in this order:
 
 **State Management**: Each pipeline run gets a unique `runId`. State is saved after each stage group completes by `StateManager`. This enables rollback, analytics, and history browsing.
 
-**Git Workflow**: Pipelines run on isolated branches (`pipeline/{name}` or `pipeline/{name}-{runId}`). Each stage creates an atomic commit. Original branch is restored after completion.
+**Git Workflow**: Pipelines run on isolated branches (`pipeline/{name}` or `pipeline/{name}/{runId}`, runId truncated to 8 chars). Each stage creates an atomic commit. Original branch is restored after completion.
 
 **Output Extraction**: Agents report structured data via MCP `report_outputs` tool or text format. Tool-based extraction preserves types (objects, arrays, numbers). Text-based falls back to regex. Single reusable MCP server created via `OutputToolBuilder` with generic `z.record(z.string(), z.unknown())` schema.
 
@@ -49,7 +49,7 @@ The pipeline executes in this order:
 
 **UI Architecture**: Dual-mode operation - Interactive mode uses Ink/React terminal UI (`src/ui/pipeline-ui.tsx`) with real-time updates. Non-interactive mode uses simple console logging.
 
-**Permission Control**: Agents default to `acceptEdits` mode for automated workflows, allowing file operations without prompts while respecting `.claude/settings.json` allow/deny rules. Configurable per pipeline via `settings.permissionMode`.
+**Permission Control**: Agents default to `acceptEdits` mode for automated workflows, allowing file operations without prompts while respecting `.claude/settings.json` allow/deny rules. Configurable per pipeline via `execution.permissionMode`.
 
 **Template Interpolation**: `TemplateInterpolator` (`src/utils/template-interpolator.ts`) provides `{{variable}}` replacement across commit prefixes, PR titles/bodies, and stage inputs. Context builds progressively: static (pipeline-level) → run (branch, commit) → stage (name, index).
 
@@ -122,7 +122,7 @@ Tests use Vitest with extensive mocking:
 
 **Branch Strategies**:
 - `reusable` - Same branch per pipeline (`pipeline/commit-review`)
-- `unique-per-run` - Unique branch per run (`pipeline/commit-review-{runId}`)
+- `unique-per-run` - Unique branch per run (`pipeline/commit-review/{runId}`)
 
 **Dry Run Mode**: When enabled, skip all git commits but execute agents. Useful for testing pipelines.
 

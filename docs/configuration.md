@@ -73,7 +73,7 @@ looping:
 
 # Runtime configuration - agent execution backend
 runtime:
-  type: claude-code-headless         # claude-code-headless (default), claude-sdk, codex-headless, gemini-headless, or pi-agent
+  type: claude-code-headless         # claude-code-headless (default), claude-sdk, codex-headless, antigravity-headless, or pi-agent
   options:
     model: sonnet                    # haiku, sonnet, or opus
 
@@ -188,7 +188,7 @@ Inter-stage communication settings are under the `handover:` section:
 
 ## Runtime Configuration
 
-Agent Pipeline supports multiple agent execution backends via the `runtime` field. The default is `claude-code-headless` (Claude Code CLI), which provides the full Claude Code tool suite (Bash, Read, Write, etc.) and local execution. Other options include `claude-sdk` for library-based execution with MCP tools, `codex-headless` for OpenAI's Codex CLI with filesystem tools, `gemini-headless` for Google's Gemini CLI with tool use and sandbox modes, and `pi-agent` for multi-provider execution via the Pi Agent CLI with built-in tools (read, bash, edit, write, grep, find, ls).
+Agent Pipeline supports multiple agent execution backends via the `runtime` field. The default is `claude-code-headless` (Claude Code CLI), which provides the full Claude Code tool suite (Bash, Read, Write, etc.) and local execution. Other options include `claude-sdk` for library-based execution with MCP tools, `codex-headless` for OpenAI's Codex CLI with filesystem tools, `antigravity-headless` for Google's Antigravity CLI (`agy`), and `pi-agent` for multi-provider execution via the Pi Agent CLI with built-in tools (read, bash, edit, write, grep, find, ls).
 
 **Pipeline-level runtime** (applies to all stages unless overridden):
 ```yaml
@@ -218,12 +218,12 @@ runtime:
     sandbox: workspace-write
 ```
 
-**Gemini headless example:**
+**Antigravity headless example:**
 ```yaml
 runtime:
-  type: gemini-headless
+  type: antigravity-headless
   options:
-    model: gemini-2.5-flash
+    model: gemini-3.6-flash-medium   # Run `agy models` to list options
 ```
 
 **Pi Agent example (works with Anthropic, OpenAI, Google, Mistral, Groq, xAI, OpenRouter, etc.):**
@@ -247,13 +247,19 @@ runtime:
 **Available Runtimes:**
 - `claude-code-headless` (default): Full Claude Code tool suite, local execution, session continuation support
 - `codex-headless`: Codex CLI execution via `codex exec` (local auth or API key)
-- `gemini-headless`: Gemini CLI execution with tool use, sandbox, and approval modes
+- `antigravity-headless`: Antigravity CLI (`agy`) execution with tool use, sandbox, and token tracking; serves Gemini, Claude, and GPT-OSS models
 - `claude-sdk`: Library-based execution, MCP tools, used internally for context reduction
 - `pi-agent`: Multi-provider coding agent via Pi Agent CLI with built-in tools (15+ providers)
 
 **Codex Auth:** `codex-headless` works with local Codex auth, `OPENAI_API_KEY`, or `CODEX_API_KEY` via CLI config.
 
-**Gemini Auth:** `gemini-headless` uses `GEMINI_API_KEY` or `GOOGLE_API_KEY` for authentication. Run `gemini` interactively once to complete initial setup.
+**Antigravity Auth:** `agy` authenticates via Google sign-in only — `GEMINI_API_KEY` and `GOOGLE_API_KEY` are ignored. Run `agy` interactively once per machine to establish the session; CI and headless hosts need that first run too.
+
+**Antigravity Permissions:** `agy`'s `--mode` sets execution posture, not permission mode, so `acceptEdits` still leaves tools auto-denied — and a denied tool exits 0 with empty output. Use `permissionMode: bypassPermissions`, or add `permissions.allow` rules to `agy`'s `settings.json`. Note that `plan` is a planning posture, not a write barrier.
+
+**Antigravity Models:** Gemini model names embed an effort tier (`gemini-3.6-flash-low|medium|high`), so setting `effort` alongside one is redundant and fails the run unless it matches exactly. Either name the tier, or pair an untiered name with `effort` (`model: gemini-3.6-flash` + `effort: low`). Claude and GPT-OSS models reject `effort` entirely.
+
+**Antigravity Options:** `model`, `effort` (low/medium/high — see above), `agent` (named `agy` agent), `sandbox` (boolean), `addDirs` (extra workspace directories), `jsonSchema`, `args` (extra CLI args passthrough).
 
 **Pi Agent Auth:** API key resolution order: `runtimeOptions.apiKey` (inline) → `process.env[runtimeOptions.apiKeyEnv]` → Pi Agent's own per-provider env var resolution (e.g., `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`). Pi Agent infers the provider from the model name (e.g., `claude-*` → Anthropic, `gpt-*` → OpenAI, `gemini-*` → Google). Use `provider` for disambiguation or custom providers.
 
