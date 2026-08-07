@@ -362,7 +362,7 @@
         "type"
       ],
       "additionalProperties": false,
-      "description": "Runtime configuration for agent execution\n\nSupports multiple runtime types: 'claude-sdk', 'claude-code-headless', 'codex-headless', 'gemini-headless', 'pi-agent-headless', etc."
+      "description": "Runtime configuration for agent execution\n\nSupports multiple runtime types: 'claude-sdk', 'claude-code-headless', 'codex-headless', 'antigravity-headless', 'pi-agent', etc."
     },
     "AgentStageConfig": {
       "type": "object",

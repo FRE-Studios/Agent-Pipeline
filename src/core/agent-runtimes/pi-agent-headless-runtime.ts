@@ -461,7 +461,7 @@ export class PiAgentHeadlessRuntime implements AgentRuntime {
       return activities;
     }
 
-    // Fallback: scan for generic tool call structures (same as Gemini runtime)
+    // Fallback: scan for generic tool call structures
     const addActivity = (name: unknown, input: unknown, id?: unknown) => {
       if (typeof name !== 'string' || !name) return;
       if (typeof id === 'string' && emittedToolCallIds.has(id)) return;

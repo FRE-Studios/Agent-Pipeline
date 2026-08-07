@@ -311,7 +311,7 @@ agents:
 ---
 # =============================================================================
 # Example 6: Multi-Runtime Pipeline
-# Mix runtimes (Codex, Gemini, Pi Agent) at pipeline and stage level
+# Mix runtimes (Codex, Antigravity, Pi Agent) at pipeline and stage level
 # =============================================================================
 
 name: multi-runtime
@@ -331,9 +331,9 @@ agents:
     agent: .agent-pipeline/agents/reviewer.md
     dependsOn: [scaffold]
     runtime:                         # Override runtime for this stage only
-      type: gemini-headless           # Use Gemini CLI instead
+      type: antigravity-headless      # Use Antigravity CLI (agy) instead
       options:
-        model: gemini-2.5-flash       # Gemini model
+        model: gemini-3.6-flash-medium  # Run "agy models" to list options
 
   - name: polish
     agent: .agent-pipeline/agents/polisher.md

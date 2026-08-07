@@ -326,7 +326,7 @@ definitions:
 
 
       Supports multiple runtime types: 'claude-sdk', 'claude-code-headless',
-      'codex-headless', 'gemini-headless', 'pi-agent-headless', etc.
+      'codex-headless', 'antigravity-headless', 'pi-agent', etc.
   AgentStageConfig:
     type: object
     properties:

@@ -92,7 +92,7 @@ export interface RetryConfig {
  * Runtime configuration for agent execution
  *
  * Supports multiple runtime types: 'claude-sdk', 'claude-code-headless',
- * 'codex-headless', 'gemini-headless', 'pi-agent-headless', etc.
+ * 'codex-headless', 'antigravity-headless', 'pi-agent', etc.
  */
 export interface RuntimeConfig {
   /** Runtime type identifier (e.g., 'claude-sdk', 'claude-code-headless', 'codex-headless') */

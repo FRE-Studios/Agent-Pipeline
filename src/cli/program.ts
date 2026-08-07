@@ -10,7 +10,7 @@ import { AgentRuntimeRegistry } from '../core/agent-runtime-registry.js';
 import { ClaudeSDKRuntime } from '../core/agent-runtimes/claude-sdk-runtime.js';
 import { ClaudeCodeHeadlessRuntime } from '../core/agent-runtimes/claude-code-headless-runtime.js';
 import { CodexHeadlessRuntime } from '../core/agent-runtimes/codex-headless-runtime.js';
-import { GeminiHeadlessRuntime } from '../core/agent-runtimes/gemini-headless-runtime.js';
+import { AntigravityHeadlessRuntime } from '../core/agent-runtimes/antigravity-headless-runtime.js';
 import { PiAgentHeadlessRuntime } from '../core/agent-runtimes/pi-agent-headless-runtime.js';
 
 // Update checker
@@ -56,7 +56,7 @@ async function registerRuntimes(): Promise<void> {
     { name: 'Claude SDK', create: () => new ClaudeSDKRuntime(), validate: false },
     { name: 'Claude Code Headless', create: () => new ClaudeCodeHeadlessRuntime(), validate: true },
     { name: 'Codex Headless', create: () => new CodexHeadlessRuntime(), validate: true },
-    { name: 'Gemini Headless', create: () => new GeminiHeadlessRuntime(), validate: true },
+    { name: 'Antigravity Headless', create: () => new AntigravityHeadlessRuntime(), validate: true },
     { name: 'Pi Agent Headless', create: () => new PiAgentHeadlessRuntime(), validate: true },
   ];
 
